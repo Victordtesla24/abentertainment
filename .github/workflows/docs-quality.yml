@@ -43,9 +43,8 @@ jobs:
         with:
           fail: true
           args: >-
-            --root-dir "$(pwd)"
+            --root-dir .
             --no-progress
-            --exclude-mail
             --accept 200,206,429
             --max-retries 3
             --retry-wait-time 2
