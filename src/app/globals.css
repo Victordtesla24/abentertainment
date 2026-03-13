@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+/* ─── AB Entertainment Design Tokens ─── */
+
+:root {
+  /* Primary palette */
+  --charcoal: #1A1A1A;
+  --gold: #C9A84C;
+  --ivory: #F5F0E8;
+  --burgundy: #6B1D3A;
+
+  /* Extended palette */
+  --gold-light: #D4BA6A;
+  --gold-dark: #A88B3D;
+  --charcoal-light: #2A2A2A;
+  --charcoal-deep: #111111;
+  --ivory-warm: #FAF7F2;
+  --burgundy-light: #8B2E50;
+
+  /* Semantic tokens - Light mode */
+  --background: var(--ivory-warm);
+  --foreground: var(--charcoal);
+  --surface: #FFFFFF;
+  --surface-elevated: #FFFFFF;
+  --muted: #F5F0E8;
+  --muted-foreground: #6B7280;
+  --accent: var(--gold);
+  --accent-foreground: var(--charcoal);
+  --border: #E5E0D8;
+  --ring: var(--gold);
+
+  /* Typography scale (fluid) */
+  --font-display: 'Playfair Display', serif;
+  --font-body: 'Satoshi', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Spacing (8px grid) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+
+  /* Transitions */
+  --ease-luxury: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 200ms;
+  --duration-normal: 400ms;
+  --duration-slow: 800ms;
+  --duration-cinematic: 1200ms;
+}
+
+/* Dark mode tokens */
+.dark {
+  --background: var(--charcoal);
+  --foreground: var(--ivory);
+  --surface: var(--charcoal-light);
+  --surface-elevated: #333333;
+  --muted: #2A2A2A;
+  --muted-foreground: #9CA3AF;
+  --accent: var(--gold);
+  --accent-foreground: var(--charcoal);
+  --border: #333333;
+  --ring: var(--gold);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+
+  /* Brand colors */
+  --color-charcoal: #1A1A1A;
+  --color-charcoal-light: #2A2A2A;
+  --color-charcoal-deep: #111111;
+  --color-gold: #C9A84C;
+  --color-gold-light: #D4BA6A;
+  --color-gold-dark: #A88B3D;
+  --color-ivory: #F5F0E8;
+  --color-ivory-warm: #FAF7F2;
+  --color-burgundy: #6B1D3A;
+  --color-burgundy-light: #8B2E50;
+
+  /* Font families */
+  --font-display: 'Playfair Display', serif;
+  --font-body: 'Satoshi', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ─── Base Styles ─── */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold) transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--gold);
+  color: var(--charcoal);
+}
+
+/* ─── Typography Utilities ─── */
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* ─── Smooth scrollbar ─── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gold);
+  border-radius: 3px;
+}
+
+/* ─── Focus styles ─── */
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ─── Page transition base ─── */
+
+.page-transition-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--duration-slow) var(--ease-luxury),
+              transform var(--duration-slow) var(--ease-luxury);
+}
