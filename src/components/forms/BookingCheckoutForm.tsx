@@ -6,13 +6,18 @@ import { initialActionState } from "@/lib/actions/form-state";
 
 interface BookingCheckoutFormProps {
   eventSlug: string;
+  mode: "checkout" | "request";
 }
 
-export function BookingCheckoutForm({ eventSlug }: BookingCheckoutFormProps) {
+export function BookingCheckoutForm({
+  eventSlug,
+  mode,
+}: BookingCheckoutFormProps) {
   const [state, formAction, isPending] = useActionState(
     beginBookingCheckout,
     initialActionState
   );
+  const isRequestMode = mode === "request";
 
   const fieldClassName =
     "w-full rounded-2xl border border-ivory/10 bg-charcoal px-4 py-3 font-body text-sm text-ivory placeholder:text-ivory/30 transition-colors duration-300 focus:border-gold/40 focus:outline-none focus:ring-1 focus:ring-gold/30";
@@ -82,11 +87,19 @@ export function BookingCheckoutForm({ eventSlug }: BookingCheckoutFormProps) {
         disabled={isPending}
         className="block w-full rounded-full bg-gold px-6 py-3 text-center font-body text-sm font-semibold uppercase tracking-[0.2em] text-charcoal transition-colors hover:bg-gold-light disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? "Preparing checkout..." : "Book with Stripe"}
+        {isPending
+          ? isRequestMode
+            ? "Sending request..."
+            : "Preparing checkout..."
+          : isRequestMode
+            ? "Request reservation"
+            : "Book with Stripe"}
       </button>
 
       <p className="font-body text-xs text-ivory/35">
-        You will be redirected to Stripe Checkout to complete payment securely.
+        {isRequestMode
+          ? "The team will confirm availability and send payment details after reviewing your request."
+          : "You will be redirected to Stripe Checkout to complete payment securely."}
       </p>
 
       {state.message ? (

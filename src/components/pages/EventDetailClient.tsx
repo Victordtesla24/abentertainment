@@ -10,9 +10,11 @@ import type { Event } from "@/types";
 export function EventDetailClient({
   event,
   bookingStatus,
+  bookingMode,
 }: {
   event: Event;
   bookingStatus?: string;
+  bookingMode: "checkout" | "request";
 }) {
   const jsonLd = {
     "@context": "https://schema.org",
@@ -88,7 +90,7 @@ export function EventDetailClient({
           <div className="absolute inset-0 bg-gradient-to-t from-charcoal via-charcoal/40 to-transparent" />
           <div className="relative z-10 mx-auto w-full max-w-5xl px-6 pb-12">
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{
                 duration: ANIMATION.duration.cinematic,
@@ -115,7 +117,7 @@ export function EventDetailClient({
 
         <div className="mx-auto max-w-5xl px-6 py-16">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{
               duration: ANIMATION.duration.normal,
@@ -228,13 +230,13 @@ export function EventDetailClient({
               ) : null}
 
               {event.status === "upcoming" || event.status === "live" ? (
-                <BookingCheckoutForm eventSlug={event.slug} />
+                <BookingCheckoutForm eventSlug={event.slug} mode={bookingMode} />
               ) : null}
             </aside>
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0 }}
+            initial={false}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4, duration: ANIMATION.duration.fast }}
             className="mt-16 border-t border-ivory/10 pt-8"

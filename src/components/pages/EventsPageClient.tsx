@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
+import { ArrowRight, CalendarDays, MapPin, Ticket } from "lucide-react";
 import { formatEventDate, formatTicketRange } from "@/lib/events";
 import { ANIMATION } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -15,14 +16,11 @@ const FILTER_TABS: { label: string; value: EventStatus }[] = [
   { label: "Past", value: "past" },
 ];
 
-const cardGradients = [
-  "from-burgundy/60 to-charcoal",
-  "from-gold/40 to-charcoal",
-  "from-burgundy/40 via-charcoal to-charcoal",
-  "from-charcoal via-burgundy/30 to-charcoal",
-  "from-gold/30 via-burgundy/20 to-charcoal",
-  "from-burgundy/50 to-gold/20",
-];
+const accentSurfaces: Record<NonNullable<Event["accent"]>, string> = {
+  gold: "from-gold/16 via-gold/5 to-transparent",
+  burgundy: "from-burgundy/24 via-burgundy/8 to-transparent",
+  charcoal: "from-ivory/8 via-charcoal-light/8 to-transparent",
+};
 
 export function EventsPageClient({ events }: { events: Event[] }) {
   const [activeFilter, setActiveFilter] = useState<EventStatus>("upcoming");
@@ -33,38 +31,74 @@ export function EventsPageClient({ events }: { events: Event[] }) {
       : event.status === "past"
   );
 
+  const [leadEvent, ...remainingEvents] = filteredEvents;
+
   return (
-    <section className="min-h-screen bg-charcoal">
-      <div className="relative flex flex-col items-center justify-center px-6 pb-16 pt-32 text-center md:pt-40">
-        <motion.h1
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: ANIMATION.duration.cinematic,
-            ease: ANIMATION.ease.luxury,
-          }}
-          className="font-display text-5xl font-bold tracking-tight text-ivory md:text-7xl"
-        >
-          Events
-        </motion.h1>
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: ANIMATION.duration.normal,
-            ease: ANIMATION.ease.luxury,
-            delay: 0.2,
-          }}
-          className="mt-4 max-w-xl font-body text-lg text-ivory/70"
-        >
-          Curating unforgettable cultural experiences across Australia and New
-          Zealand since 2007.
-        </motion.p>
+    <section className="min-h-screen pb-24">
+      <div className="relative px-6 pb-12 pt-32 md:pt-40">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_0.92fr] lg:items-start">
+          <div>
+            <p className="eyebrow-label">The Program</p>
+            <motion.h1
+              initial={false}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: ANIMATION.duration.cinematic,
+                ease: ANIMATION.ease.luxury,
+              }}
+              className="mt-8 max-w-3xl font-display text-5xl font-medium leading-[0.94] text-ivory md:text-6xl lg:text-[5.15rem]"
+            >
+              Events presented with the gravity of a season launch.
+            </motion.h1>
+            <motion.p
+              initial={false}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                delay: 0.1,
+                duration: ANIMATION.duration.normal,
+                ease: ANIMATION.ease.luxury,
+              }}
+              className="mt-7 max-w-2xl font-body text-base leading-relaxed text-ivory/58 md:text-lg"
+            >
+              This page should feel curated, not dumped into a grid. Visitors need clear hierarchy, visual drama, and strong booking cues for upcoming and archived productions alike.
+            </motion.p>
+          </div>
+
+          <div className="luxury-panel rounded-[2rem] p-6 md:p-8">
+            <p className="font-body text-[0.62rem] uppercase tracking-[0.34em] text-gold/72">
+              Program Notes
+            </p>
+            <div className="mt-6 grid grid-cols-3 gap-3">
+              <div className="rounded-[1.3rem] border border-ivory/10 bg-ivory/5 p-4">
+                <p className="font-body text-[0.58rem] uppercase tracking-[0.28em] text-ivory/34">
+                  Upcoming
+                </p>
+                <p className="mt-2 font-display text-2xl text-gold">
+                  {events.filter((event) => event.status === "upcoming" || event.status === "live").length}
+                </p>
+              </div>
+              <div className="rounded-[1.3rem] border border-ivory/10 bg-ivory/5 p-4">
+                <p className="font-body text-[0.58rem] uppercase tracking-[0.28em] text-ivory/34">
+                  Archive
+                </p>
+                <p className="mt-2 font-display text-2xl text-gold">
+                  {events.filter((event) => event.status === "past").length}
+                </p>
+              </div>
+              <div className="rounded-[1.3rem] border border-ivory/10 bg-ivory/5 p-4">
+                <p className="font-body text-[0.58rem] uppercase tracking-[0.28em] text-ivory/34">
+                  Markets
+                </p>
+                <p className="mt-2 font-display text-2xl text-gold">AU/NZ</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="mx-auto max-w-7xl px-6">
         <div
-          className="mb-10 flex items-center justify-center gap-2"
+          className="inline-flex rounded-full border border-ivory/10 bg-ivory/5 p-2"
           role="tablist"
           aria-label="Filter events by status"
         >
@@ -75,10 +109,10 @@ export function EventsPageClient({ events }: { events: Event[] }) {
               aria-selected={activeFilter === tab.value}
               onClick={() => setActiveFilter(tab.value)}
               className={cn(
-                "rounded-full px-6 py-2 font-body text-sm font-medium transition-all duration-300",
+                "rounded-full px-5 py-2.5 font-body text-xs uppercase tracking-[0.24em] transition-all duration-300",
                 activeFilter === tab.value
                   ? "bg-gold text-charcoal"
-                  : "border border-ivory/20 text-ivory/60 hover:border-gold/40 hover:text-ivory"
+                  : "text-ivory/55 hover:text-ivory"
               )}
             >
               {tab.label}
@@ -89,42 +123,111 @@ export function EventsPageClient({ events }: { events: Event[] }) {
         <AnimatePresence mode="wait">
           <motion.div
             key={activeFilter}
-            initial={{ opacity: 0 }}
+            initial={false}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: ANIMATION.duration.fast }}
-            className="grid grid-cols-1 gap-8 pb-24 md:grid-cols-2 lg:grid-cols-3"
+            className="mt-10 grid gap-6"
             role="tabpanel"
             aria-label={`${activeFilter} events`}
           >
-            {filteredEvents.map((event, index) => (
-              <motion.article
-                key={event.id}
-                initial={{ opacity: 0, y: 40 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: ANIMATION.duration.normal,
-                  ease: ANIMATION.ease.luxury,
-                  delay: index * ANIMATION.stagger.normal,
-                }}
-                className="group overflow-hidden rounded-2xl border border-ivory/10 bg-charcoal transition-colors duration-300 hover:border-gold/30"
-              >
+            {leadEvent ? (
+              <article className="luxury-panel relative overflow-hidden rounded-[2.2rem] p-8 md:p-10">
                 <div
                   className={cn(
-                    "aspect-[16/10] w-full bg-gradient-to-br",
-                    cardGradients[index % cardGradients.length]
+                    "absolute inset-0 bg-gradient-to-br opacity-95",
+                    accentSurfaces[leadEvent.accent ?? "gold"]
                   )}
                   aria-hidden="true"
                 />
+                <div className="relative grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+                  <div>
+                    <p className="font-body text-[0.62rem] uppercase tracking-[0.34em] text-gold/72">
+                      {activeFilter === "upcoming" ? "Lead Event" : "Archive Highlight"}
+                    </p>
+                    <h2 className="mt-5 font-display text-4xl leading-tight text-ivory md:text-5xl">
+                      {leadEvent.title}
+                    </h2>
+                    <p className="mt-5 font-body text-base leading-relaxed text-ivory/58 md:text-lg">
+                      {leadEvent.description}
+                    </p>
+                    <div className="mt-8 space-y-3 font-body text-sm text-ivory/52">
+                      <p className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4 text-gold/75" strokeWidth={1.8} />
+                        {formatEventDate(leadEvent.date, {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-gold/75" strokeWidth={1.8} />
+                        {leadEvent.venue.name}
+                      </p>
+                      {formatTicketRange(leadEvent) ? (
+                        <p className="flex items-center gap-2">
+                          <Ticket className="h-4 w-4 text-gold/75" strokeWidth={1.8} />
+                          {formatTicketRange(leadEvent)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
 
-                <div className="p-6">
-                  <h2 className="font-display text-xl font-semibold text-ivory transition-colors duration-300 group-hover:text-gold">
+                  <div className="grid gap-4">
+                    {(leadEvent.story ?? [leadEvent.description ?? ""]).slice(0, 3).map((paragraph, index) => (
+                      <div
+                        key={`${leadEvent.id}-${index}`}
+                        className="rounded-[1.5rem] border border-ivory/10 bg-charcoal/54 p-5"
+                      >
+                        <p className="font-body text-[0.58rem] uppercase tracking-[0.28em] text-gold/68">
+                          Scene 0{index + 1}
+                        </p>
+                        <p className="mt-3 font-body text-sm leading-relaxed text-ivory/56">
+                          {paragraph}
+                        </p>
+                      </div>
+                    ))}
+                    <Link
+                      href={`/events/${leadEvent.slug}`}
+                      className="inline-flex items-center gap-3 rounded-full bg-gold px-6 py-3 font-body text-sm uppercase tracking-[0.22em] text-charcoal transition-colors duration-300 hover:bg-gold-light"
+                    >
+                      View Details
+                      <ArrowRight className="h-4 w-4" strokeWidth={1.8} />
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            ) : null}
+
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {remainingEvents.map((event, index) => (
+                <motion.article
+                  key={event.id}
+                  initial={false}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: ANIMATION.duration.normal,
+                    ease: ANIMATION.ease.luxury,
+                    delay: index * ANIMATION.stagger.fast,
+                  }}
+                  className="luxury-panel group rounded-[1.9rem] p-6 transition-transform duration-300 hover:-translate-y-1"
+                >
+                  <div
+                    className={cn(
+                      "h-1 rounded-full bg-gradient-to-r",
+                      accentSurfaces[event.accent ?? "gold"]
+                    )}
+                    aria-hidden="true"
+                  />
+
+                  <h3 className="mt-6 font-display text-3xl leading-tight text-ivory">
                     {event.title}
-                  </h2>
+                  </h3>
 
                   <time
                     dateTime={event.date}
-                    className="mt-2 block font-mono text-xs tracking-wider text-gold/80"
+                    className="mt-4 block font-body text-[0.62rem] uppercase tracking-[0.3em] text-gold/72"
                   >
                     {formatEventDate(event.date, {
                       weekday: "short",
@@ -134,36 +237,29 @@ export function EventsPageClient({ events }: { events: Event[] }) {
                     })}
                   </time>
 
-                  <p className="mt-1 font-body text-sm text-ivory/50">
-                    {event.venue.name}
-                  </p>
-
-                  <p className="mt-3 font-body text-sm leading-relaxed text-ivory/70">
+                  <p className="mt-4 font-body text-sm leading-relaxed text-ivory/54">
                     {event.description}
                   </p>
 
-                  {formatTicketRange(event) ? (
-                    <p className="mt-3 font-body text-xs uppercase tracking-[0.25em] text-gold/60">
-                      {formatTicketRange(event)}
-                    </p>
-                  ) : null}
-
-                  <Link
-                    href={`/events/${event.slug}`}
-                    className="mt-5 inline-flex items-center gap-2 font-body text-sm font-medium text-gold transition-colors hover:text-gold/80"
-                    aria-label={`View details for ${event.title}`}
-                  >
-                    View Details
-                    <span
-                      aria-hidden="true"
-                      className="transition-transform group-hover:translate-x-1"
-                    >
-                      &rarr;
+                  <div className="mt-6 flex items-center justify-between gap-4">
+                    <span className="font-body text-sm text-ivory/44">
+                      {event.venue.name}
                     </span>
-                  </Link>
-                </div>
-              </motion.article>
-            ))}
+                    <Link
+                      href={`/events/${event.slug}`}
+                      className="inline-flex items-center gap-2 font-body text-xs uppercase tracking-[0.24em] text-gold transition-colors hover:text-gold-light"
+                      aria-label={`View details for ${event.title}`}
+                    >
+                      View
+                      <ArrowRight
+                        className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1"
+                        strokeWidth={1.8}
+                      />
+                    </Link>
+                  </div>
+                </motion.article>
+              ))}
+            </div>
           </motion.div>
         </AnimatePresence>
       </div>

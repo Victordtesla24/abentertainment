@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { EventDetailClient } from "@/components/pages/EventDetailClient";
+import { isPostgresConfigured, isStripeConfigured } from "@/lib/env";
 import { loadEventBySlug, loadEvents } from "@/sanity/lib/loaders";
 
 interface PageProps {
@@ -50,6 +51,9 @@ export default async function EventDetailPage({
   return (
     <EventDetailClient
       event={event}
+      bookingMode={
+        isStripeConfigured && isPostgresConfigured ? "checkout" : "request"
+      }
       bookingStatus={
         resolvedSearchParams?.booking === "success" ||
         resolvedSearchParams?.booking === "cancelled"

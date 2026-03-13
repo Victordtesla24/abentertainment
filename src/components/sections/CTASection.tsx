@@ -2,137 +2,131 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { ArrowRight, Mail, Users } from "lucide-react";
 import { NewsletterSignupForm } from "@/components/forms/NewsletterSignupForm";
 import { ANIMATION } from "@/lib/constants";
 
 export function CTASection() {
   return (
     <section
-      className="relative overflow-hidden bg-charcoal-deep py-24 md:py-32 lg:py-40"
+      className="relative overflow-hidden py-24 md:py-32 lg:py-36"
       aria-labelledby="cta-heading"
     >
-      {/* Gold gradient border at top */}
       <div
-        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/50 to-transparent"
-        aria-hidden="true"
-      />
-
-      {/* Subtle radial glow */}
-      <div
-        className="absolute inset-0 opacity-20"
+        className="absolute inset-0"
         aria-hidden="true"
         style={{
           background:
-            "radial-gradient(ellipse at 50% 0%, rgba(201, 168, 76, 0.08) 0%, transparent 60%)",
+            "radial-gradient(circle at top, rgba(201, 168, 76, 0.16), transparent 25%), radial-gradient(circle at bottom left, rgba(107, 29, 58, 0.18), transparent 24%)",
         }}
       />
 
-      <div className="relative mx-auto max-w-4xl px-6 text-center lg:px-8">
-        {/* Section label */}
-        <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.5 }}
-          transition={{ duration: ANIMATION.duration.normal }}
-          className="font-body text-xs uppercase tracking-[0.3em] text-gold/70"
-        >
-          The Curtain Call
-        </motion.p>
+      <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
+        <div className="luxury-panel rounded-[2.3rem] p-8 md:p-10 lg:p-12">
+          <div className="grid gap-10 lg:grid-cols-[1fr_0.9fr]">
+            <div>
+              <motion.p
+                initial={false}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.4 }}
+                transition={{ duration: ANIMATION.duration.normal }}
+                className="eyebrow-label"
+              >
+                The Curtain Call
+              </motion.p>
 
-        {/* Heading */}
-        <motion.h2
-          id="cta-heading"
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.5 }}
-          transition={{
-            delay: 0.1,
-            duration: ANIMATION.duration.slow,
-            ease: ANIMATION.ease.luxury,
-          }}
-          className="mt-6 font-display text-3xl font-medium leading-tight text-ivory md:text-4xl lg:text-5xl"
-        >
-          Ready to Experience
-          <br />
-          the Extraordinary?
-        </motion.h2>
+              <motion.h2
+                id="cta-heading"
+                initial={false}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.4 }}
+                transition={{ duration: ANIMATION.duration.slow, ease: ANIMATION.ease.luxury }}
+                className="mt-8 max-w-xl font-display text-4xl leading-tight text-ivory md:text-5xl lg:text-6xl"
+              >
+                Ready to experience something worthy of the stage?
+              </motion.h2>
 
-        <motion.p
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.3, duration: ANIMATION.duration.normal }}
-          className="mx-auto mt-6 max-w-xl font-body text-base leading-relaxed text-ivory/50 md:text-lg"
-        >
-          Join thousands who have witnessed the magic of live cultural
-          performances. Your next unforgettable experience awaits.
-        </motion.p>
+              <motion.p
+                initial={false}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.4 }}
+                transition={{ duration: ANIMATION.duration.normal }}
+                className="mt-6 max-w-xl font-body text-base leading-relaxed text-ivory/58 md:text-lg"
+              >
+                Join the audience, brief the team on a private production, or open a sponsor conversation. The closing section should feel composed and persuasive, not like a generic footer CTA.
+              </motion.p>
 
-        {/* CTA buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{
-            delay: 0.4,
-            duration: ANIMATION.duration.normal,
-            ease: ANIMATION.ease.luxury,
-          }}
-          className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row"
-        >
-          <Link
-            href="/events"
-            className="inline-flex items-center gap-3 rounded-full bg-gold px-8 py-4 font-body text-sm uppercase tracking-widest text-charcoal transition-all duration-500 hover:bg-gold-light hover:shadow-lg hover:shadow-gold/20"
-          >
-            Explore Upcoming Events
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
+              <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row">
+                <Link
+                  href="/events"
+                  className="group inline-flex items-center gap-3 rounded-full bg-gold px-7 py-4 font-body text-sm uppercase tracking-[0.22em] text-charcoal transition-colors duration-300 hover:bg-gold-light"
+                >
+                  Explore Events
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
+                    strokeWidth={1.8}
+                  />
+                </Link>
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center gap-3 rounded-full border border-ivory/12 bg-ivory/5 px-7 py-4 font-body text-sm uppercase tracking-[0.22em] text-ivory/70 transition-colors duration-300 hover:border-ivory/30 hover:text-ivory"
+                >
+                  Speak to the Team
+                </Link>
+              </div>
+            </div>
+
+            <motion.div
+              initial={false}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: ANIMATION.duration.normal }}
+              className="grid gap-5"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 8l4 4m0 0l-4 4m4-4H3"
-              />
-            </svg>
-          </Link>
+              <div className="rounded-[1.8rem] border border-gold/15 bg-gold/10 p-6">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gold text-charcoal">
+                    <Mail className="h-4 w-4" strokeWidth={1.8} />
+                  </span>
+                  <div>
+                    <p className="font-body text-[0.58rem] uppercase tracking-[0.28em] text-gold/72">
+                      Stay in the Loop
+                    </p>
+                    <p className="mt-1 font-display text-2xl text-ivory">
+                      Early access and exclusive updates
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-5 font-body text-sm leading-relaxed text-ivory/56">
+                  Subscribe for event announcements, premium seating updates, and curated cultural programming notes.
+                </p>
+                <NewsletterSignupForm />
+                <p className="mt-3 font-body text-xs text-ivory/28">
+                  No spam. Only considered updates.
+                </p>
+              </div>
 
-          <Link
-            href="/contact"
-            className="inline-flex items-center gap-2 rounded-full border border-ivory/20 px-8 py-4 font-body text-sm uppercase tracking-widest text-ivory/70 transition-all duration-500 hover:border-ivory/50 hover:text-ivory"
-          >
-            Get in Touch
-          </Link>
-        </motion.div>
-
-        {/* Newsletter signup */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{
-            delay: 0.6,
-            duration: ANIMATION.duration.normal,
-            ease: ANIMATION.ease.luxury,
-          }}
-          className="mt-16"
-        >
-          <div className="mx-auto h-px w-16 bg-ivory/10" aria-hidden="true" />
-
-          <p className="mt-8 font-body text-sm text-ivory/40">
-            Stay in the loop — get early access to events and exclusive updates.
-          </p>
-
-          <NewsletterSignupForm />
-
-          <p className="mt-3 font-body text-xs text-ivory/20">
-            No spam, ever. Unsubscribe at any time.
-          </p>
-        </motion.div>
+              <div className="rounded-[1.8rem] border border-ivory/10 bg-ivory/5 p-6">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full border border-ivory/14 bg-charcoal text-gold">
+                    <Users className="h-4 w-4" strokeWidth={1.8} />
+                  </span>
+                  <div>
+                    <p className="font-body text-[0.58rem] uppercase tracking-[0.28em] text-gold/72">
+                      Sponsor & Private Bookings
+                    </p>
+                    <p className="mt-1 font-display text-2xl text-ivory">
+                      Built for premium partnerships
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-5 font-body text-sm leading-relaxed text-ivory/54">
+                  Enquire about sponsorship, branded hospitality, or private cultural productions with the AB Entertainment team.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        </div>
       </div>
     </section>
   );

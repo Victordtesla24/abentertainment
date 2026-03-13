@@ -1,192 +1,245 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import Link from "next/link";
-import { formatEventDate } from "@/lib/events";
+import { ArrowRight, CalendarDays, MapPin, Ticket } from "lucide-react";
+import { formatEventDate, formatTicketRange } from "@/lib/events";
 import { ANIMATION } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import type { Event } from "@/types";
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 40 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: {
-      delay: i * ANIMATION.stagger.slow,
-      duration: ANIMATION.duration.slow,
-      ease: ANIMATION.ease.luxury,
-    },
-  }),
+const accentSurfaces: Record<NonNullable<Event["accent"]>, string> = {
+  gold: "from-gold/18 via-gold/6 to-transparent",
+  burgundy: "from-burgundy/28 via-burgundy/10 to-transparent",
+  charcoal: "from-ivory/8 via-charcoal-light/10 to-transparent",
+};
+
+const accentBorders: Record<NonNullable<Event["accent"]>, string> = {
+  gold: "border-gold/24",
+  burgundy: "border-burgundy/30",
+  charcoal: "border-ivory/14",
 };
 
 export function UpcomingEvents({ events }: { events: Event[] }) {
+  const [featuredEvent, ...supportingEvents] = events;
+  const { scrollYProgress } = useScroll();
+  const yBg = useTransform(scrollYProgress, [0, 1], [200, -200]);
+
+  if (!featuredEvent) {
+    return null;
+  }
+
+  const accent = featuredEvent.accent ?? "gold";
+
   return (
     <section
-      className="relative bg-charcoal-deep py-24 md:py-32 lg:py-40"
+      className="relative py-24 md:py-32 lg:py-36"
       aria-labelledby="upcoming-events-heading"
     >
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
-        {/* Section header */}
-        <div className="text-center">
+        <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
+          <div>
+            <motion.p
+              initial={false}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.4 }}
+              transition={{ duration: ANIMATION.duration.normal }}
+              className="eyebrow-label"
+            >
+              The Stage
+            </motion.p>
+            <motion.h2
+              id="upcoming-events-heading"
+              initial={false}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.4 }}
+              transition={{ duration: ANIMATION.duration.slow, ease: ANIMATION.ease.luxury }}
+              className="mt-8 max-w-md font-display text-4xl leading-tight text-ivory md:text-5xl"
+            >
+              Upcoming events curated like headline productions.
+            </motion.h2>
+          </div>
           <motion.p
-            initial={{ opacity: 0, y: 12 }}
+            initial={false}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
+            viewport={{ once: true, amount: 0.4 }}
             transition={{ duration: ANIMATION.duration.normal }}
-            className="font-body text-xs uppercase tracking-[0.3em] text-gold/70"
+            className="max-w-2xl font-body text-base leading-relaxed text-ivory/56 md:justify-self-end md:text-lg"
           >
-            The Stage
+            The brief from the spec is clear: rich descriptions, clear booking routes, and a luxury editorial presentation. The season lead should feel like a marquee announcement, not a commodity event card.
           </motion.p>
-
-          <motion.h2
-            id="upcoming-events-heading"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
-            transition={{
-              delay: 0.1,
-              duration: ANIMATION.duration.slow,
-              ease: ANIMATION.ease.luxury,
-            }}
-            className="mt-4 font-display text-3xl font-medium text-ivory md:text-4xl lg:text-5xl"
-          >
-            Upcoming Events
-          </motion.h2>
-
-          <motion.div
-            initial={{ width: 0 }}
-            whileInView={{ width: 64 }}
-            viewport={{ once: true }}
-            transition={{
-              delay: 0.3,
-              duration: ANIMATION.duration.normal,
-              ease: ANIMATION.ease.luxury,
-            }}
-            className="mx-auto mt-6 h-px bg-gold"
-            aria-hidden="true"
-          />
         </div>
 
-        {/* Event cards grid */}
-        <div
-          className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-3"
-          role="list"
-          aria-label="Upcoming events"
-        >
-          {events.map((event, i) => (
-            <motion.article
-              key={event.id}
-              custom={i}
-              variants={cardVariants}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, amount: 0.2 }}
-              role="listitem"
-              className="group relative overflow-hidden rounded-lg border border-ivory/5 bg-charcoal transition-colors duration-500 hover:border-gold/20"
-            >
-              {/* Image placeholder area */}
-              <div className="relative h-52 overflow-hidden" aria-hidden="true">
-                <div className="absolute inset-0 bg-gradient-to-br from-burgundy/30 via-charcoal-deep to-charcoal" />
-                <div className="absolute inset-0 bg-gradient-to-t from-charcoal via-transparent to-transparent" />
-                {/* Tag */}
-                <span className="absolute left-4 top-4 rounded-full border border-gold/30 bg-charcoal/60 px-3 py-1 font-body text-xs uppercase tracking-wider text-gold backdrop-blur-sm">
-                  {event.status === "live" ? "Live" : "Featured"}
-                </span>
-              </div>
+        <div className="mt-14 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <motion.article
+            initial={false}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: ANIMATION.duration.slow, ease: ANIMATION.ease.luxury }}
+            className={cn(
+              "luxury-panel relative overflow-hidden rounded-[2.2rem] p-8 md:p-10",
+              accentBorders[accent]
+            )}
+          >
+            <motion.div
+              style={{ y: yBg }}
+              className={cn(
+                "absolute -inset-y-24 inset-x-0 bg-gradient-to-br opacity-100",
+                accentSurfaces[accent]
+              )}
+              aria-hidden="true"
+            />
+            <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-gold/12 blur-3xl" aria-hidden="true" />
 
-              {/* Card content */}
-              <div className="p-6">
+            <div className="relative grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+              <div>
+                <div className="flex flex-wrap gap-3">
+                  <span className="rounded-full border border-gold/25 bg-gold/10 px-4 py-2 font-body text-[0.62rem] uppercase tracking-[0.3em] text-gold">
+                    Featured Event
+                  </span>
+                  <span className="rounded-full border border-ivory/10 bg-ivory/5 px-4 py-2 font-body text-[0.62rem] uppercase tracking-[0.3em] text-ivory/50">
+                    Premium seating
+                  </span>
+                </div>
+
                 <time
-                  dateTime={event.date}
-                  className="font-mono text-xs tracking-wider text-gold/60"
+                  dateTime={featuredEvent.date}
+                  className="mt-8 flex items-center gap-2 font-body text-sm uppercase tracking-[0.24em] text-gold/78"
                 >
-                  {formatEventDate(event.date)}
+                  <CalendarDays className="h-4 w-4" strokeWidth={1.8} />
+                  {formatEventDate(featuredEvent.date, {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
                 </time>
 
-                <h3 className="mt-2 font-display text-xl font-medium leading-snug text-ivory transition-colors duration-300 group-hover:text-gold">
-                  {event.title}
+                <h3 className="mt-4 max-w-xl font-display text-4xl leading-tight text-ivory md:text-5xl">
+                  {featuredEvent.title}
                 </h3>
-
-                <p className="mt-2 flex items-center gap-1.5 font-body text-sm text-ivory/40">
-                  <svg
-                    className="h-3.5 w-3.5 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
-                    />
-                  </svg>
-                  {event.venue.name}
+                <p className="mt-5 max-w-xl font-body text-base leading-relaxed text-ivory/58 md:text-lg">
+                  {featuredEvent.tagline ?? featuredEvent.description}
                 </p>
 
-                <Link
-                  href={`/events/${event.slug}`}
-                  className="mt-4 inline-flex items-center gap-2 font-body text-sm uppercase tracking-widest text-gold transition-colors duration-300 hover:text-gold-light"
-                >
-                  Learn More
-                  <svg
-                    className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    aria-hidden="true"
+                <div className="mt-8 flex flex-wrap gap-5 font-body text-sm text-ivory/54">
+                  <span className="inline-flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-gold/78" strokeWidth={1.8} />
+                    {featuredEvent.venue.name}
+                  </span>
+                  {formatTicketRange(featuredEvent) ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Ticket className="h-4 w-4 text-gold/78" strokeWidth={1.8} />
+                      {formatTicketRange(featuredEvent)}
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="mt-8 flex flex-col items-start gap-4 sm:flex-row">
+                  <Link
+                    href={`/events/${featuredEvent.slug}`}
+                    className="group inline-flex items-center gap-3 rounded-full bg-gold px-7 py-4 font-body text-sm uppercase tracking-[0.22em] text-charcoal transition-colors duration-300 hover:bg-gold-light"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 8l4 4m0 0l-4 4m4-4H3"
+                    View Event
+                    <ArrowRight
+                      className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
+                      strokeWidth={1.8}
                     />
-                  </svg>
-                </Link>
+                  </Link>
+                  <Link
+                    href="/contact"
+                    className="inline-flex items-center gap-3 rounded-full border border-ivory/12 bg-ivory/5 px-7 py-4 font-body text-sm uppercase tracking-[0.22em] text-ivory/70 transition-colors duration-300 hover:border-ivory/30 hover:text-ivory"
+                  >
+                    Reserve Seats
+                  </Link>
+                </div>
               </div>
-            </motion.article>
-          ))}
+
+              <div className="space-y-4">
+                {(featuredEvent.story ?? []).slice(0, 3).map((paragraph, index) => (
+                  <div
+                    key={paragraph}
+                    className="rounded-[1.5rem] border border-ivory/10 bg-charcoal/58 p-5"
+                  >
+                    <p className="font-body text-[0.58rem] uppercase tracking-[0.28em] text-gold/68">
+                      Scene 0{index + 1}
+                    </p>
+                    <p className="mt-3 font-body text-sm leading-relaxed text-ivory/56">
+                      {paragraph}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.article>
+
+          <div className="grid gap-6">
+            {supportingEvents.map((event, index) => {
+              const supportingAccent = event.accent ?? "gold";
+
+              return (
+                <motion.article
+                  key={event.id}
+                  initial={false}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.2 }}
+                  transition={{
+                    duration: ANIMATION.duration.normal,
+                    delay: index * ANIMATION.stagger.normal,
+                  }}
+                  className="luxury-panel group rounded-[1.9rem] p-6 transition-transform duration-300 hover:-translate-y-1"
+                >
+                  <div
+                    className={cn(
+                      "h-1 rounded-full bg-gradient-to-r",
+                      accentSurfaces[supportingAccent]
+                    )}
+                    aria-hidden="true"
+                  />
+                  <time
+                    dateTime={event.date}
+                    className="mt-5 block font-body text-[0.62rem] uppercase tracking-[0.3em] text-gold/72"
+                  >
+                    {formatEventDate(event.date)}
+                  </time>
+                  <h3 className="mt-4 font-display text-3xl leading-tight text-ivory">
+                    {event.title}
+                  </h3>
+                  <p className="mt-4 font-body text-sm leading-relaxed text-ivory/54">
+                    {event.description}
+                  </p>
+                  <div className="mt-6 flex items-center justify-between gap-4">
+                    <p className="font-body text-sm text-ivory/48">{event.venue.name}</p>
+                    <Link
+                      href={`/events/${event.slug}`}
+                      className="inline-flex items-center gap-2 font-body text-xs uppercase tracking-[0.24em] text-gold transition-colors duration-300 hover:text-gold-light"
+                    >
+                      Discover
+                      <ArrowRight
+                        className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1"
+                        strokeWidth={1.8}
+                      />
+                    </Link>
+                  </div>
+                </motion.article>
+              );
+            })}
+          </div>
         </div>
 
-        {/* View All CTA */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{
-            delay: 0.4,
-            duration: ANIMATION.duration.normal,
-            ease: ANIMATION.ease.luxury,
-          }}
-          className="mt-16 text-center"
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: ANIMATION.duration.normal }}
+          className="mt-14 flex justify-center"
         >
           <Link
             href="/events"
-            className="inline-flex items-center gap-3 rounded-full border border-gold/40 bg-gold/10 px-8 py-4 font-body text-sm uppercase tracking-widest text-gold backdrop-blur-sm transition-all duration-500 hover:border-gold hover:bg-gold hover:text-charcoal"
+            className="inline-flex items-center gap-3 rounded-full border border-gold/32 bg-gold/10 px-7 py-4 font-body text-sm uppercase tracking-[0.24em] text-gold transition-all duration-300 hover:border-gold hover:bg-gold hover:text-charcoal"
           >
             View All Events
-            <svg
-              className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M17 8l4 4m0 0l-4 4m4-4H3"
-              />
-            </svg>
+            <ArrowRight className="h-4 w-4" strokeWidth={1.8} />
           </Link>
         </motion.div>
       </div>

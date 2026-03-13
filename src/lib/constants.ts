@@ -11,7 +11,7 @@ export const SITE_CONFIG = {
   },
   contact: {
     email: "info@abentertainment.com.au",
-    phone: "Available on request",
+    phone: "+61 3 XXXX XXXX",
     location: "Melbourne, Victoria, Australia",
   },
   social: {
@@ -20,14 +20,14 @@ export const SITE_CONFIG = {
     youtube: "https://youtube.com/@abentertainment",
   },
 } as const;
-
+ 
 export const NAV_ITEMS = [
   { label: "Events", href: "/events" },
   { label: "Gallery", href: "/gallery" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ] as const;
-
+ 
 export const ANIMATION = {
   stagger: {
     fast: 0.05,

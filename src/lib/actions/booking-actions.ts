@@ -6,6 +6,7 @@ import { z } from "zod";
 import { isPostgresConfigured, isStripeConfigured } from "@/lib/env";
 import type { ActionState } from "@/lib/actions/form-state";
 import { loadEventBySlug } from "@/sanity/lib/loaders";
+import { storeLocalBookingRequest } from "@/lib/integrations/local-store";
 import { enforceRateLimit } from "@/lib/integrations/redis";
 import {
   attachCheckoutSessionToBookingIntent,
@@ -20,6 +21,8 @@ const bookingSchema = z.object({
   customerEmail: z.string().trim().email("Enter a valid email address."),
   quantity: z.coerce.number().int().min(1).max(6),
 });
+
+const canUseLocalCapture = process.env.NODE_ENV !== "production";
 
 async function getBookingFingerprint(email: string): Promise<string> {
   const headerStore = await headers();
@@ -66,22 +69,6 @@ export async function beginBookingCheckout(
     };
   }
 
-  if (!isStripeConfigured) {
-    return {
-      status: "error",
-      message:
-        "Online checkout is not configured yet. Please contact the AB Entertainment team to reserve seats.",
-    };
-  }
-
-  if (!isPostgresConfigured) {
-    return {
-      status: "error",
-      message:
-        "Booking persistence is not configured yet. Please contact the team directly while online checkout is completed.",
-    };
-  }
-
   const rateLimit = await enforceRateLimit(
     "booking",
     await getBookingFingerprint(parsed.data.customerEmail)
@@ -96,6 +83,43 @@ export async function beginBookingCheckout(
   }
 
   const unitAmount = Math.round(event.ticketPrice.from * 100);
+  const onlineCheckoutEnabled = isStripeConfigured && isPostgresConfigured;
+
+  if (!onlineCheckoutEnabled) {
+    if (!canUseLocalCapture) {
+      return {
+        status: "error",
+        message:
+          "Online checkout is not configured yet. Please contact the AB Entertainment team to reserve seats.",
+      };
+    }
+
+    try {
+      await storeLocalBookingRequest({
+        eventSlug: event.slug,
+        eventTitle: event.title,
+        customerName: parsed.data.customerName,
+        customerEmail: parsed.data.customerEmail,
+        quantity: parsed.data.quantity,
+        unitAmount,
+        currency: event.ticketPrice.currency.toLowerCase(),
+        mode: "request",
+      });
+    } catch {
+      return {
+        status: "error",
+        message:
+          "Unable to capture your reservation request right now. Please try again shortly or contact the AB Entertainment team directly.",
+      };
+    }
+
+    return {
+      status: "success",
+      message:
+        "Your reservation request has been received. The AB Entertainment team will follow up with confirmation and payment details.",
+    };
+  }
+
   const intent = await createBookingIntent({
     eventSlug: event.slug,
     eventTitle: event.title,

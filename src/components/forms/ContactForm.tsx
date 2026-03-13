@@ -54,7 +54,7 @@ export function ContactForm() {
         </div>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-[1fr,1.4fr]">
+      <div className="grid gap-5 md:grid-cols-[1fr_1.4fr]">
         <div>
           <label htmlFor="contact-phone" className="mb-2 block font-body text-xs uppercase tracking-[0.2em] text-ivory/40">
             Phone

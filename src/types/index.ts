@@ -3,6 +3,8 @@ export interface Event {
   title: string;
   slug: string;
   status: "draft" | "upcoming" | "live" | "past";
+  featured?: boolean;
+  accent?: "gold" | "burgundy" | "charcoal";
   date: string;
   endDate?: string;
   time?: string;
@@ -18,8 +20,6 @@ export interface Event {
   gallery?: GalleryImage[];
   sponsors?: Sponsor[];
   seo?: SEO;
-  featured?: boolean;
-  accent?: "gold" | "burgundy" | "charcoal";
 }
 
 export interface Venue {

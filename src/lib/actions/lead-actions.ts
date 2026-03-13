@@ -6,6 +6,10 @@ import { isPostgresConfigured } from "@/lib/env";
 import type { ActionState } from "@/lib/actions/form-state";
 import { enforceRateLimit } from "@/lib/integrations/redis";
 import {
+  storeLocalContactInquiry,
+  upsertLocalNewsletterSubscriber,
+} from "@/lib/integrations/local-store";
+import {
   storeContactInquiry,
   upsertNewsletterSubscriber,
 } from "@/lib/integrations/postgres";
@@ -25,6 +29,8 @@ const contactInquirySchema = z.object({
 const newsletterSchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
 });
+
+const canUseLocalCapture = process.env.NODE_ENV !== "production";
 
 async function getRequestFingerprint(suffix?: string): Promise<string> {
   const headerStore = await headers();
@@ -68,15 +74,27 @@ export async function submitContactInquiry(
     };
   }
 
-  if (!isPostgresConfigured) {
+  try {
+    if (!isPostgresConfigured) {
+      if (!canUseLocalCapture) {
+        return {
+          status: "error",
+          message:
+            "Website inquiry capture is not configured yet. Please email info@abentertainment.com.au directly.",
+        };
+      }
+
+      await storeLocalContactInquiry(parsed.data);
+    } else {
+      await storeContactInquiry(parsed.data);
+    }
+  } catch {
     return {
       status: "error",
       message:
-        "Website inquiry capture is not configured yet. Please email info@abentertainment.com.au directly.",
+        "Unable to save your inquiry right now. Please try again shortly or email info@abentertainment.com.au directly.",
     };
   }
-
-  await storeContactInquiry(parsed.data);
 
   return {
     status: "success",
@@ -112,15 +130,29 @@ export async function subscribeToNewsletter(
     };
   }
 
-  if (!isPostgresConfigured) {
+  let result: { stored: boolean; alreadySubscribed: boolean };
+
+  try {
+    if (!isPostgresConfigured) {
+      if (!canUseLocalCapture) {
+        return {
+          status: "error",
+          message:
+            "Newsletter capture is not configured yet. Please contact the team directly for updates.",
+        };
+      }
+
+      result = await upsertLocalNewsletterSubscriber(parsed.data.email);
+    } else {
+      result = await upsertNewsletterSubscriber(parsed.data.email);
+    }
+  } catch {
     return {
       status: "error",
       message:
-        "Newsletter capture is not configured yet. Please contact the team directly for updates.",
+        "Unable to save your subscription right now. Please try again in a moment.",
     };
   }
-
-  const result = await upsertNewsletterSubscriber(parsed.data.email);
 
   return {
     status: "success",

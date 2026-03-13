@@ -1,176 +1,215 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, SITE_CONFIG } from "@/lib/constants";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export function Navigation() {
   const pathname = usePathname();
-  const [openPathname, setOpenPathname] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const isOpen = openPathname === pathname;
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
 
   useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 50);
+    const handleScroll = () => setIsScrolled(window.scrollY > 42);
     window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = isOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
   }, [isOpen]);
 
+  const closeMenu = () => setIsOpen(false);
+
   return (
     <>
-      <motion.header
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        className={cn(
-          "fixed top-0 left-0 right-0 z-50 transition-all duration-500",
-          isScrolled
-            ? "bg-charcoal/90 backdrop-blur-xl border-b border-gold/10"
-            : "bg-transparent"
-        )}
-      >
-        <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
-          {/* Logo */}
+      <header className="fixed inset-x-0 top-4 z-50 px-4 md:px-6">
+        <motion.nav
+          initial={false}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className={cn(
+            "luxury-panel mx-auto flex max-w-6xl items-center justify-between rounded-[1.75rem] px-4 py-3 md:px-6",
+            isScrolled
+              ? "border-gold/20 bg-charcoal-deep/82 shadow-[0_26px_90px_rgba(0,0,0,0.48)]"
+              : "bg-charcoal-deep/62"
+          )}
+        >
           <Link
             href="/"
+            onClick={closeMenu}
             className="group relative z-10 flex items-center gap-3"
             aria-label={`${SITE_CONFIG.name} - Home`}
           >
-            <div className="relative">
-              <span className="font-display text-2xl font-semibold tracking-tight text-gold transition-all duration-300 group-hover:text-gold-light">
-                AB
+            <span className="flex h-11 w-11 items-center justify-center rounded-full border border-gold/30 bg-gold/10 font-display text-lg text-gold transition-colors duration-300 group-hover:border-gold group-hover:bg-gold/15">
+              AB
+            </span>
+            <span className="hidden sm:block">
+              <span className="block font-display text-[1.45rem] leading-none tracking-tight text-ivory">
+                Entertainment
               </span>
-              <span className="font-display text-2xl font-light tracking-tight text-ivory transition-all duration-300">
-                {" "}Entertainment
+              <span className="mt-1 block font-body text-[0.58rem] uppercase tracking-[0.34em] text-ivory/42">
+                Melbourne since 2007
               </span>
-            </div>
+            </span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden items-center gap-8 lg:flex">
+          <div className="hidden items-center gap-2 lg:flex">
             {NAV_ITEMS.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "relative font-body text-sm uppercase tracking-[0.2em] transition-colors duration-300",
+                  "relative rounded-full px-4 py-2 font-body text-xs uppercase tracking-[0.26em] transition-all duration-300",
                   isActive(item.href)
-                    ? "text-gold"
-                    : "text-ivory/70 hover:text-ivory"
+                    ? "bg-gold/12 text-gold"
+                    : "text-ivory/62 hover:bg-ivory/6 hover:text-ivory"
                 )}
               >
                 {item.label}
-                {isActive(item.href) && (
-                  <motion.div
-                    layoutId="nav-indicator"
-                    className="absolute -bottom-1 left-0 right-0 h-[1px] bg-gold"
-                    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                  />
-                )}
               </Link>
             ))}
+          </div>
+
+          <div className="hidden items-center gap-3 lg:flex">
+            <span className="hidden items-center gap-2 rounded-full border border-ivory/10 bg-ivory/5 px-3 py-2 xl:flex">
+              <Sparkles className="h-3.5 w-3.5 text-gold" strokeWidth={1.8} />
+              <span className="font-body text-[0.62rem] uppercase tracking-[0.3em] text-ivory/55">
+                Season 2026
+              </span>
+            </span>
             <ThemeToggle />
             <Link
               href="/contact"
-              className="rounded-full border border-gold/40 bg-gold/10 px-6 py-2 font-body text-xs uppercase tracking-[0.2em] text-gold backdrop-blur-sm transition-all duration-500 hover:border-gold hover:bg-gold hover:text-charcoal"
+              className="group inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-5 py-2.5 font-body text-xs uppercase tracking-[0.26em] text-gold transition-all duration-300 hover:border-gold hover:bg-gold hover:text-charcoal"
             >
               Book Now
+              <ArrowRight
+                className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5"
+                strokeWidth={1.8}
+              />
             </Link>
           </div>
 
-          {/* Mobile menu button */}
           <button
-            onClick={() => setOpenPathname(isOpen ? null : pathname)}
-            className="relative z-10 flex h-10 w-10 items-center justify-center lg:hidden"
+            onClick={() => setIsOpen((value) => !value)}
+            className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full border border-ivory/10 bg-ivory/5 text-ivory lg:hidden"
             aria-label={isOpen ? "Close menu" : "Open menu"}
             aria-expanded={isOpen}
           >
             <div className="flex flex-col gap-1.5">
               <motion.span
-                animate={isOpen ? { rotate: 45, y: 6 } : { rotate: 0, y: 0 }}
-                className="block h-[1px] w-6 bg-ivory"
-                transition={{ duration: 0.3 }}
+                animate={isOpen ? { rotate: 45, y: 7 } : { rotate: 0, y: 0 }}
+                transition={{ duration: 0.25 }}
+                className="block h-px w-5 bg-current"
               />
               <motion.span
                 animate={isOpen ? { opacity: 0 } : { opacity: 1 }}
-                className="block h-[1px] w-6 bg-ivory"
                 transition={{ duration: 0.2 }}
+                className="block h-px w-5 bg-current"
               />
               <motion.span
-                animate={isOpen ? { rotate: -45, y: -6 } : { rotate: 0, y: 0 }}
-                className="block h-[1px] w-6 bg-ivory"
-                transition={{ duration: 0.3 }}
+                animate={isOpen ? { rotate: -45, y: -7 } : { rotate: 0, y: 0 }}
+                transition={{ duration: 0.25 }}
+                className="block h-px w-5 bg-current"
               />
             </div>
           </button>
-        </nav>
-      </motion.header>
+        </motion.nav>
+      </header>
 
-      {/* Full-screen mobile menu overlay */}
       <AnimatePresence>
-        {isOpen && (
+        {isOpen ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            className="fixed inset-0 z-40 bg-charcoal-deep/98 backdrop-blur-2xl lg:hidden"
+            transition={{ duration: 0.35 }}
+            className="fixed inset-0 z-40 overflow-hidden bg-charcoal-deep/96 px-6 pb-8 pt-28 backdrop-blur-2xl lg:hidden"
           >
-            <div className="flex h-full flex-col items-center justify-center gap-8">
-              {NAV_ITEMS.map((item, i) => (
-                <motion.div
-                  key={item.href}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{
-                    delay: i * 0.1,
-                    duration: 0.5,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                >
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "font-display text-4xl font-light tracking-wide transition-colors duration-300",
-                      isActive(item.href)
-                        ? "text-gold"
-                        : "text-ivory/60 hover:text-ivory"
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                </motion.div>
-              ))}
+            <div
+              className="absolute inset-0"
+              aria-hidden="true"
+              style={{
+                background:
+                  "radial-gradient(circle at top, rgba(201, 168, 76, 0.16), transparent 30%), radial-gradient(circle at bottom right, rgba(107, 29, 58, 0.24), transparent 28%)",
+              }}
+            />
+            <div className="relative mx-auto flex h-full max-w-sm flex-col justify-between">
+              <div>
+                <p className="eyebrow-label">The Digital Theatre</p>
+                <div className="mt-10 space-y-4">
+                  {NAV_ITEMS.map((item, index) => (
+                    <motion.div
+                      key={item.href}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{
+                        delay: index * 0.06,
+                        duration: 0.45,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                    >
+                      <Link
+                        href={item.href}
+                        onClick={closeMenu}
+                        className={cn(
+                          "block rounded-[1.5rem] border px-5 py-5 font-display text-4xl transition-all duration-300",
+                          isActive(item.href)
+                            ? "border-gold/35 bg-gold/10 text-gold"
+                            : "border-ivory/10 bg-ivory/5 text-ivory/72"
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-                className="mt-8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.28, duration: 0.5 }}
+                className="luxury-panel rounded-[2rem] p-6"
               >
-                <ThemeToggle />
+                <p className="font-body text-[0.62rem] uppercase tracking-[0.34em] text-gold/70">
+                  Season Brief
+                </p>
+                <p className="mt-4 font-display text-2xl leading-tight text-ivory">
+                  A premium cultural program designed with the discipline of live production.
+                </p>
+                <p className="mt-4 font-body text-sm leading-relaxed text-ivory/55">
+                  Concerts, theatrical evenings, and community-defining moments across Australia.
+                </p>
+                <div className="mt-6 flex items-center justify-between">
+                  <ThemeToggle />
+                  <Link
+                    href="/contact"
+                    onClick={closeMenu}
+                    className="inline-flex items-center gap-2 rounded-full bg-gold px-4 py-2 font-body text-xs uppercase tracking-[0.24em] text-charcoal"
+                  >
+                    Start an Enquiry
+                    <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  </Link>
+                </div>
               </motion.div>
             </div>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </>
   );

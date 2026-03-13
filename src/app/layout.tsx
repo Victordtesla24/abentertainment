@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { playfair, jetbrainsMono, bodyFont } from "@/lib/fonts";
+import { playfair, jetbrainsMono } from "@/lib/fonts";
 import { SITE_CONFIG } from "@/lib/constants";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { Navigation } from "@/components/layout/Navigation";
 import { Footer } from "@/components/layout/Footer";
+import { Chatbot } from "@/components/ui/Chatbot";
+import { MagneticCursor } from "@/components/ui/MagneticCursor";
+import { ClerkProvider } from "@clerk/nextjs";
+import { NextIntlClientProvider } from "next-intl";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -57,24 +61,37 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  let messages;
+  try {
+    messages = (await import('../../messages/en.json')).default;
+  } catch (error) {
+    messages = {};
+  }
+
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={`${playfair.variable} ${jetbrainsMono.variable} ${bodyFont.variable}`}
-    >
-      <body className="min-h-screen bg-background font-body text-foreground antialiased">
-        <ThemeProvider>
-          <Navigation />
-          <main className="min-h-screen">{children}</main>
-          <Footer />
-        </ThemeProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html
+        lang="en"
+        suppressHydrationWarning
+        className={`${playfair.variable} ${jetbrainsMono.variable}`}
+      >
+        <body className="min-h-screen bg-background font-body text-foreground antialiased">
+          <NextIntlClientProvider messages={messages} locale="en">
+            <ThemeProvider>
+              <Navigation />
+              <main className="min-h-screen">{children}</main>
+              <Footer />
+              <Chatbot />
+              <MagneticCursor />
+            </ThemeProvider>
+          </NextIntlClientProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

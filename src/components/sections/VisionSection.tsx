@@ -1,127 +1,107 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
+import { motion } from "framer-motion";
 import { ANIMATION } from "@/lib/constants";
 
+const pillars = [
+  {
+    title: "Cultural fidelity",
+    body: "Programming that respects the emotional truth of Indian and Marathi performance traditions rather than flattening them into generic event marketing.",
+  },
+  {
+    title: "Premium hospitality",
+    body: "Every touchpoint, from booking to foyer arrival, should feel composed, calm, and worthy of a flagship cultural brand.",
+  },
+  {
+    title: "Cross-generational resonance",
+    body: "Experiences designed for long-term community memory, not disposable content spikes or one-off brochure pages.",
+  },
+];
+
 export function VisionSection() {
-  const sectionRef = useRef<HTMLElement>(null);
-  const dividerRef = useRef<HTMLDivElement>(null);
-
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"],
-  });
-
-  const dividerWidth = useTransform(scrollYProgress, [0.1, 0.5], ["0%", "100%"]);
-
   return (
     <section
-      ref={sectionRef}
-      className="relative overflow-hidden bg-charcoal py-24 md:py-32 lg:py-40"
+      className="relative overflow-hidden py-24 md:py-32 lg:py-36"
       aria-labelledby="vision-heading"
     >
-      {/* Subtle background texture */}
       <div
-        className="absolute inset-0 opacity-[0.02]"
+        className="absolute inset-0 opacity-[0.045]"
         aria-hidden="true"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+          backgroundImage:
+            "linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
+          backgroundSize: "80px 80px",
         }}
       />
 
       <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
-        {/* Section label */}
-        <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.5 }}
-          transition={{ duration: ANIMATION.duration.normal }}
-          className="font-body text-xs uppercase tracking-[0.3em] text-gold/70"
-        >
-          The Vision
-        </motion.p>
-
-        <h2 id="vision-heading" className="sr-only">
-          Our Vision
-        </h2>
-
-        {/* Gold divider */}
-        <motion.div
-          ref={dividerRef}
-          style={{ width: dividerWidth }}
-          className="mt-6 h-px bg-gradient-to-r from-gold via-gold-light to-transparent"
-          aria-hidden="true"
-        />
-
-        {/* Split layout */}
-        <div className="mt-12 grid gap-12 md:mt-16 md:grid-cols-2 md:gap-16 lg:gap-24">
-          {/* Left — Pull quote */}
-          <motion.blockquote
-            initial={{ opacity: 0, x: -30 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{
-              duration: ANIMATION.duration.slow,
-              ease: ANIMATION.ease.luxury,
-            }}
-            className="relative"
-          >
-            <span
-              className="absolute -left-4 -top-6 font-display text-6xl leading-none text-gold/20 md:-left-6 md:-top-8 md:text-8xl"
-              aria-hidden="true"
-            >
-              &ldquo;
-            </span>
-            <p className="font-display text-2xl font-medium leading-snug text-ivory md:text-3xl lg:text-4xl">
-              Where tradition takes the stage — AB Entertainment curates moments
-              that echo through generations.
-            </p>
-            <span
-              className="mt-2 inline-block font-display text-6xl leading-none text-gold/20 md:text-8xl"
-              aria-hidden="true"
-            >
-              &rdquo;
-            </span>
-          </motion.blockquote>
-
-          {/* Right — Body text */}
+        <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
           <motion.div
-            initial={{ opacity: 0, x: 30 }}
-            whileInView={{ opacity: 1, x: 0 }}
+            initial={false}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
-            transition={{
-              duration: ANIMATION.duration.slow,
-              delay: 0.2,
-              ease: ANIMATION.ease.luxury,
-            }}
-            className="flex flex-col justify-center"
+            transition={{ duration: ANIMATION.duration.normal }}
+            className="luxury-panel rounded-[2rem] p-8 md:p-10"
           >
-            <p className="font-body text-base leading-relaxed text-ivory/60 md:text-lg">
-              Since 2007, AB Entertainment has been Melbourne&apos;s foremost
-              curator of Indian and Marathi cultural experiences. Founded by
-              Abhijeet Kadam and Vrushali Deshpande, our mission is to bridge
-              cultures through the universal language of art and performance.
-            </p>
-            <p className="mt-6 font-body text-base leading-relaxed text-ivory/60 md:text-lg">
-              Every event we produce is a carefully orchestrated symphony of
-              tradition and modernity — from intimate musical evenings to
-              grand-scale theatrical productions that bring together communities
-              across Australia.
-            </p>
-            <motion.div
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.6, duration: ANIMATION.duration.normal }}
-              className="mt-8"
+            <p className="eyebrow-label">The Vision</p>
+            <h2
+              id="vision-heading"
+              className="mt-8 max-w-md font-display text-4xl leading-tight text-ivory md:text-5xl"
             >
-              <span className="inline-block h-px w-12 bg-gold/40" aria-hidden="true" />
-              <p className="mt-4 font-body text-sm uppercase tracking-widest text-gold/50">
-                Est. 2007 &middot; Melbourne, Australia
-              </p>
-            </motion.div>
+              A digital theatre, not a community brochure.
+            </h2>
+            <p className="mt-6 font-body text-base leading-relaxed text-ivory/56 md:text-lg">
+              Since 2007, AB Entertainment has been shaping Indian and Marathi cultural experiences in Melbourne with the discipline of a premium live production and the warmth of a trusted host.
+            </p>
+            <p className="mt-4 font-body text-base leading-relaxed text-ivory/56 md:text-lg">
+              The website should extend that same feeling: ceremonial, emotionally grounded, and unmistakably crafted.
+            </p>
+            <div className="section-divider mt-8" />
+            <p className="mt-8 font-display text-2xl leading-snug text-gold md:text-3xl">
+              &ldquo;Where tradition takes the stage, the digital experience must rise with it.&rdquo;
+            </p>
           </motion.div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <motion.article
+              initial={false}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: ANIMATION.duration.normal }}
+              className="luxury-panel rounded-[2rem] p-7 md:col-span-2"
+            >
+              <p className="font-body text-[0.62rem] uppercase tracking-[0.34em] text-gold/70">
+                Brand Position
+              </p>
+              <p className="mt-5 font-display text-3xl leading-tight text-ivory md:text-4xl">
+                Editorial warmth, theatrical grandeur, and the operational clarity of a flagship event house.
+              </p>
+            </motion.article>
+
+            {pillars.map((pillar, index) => (
+              <motion.article
+                key={pillar.title}
+                initial={false}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{
+                  duration: ANIMATION.duration.normal,
+                  delay: index * 0.08,
+                }}
+                className="luxury-panel rounded-[2rem] p-7"
+              >
+                <p className="font-body text-[0.62rem] uppercase tracking-[0.34em] text-ivory/34">
+                  0{index + 1}
+                </p>
+                <h3 className="mt-5 font-display text-2xl text-ivory">
+                  {pillar.title}
+                </h3>
+                <p className="mt-4 font-body text-sm leading-relaxed text-ivory/52">
+                  {pillar.body}
+                </p>
+              </motion.article>
+            ))}
+          </div>
         </div>
       </div>
     </section>

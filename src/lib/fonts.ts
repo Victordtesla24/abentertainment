@@ -1,4 +1,5 @@
-import { Playfair_Display, JetBrains_Mono, Inter } from "next/font/google";
+import { Playfair_Display, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 
 export const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -14,13 +15,33 @@ export const jetbrainsMono = JetBrains_Mono({
   weight: ["400", "500"],
 });
 
-// Using Inter as a stand-in until Satoshi woff2 files are added to /public/fonts/
-// Satoshi (Fontshare) is the target body font per the brand spec.
-// To use Satoshi: download from fontshare.com, place woff2 files in public/fonts/,
-// then switch this to localFont() import.
-export const bodyFont = Inter({
-  subsets: ["latin"],
-  display: "swap",
+export const bodyFont = localFont({
+  src: [
+    {
+      path: "../../public/fonts/Satoshi-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Satoshi-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Satoshi-Bold.woff2",
+      weight: "700",
+      style: "normal",
+    },
+  ],
   variable: "--font-body",
-  weight: ["400", "500", "700"],
+  display: "swap",
+  fallback: [
+    "system-ui",
+    "-apple-system",
+    "Segoe UI",
+    "Roboto",
+    "Helvetica Neue",
+    "Arial",
+    "sans-serif",
+  ],
 });
