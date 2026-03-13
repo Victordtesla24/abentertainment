@@ -5,8 +5,6 @@ status: active
 date: 2026-03-13
 ---
 
-# feat: AB Entertainment flagship site incremental build
-
 ## Overview
 
 Continue the AB Entertainment website as an additive build on top of the current Next.js App Router codebase. Preserve the existing visual language, tokens, components, and layout structure. Fill the obvious functional gaps that prevent the site from behaving like a production-ready flagship experience: wire the homepage, add the missing top-level pages, connect the content layer to Sanity, implement server-driven contact and newsletter flows, add a Stripe-powered booking path, and establish Vercel Postgres plus Upstash Redis integration points for persistence and abuse protection.
@@ -43,10 +41,10 @@ This work touches payments, external content APIs, and production persistence. E
 
 ### Official References
 
-- [ ] Next.js Server Actions and forms: https://nextjs.org/docs/app/guides/forms
-- [ ] Stripe Checkout and webhooks for Next.js: https://docs.stripe.com/payments/checkout
-- [ ] Vercel Postgres with Next.js: https://vercel.com/docs/storage/vercel-postgres/quickstart
-- [ ] Upstash Redis ratelimiting patterns: https://upstash.com/docs/redis/sdks/ratelimit-ts/algorithms
+- [ ] Next.js Server Actions and forms: <https://nextjs.org/docs/app/guides/forms>
+- [ ] Stripe Checkout and webhooks for Next.js: <https://docs.stripe.com/payments/checkout>
+- [ ] Vercel Postgres with Next.js: <https://vercel.com/docs/storage/vercel-postgres/quickstart>
+- [ ] Upstash Redis ratelimiting patterns: <https://upstash.com/docs/redis/sdks/ratelimit-ts/algorithms>
 
 ## Proposed Solution
 
@@ -269,8 +267,8 @@ Rejected because the user explicitly requires zero existing code modification ex
 
 ### External References
 
-- Next.js forms and Server Actions: https://nextjs.org/docs/app/guides/forms
-- Stripe Checkout: https://docs.stripe.com/payments/checkout
-- Stripe webhooks: https://docs.stripe.com/webhooks
-- Vercel Postgres quickstart: https://vercel.com/docs/storage/vercel-postgres/quickstart
-- Upstash Redis rate limiting algorithms: https://upstash.com/docs/redis/sdks/ratelimit-ts/algorithms
+- Next.js forms and Server Actions: <https://nextjs.org/docs/app/guides/forms>
+- Stripe Checkout: <https://docs.stripe.com/payments/checkout>
+- Stripe webhooks: <https://docs.stripe.com/webhooks>
+- Vercel Postgres quickstart: <https://vercel.com/docs/storage/vercel-postgres/quickstart>
+- Upstash Redis rate limiting algorithms: <https://upstash.com/docs/redis/sdks/ratelimit-ts/algorithms>

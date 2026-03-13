@@ -26,11 +26,13 @@ The AB Entertainment site contains a polished visual shell, but the application 
 **Approach:** Reuse the existing structure and add only the missing modules, routes, and server integrations.
 
 **Pros:**
+
 - Preserves the validated UI foundation
 - Delivers the requested capability quickly
 - Limits unnecessary refactoring risk
 
 **Cons:**
+
 - Leaves some earlier placeholder component patterns in place
 - Requires careful adapter code around mixed fallback and CMS data
 
@@ -45,12 +47,14 @@ Implement the plan at `docs/plans/2026-03-13-feat-flagship-site-incremental-buil
 ## Technical Details
 
 **Affected files:**
+
 - `src/app/*`
 - `src/components/*`
 - `src/lib/*`
 - `src/sanity/lib/*`
 
 **Database changes:**
+
 - Add contact, newsletter, and booking tables through idempotent SQL helpers.
 
 ## Resources
@@ -73,11 +77,13 @@ Implement the plan at `docs/plans/2026-03-13-feat-flagship-site-incremental-buil
 **By:** Codex
 
 **Actions:**
+
 - Audited the current repo structure and existing UI foundation
 - Wrote and deepened the implementation plan
 - Began the incremental build with new dependencies and integration scaffolding
 
 **Learnings:**
+
 - The current repo is structurally clean but largely application-incomplete
 - Additive integration is viable without broad refactoring
 
@@ -86,6 +92,7 @@ Implement the plan at `docs/plans/2026-03-13-feat-flagship-site-incremental-buil
 **By:** Codex
 
 **Actions:**
+
 - Replaced the starter homepage with the branded section composition
 - Added the missing top-level pages and Stripe webhook route
 - Wired Sanity-first loaders with local fallback content
@@ -94,5 +101,6 @@ Implement the plan at `docs/plans/2026-03-13-feat-flagship-site-incremental-buil
 - Ran `npm run lint`, `npm run build`, and headless browser smoke coverage for `/`, `/events`, `/events/swaranirmiti-2026`, and `/contact`
 
 **Learnings:**
+
 - The local Node/npm environment ships broken `.bin` launchers for `eslint` and `next`; direct script entrypoints were required in `package.json`
 - The external service integrations compile and fail gracefully without live credentials, but end-to-end payment and persistence validation still requires real environment variables
