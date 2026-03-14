@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { ArrowRight } from "lucide-react";
 import { beginBookingCheckout } from "@/lib/actions/booking-actions";
 import { initialActionState } from "@/lib/actions/form-state";
 
@@ -19,12 +20,19 @@ export function BookingCheckoutForm({
   );
   const isRequestMode = mode === "request";
 
-  const fieldClassName =
-    "w-full rounded-2xl border border-ivory/10 bg-charcoal px-4 py-3 font-body text-sm text-ivory placeholder:text-ivory/30 transition-colors duration-300 focus:border-gold/40 focus:outline-none focus:ring-1 focus:ring-gold/30";
-
   return (
-    <form action={formAction} className="space-y-4 rounded-2xl border border-gold/15 bg-charcoal-deep/70 p-5">
+    <form
+      action={formAction}
+      className="space-y-5 rounded-[2rem] border border-gold/14 bg-charcoal-deep/72 p-5 backdrop-blur-xl"
+    >
       <input type="hidden" name="eventSlug" value={eventSlug} />
+
+      <div>
+        <p className="numeric-label !text-gold/66">Booking Concierge</p>
+        <p className="mt-3 font-display text-2xl leading-tight text-ivory">
+          Reserve your seats with a premium, low-friction checkout flow.
+        </p>
+      </div>
 
       <div>
         <label htmlFor={`booking-name-${eventSlug}`} className="mb-2 block font-body text-xs uppercase tracking-[0.2em] text-ivory/40">
@@ -36,7 +44,7 @@ export function BookingCheckoutForm({
           type="text"
           autoComplete="name"
           required
-          className={fieldClassName}
+          className="luxury-input"
         />
         {state.fieldErrors?.customerName ? (
           <p className="mt-2 font-body text-xs text-rose-300">
@@ -55,7 +63,7 @@ export function BookingCheckoutForm({
           type="email"
           autoComplete="email"
           required
-          className={fieldClassName}
+          className="luxury-input"
         />
         {state.fieldErrors?.customerEmail ? (
           <p className="mt-2 font-body text-xs text-rose-300">
@@ -72,7 +80,7 @@ export function BookingCheckoutForm({
           id={`booking-quantity-${eventSlug}`}
           name="quantity"
           defaultValue="1"
-          className={fieldClassName}
+          className="luxury-input"
         >
           {[1, 2, 3, 4, 5, 6].map((quantity) => (
             <option key={quantity} value={quantity}>
@@ -82,30 +90,39 @@ export function BookingCheckoutForm({
         </select>
       </div>
 
+      <div className="rounded-[1.4rem] border border-ivory/10 bg-ivory/5 p-4">
+        <p className="font-body text-xs uppercase tracking-[0.22em] text-gold/72">
+          {isRequestMode ? "Reservation Request" : "Secure Checkout"}
+        </p>
+        <p className="mt-2 font-body text-sm leading-relaxed text-ivory/52">
+          {isRequestMode
+            ? "Submit your request and the AB Entertainment team will confirm availability, payment details, and next steps."
+            : "Complete payment through Stripe Checkout with a flow designed to keep the experience calm, fast, and secure."}
+        </p>
+      </div>
+
       <button
         type="submit"
         disabled={isPending}
-        className="block w-full rounded-full bg-gold px-6 py-3 text-center font-body text-sm font-semibold uppercase tracking-[0.2em] text-charcoal transition-colors hover:bg-gold-light disabled:cursor-not-allowed disabled:opacity-60"
+        className="button-primary glow-on-hover gold-shimmer w-full justify-center px-6 py-4 text-[0.68rem] disabled:cursor-not-allowed disabled:opacity-60"
+        data-magnetic
       >
         {isPending
           ? isRequestMode
-            ? "Sending request..."
-            : "Preparing checkout..."
+            ? "Sending Request..."
+            : "Preparing Checkout..."
           : isRequestMode
-            ? "Request reservation"
-            : "Book with Stripe"}
+            ? "Request Reservation"
+            : "Book With Stripe"}
+        <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.8} />
       </button>
-
-      <p className="font-body text-xs text-ivory/35">
-        {isRequestMode
-          ? "The team will confirm availability and send payment details after reviewing your request."
-          : "You will be redirected to Stripe Checkout to complete payment securely."}
-      </p>
 
       {state.message ? (
         <p
-          className={`font-body text-sm ${
-            state.status === "success" ? "text-gold/80" : "text-rose-300"
+          className={`rounded-[1.25rem] px-4 py-3 font-body text-sm ${
+            state.status === "success"
+              ? "border border-gold/18 bg-gold/10 text-gold"
+              : "border border-rose-400/20 bg-rose-400/8 text-rose-300"
           }`}
         >
           {state.message}

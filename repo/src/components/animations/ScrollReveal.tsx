@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, type Variant } from "framer-motion";
+import { motion, type TargetAndTransition } from "framer-motion";
 import type { ReactNode } from "react";
 
 type RevealDirection = "up" | "down" | "left" | "right" | "scale" | "none";
@@ -19,8 +19,8 @@ interface ScrollRevealProps {
   threshold?: number;
 }
 
-const getInitial = (direction: RevealDirection, distance: number): Variant => {
-  const variants: Record<RevealDirection, Variant> = {
+const getInitial = (direction: RevealDirection, distance: number): TargetAndTransition => {
+  const variants: Record<RevealDirection, TargetAndTransition> = {
     up: { opacity: 0, y: distance },
     down: { opacity: 0, y: -distance },
     left: { opacity: 0, x: distance },
@@ -31,8 +31,8 @@ const getInitial = (direction: RevealDirection, distance: number): Variant => {
   return variants[direction];
 };
 
-const getAnimate = (direction: RevealDirection): Variant => {
-  const variants: Record<RevealDirection, Variant> = {
+const getAnimate = (direction: RevealDirection): TargetAndTransition => {
+  const variants: Record<RevealDirection, TargetAndTransition> = {
     up: { opacity: 1, y: 0 },
     down: { opacity: 1, y: 0 },
     left: { opacity: 1, x: 0 },
