@@ -161,7 +161,7 @@ export default async function BlogPostPage({
     notFound();
   }
 
-  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://abentertainment.com.au';
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://abentertainment.web.com';
   const imageUrl = post.heroImage?.asset
     ? urlFor(post.heroImage).width(1200).height(630).url()
     : undefined;

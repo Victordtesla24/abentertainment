@@ -165,12 +165,9 @@ export default async function Image() {
             position: 'absolute',
             bottom: '28px',
             right: '40px',
-            color: 'rgba(245,240,232,0.3)',
-            fontSize: '13px',
-            letterSpacing: '0.1em',
           }}
         >
-          abentertainment.com.au
+          abentertainment.web.com
         </div>
       </div>
     ),

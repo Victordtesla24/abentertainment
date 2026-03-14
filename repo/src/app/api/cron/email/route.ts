@@ -39,7 +39,7 @@ export async function GET(req: Request) {
     }
 
     const eventsContext = upcomingEvents.map((e: any) => 
-      `- ${e.title} at ${e.venue?.name || 'TBA'} on ${new Date(e.date).toLocaleDateString()}. Link: https://abentertainment.com.au/events/${e.slug}`
+      `- ${e.title} at ${e.venue?.name || 'TBA'} on ${new Date(e.date).toLocaleDateString()}. Link: https://abentertainment.web.com/events/${e.slug}`
     ).join('\n');
 
     // 2. Generate email content with AI

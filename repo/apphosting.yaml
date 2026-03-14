@@ -1,0 +1,12 @@
+# Firebase App Hosting Configuration
+# https://firebase.google.com/docs/app-hosting/configure
+
+# Since this is a Next.js application, App Hosting auto-detects 
+# the build settings. We specify run configs below.
+
+env:
+  - variable: NEXT_PUBLIC_SITE_URL
+    value: https://abentertainment.web.com
+    availability:
+      - BUILD
+      - RUNTIME

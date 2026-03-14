@@ -81,9 +81,9 @@ export async function POST(req: Request) {
               — The AB Entertainment Team
             </p>
             <hr style="border:none;border-top:1px solid rgba(201,168,76,0.2);margin:32px 0;"/>
-            <p style="color:rgba(245,240,232,0.3);font-size:0.75rem;">
-              You received this email because you subscribed at abentertainment.com.au.
-              <a href="https://abentertainment.com.au/unsubscribe?email=${encodeURIComponent(email)}" style="color:#C9A84C;">Unsubscribe</a>
+            <p style="font-size:12px; color:#9ca3af; text-align:center; padding-top:20px;">
+              You received this email because you subscribed at abentertainment.web.com.
+              <a href="https://abentertainment.web.com/unsubscribe?email=${encodeURIComponent(email)}" style="color:#C9A84C;">Unsubscribe</a>
             </p>
           </div>
         `,

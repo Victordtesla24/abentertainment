@@ -3,7 +3,7 @@ export const SITE_CONFIG = {
   tagline: "Where Tradition Takes the Stage",
   description:
     "Melbourne's premier Indian and Marathi cultural event company. Experience events like no other — curating moments that echo through generations since 2007.",
-  url: "https://abentertainment.com.au",
+  url: "https://abentertainment.web.com",
   locale: "en-AU",
   founder: {
     name: "Abhijeet Kadam & Vrushali Deshpande",
