@@ -64,5 +64,8 @@
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "@react-email/body": "0.3.0"
   }
 }
