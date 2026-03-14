@@ -11,15 +11,26 @@ import {
   X,
   LogOut,
   ChevronRight,
+  Users,
+  Award,
+  FileText,
+  Settings,
 } from "lucide-react";
 import { useState } from "react";
 import { useClerk } from "@clerk/nextjs";
 
-const NAV = [
+const NAV_MAIN = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Events", href: "/admin/events", icon: CalendarDays },
   { label: "Gallery", href: "/admin/gallery", icon: ImageIcon },
   { label: "Venues", href: "/admin/venues", icon: MapPin },
+] as const;
+
+const NAV_MANAGE = [
+  { label: "Team", href: "/admin/team", icon: Users },
+  { label: "Sponsors", href: "/admin/sponsors", icon: Award },
+  { label: "Blog", href: "/admin/blog", icon: FileText },
+  { label: "Settings", href: "/admin/settings", icon: Settings },
 ] as const;
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -61,28 +72,57 @@ export function AdminShell({
             </Link>
           </div>
 
-          <nav className="flex-1 space-y-1 px-3 py-4">
-            {NAV.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200",
-                    isActive(item.href)
-                      ? "bg-[#c9a84c]/12 text-[#c9a84c]"
-                      : "text-white/50 hover:bg-white/5 hover:text-white/80"
-                  )}
-                >
-                  <Icon className="h-4.5 w-4.5" strokeWidth={1.8} />
-                  {item.label}
-                  {isActive(item.href) && (
-                    <ChevronRight className="ml-auto h-3.5 w-3.5 text-[#c9a84c]/50" />
-                  )}
-                </Link>
-              );
-            })}
+          <nav className="flex-1 overflow-y-auto px-3 py-4">
+            <div className="space-y-1">
+              {NAV_MAIN.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200",
+                      isActive(item.href)
+                        ? "bg-[#c9a84c]/12 text-[#c9a84c]"
+                        : "text-white/50 hover:bg-white/5 hover:text-white/80"
+                    )}
+                  >
+                    <Icon className="h-4.5 w-4.5" strokeWidth={1.8} />
+                    {item.label}
+                    {isActive(item.href) && (
+                      <ChevronRight className="ml-auto h-3.5 w-3.5 text-[#c9a84c]/50" />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+            <div className="my-3 mx-4 h-px bg-white/8" />
+            <p className="mb-2 px-4 text-[0.6rem] uppercase tracking-widest text-white/25">
+              Manage
+            </p>
+            <div className="space-y-1">
+              {NAV_MANAGE.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200",
+                      isActive(item.href)
+                        ? "bg-[#c9a84c]/12 text-[#c9a84c]"
+                        : "text-white/50 hover:bg-white/5 hover:text-white/80"
+                    )}
+                  >
+                    <Icon className="h-4.5 w-4.5" strokeWidth={1.8} />
+                    {item.label}
+                    {isActive(item.href) && (
+                      <ChevronRight className="ml-auto h-3.5 w-3.5 text-[#c9a84c]/50" />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
           </nav>
 
           <div className="border-t border-white/8 px-4 py-4">
@@ -127,26 +167,53 @@ export function AdminShell({
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <nav className="space-y-1 px-3 py-4">
-              {NAV.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all",
-                      isActive(item.href)
-                        ? "bg-[#c9a84c]/12 text-[#c9a84c]"
-                        : "text-white/50 hover:bg-white/5 hover:text-white/80"
-                    )}
-                  >
-                    <Icon className="h-4.5 w-4.5" strokeWidth={1.8} />
-                    {item.label}
-                  </Link>
-                );
-              })}
+            <nav className="px-3 py-4">
+              <div className="space-y-1">
+                {NAV_MAIN.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setSidebarOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all",
+                        isActive(item.href)
+                          ? "bg-[#c9a84c]/12 text-[#c9a84c]"
+                          : "text-white/50 hover:bg-white/5 hover:text-white/80"
+                      )}
+                    >
+                      <Icon className="h-4.5 w-4.5" strokeWidth={1.8} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+              <div className="my-3 mx-4 h-px bg-white/8" />
+              <p className="mb-2 px-4 text-[0.6rem] uppercase tracking-widest text-white/25">
+                Manage
+              </p>
+              <div className="space-y-1">
+                {NAV_MANAGE.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setSidebarOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all",
+                        isActive(item.href)
+                          ? "bg-[#c9a84c]/12 text-[#c9a84c]"
+                          : "text-white/50 hover:bg-white/5 hover:text-white/80"
+                      )}
+                    >
+                      <Icon className="h-4.5 w-4.5" strokeWidth={1.8} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
             </nav>
           </aside>
         </div>
