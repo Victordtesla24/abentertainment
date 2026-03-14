@@ -42,8 +42,8 @@
       ],
       "heroImage": "/images/events/vasantotsav-poster.jpg",
       "accent": "gold",
-      "createdAt": "2026-03-14T11:30:33.569Z",
-      "updatedAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
     },
     {
       "id": "event-rhythm-and-raaga-2026",
@@ -82,8 +82,8 @@
       ],
       "heroImage": "/images/events/event-poster-1.jpg",
       "accent": "burgundy",
-      "createdAt": "2026-03-14T11:30:33.569Z",
-      "updatedAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
     },
     {
       "id": "event-diwali-spectacular-2026",
@@ -113,8 +113,8 @@
       ],
       "heroImage": "/images/events/event-poster-2.jpg",
       "accent": "charcoal",
-      "createdAt": "2026-03-14T11:30:33.569Z",
-      "updatedAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
     }
   ],
   "gallery": [
@@ -126,7 +126,7 @@
       "eventName": "Niyam V Ati Lagu",
       "year": "2024",
       "category": "On Stage",
-      "createdAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z"
     },
     {
       "id": "g2",
@@ -136,7 +136,7 @@
       "eventName": "Niyam V Ati Lagu",
       "year": "2024",
       "category": "Artist Focus",
-      "createdAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z"
     },
     {
       "id": "g3",
@@ -146,7 +146,7 @@
       "eventName": "AB Entertainment",
       "year": "2023",
       "category": "Venue Atmosphere",
-      "createdAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z"
     },
     {
       "id": "g4",
@@ -156,7 +156,7 @@
       "eventName": "AB Entertainment",
       "year": "2023",
       "category": "Venue Atmosphere",
-      "createdAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z"
     },
     {
       "id": "g5",
@@ -166,7 +166,7 @@
       "eventName": "Niyam V Ati Lagu",
       "year": "2024",
       "category": "On Stage",
-      "createdAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z"
     }
   ],
   "venues": [
@@ -177,8 +177,8 @@
       "city": "Melbourne",
       "capacity": 5000,
       "mapUrl": "https://www.google.com/maps/search/?api=1&query=Melbourne+Convention+Centre",
-      "createdAt": "2026-03-14T11:30:33.569Z",
-      "updatedAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
     },
     {
       "id": "v2",
@@ -187,8 +187,8 @@
       "city": "Melbourne",
       "capacity": 2800,
       "mapUrl": "https://www.google.com/maps/search/?api=1&query=Palais+Theatre+Melbourne",
-      "createdAt": "2026-03-14T11:30:33.569Z",
-      "updatedAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
     },
     {
       "id": "v3",
@@ -197,8 +197,8 @@
       "city": "Melbourne",
       "capacity": 12000,
       "mapUrl": "https://www.google.com/maps/search/?api=1&query=Sidney+Myer+Music+Bowl",
-      "createdAt": "2026-03-14T11:30:33.569Z",
-      "updatedAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
     },
     {
       "id": "v4",
@@ -206,8 +206,8 @@
       "address": "100 St Kilda Road, Melbourne VIC 3004",
       "city": "Melbourne",
       "capacity": 2466,
-      "createdAt": "2026-03-14T11:30:33.569Z",
-      "updatedAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
     },
     {
       "id": "v5",
@@ -215,8 +215,62 @@
       "address": "Corner Walker and Lonsdale Streets, Dandenong VIC 3175",
       "city": "Dandenong",
       "capacity": 400,
-      "createdAt": "2026-03-14T11:30:33.569Z",
-      "updatedAt": "2026-03-14T11:30:33.569Z"
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
     }
-  ]
+  ],
+  "team": [
+    {
+      "id": "t1",
+      "name": "Abhijeet Kadam",
+      "role": "Founder & Creative Director",
+      "bio": "With nearly two decades of experience producing Indian cultural events in Australia, Abhijeet leads AB Entertainment's creative vision and artist partnerships.",
+      "order": 1,
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
+    },
+    {
+      "id": "t2",
+      "name": "Vrushali Deshpande",
+      "role": "Co-Founder & Operations Director",
+      "bio": "Vrushali oversees event operations, venue partnerships, and the guest experience — ensuring every AB production runs with precision and warmth.",
+      "order": 2,
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
+    }
+  ],
+  "sponsors": [
+    {
+      "id": "s1",
+      "name": "SBI Australia",
+      "tier": "title",
+      "description": "State Bank of India's Australian arm, proud partner of AB Entertainment's flagship productions.",
+      "active": true,
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
+    },
+    {
+      "id": "s2",
+      "name": "Air India",
+      "tier": "gold",
+      "description": "Official travel partner for AB Entertainment artist tours.",
+      "active": true,
+      "createdAt": "2026-03-14T18:59:14.698Z",
+      "updatedAt": "2026-03-14T18:59:14.698Z"
+    }
+  ],
+  "blog": [],
+  "siteSettings": {
+    "siteName": "AB Entertainment",
+    "tagline": "Where Tradition Takes the Stage",
+    "description": "Melbourne's premier Indian and Marathi cultural event company. Experience events like no other — curating moments that echo through generations since 2007.",
+    "contactEmail": "info@abentertainment.com.au",
+    "contactPhone": "+61 3 XXXX XXXX",
+    "socialInstagram": "https://instagram.com/abentertainment",
+    "socialFacebook": "https://facebook.com/abentertainment",
+    "socialYoutube": "https://youtube.com/@abentertainment",
+    "footerText": "AB Entertainment Pty Ltd. Celebrating Indian culture in Melbourne since 2007.",
+    "maintenanceMode": false,
+    "updatedAt": "2026-03-14T18:59:14.698Z"
+  }
 }
