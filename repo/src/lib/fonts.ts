@@ -1,19 +1,11 @@
-import { Playfair_Display, JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
 
-export const playfair = Playfair_Display({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-display",
-  weight: ["400", "500", "600", "700"],
-});
-
-export const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-mono",
-  weight: ["400", "500"],
-});
+// Google font fetching is blocked in this execution environment, so the
+// display and mono families are loaded via stylesheet links in app/layout.tsx.
+// We keep the same variable contract here so the rest of the app can continue
+// to reference the font objects consistently.
+export const playfair = { variable: "" } as const;
+export const jetbrainsMono = { variable: "" } as const;
 
 export const bodyFont = localFont({
   src: [
@@ -39,7 +31,6 @@ export const bodyFont = localFont({
     "system-ui",
     "-apple-system",
     "Segoe UI",
-    "Roboto",
     "Helvetica Neue",
     "Arial",
     "sans-serif",

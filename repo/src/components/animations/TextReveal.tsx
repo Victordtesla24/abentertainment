@@ -31,22 +31,24 @@ export function TextReveal({
 
   if (splitBy === "line") {
     return (
-      <Tag className={className} ref={ref as React.Ref<HTMLElement>}>
-        <span className="sr-only">{children}</span>
-        <motion.span
-          aria-hidden="true"
-          className="inline-block overflow-hidden"
-          initial={{ y: "100%" }}
-          animate={isInView ? { y: "0%" } : { y: "100%" }}
-          transition={{
-            duration: 0.8,
-            delay,
-            ease: [0.22, 1, 0.36, 1],
-          }}
-        >
-          {children}
-        </motion.span>
-      </Tag>
+      <div ref={ref}>
+        <Tag className={className}>
+          <span className="sr-only">{children}</span>
+          <motion.span
+            aria-hidden="true"
+            className="inline-block overflow-hidden"
+            initial={{ y: "100%" }}
+            animate={isInView ? { y: "0%" } : { y: "100%" }}
+            transition={{
+              duration: 0.8,
+              delay,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+          >
+            {children}
+          </motion.span>
+        </Tag>
+      </div>
     );
   }
 

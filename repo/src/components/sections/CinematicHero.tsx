@@ -1,71 +1,106 @@
 "use client";
 
-import {
-  motion,
-  useScroll,
-  useTransform,
-  useMotionValue,
-  useSpring,
-  AnimatePresence,
-  useInView,
-} from "framer-motion";
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
+import {
+  AnimatePresence,
+  motion,
+  useInView,
+  useMotionValue,
+  useScroll,
+  useSpring,
+  useTransform,
+} from "framer-motion";
 import {
   ArrowRight,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   MapPin,
   Sparkles,
   Ticket,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
-import { ANIMATION } from "@/lib/constants";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CountUp } from "@/components/animations/CountUp";
-
-/* ─── Data ─── */
+import { ANIMATION } from "@/lib/constants";
 
 const heroImages = [
   {
-    src: "/images/hero/slider-1.jpg",
-    alt: "AB Entertainment - grand theatrical auditorium",
+    src: "/images/hero/hero-curtains-1.jpg",
+    alt: "Velvet curtains opening on a gold-lit theatre stage.",
+    act: "Act I",
+    scene: "Curtain Rise",
+    note: "A first impression shaped like a stage reveal: burgundy velvet, warm gold spill, and a sense of ceremony before the program begins.",
   },
   {
     src: "/images/hero/hero-event-live.jpg",
-    alt: "AB Entertainment live cultural event on stage",
+    alt: "AB Entertainment live cultural performance with audience energy.",
+    act: "Act II",
+    scene: "Live Atmosphere",
+    note: "The guest experience moves from anticipation to immersion, with premium staging, rich lighting, and emotionally grounded performance.",
   },
   {
-    src: "/images/hero/hero-stage-1.jpg",
-    alt: "AB Entertainment Marathi cultural performance",
+    src: "/images/hero/hero-stage-2.jpg",
+    alt: "A premium concert stage prepared for AB Entertainment's season.",
+    act: "Act III",
+    scene: "Season Program",
+    note: "Every event is framed like a marquee announcement, balancing heritage, hospitality, and modern production polish.",
   },
   {
     src: "/images/hero/slider-2.jpg",
-    alt: "AB Entertainment premium live production",
+    alt: "Guests arriving to an AB Entertainment cultural event.",
+    act: "Act IV",
+    scene: "Arrival & Applause",
+    note: "The final note is not the end. It is the invitation to return for the next cultural evening, sponsor conversation, or private production.",
   },
 ];
 
-const heroParticles = Array.from({ length: 24 }, (_, index) => ({
+const heroParticles = Array.from({ length: 28 }, (_, index) => ({
   left: `${(index * 13.37 + 5) % 100}%`,
   top: `${(index * 19.51 + 8) % 100}%`,
-  size: 1 + (index % 3) * 0.5,
-  duration: 4 + (index % 6) * 0.7,
-  delay: (index % 5) * 0.3,
+  size: 1 + (index % 3) * 0.65,
+  duration: 5 + (index % 6) * 0.75,
+  delay: (index % 5) * 0.32,
 }));
 
 const seasonMetrics = [
-  { label: "Since", value: 2007, suffix: "", prefix: "", detail: "Luxury cultural programming with long-term community trust." },
-  { label: "Audience", value: 25, suffix: "K+", prefix: "", detail: "Guests welcomed across headline productions in Australia and New Zealand." },
-  { label: "Signature", value: 6, suffix: "+", prefix: "", detail: "Major events delivered with premium hospitality and sponsor confidence." },
+  {
+    label: "Since",
+    value: 2007,
+    suffix: "",
+    detail: "A long-running cultural institution with premium production discipline.",
+  },
+  {
+    label: "Audience",
+    value: 25,
+    suffix: "K+",
+    detail: "Guests welcomed across headline events in Australia and New Zealand.",
+  },
+  {
+    label: "Signature",
+    value: 6,
+    suffix: "+",
+    detail: "Major productions delivered with sponsor confidence and refined hospitality.",
+  },
 ];
 
 const seasonProgram = [
-  { title: "Swaranirmiti 2026", date: "14 June 2026", venue: "Melbourne Convention Centre" },
-  { title: "Rhythm & Raaga", date: "22 August 2026", venue: "Palais Theatre" },
-  { title: "Diwali Spectacular", date: "18 October 2026", venue: "Sidney Myer Music Bowl" },
+  {
+    title: "Swaranirmiti 2026",
+    date: "14 June 2026",
+    venue: "Melbourne Convention Centre",
+  },
+  {
+    title: "Rhythm & Raaga",
+    date: "22 August 2026",
+    venue: "Palais Theatre",
+  },
+  {
+    title: "Diwali Spectacular",
+    date: "18 October 2026",
+    venue: "Sidney Myer Music Bowl",
+  },
 ];
-
-/* ─── Word-by-word reveal sub-component ─── */
 
 function HeroWordReveal({
   text,
@@ -79,55 +114,63 @@ function HeroWordReveal({
   stagger?: number;
 }) {
   const words = text.split(" ");
+
   return (
     <span className={className}>
-      {words.map((word, i) => (
-        <span key={`${word}-${i}`} className="inline-block overflow-hidden">
+      {words.map((word, index) => (
+        <span key={`${word}-${index}`} className="inline-block overflow-hidden">
           <motion.span
             className="inline-block"
-            initial={{ y: "115%", rotateX: -90, opacity: 0 }}
+            initial={{ y: "115%", rotateX: -88, opacity: 0 }}
             animate={{ y: "0%", rotateX: 0, opacity: 1 }}
             transition={{
               duration: 0.9,
-              delay: delay + i * stagger,
+              delay: delay + index * stagger,
               ease: [0.22, 1, 0.36, 1],
             }}
           >
             {word}
           </motion.span>
-          {i < words.length - 1 && "\u00A0"}
+          {index < words.length - 1 && "\u00A0"}
         </span>
       ))}
     </span>
   );
 }
 
-/* ─── Main Hero Component ─── */
-
 export function CinematicHero() {
   const sectionRef = useRef<HTMLElement>(null);
-  const { scrollY } = useScroll();
-  const yContent = useTransform(scrollY, [0, 800], [0, -80]);
-  const scaleImg = useTransform(scrollY, [0, 600], [1, 1.12]);
-  const opacityOverlay = useTransform(scrollY, [0, 500], [0.55, 0.82]);
-
+  const metricsRef = useRef<HTMLDivElement>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
 
-  // Mouse-driven parallax for subtle depth on desktop
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end start"],
+  });
+
+  const yContent = useTransform(scrollYProgress, [0, 1], ["0%", "-12%"]);
+  const scaleImg = useTransform(scrollYProgress, [0, 1], [1, 1.14]);
+  const overlayOpacity = useTransform(scrollYProgress, [0, 0.9], [0.48, 0.82]);
+
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const parallaxX = useSpring(mouseX, { stiffness: 50, damping: 30 });
-  const parallaxY = useSpring(mouseY, { stiffness: 50, damping: 30 });
+  const parallaxX = useSpring(mouseX, { stiffness: 46, damping: 24, mass: 0.6 });
+  const parallaxY = useSpring(mouseY, { stiffness: 42, damping: 24, mass: 0.7 });
+
+  const metricsInView = useInView(metricsRef, { once: true, margin: "-60px" });
+  const currentScene = heroImages[currentSlide];
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      const x = (e.clientX / window.innerWidth - 0.5) * 20;
-      const y = (e.clientY / window.innerHeight - 0.5) * 12;
+    const handleMouseMove = (event: MouseEvent) => {
+      const x = (event.clientX / window.innerWidth - 0.5) * 26;
+      const y = (event.clientY / window.innerHeight - 0.5) * 18;
       mouseX.set(x);
       mouseY.set(y);
     };
+
     window.addEventListener("mousemove", handleMouseMove);
+
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [mouseX, mouseY]);
 
@@ -140,22 +183,22 @@ export function CinematicHero() {
   }, []);
 
   useEffect(() => {
-    if (!isAutoPlaying) return;
-    const timer = setInterval(nextSlide, 5500);
+    if (!isAutoPlaying) {
+      return;
+    }
+
+    const timer = setInterval(nextSlide, 5600);
+
     return () => clearInterval(timer);
   }, [isAutoPlaying, nextSlide]);
-
-  const metricsRef = useRef<HTMLDivElement>(null);
-  const metricsInView = useInView(metricsRef, { once: true, margin: "-60px" });
 
   return (
     <section
       ref={sectionRef}
-      className="relative min-h-screen overflow-hidden px-6 pb-10 pt-28 md:pt-32"
+      className="stage-shell relative min-h-screen overflow-hidden px-6 pb-12 pt-28 md:pt-32 lg:pt-36"
       aria-label="Welcome to AB Entertainment"
     >
-      {/* ── Cinematic Image Carousel Background ── */}
-      <div className="absolute inset-0" aria-hidden="true">
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
         <AnimatePresence mode="sync">
           <motion.div
             key={currentSlide}
@@ -163,7 +206,7 @@ export function CinematicHero() {
             initial={{ opacity: 0, scale: 1.05 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 1.6, ease: "easeInOut" }}
+            transition={{ duration: 1.4, ease: "easeInOut" }}
           >
             <motion.div
               className="absolute inset-0"
@@ -174,76 +217,32 @@ export function CinematicHero() {
               }}
             >
               <Image
-                src={heroImages[currentSlide].src}
-                alt={heroImages[currentSlide].alt}
+                src={currentScene.src}
+                alt={currentScene.alt}
                 fill
-                className="object-cover object-center"
                 priority={currentSlide === 0}
+                className="object-cover object-center"
                 sizes="100vw"
               />
             </motion.div>
           </motion.div>
         </AnimatePresence>
 
-        {/* Multi-layer gradient overlays */}
-        <motion.div
-          className="absolute inset-0"
-          style={{ opacity: opacityOverlay }}
-          aria-hidden="true"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-charcoal-deep via-charcoal/80 to-charcoal-deep/60" />
-          <div className="absolute inset-0 bg-gradient-to-t from-charcoal/90 via-transparent to-transparent" />
+        <motion.div className="absolute inset-0" style={{ opacity: overlayOpacity }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-charcoal-deep via-charcoal/82 to-charcoal-deep/78" />
+          <div className="absolute inset-0 bg-gradient-to-t from-charcoal-deep via-charcoal/18 to-transparent" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(201,168,76,0.22),transparent_32%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(107,29,58,0.26),transparent_30%)]" />
         </motion.div>
 
-        {/* Gold / Burgundy accent radials */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(201,168,76,0.18),transparent_55%)] pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(107,29,58,0.25),transparent_50%)] pointer-events-none" />
-
-        {/* Vignette edge */}
-        <div className="absolute inset-0 shadow-[inset_0_0_200px_rgba(0,0,0,0.5)] pointer-events-none" />
+        <div className="absolute inset-0 shadow-[inset_0_0_220px_rgba(0,0,0,0.58)]" />
       </div>
 
-      {/* ── Carousel Controls ── */}
-      <div className="absolute bottom-32 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3" aria-label="Hero carousel navigation">
-        {heroImages.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => { setCurrentSlide(i); setIsAutoPlaying(false); }}
-            aria-label={`Go to slide ${i + 1}`}
-            className="group relative"
-          >
-            <span className={`block h-1 rounded-full transition-all duration-700 ${i === currentSlide ? "w-10 bg-gold" : "w-2 bg-ivory/25 group-hover:bg-ivory/50 group-hover:w-4"}`} />
-            {i === currentSlide && (
-              <motion.span
-                className="absolute -inset-1 rounded-full border border-gold/30"
-                layoutId="hero-dot-ring"
-                transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              />
-            )}
-          </button>
-        ))}
-      </div>
-      <button
-        onClick={() => { prevSlide(); setIsAutoPlaying(false); }}
-        aria-label="Previous slide"
-        className="absolute left-4 top-1/2 z-20 -translate-y-1/2 flex h-12 w-12 items-center justify-center rounded-full border border-ivory/15 bg-charcoal/30 text-ivory backdrop-blur-md transition-all duration-500 hover:border-gold/50 hover:bg-charcoal/60 hover:scale-110 md:left-8"
-      >
-        <ChevronLeft className="h-5 w-5" strokeWidth={1.5} />
-      </button>
-      <button
-        onClick={() => { nextSlide(); setIsAutoPlaying(false); }}
-        aria-label="Next slide"
-        className="absolute right-4 top-1/2 z-20 -translate-y-1/2 flex h-12 w-12 items-center justify-center rounded-full border border-ivory/15 bg-charcoal/30 text-ivory backdrop-blur-md transition-all duration-500 hover:border-gold/50 hover:bg-charcoal/60 hover:scale-110 md:right-8"
-      >
-        <ChevronRight className="h-5 w-5" strokeWidth={1.5} />
-      </button>
-
-      {/* ── Floating Particles (enhanced) ── */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         {heroParticles.map((particle, index) => (
           <motion.span
             key={index}
-            className="absolute rounded-full bg-gold/40"
+            className="absolute rounded-full bg-gold/36"
             style={{
               left: particle.left,
               top: particle.top,
@@ -251,10 +250,10 @@ export function CinematicHero() {
               height: particle.size,
             }}
             animate={{
-              y: [0, -90, 0],
-              x: [0, (index % 2 === 0 ? 15 : -15), 0],
-              opacity: [0.05, 0.5, 0.05],
-              scale: [1, 1.8, 1],
+              y: [0, -96, 0],
+              x: [0, index % 2 === 0 ? 16 : -16, 0],
+              opacity: [0.06, 0.48, 0.06],
+              scale: [1, 1.9, 1],
             }}
             transition={{
               duration: particle.duration,
@@ -266,210 +265,325 @@ export function CinematicHero() {
         ))}
       </div>
 
-      {/* ── Main Content ── */}
+      <motion.div
+        aria-hidden="true"
+        initial={{ x: 0 }}
+        animate={{ x: "-102%" }}
+        transition={{ duration: 1.45, delay: 0.35, ease: [0.76, 0, 0.24, 1] }}
+        className="pointer-events-none absolute inset-y-0 left-0 z-10 w-1/2 bg-[linear-gradient(180deg,#63253a_0%,#34111f_100%)]"
+      >
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_32%,rgba(201,168,76,0.08),transparent_70%)]" />
+      </motion.div>
+      <motion.div
+        aria-hidden="true"
+        initial={{ x: 0 }}
+        animate={{ x: "102%" }}
+        transition={{ duration: 1.45, delay: 0.35, ease: [0.76, 0, 0.24, 1] }}
+        className="pointer-events-none absolute inset-y-0 right-0 z-10 w-1/2 bg-[linear-gradient(180deg,#63253a_0%,#34111f_100%)]"
+      >
+        <div className="absolute inset-0 bg-[linear-gradient(60deg,rgba(255,255,255,0.08),transparent_32%,rgba(201,168,76,0.08),transparent_70%)]" />
+      </motion.div>
+      <motion.div
+        aria-hidden="true"
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 0 }}
+        transition={{ duration: 0.4, delay: 1.1 }}
+        className="pointer-events-none absolute inset-y-0 left-1/2 z-10 w-px -translate-x-1/2 bg-gradient-to-b from-gold/80 via-gold/30 to-transparent"
+      />
+
+      <button
+        type="button"
+        onClick={() => {
+          prevSlide();
+          setIsAutoPlaying(false);
+        }}
+        aria-label="Previous hero scene"
+        className="button-dark absolute left-4 top-1/2 z-20 hidden -translate-y-1/2 px-4 py-3 text-[0.68rem] md:flex"
+      >
+        <ChevronLeft className="h-4 w-4" strokeWidth={1.8} />
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          nextSlide();
+          setIsAutoPlaying(false);
+        }}
+        aria-label="Next hero scene"
+        className="button-dark absolute right-4 top-1/2 z-20 hidden -translate-y-1/2 px-4 py-3 text-[0.68rem] md:flex"
+      >
+        <ChevronRight className="h-4 w-4" strokeWidth={1.8} />
+      </button>
+
       <motion.div
         style={{ y: yContent }}
-        className="relative mx-auto grid min-h-[calc(100vh-8rem)] max-w-7xl gap-14 lg:grid-cols-[1.15fr_0.85fr] lg:items-end"
+        className="relative mx-auto grid min-h-[calc(100vh-11rem)] max-w-7xl gap-10 lg:grid-cols-[1.12fr_0.88fr] lg:items-end"
       >
-        {/* Left column */}
         <div className="pb-8 lg:pb-12">
-          <motion.p
-            initial={{ opacity: 0, y: 16, filter: "blur(4px)" }}
+          <motion.div
+            initial={{ opacity: 0, y: 14, filter: "blur(6px)" }}
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{ delay: 0.3, duration: 0.8 }}
-            className="eyebrow-label"
+            transition={{ delay: 0.35, duration: 0.8 }}
+            className="flex flex-wrap items-center gap-3"
           >
-            Melbourne&apos;s Premier Cultural Experience
-          </motion.p>
+            <span className="eyebrow-label">Enter</span>
+            <span className="rounded-full border border-gold/18 bg-gold/10 px-3 py-1 font-body text-[0.58rem] uppercase tracking-[0.3em] text-gold/74">
+              {currentScene.act}
+            </span>
+            <span className="rounded-full border border-ivory/10 bg-ivory/6 px-3 py-1 font-body text-[0.58rem] uppercase tracking-[0.3em] text-ivory/46">
+              {currentScene.scene}
+            </span>
+          </motion.div>
 
           <h1
-            aria-label="Where Tradition Takes the Stage"
-            className="mt-8 max-w-5xl font-display text-[clamp(3.5rem,10vw,8rem)] font-medium leading-[0.88] tracking-[-0.04em] text-ivory"
+            aria-label="Where tradition takes the stage"
+            className="mt-9 max-w-5xl font-display text-[clamp(3.5rem,9vw,8rem)] font-medium leading-[0.86] tracking-[-0.05em] text-ivory"
           >
-            <HeroWordReveal
-              text="Where Tradition"
-              className="block"
-              delay={0.5}
-              stagger={0.08}
-            />
+            <HeroWordReveal text="Where Tradition" className="block" delay={0.52} stagger={0.08} />
             <HeroWordReveal
               text="Takes the Stage"
               className="mt-2 block text-gold"
-              delay={0.8}
+              delay={0.82}
               stagger={0.08}
             />
           </h1>
 
           <motion.p
-            className="mt-8 max-w-2xl font-body text-lg leading-relaxed text-ivory/72 md:text-[1.15rem]"
-            initial={{ opacity: 0, y: 24, filter: "blur(4px)" }}
+            className="mt-8 max-w-2xl font-body text-lg leading-relaxed text-ivory/74 md:text-[1.12rem]"
+            initial={{ opacity: 0, y: 22, filter: "blur(4px)" }}
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{ delay: 1.2, duration: 0.9 }}
+            transition={{ delay: 1.18, duration: 0.85 }}
           >
-            Curating moments that echo through generations, AB Entertainment brings Indian and Marathi cultural performances to Australian stages with theatre-grade discipline and premium hospitality.
+            AB Entertainment curates Indian and Marathi cultural experiences with the atmosphere of a luxury theatre night: composed arrivals, editorial storytelling, premium hospitality, and performances that stay with the audience long after the curtain call.
           </motion.p>
 
           <motion.div
             className="mt-10 flex flex-col items-start gap-4 sm:flex-row sm:items-center"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.5, duration: 0.7 }}
+            transition={{ delay: 1.42, duration: 0.7 }}
           >
             <Link
               href="/events"
-              className="group glow-on-hover gold-shimmer inline-flex items-center gap-3 rounded-full border border-gold/40 bg-gold/15 px-7 py-4 font-body text-sm uppercase tracking-[0.22em] text-gold transition-all duration-500 hover:border-gold hover:bg-gold hover:text-charcoal"
+              className="button-primary glow-on-hover gold-shimmer px-6 py-4 text-[0.7rem]"
+              data-magnetic
             >
               Explore Events
-              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1.5" strokeWidth={1.8} />
+              <ArrowRight className="h-4 w-4" strokeWidth={1.8} />
             </Link>
             <Link
-              href="/about"
-              className="inline-flex items-center gap-3 rounded-full border border-ivory/20 bg-ivory/8 px-7 py-4 font-body text-sm uppercase tracking-[0.22em] text-ivory/80 backdrop-blur-sm transition-all duration-300 hover:border-ivory/40 hover:text-ivory hover:bg-ivory/12"
+              href="/gallery"
+              className="button-secondary px-6 py-4 text-[0.7rem]"
+              data-magnetic
             >
-              Our Story
+              Enter The Archive
             </Link>
           </motion.div>
 
-          {/* Metrics with animated counters */}
           <motion.div
             ref={metricsRef}
             className="mt-12 grid gap-4 lg:grid-cols-3"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.8, duration: 0.8 }}
+            transition={{ delay: 1.7, duration: 0.8 }}
           >
-            {seasonMetrics.map((metric, i) => (
-              <motion.div
+            {seasonMetrics.map((metric, index) => (
+              <motion.article
                 key={metric.label}
-                className="luxury-card-hover rounded-[1.5rem] border border-gold/15 bg-charcoal/60 p-5 backdrop-blur-md"
+                className="stage-card-dark luxury-card-hover rounded-[1.65rem] p-5"
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.9 + i * 0.12, duration: 0.6 }}
-                whileHover={{ borderColor: "rgba(201,168,76,0.4)" }}
+                transition={{ delay: 1.8 + index * 0.1, duration: 0.6 }}
               >
-                <p className="font-body text-[0.58rem] uppercase tracking-[0.3em] text-ivory/40">{metric.label}</p>
+                <p className="numeric-label">{metric.label}</p>
                 <div className="mt-3">
                   {metricsInView ? (
                     <CountUp
                       target={metric.value}
                       suffix={metric.suffix}
-                      prefix={metric.prefix}
-                      delay={0.2 + i * 0.15}
+                      delay={0.18 + index * 0.12}
                       className="font-display text-3xl text-gold"
                     />
                   ) : (
                     <span className="font-display text-3xl text-gold">0</span>
                   )}
                 </div>
-                <p className="mt-3 font-body text-sm leading-relaxed text-ivory/55">{metric.detail}</p>
-              </motion.div>
+                <p className="mt-3 font-body text-sm leading-relaxed text-ivory/56">
+                  {metric.detail}
+                </p>
+              </motion.article>
             ))}
           </motion.div>
         </div>
 
-        {/* Right column – season program card */}
         <motion.div
-          initial={{ opacity: 0, x: 50, filter: "blur(6px)" }}
+          initial={{ opacity: 0, x: 42, filter: "blur(8px)" }}
           animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-          transition={{ delay: 0.6, duration: ANIMATION.duration.slow, ease: ANIMATION.ease.luxury }}
+          transition={{
+            delay: 0.72,
+            duration: ANIMATION.duration.slow,
+            ease: ANIMATION.ease.luxury,
+          }}
           className="relative pb-6 lg:pb-12"
         >
-          <div className="relative overflow-hidden rounded-[2.2rem] border border-gold/15 bg-charcoal/70 p-6 backdrop-blur-lg md:p-8">
-            {/* Animated glow accent */}
-            <motion.div
-              className="absolute -right-12 top-8 h-40 w-40 rounded-full bg-gold/12 blur-3xl"
-              animate={{ scale: [1, 1.3, 1], opacity: [0.12, 0.2, 0.12] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-              aria-hidden="true"
-            />
-            <div className="absolute left-8 top-0 h-24 w-px bg-gradient-to-b from-gold/60 to-transparent" aria-hidden="true" />
+          <div className="stage-card-dark rounded-[2.4rem] p-6 md:p-8">
+            <div className="relative overflow-hidden rounded-[1.8rem] border border-gold/14">
+              <div className="relative h-60 md:h-72">
+                <Image
+                  src={currentScene.src}
+                  alt={currentScene.alt}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 1024px) 100vw, 40vw"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-charcoal-deep via-charcoal/28 to-transparent" />
+              </div>
+              <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="rounded-full border border-gold/18 bg-gold/10 px-3 py-1 font-body text-[0.58rem] uppercase tracking-[0.3em] text-gold/76">
+                    {currentScene.act}
+                  </span>
+                  <span className="rounded-full border border-ivory/10 bg-ivory/6 px-3 py-1 font-body text-[0.58rem] uppercase tracking-[0.3em] text-ivory/54">
+                    Current Scene
+                  </span>
+                </div>
+                <h2 className="mt-4 max-w-sm font-display text-3xl leading-tight text-ivory md:text-[2.35rem]">
+                  {currentScene.scene}
+                </h2>
+                <p className="mt-3 max-w-lg font-body text-sm leading-relaxed text-ivory/60">
+                  {currentScene.note}
+                </p>
+              </div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.9, duration: 0.6 }}
-              className="inline-flex items-center gap-2 rounded-full border border-gold/25 bg-gold/12 px-3 py-2 font-body text-[0.62rem] uppercase tracking-[0.3em] text-gold/85"
-            >
+            <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-gold/18 bg-gold/10 px-3 py-2 font-body text-[0.62rem] uppercase tracking-[0.3em] text-gold/82">
               <Sparkles className="h-3.5 w-3.5" strokeWidth={1.8} />
-              Opening Act · 2026 Program
-            </motion.div>
+              Opening Sequence
+            </div>
 
-            <motion.h2
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.0, duration: 0.7, ease: ANIMATION.ease.luxury }}
-              className="mt-6 max-w-sm font-display text-3xl leading-tight text-ivory md:text-[2.2rem]"
-            >
+            <h2 className="mt-6 max-w-sm font-display text-3xl leading-tight text-ivory md:text-[2.15rem]">
               A season composed like a live performance.
-            </motion.h2>
+            </h2>
 
             <div className="hr-gold-pulse mt-8" />
 
             <div className="mt-8 space-y-3">
-              {seasonProgram.map((item, i) => (
-                <motion.div
+              {seasonProgram.map((item, index) => (
+                <motion.article
                   key={item.title}
-                  className="group/card rounded-[1.4rem] border border-ivory/10 bg-ivory/5 p-4 transition-all duration-400 hover:border-gold/30 hover:bg-gold/8 hover:shadow-[0_8px_32px_rgba(201,168,76,0.08)]"
-                  initial={{ opacity: 0, x: 24 }}
+                  className="group rounded-[1.5rem] border border-ivory/10 bg-ivory/5 p-4 transition-all duration-300 hover:border-gold/20 hover:bg-gold/8"
+                  initial={{ opacity: 0, x: 22 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 1.1 + i * 0.12, duration: 0.6, ease: ANIMATION.ease.luxury }}
+                  transition={{
+                    delay: 1.02 + index * 0.12,
+                    duration: 0.6,
+                    ease: ANIMATION.ease.luxury,
+                  }}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="font-display text-lg text-ivory transition-colors duration-300 group-hover/card:text-gold">{item.title}</p>
-                      <div className="mt-2 space-y-1.5 font-body text-sm text-ivory/50">
+                      <p className="font-display text-lg text-ivory transition-colors duration-300 group-hover:text-gold">
+                        {item.title}
+                      </p>
+                      <div className="mt-2 space-y-1.5 font-body text-sm text-ivory/52">
                         <p className="flex items-center gap-2">
-                          <CalendarDays className="h-3.5 w-3.5 text-gold/70" strokeWidth={1.8} />
+                          <CalendarDays className="h-3.5 w-3.5 text-gold/74" strokeWidth={1.8} />
                           {item.date}
                         </p>
                         <p className="flex items-center gap-2">
-                          <MapPin className="h-3.5 w-3.5 text-gold/70" strokeWidth={1.8} />
+                          <MapPin className="h-3.5 w-3.5 text-gold/74" strokeWidth={1.8} />
                           {item.venue}
                         </p>
                       </div>
                     </div>
-                    <motion.span
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/25 bg-gold/12 text-gold"
-                      whileHover={{ scale: 1.15, backgroundColor: "rgba(201,168,76,0.25)" }}
-                      transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                    >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/18 bg-gold/10 text-gold">
                       <Ticket className="h-4 w-4" strokeWidth={1.8} />
-                    </motion.span>
+                    </span>
                   </div>
-                </motion.div>
+                </motion.article>
               ))}
             </div>
 
             <div className="mt-6 grid gap-3 md:grid-cols-2">
-              <motion.div
-                className="rounded-[1.4rem] border border-ivory/10 bg-charcoal/60 p-4"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.5, duration: 0.6 }}
-              >
-                <p className="font-body text-[0.58rem] uppercase tracking-[0.3em] text-ivory/35">Signature Mood</p>
-                <p className="mt-2.5 font-display text-lg text-ivory">Theatre-grade staging with editorial restraint.</p>
-              </motion.div>
-              <motion.div
-                className="rounded-[1.4rem] border border-gold/18 bg-gold/8 p-4"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.6, duration: 0.6 }}
-              >
-                <p className="font-body text-[0.58rem] uppercase tracking-[0.3em] text-gold/70">Audience Promise</p>
-                <p className="mt-2.5 font-display text-lg text-ivory">Every digital touchpoint should feel like opening night.</p>
-              </motion.div>
+              <div className="stat-chip rounded-[1.35rem] p-4">
+                <p className="numeric-label">Signature Mood</p>
+                <p className="mt-2.5 font-display text-lg text-ivory">
+                  Theatre-grade staging with editorial warmth.
+                </p>
+              </div>
+              <div className="rounded-[1.35rem] border border-gold/16 bg-gold/10 p-4">
+                <p className="numeric-label !text-gold/68">Audience Promise</p>
+                <p className="mt-2.5 font-display text-lg text-ivory">
+                  Every touchpoint should feel like opening night.
+                </p>
+              </div>
             </div>
           </div>
         </motion.div>
       </motion.div>
 
-      {/* ── Scroll Indicator ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 2.05, duration: 0.8 }}
+        className="relative z-20 mx-auto mt-2 max-w-7xl"
+      >
+        <div className="stage-card-dark rounded-[2rem] p-4 md:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-2">
+            <div>
+              <p className="numeric-label !text-gold/68">Scene Rail</p>
+              <p className="mt-2 font-display text-2xl text-ivory md:text-[2rem]">
+                Four moments that define the new experience.
+              </p>
+            </div>
+            <p className="max-w-2xl font-body text-sm leading-relaxed text-ivory/52">
+              Move through curated visual vignettes that preview the atmosphere, stagecraft, and guest experience of the season.
+            </p>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {heroImages.map((image, index) => (
+              <button
+                key={image.scene}
+                type="button"
+                onClick={() => {
+                  setCurrentSlide(index);
+                  setIsAutoPlaying(false);
+                }}
+                className={cn(
+                  "group relative overflow-hidden rounded-[1.5rem] border text-left transition-all duration-300",
+                  index === currentSlide
+                    ? "border-gold/30 bg-gold/10"
+                    : "border-ivory/10 bg-ivory/5 hover:border-gold/18"
+                )}
+                aria-label={`Go to ${image.scene}`}
+              >
+                <div className="relative h-44">
+                  <Image
+                    src={image.src}
+                    alt={image.alt}
+                    fill
+                    className="object-cover transition-transform duration-700 group-hover:scale-105"
+                    sizes="(max-width: 1024px) 100vw, 25vw"
+                  />
+                  <div className="image-reveal-overlay" />
+                </div>
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                  <p className="numeric-label !text-gold/68">{image.act}</p>
+                  <p className="mt-2 font-display text-xl leading-tight text-ivory">
+                    {image.scene}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 2.5, duration: 0.8 }}
-        className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 flex flex-col items-center gap-3"
+        className="absolute bottom-6 left-1/2 z-20 hidden -translate-x-1/2 flex-col items-center gap-3 xl:flex"
       >
         <motion.p
           className="font-body text-[0.5rem] uppercase tracking-[0.4em] text-ivory/30"
@@ -478,13 +592,10 @@ export function CinematicHero() {
         >
           Scroll
         </motion.p>
-        <motion.div
-          className="relative h-10 w-[1px]"
-          aria-hidden="true"
-        >
+        <motion.div className="relative h-10 w-px" aria-hidden="true">
           <div className="absolute inset-0 bg-gradient-to-b from-gold/40 to-transparent" />
           <motion.div
-            className="absolute top-0 h-3 w-[1px] bg-gold"
+            className="absolute top-0 h-3 w-px bg-gold"
             animate={{ y: [0, 28, 0] }}
             transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
           />
@@ -492,4 +603,8 @@ export function CinematicHero() {
       </motion.div>
     </section>
   );
+}
+
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
 }
