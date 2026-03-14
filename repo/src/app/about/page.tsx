@@ -20,7 +20,7 @@ export default async function AboutPage() {
   }
 
   return (
-    <section className="min-h-screen bg-charcoal">
+    <section className="min-h-screen bg-charcoal-deep">
       <PageHero
         eyebrow={page.eyebrow}
         title={page.title}
@@ -29,9 +29,9 @@ export default async function AboutPage() {
       <VisionSection />
 
       {page.sections ? (
-        <section className="px-6 py-20">
+        <section className="bg-charcoal-deep px-6 py-20">
           <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-            <article className="luxury-panel rounded-[2rem] p-8 md:p-10">
+            <article className="luxury-panel-dark rounded-[2rem] p-8 md:p-10">
               <p className="eyebrow-label">Operating Philosophy</p>
               <h2 className="mt-8 max-w-md font-display text-4xl leading-tight text-ivory">
                 Built with the discipline of premium live production.
@@ -52,7 +52,7 @@ export default async function AboutPage() {
               {page.sections.slice(1).map((section: PageSection) => (
                 <article
                   key={section.title}
-                  className="luxury-panel rounded-[2rem] p-8"
+                  className="luxury-panel-dark rounded-[2rem] p-8"
                 >
                   <p className="font-body text-[0.62rem] uppercase tracking-[0.34em] text-gold/72">
                     {section.title}
@@ -76,7 +76,7 @@ export default async function AboutPage() {
 
       <TeamSection />
 
-      <section className="px-6 py-20">
+      <section className="bg-charcoal-deep px-6 py-20">
         <div className="mx-auto max-w-7xl">
           <p className="eyebrow-label">
             Sponsor Confidence
@@ -88,7 +88,7 @@ export default async function AboutPage() {
             {FALLBACK_SPONSORS.map((sponsor) => (
               <article
                 key={sponsor.id}
-                className="luxury-panel rounded-[2rem] p-8"
+                className="luxury-panel-dark rounded-[2rem] p-8"
               >
                 <p className="font-body text-[0.62rem] uppercase tracking-[0.34em] text-gold/72">
                   {sponsor.tier}

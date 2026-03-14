@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, MapPin, Ticket } from "lucide-react";
 import { formatEventDate, formatTicketRange } from "@/lib/events";
@@ -20,10 +20,17 @@ const accentBorders: Record<NonNullable<Event["accent"]>, string> = {
   charcoal: "border-ivory/14",
 };
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  visible: (delay = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: ANIMATION.duration.normal, delay, ease: ANIMATION.ease.luxury },
+  }),
+};
+
 export function UpcomingEvents({ events }: { events: Event[] }) {
   const [featuredEvent, ...supportingEvents] = events;
-  const { scrollYProgress } = useScroll();
-  const yBg = useTransform(scrollYProgress, [0, 1], [200, -200]);
 
   if (!featuredEvent) {
     return null;
@@ -33,58 +40,65 @@ export function UpcomingEvents({ events }: { events: Event[] }) {
 
   return (
     <section
-      className="relative py-24 md:py-32 lg:py-36"
+      className="relative overflow-hidden bg-charcoal py-24 md:py-32 lg:py-36"
       aria-labelledby="upcoming-events-heading"
     >
-      <div className="mx-auto max-w-7xl px-6 lg:px-8">
+      {/* Background texture */}
+      <div
+        className="absolute inset-0 opacity-[0.04]"
+        aria-hidden="true"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg, rgba(201,168,76,0.1) 1px, transparent 1px), linear-gradient(180deg, rgba(201,168,76,0.06) 1px, transparent 1px)",
+          backgroundSize: "80px 80px",
+        }}
+      />
+      <div className="absolute -right-20 top-20 h-96 w-96 rounded-full bg-gold/8 blur-3xl" aria-hidden="true" />
+      <div className="absolute -left-20 bottom-20 h-64 w-64 rounded-full bg-burgundy/10 blur-3xl" aria-hidden="true" />
+
+      <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
         <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
-          <div>
-            <motion.p
-              initial={false}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.4 }}
-              transition={{ duration: ANIMATION.duration.normal }}
-              className="eyebrow-label"
-            >
-              The Stage
-            </motion.p>
-            <motion.h2
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.05, margin: "0px 0px -60px 0px" }}
+            variants={fadeUp}
+          >
+            <p className="eyebrow-label">The Stage</p>
+            <h2
               id="upcoming-events-heading"
-              initial={false}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.4 }}
-              transition={{ duration: ANIMATION.duration.slow, ease: ANIMATION.ease.luxury }}
               className="mt-8 max-w-md font-display text-4xl leading-tight text-ivory md:text-5xl"
             >
               Upcoming events curated like headline productions.
-            </motion.h2>
-          </div>
+            </h2>
+          </motion.div>
           <motion.p
-            initial={false}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.4 }}
-            transition={{ duration: ANIMATION.duration.normal }}
+            initial="hidden"
+            whileInView="visible"
+            custom={0.1}
+            viewport={{ once: true, amount: 0.05, margin: "0px 0px -60px 0px" }}
+            variants={fadeUp}
             className="max-w-2xl font-body text-base leading-relaxed text-ivory/56 md:justify-self-end md:text-lg"
           >
-            The brief from the spec is clear: rich descriptions, clear booking routes, and a luxury editorial presentation. The season lead should feel like a marquee announcement, not a commodity event card.
+            Rich descriptions, clear booking routes, and a luxury editorial presentation. Every season lead should feel like a marquee announcement.
           </motion.p>
         </div>
 
         <div className="mt-14 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <motion.article
-            initial={false}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: ANIMATION.duration.slow, ease: ANIMATION.ease.luxury }}
+            initial="hidden"
+            whileInView="visible"
+            custom={0}
+            viewport={{ once: true, amount: 0.05, margin: "0px 0px -60px 0px" }}
+            variants={fadeUp}
             className={cn(
-              "luxury-panel relative overflow-hidden rounded-[2.2rem] p-8 md:p-10",
+              "relative overflow-hidden rounded-[2.2rem] border bg-charcoal-light/80 p-8 backdrop-blur-sm md:p-10",
               accentBorders[accent]
             )}
           >
-            <motion.div
-              style={{ y: yBg }}
+            <div
               className={cn(
-                "absolute -inset-y-24 inset-x-0 bg-gradient-to-br opacity-100",
+                "absolute inset-0 bg-gradient-to-br opacity-60",
                 accentSurfaces[accent]
               )}
               aria-hidden="true"
@@ -180,14 +194,13 @@ export function UpcomingEvents({ events }: { events: Event[] }) {
               return (
                 <motion.article
                   key={event.id}
-                  initial={false}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.2 }}
-                  transition={{
-                    duration: ANIMATION.duration.normal,
-                    delay: index * ANIMATION.stagger.normal,
-                  }}
-                  className="luxury-panel group rounded-[1.9rem] p-6 transition-transform duration-300 hover:-translate-y-1"
+                  initial="hidden"
+                  whileInView="visible"
+                  custom={0.12 + index * 0.1}
+                  viewport={{ once: true, amount: 0.05, margin: "0px 0px -60px 0px" }}
+                  variants={fadeUp}
+                  whileHover={{ y: -4, transition: { duration: 0.3 } }}
+                  className="group rounded-[1.9rem] border border-gold/12 bg-charcoal-light/80 p-6 backdrop-blur-sm"
                 >
                   <div
                     className={cn(
@@ -228,10 +241,11 @@ export function UpcomingEvents({ events }: { events: Event[] }) {
         </div>
 
         <motion.div
-          initial={false}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: ANIMATION.duration.normal }}
+          initial="hidden"
+          whileInView="visible"
+          custom={0.2}
+          viewport={{ once: true, amount: 0.05, margin: "0px 0px -60px 0px" }}
+          variants={fadeUp}
           className="mt-14 flex justify-center"
         >
           <Link

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { playfair, jetbrainsMono } from "@/lib/fonts";
+import { playfair, jetbrainsMono, bodyFont } from "@/lib/fonts";
+import { FloatingBookingPill } from "@/components/layout/FloatingBookingPill";
 import { SITE_CONFIG } from "@/lib/constants";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { Navigation } from "@/components/layout/Navigation";
@@ -78,15 +79,24 @@ export default async function RootLayout({
       <html
         lang="en"
         suppressHydrationWarning
-        className={`${playfair.variable} ${jetbrainsMono.variable}`}
+        data-scroll-behavior="smooth"
+        className={`${playfair.variable} ${jetbrainsMono.variable} ${bodyFont.variable}`}
       >
         <body className="min-h-screen bg-background font-body text-foreground antialiased">
           <NextIntlClientProvider messages={messages} locale="en">
             <ThemeProvider>
+              {/* Skip to content — accessibility (WCAG 2.2 NFR-02) */}
+              <a
+                href="#main-content"
+                className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[9999] focus:rounded-full focus:bg-gold focus:px-6 focus:py-3 focus:font-body focus:text-sm focus:font-semibold focus:text-charcoal focus:outline-none focus:ring-2 focus:ring-gold/60"
+              >
+                Skip to main content
+              </a>
               <Navigation />
-              <main className="min-h-screen">{children}</main>
+              <main id="main-content" className="min-h-screen">{children}</main>
               <Footer />
               <Chatbot />
+              <FloatingBookingPill />
               <MagneticCursor />
             </ThemeProvider>
           </NextIntlClientProvider>

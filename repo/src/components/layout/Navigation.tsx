@@ -8,6 +8,7 @@ import { ArrowRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, SITE_CONFIG } from "@/lib/constants";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { LocaleSwitcher } from "@/components/ui/LocaleSwitcher";
 
 export function Navigation() {
   const pathname = usePathname();
@@ -41,7 +42,7 @@ export function Navigation() {
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className={cn(
-            "luxury-panel mx-auto flex max-w-6xl items-center justify-between rounded-[1.75rem] px-4 py-3 md:px-6",
+            "luxury-panel-dark mx-auto flex max-w-6xl items-center justify-between rounded-[1.75rem] px-4 py-3 md:px-6",
             isScrolled
               ? "border-gold/20 bg-charcoal-deep/82 shadow-[0_26px_90px_rgba(0,0,0,0.48)]"
               : "bg-charcoal-deep/62"
@@ -90,6 +91,7 @@ export function Navigation() {
                 Season 2026
               </span>
             </span>
+            <LocaleSwitcher />
             <ThemeToggle />
             <Link
               href="/contact"
@@ -184,7 +186,7 @@ export function Navigation() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.28, duration: 0.5 }}
-                className="luxury-panel rounded-[2rem] p-6"
+                className="luxury-panel-dark rounded-[2rem] p-6"
               >
                 <p className="font-body text-[0.62rem] uppercase tracking-[0.34em] text-gold/70">
                   Season Brief

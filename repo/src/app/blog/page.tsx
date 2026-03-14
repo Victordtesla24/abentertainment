@@ -1,63 +1,142 @@
-import { createClient } from '@sanity/client';
 import Link from 'next/link';
-
-const sanity = createClient({
-  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || 'dummy',
-  dataset: process.env.NEXT_PUBLIC_SANITY_DATASET || 'production',
-  apiVersion: '2024-01-01',
-  useCdn: true,
-});
+import Image from 'next/image';
+import type { Metadata } from 'next';
+import { client } from '@/sanity/lib/client';
+import { blogPostsQuery } from '@/sanity/lib/queries';
+import imageUrlBuilder from '@sanity/image-url';
 
 export const revalidate = 3600;
 
+export const metadata: Metadata = {
+  title: 'The Cultural Journal | AB Entertainment',
+  description:
+    "Insights, reflections, and stories from the heart of Melbourne's Indian arts and cultural scene.",
+  openGraph: {
+    title: 'The Cultural Journal | AB Entertainment',
+    description: 'Insights, reflections, and stories from Melbourne\'s premier Indian cultural event company.',
+    type: 'website',
+  },
+};
+
+const builder = imageUrlBuilder({
+  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID ?? 'dummy',
+  dataset: process.env.NEXT_PUBLIC_SANITY_DATASET ?? 'production',
+});
+
+function urlFor(source: any) {
+  return builder.image(source);
+}
+
+function categoryLabel(cat: string): string {
+  const map: Record<string, string> = {
+    'event-recap': 'Event Recap',
+    'artist-spotlight': 'Artist Spotlight',
+    'cultural-commentary': 'Cultural Commentary',
+    'behind-the-scenes': 'Behind the Scenes',
+    'announcements': 'Announcements',
+  };
+  return map[cat] ?? cat;
+}
+
 export default async function BlogPage() {
-  const posts = await sanity.fetch(
-    `*[_type == "post"] | order(publishedAt desc) {
-      _id,
-      title,
-      "slug": slug.current,
-      excerpt,
-      publishedAt
-    }`
-  );
+  let posts: any[] = [];
+  try {
+    if (client) {
+      posts = await client.fetch(blogPostsQuery);
+    }
+  } catch {
+    // Return empty state gracefully
+  }
 
   return (
-    <div className="min-h-screen bg-charcoal pt-24 pb-12">
-      <div className="container mx-auto px-4 max-w-5xl">
-        <h1 className="font-playfair text-5xl md:text-6xl text-gold mb-6 text-center">
-          The Cultural Journal
-        </h1>
-        <p className="font-satoshi text-ivory/60 text-center max-w-2xl mx-auto mb-16 text-lg">
-          Insights, reflections, and stories from the heart of Melbourne's Indian arts and cultural scene.
-        </p>
+    <div className="min-h-screen bg-charcoal-deep pt-32 pb-24">
+      <div className="container mx-auto px-4 max-w-6xl">
+        {/* Header */}
+        <header className="mb-16 text-center">
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <div className="h-px w-12 bg-gold/40" />
+            <span className="font-mono text-xs tracking-[0.4em] text-gold/60 uppercase">Journal</span>
+            <div className="h-px w-12 bg-gold/40" />
+          </div>
+          <h1 className="font-display text-5xl md:text-6xl lg:text-7xl text-ivory mb-6">
+            The Cultural Journal
+          </h1>
+          <p className="font-body text-lg text-ivory/60 max-w-2xl mx-auto leading-relaxed">
+            Insights, reflections, and stories from the heart of Melbourne's Indian arts
+            and cultural scene.
+          </p>
+        </header>
 
         {posts.length === 0 ? (
-          <div className="text-center text-ivory/80 font-satoshi py-12">
-            No articles found. Check back later for fresh cultural insights.
+          <div className="text-center py-24">
+            <p className="font-body text-ivory/40 text-lg">
+              New articles are being prepared. Check back soon for fresh cultural insights.
+            </p>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 gap-8">
-            {posts.map((post: any) => (
-              <Link 
-                key={post._id} 
-                href={`/blog/${post.slug || '#'}`}
-                className="group block bg-charcoal-light/50 border border-gold/10 hover:border-gold/40 rounded-2xl p-8 transition-all duration-300 hover:bg-gold/5"
-              >
-                <div className="mb-4">
-                  <span className="text-gold font-jetbrainsMono text-sm tracking-widest uppercase">
-                    {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString() : 'Recent'}
-                  </span>
-                </div>
-                <h2 className="font-playfair text-2xl text-ivory mb-4 group-hover:text-gold transition-colors">
-                  {post.title}
-                </h2>
-                <p className="font-satoshi text-ivory/70 line-clamp-3">
-                  {post.excerpt || 'Read more about this cultural highlight...'}
-                </p>
-                <div className="mt-6 inline-flex items-center text-gold font-satoshi text-sm uppercase tracking-wider font-semibold group-hover:underline">
-                  Read Article
-                </div>
-              </Link>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {posts.map((post: any, index: number) => (
+              <article key={post.id ?? post._id ?? index}>
+                <Link
+                  href={`/blog/${post.slug ?? '#'}`}
+                  className="group block h-full rounded-2xl border border-ivory/10 bg-ivory/[0.02] overflow-hidden transition-all duration-300 hover:border-gold/30 hover:bg-ivory/[0.04]"
+                >
+                  {/* Hero image */}
+                  {post.heroImage?.asset && (
+                    <div className="relative h-52 overflow-hidden">
+                      <Image
+                        src={urlFor(post.heroImage).width(600).height(400).url()}
+                        alt={post.heroImage.alt ?? post.title}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-charcoal/60 to-transparent" />
+                    </div>
+                  )}
+
+                  <div className="p-7">
+                    {/* Meta */}
+                    <div className="flex items-center gap-3 mb-4 flex-wrap">
+                      {post.category && (
+                        <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-gold/70 border border-gold/20 rounded-full px-2.5 py-0.5">
+                          {categoryLabel(post.category)}
+                        </span>
+                      )}
+                      {post.aiGenerated && (
+                        <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-ivory/30 border border-ivory/10 rounded-full px-2.5 py-0.5">
+                          AI
+                        </span>
+                      )}
+                    </div>
+
+                    <h2 className="font-display text-xl text-ivory mb-3 leading-snug group-hover:text-gold transition-colors duration-200 line-clamp-2">
+                      {post.title}
+                    </h2>
+
+                    {post.excerpt && (
+                      <p className="font-body text-sm text-ivory/60 leading-relaxed line-clamp-3 mb-5">
+                        {post.excerpt}
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-ivory/5">
+                      <span className="font-mono text-xs text-ivory/30">
+                        {post.publishedAt
+                          ? new Date(post.publishedAt).toLocaleDateString('en-AU', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : 'Recent'}
+                      </span>
+                      <span className="font-body text-xs font-semibold uppercase tracking-wider text-gold group-hover:underline">
+                        Read →
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              </article>
             ))}
           </div>
         )}

@@ -22,6 +22,15 @@ const accentSurfaces: Record<NonNullable<Event["accent"]>, string> = {
   charcoal: "from-ivory/8 via-charcoal-light/8 to-transparent",
 };
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  visible: (delay = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: ANIMATION.duration.normal, delay, ease: ANIMATION.ease.luxury },
+  }),
+};
+
 export function EventsPageClient({ events }: { events: Event[] }) {
   const [activeFilter, setActiveFilter] = useState<EventStatus>("upcoming");
 
@@ -34,37 +43,56 @@ export function EventsPageClient({ events }: { events: Event[] }) {
   const [leadEvent, ...remainingEvents] = filteredEvents;
 
   return (
-    <section className="min-h-screen pb-24">
-      <div className="relative px-6 pb-12 pt-32 md:pt-40">
-        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_0.92fr] lg:items-start">
+    <section className="min-h-screen bg-charcoal-deep pb-24">
+      {/* Page header */}
+      <div className="relative overflow-hidden bg-charcoal-deep px-6 pb-12 pt-32 md:pt-40">
+        <div
+          className="absolute inset-0"
+          aria-hidden="true"
+          style={{
+            background:
+              "radial-gradient(circle at top, rgba(201, 168, 76, 0.14), transparent 28%), radial-gradient(circle at 80% 20%, rgba(107, 29, 58, 0.18), transparent 24%)",
+          }}
+        />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent" />
+
+        <div className="relative mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_0.92fr] lg:items-start">
           <div>
-            <p className="eyebrow-label">The Program</p>
+            <motion.p
+              initial="hidden"
+              animate="visible"
+              variants={fadeUp}
+              className="eyebrow-label"
+            >
+              The Program
+            </motion.p>
             <motion.h1
-              initial={false}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: ANIMATION.duration.cinematic,
-                ease: ANIMATION.ease.luxury,
-              }}
+              initial="hidden"
+              animate="visible"
+              custom={0.08}
+              variants={fadeUp}
               className="mt-8 max-w-3xl font-display text-5xl font-medium leading-[0.94] text-ivory md:text-6xl lg:text-[5.15rem]"
             >
               Events presented with the gravity of a season launch.
             </motion.h1>
             <motion.p
-              initial={false}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                delay: 0.1,
-                duration: ANIMATION.duration.normal,
-                ease: ANIMATION.ease.luxury,
-              }}
+              initial="hidden"
+              animate="visible"
+              custom={0.16}
+              variants={fadeUp}
               className="mt-7 max-w-2xl font-body text-base leading-relaxed text-ivory/58 md:text-lg"
             >
-              This page should feel curated, not dumped into a grid. Visitors need clear hierarchy, visual drama, and strong booking cues for upcoming and archived productions alike.
+              Concerts, theatrical evenings, and community-defining cultural productions — curated with the discipline of premium live entertainment.
             </motion.p>
           </div>
 
-          <div className="luxury-panel rounded-[2rem] p-6 md:p-8">
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            custom={0.22}
+            variants={fadeUp}
+            className="luxury-panel-dark rounded-[2rem] p-6 md:p-8"
+          >
             <p className="font-body text-[0.62rem] uppercase tracking-[0.34em] text-gold/72">
               Program Notes
             </p>
@@ -92,7 +120,7 @@ export function EventsPageClient({ events }: { events: Event[] }) {
                 <p className="mt-2 font-display text-2xl text-gold">AU/NZ</p>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
 
@@ -123,7 +151,7 @@ export function EventsPageClient({ events }: { events: Event[] }) {
         <AnimatePresence mode="wait">
           <motion.div
             key={activeFilter}
-            initial={false}
+            initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: ANIMATION.duration.fast }}
@@ -132,7 +160,12 @@ export function EventsPageClient({ events }: { events: Event[] }) {
             aria-label={`${activeFilter} events`}
           >
             {leadEvent ? (
-              <article className="luxury-panel relative overflow-hidden rounded-[2.2rem] p-8 md:p-10">
+              <motion.article
+                initial="hidden"
+                animate="visible"
+                variants={fadeUp}
+                className="luxury-panel-dark relative overflow-hidden rounded-[2.2rem] p-8 md:p-10"
+              >
                 <div
                   className={cn(
                     "absolute inset-0 bg-gradient-to-br opacity-95",
@@ -197,21 +230,19 @@ export function EventsPageClient({ events }: { events: Event[] }) {
                     </Link>
                   </div>
                 </div>
-              </article>
+              </motion.article>
             ) : null}
 
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {remainingEvents.map((event, index) => (
                 <motion.article
                   key={event.id}
-                  initial={false}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: ANIMATION.duration.normal,
-                    ease: ANIMATION.ease.luxury,
-                    delay: index * ANIMATION.stagger.fast,
-                  }}
-                  className="luxury-panel group rounded-[1.9rem] p-6 transition-transform duration-300 hover:-translate-y-1"
+                  initial="hidden"
+                  animate="visible"
+                  custom={index * 0.08}
+                  variants={fadeUp}
+                  whileHover={{ y: -4, transition: { duration: 0.3 } }}
+                  className="luxury-panel-dark group rounded-[1.9rem] p-6"
                 >
                   <div
                     className={cn(

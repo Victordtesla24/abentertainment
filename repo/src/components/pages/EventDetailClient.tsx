@@ -64,7 +64,7 @@ export function EventDetailClient({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <article className="min-h-screen bg-charcoal">
+      <article className="min-h-screen bg-charcoal-deep">
         {bookingStatus ? (
           <div className="border-b border-gold/10 bg-charcoal-deep pt-24">
             <div className="mx-auto max-w-5xl px-6 py-4">
@@ -84,13 +84,13 @@ export function EventDetailClient({
         ) : null}
 
         <div
-          className="relative flex h-[50vh] items-end bg-gradient-to-br from-burgundy/60 via-charcoal to-charcoal md:h-[60vh]"
+          className="relative flex h-[50vh] items-end bg-gradient-to-br from-burgundy/60 via-charcoal-deep to-charcoal-deep md:h-[60vh]"
           aria-hidden="true"
         >
-          <div className="absolute inset-0 bg-gradient-to-t from-charcoal via-charcoal/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-charcoal-deep via-charcoal/40 to-transparent" />
           <div className="relative z-10 mx-auto w-full max-w-5xl px-6 pb-12">
             <motion.div
-              initial={false}
+              initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
                 duration: ANIMATION.duration.cinematic,
@@ -117,7 +117,7 @@ export function EventDetailClient({
 
         <div className="mx-auto max-w-5xl px-6 py-16">
           <motion.div
-            initial={false}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
               duration: ANIMATION.duration.normal,
@@ -236,7 +236,7 @@ export function EventDetailClient({
           </motion.div>
 
           <motion.div
-            initial={false}
+            initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4, duration: ANIMATION.duration.fast }}
             className="mt-16 border-t border-ivory/10 pt-8"

@@ -1,0 +1,7 @@
+{
+    "editor.formatOnPaste": true,
+    "editor.mouseWheelZoom": true,
+    "editor.wordWrap": "on",
+    "files.autoSave": "onFocusChange",
+    "editor.formatOnSave": true
+}

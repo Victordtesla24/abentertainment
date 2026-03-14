@@ -1,0 +1,21 @@
+[     461ms] [WARNING] Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     815ms] [WARNING] Clerk: Structural CSS detected that may break on updates.
+
+Found:
+  - CSS ".cl-internal-1u9prf3:empty"
+  - CSS ".cl-internal-vul4p4:empty"
+  - CSS "[dir="rtl"] .cl-internal-1jsjkoi"
+  - CSS "[dir="rtl"] .cl-internal-nm4egn"
+  - CSS ".cl-internal-z67xc4:empty"
+  (+11 more)
+
+These selectors depend on the internal DOM structure of Clerk's components, which may change when Clerk deploys component updates.
+To prevent breaking changes, install @clerk/ui and pass it to ClerkProvider:
+
+  import { ui } from '@clerk/ui'
+  <ClerkProvider ui={ui}>
+
+Learn more: https://clerk.com/docs/reference/components/versioning
+(code=structural_css_pin_clerk_ui) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[    3848ms] [WARNING] The resource http://localhost:3000/_next/static/chunks/%5Broot-of-the-server%5D__c6b200fa._.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/sign-in:0
+[   41042ms] [WARNING] The resource http://localhost:3000/_next/static/chunks/%5Broot-of-the-server%5D__c6b200fa._.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/sign-in:0

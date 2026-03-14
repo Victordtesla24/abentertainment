@@ -7,7 +7,13 @@ import {
 } from "@/lib/site-data";
 import type { Event, GalleryImage, PortableBlock, SitePage } from "@/types";
 import { client } from "@/sanity/lib/client";
-import { eventBySlugQuery, eventsQuery, pageBySlugQuery } from "@/sanity/lib/queries";
+import {
+  eventBySlugQuery,
+  eventsQuery,
+  pageBySlugQuery,
+  blogPostsQuery,
+  blogPostBySlugQuery,
+} from "@/sanity/lib/queries";
 
 function portableTextToPlainText(blocks?: PortableBlock[]): string {
   if (!blocks) {
@@ -166,5 +172,29 @@ export const loadSitePage = cache(async (slug: string): Promise<SitePage | null>
 export const loadGallery = cache(async (): Promise<GalleryImage[]> => {
   const events = await loadEvents();
   const eventGallery = flattenGallery(events);
-  return eventGallery.length > 0 ? eventGallery : FALLBACK_GALLERY;
+
+  // Merge event gallery with fallback gallery, deduplicating by src
+  const seen = new Set(eventGallery.map((img) => img.src).filter(Boolean));
+  const fallbackExtras = FALLBACK_GALLERY.filter((img) => !seen.has(img.src));
+  const merged = [...eventGallery, ...fallbackExtras];
+
+  return merged.length > 0 ? merged : FALLBACK_GALLERY;
+});
+
+export const loadBlogPosts = cache(async (): Promise<any[]> => {
+  if (!client) return [];
+  try {
+    return await client.fetch(blogPostsQuery);
+  } catch {
+    return [];
+  }
+});
+
+export const loadBlogPostBySlug = cache(async (slug: string): Promise<any | null> => {
+  if (!client) return null;
+  try {
+    return await client.fetch(blogPostBySlugQuery, { slug }) ?? null;
+  } catch {
+    return null;
+  }
 });

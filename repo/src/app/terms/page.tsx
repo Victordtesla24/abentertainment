@@ -14,7 +14,7 @@ export default async function TermsPage() {
   const page = (await loadSitePage("terms")) ?? FALLBACK_SITE_PAGES.terms;
 
   return (
-    <section className="min-h-screen bg-charcoal">
+    <section className="min-h-screen bg-charcoal-deep">
       <PageHero
         eyebrow={page.eyebrow}
         title={page.title}

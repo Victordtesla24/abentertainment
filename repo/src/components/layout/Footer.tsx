@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SITE_CONFIG, NAV_ITEMS } from "@/lib/constants";
+import { FooterNewsletter } from "./FooterNewsletter";
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -8,9 +9,9 @@ export function Footer() {
     <footer className="border-t border-border bg-charcoal-deep text-ivory/70">
       {/* Main footer */}
       <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
-        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-5">
           {/* Brand column */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2" id="footer">
             <Link href="/" className="inline-block">
               <span className="font-display text-3xl font-semibold text-gold">
                 AB
@@ -76,6 +77,9 @@ export function Footer() {
               </li>
             </ul>
           </div>
+
+          {/* Newsletter column */}
+          <FooterNewsletter />
         </div>
       </div>
 

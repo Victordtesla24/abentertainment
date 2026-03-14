@@ -14,7 +14,7 @@ export default async function PrivacyPage() {
   const page = (await loadSitePage("privacy")) ?? FALLBACK_SITE_PAGES.privacy;
 
   return (
-    <section className="min-h-screen bg-charcoal">
+    <section className="min-h-screen bg-charcoal-deep">
       <PageHero
         eyebrow={page.eyebrow}
         title={page.title}

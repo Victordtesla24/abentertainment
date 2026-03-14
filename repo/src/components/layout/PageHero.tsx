@@ -15,9 +15,18 @@ const PAGE_HERO_METRICS = [
   { label: "Reach", value: "AU / NZ" },
 ];
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  visible: (delay = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: ANIMATION.duration.normal, delay, ease: ANIMATION.ease.luxury },
+  }),
+};
+
 export function PageHero({ eyebrow, title, description }: PageHeroProps) {
   return (
-    <section className="relative overflow-hidden px-6 pb-16 pt-32 md:pb-20 md:pt-40">
+    <section className="relative overflow-hidden bg-charcoal-deep px-6 pb-16 pt-32 md:pb-20 md:pt-40">
       <div
         className="absolute inset-0"
         aria-hidden="true"
@@ -31,35 +40,29 @@ export function PageHero({ eyebrow, title, description }: PageHeroProps) {
       <div className="relative mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1fr_0.9fr] lg:items-start">
         <div>
           <motion.p
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: ANIMATION.duration.normal }}
+            initial="hidden"
+            animate="visible"
+            variants={fadeUp}
             className="eyebrow-label"
           >
             {eyebrow}
           </motion.p>
 
           <motion.h1
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              delay: 0.08,
-              duration: ANIMATION.duration.slow,
-              ease: ANIMATION.ease.luxury,
-            }}
+            initial="hidden"
+            animate="visible"
+            custom={0.08}
+            variants={fadeUp}
             className="mt-8 max-w-3xl font-display text-5xl font-medium leading-[0.96] text-ivory md:text-6xl lg:text-[5.15rem]"
           >
             {title}
           </motion.h1>
 
           <motion.p
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              delay: 0.16,
-              duration: ANIMATION.duration.normal,
-              ease: ANIMATION.ease.luxury,
-            }}
+            initial="hidden"
+            animate="visible"
+            custom={0.16}
+            variants={fadeUp}
             className="mt-8 max-w-2xl font-body text-base leading-relaxed text-ivory/60 md:text-lg"
           >
             {description}
@@ -67,14 +70,11 @@ export function PageHero({ eyebrow, title, description }: PageHeroProps) {
         </div>
 
         <motion.aside
-          initial={false}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{
-            delay: 0.22,
-            duration: ANIMATION.duration.normal,
-            ease: ANIMATION.ease.luxury,
-          }}
-          className="luxury-panel rounded-[2rem] p-6 md:p-8"
+          initial="hidden"
+          animate="visible"
+          custom={0.22}
+          variants={fadeUp}
+          className="luxury-panel-dark rounded-[2rem] p-6 md:p-8"
         >
           <p className="font-body text-[0.62rem] uppercase tracking-[0.34em] text-gold/72">
             Season Brief

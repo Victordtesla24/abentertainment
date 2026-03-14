@@ -86,3 +86,43 @@ export const pageBySlugQuery = groq`
     seo
   }
 `;
+
+export const blogPostsQuery = groq`
+  *[_type == "post"] | order(publishedAt desc) {
+    "id": _id,
+    title,
+    "slug": slug.current,
+    excerpt,
+    category,
+    tags,
+    heroImage,
+    author,
+    publishedAt,
+    aiGenerated,
+    seo
+  }
+`;
+
+export const blogPostBySlugQuery = groq`
+  *[_type == "post" && slug.current == $slug][0] {
+    "id": _id,
+    title,
+    "slug": slug.current,
+    excerpt,
+    category,
+    tags,
+    heroImage,
+    body,
+    author,
+    publishedAt,
+    aiGenerated,
+    relatedEvent->{
+      "id": _id,
+      title,
+      "slug": slug.current,
+      date,
+      heroImage
+    },
+    seo
+  }
+`;

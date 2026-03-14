@@ -6,12 +6,22 @@ import { ArrowRight, Mail, Users } from "lucide-react";
 import { NewsletterSignupForm } from "@/components/forms/NewsletterSignupForm";
 import { ANIMATION } from "@/lib/constants";
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  visible: (delay = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: ANIMATION.duration.normal, delay, ease: ANIMATION.ease.luxury },
+  }),
+};
+
 export function CTASection() {
   return (
     <section
-      className="relative overflow-hidden py-24 md:py-32 lg:py-36"
+      className="relative overflow-hidden bg-charcoal-deep py-24 md:py-32 lg:py-36"
       aria-labelledby="cta-heading"
     >
+      {/* Background */}
       <div
         className="absolute inset-0"
         aria-hidden="true"
@@ -20,16 +30,25 @@ export function CTASection() {
             "radial-gradient(circle at top, rgba(201, 168, 76, 0.16), transparent 25%), radial-gradient(circle at bottom left, rgba(107, 29, 58, 0.18), transparent 24%)",
         }}
       />
+      <div
+        className="absolute inset-0 opacity-[0.04]"
+        aria-hidden="true"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg, rgba(201,168,76,0.1) 1px, transparent 1px), linear-gradient(180deg, rgba(201,168,76,0.06) 1px, transparent 1px)",
+          backgroundSize: "80px 80px",
+        }}
+      />
 
       <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
-        <div className="luxury-panel rounded-[2.3rem] p-8 md:p-10 lg:p-12">
+        <div className="overflow-hidden rounded-[2.3rem] border border-gold/12 bg-gradient-to-br from-charcoal-light/85 to-charcoal/90 p-8 backdrop-blur-sm md:p-10 lg:p-12">
           <div className="grid gap-10 lg:grid-cols-[1fr_0.9fr]">
             <div>
               <motion.p
-                initial={false}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.4 }}
-                transition={{ duration: ANIMATION.duration.normal }}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, amount: 0.05, margin: "0px 0px -60px 0px" }}
+                variants={fadeUp}
                 className="eyebrow-label"
               >
                 The Curtain Call
@@ -37,26 +56,35 @@ export function CTASection() {
 
               <motion.h2
                 id="cta-heading"
-                initial={false}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.4 }}
-                transition={{ duration: ANIMATION.duration.slow, ease: ANIMATION.ease.luxury }}
+                initial="hidden"
+                whileInView="visible"
+                custom={0.08}
+                viewport={{ once: true, amount: 0.05, margin: "0px 0px -60px 0px" }}
+                variants={fadeUp}
                 className="mt-8 max-w-xl font-display text-4xl leading-tight text-ivory md:text-5xl lg:text-6xl"
               >
                 Ready to experience something worthy of the stage?
               </motion.h2>
 
               <motion.p
-                initial={false}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.4 }}
-                transition={{ duration: ANIMATION.duration.normal }}
+                initial="hidden"
+                whileInView="visible"
+                custom={0.14}
+                viewport={{ once: true, amount: 0.05, margin: "0px 0px -60px 0px" }}
+                variants={fadeUp}
                 className="mt-6 max-w-xl font-body text-base leading-relaxed text-ivory/58 md:text-lg"
               >
-                Join the audience, brief the team on a private production, or open a sponsor conversation. The closing section should feel composed and persuasive, not like a generic footer CTA.
+                Join the audience, brief the team on a private production, or open a sponsor conversation. Every closing moment should feel as composed as the opening act.
               </motion.p>
 
-              <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row">
+              <motion.div
+                initial="hidden"
+                whileInView="visible"
+                custom={0.2}
+                viewport={{ once: true, amount: 0.05, margin: "0px 0px -60px 0px" }}
+                variants={fadeUp}
+                className="mt-10 flex flex-col items-start gap-4 sm:flex-row"
+              >
                 <Link
                   href="/events"
                   className="group inline-flex items-center gap-3 rounded-full bg-gold px-7 py-4 font-body text-sm uppercase tracking-[0.22em] text-charcoal transition-colors duration-300 hover:bg-gold-light"
@@ -73,14 +101,15 @@ export function CTASection() {
                 >
                   Speak to the Team
                 </Link>
-              </div>
+              </motion.div>
             </div>
 
             <motion.div
-              initial={false}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: ANIMATION.duration.normal }}
+              initial="hidden"
+              whileInView="visible"
+              custom={0.12}
+              viewport={{ once: true, amount: 0.05, margin: "0px 0px -60px 0px" }}
+              variants={fadeUp}
               className="grid gap-5"
             >
               <div className="rounded-[1.8rem] border border-gold/15 bg-gold/10 p-6">
@@ -113,7 +142,7 @@ export function CTASection() {
                   </span>
                   <div>
                     <p className="font-body text-[0.58rem] uppercase tracking-[0.28em] text-gold/72">
-                      Sponsor & Private Bookings
+                      Sponsor &amp; Private Bookings
                     </p>
                     <p className="mt-1 font-display text-2xl text-ivory">
                       Built for premium partnerships

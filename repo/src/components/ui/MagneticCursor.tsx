@@ -6,7 +6,8 @@ import { motion, useMotionValue, useSpring } from "framer-motion";
 export function MagneticCursor() {
   const [isHovered, setIsHovered] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  
+  const [isDesktop, setIsDesktop] = useState(false);
+
   const cursorX = useMotionValue(-100);
   const cursorY = useMotionValue(-100);
 
@@ -15,6 +16,15 @@ export function MagneticCursor() {
   const cursorYSpring = useSpring(cursorY, springConfig);
 
   useEffect(() => {
+    const checkDesktop = () => setIsDesktop(window.innerWidth >= 1024);
+    checkDesktop();
+    window.addEventListener("resize", checkDesktop);
+    return () => window.removeEventListener("resize", checkDesktop);
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+
     const moveCursor = (e: MouseEvent) => {
       cursorX.set(e.clientX - 16);
       cursorY.set(e.clientY - 16);
@@ -23,7 +33,6 @@ export function MagneticCursor() {
     const handleMouseEnter = () => setIsVisible(true);
     const handleMouseLeave = () => setIsVisible(false);
 
-    // Track standard CTA hovers
     const handleLinkHover = () => setIsHovered(true);
     const handleLinkLeave = () => setIsHovered(false);
 
@@ -34,7 +43,7 @@ export function MagneticCursor() {
     const interactiveElements = document.querySelectorAll(
       "a, button, [role='button'], [data-magnetic]"
     );
-    
+
     interactiveElements.forEach((el) => {
       el.addEventListener("mouseenter", handleLinkHover);
       el.addEventListener("mouseleave", handleLinkLeave);
@@ -49,11 +58,9 @@ export function MagneticCursor() {
         el.removeEventListener("mouseleave", handleLinkLeave);
       });
     };
-  }, [cursorX, cursorY]);
+  }, [cursorX, cursorY, isDesktop]);
 
-  if (typeof window === "undefined" || window.innerWidth < 1024) {
-    return null; // Don't show custom cursor on mobile/touch or SSR
-  }
+  if (!isDesktop) return null;
 
   return (
     <motion.div
@@ -68,7 +75,9 @@ export function MagneticCursor() {
         className="flex h-full w-full items-center justify-center rounded-full border border-ivory/50 bg-ivory/10 backdrop-blur-sm"
         animate={{
           scale: isHovered ? 1.8 : 1,
-          backgroundColor: isHovered ? "rgba(245, 240, 232, 1)" : "rgba(245, 240, 232, 0.1)",
+          backgroundColor: isHovered
+            ? "rgba(245, 240, 232, 1)"
+            : "rgba(245, 240, 232, 0.1)",
           borderWidth: isHovered ? "0px" : "1px",
         }}
         transition={{ type: "spring", stiffness: 400, damping: 28 }}
