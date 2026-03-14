@@ -142,8 +142,6 @@ export async function GET(req: Request) {
 
     const event = upcomingEvents[0];
     const eventUrl = `https://abentertainment.web.com/events/${event.slug}`;
-    
-    // Construct the text based on platform constraints
     const eventContext = `${event.title} at ${event.venue?.name || 'TBA'} on ${new Date(event.date).toLocaleDateString('en-AU')}. Link: ${eventUrl}`;
 
     const prompt = `Write a short, highly engaging, and culturally appreciative Twitter/X post for this upcoming AB Entertainment event:
