@@ -60,8 +60,8 @@ export function ScrollReveal({
   return (
     <motion.div
       className={className}
-      initial={getInitial(direction, distance)}
-      whileInView={getAnimate(direction)}
+      initial={getInitial(direction, distance) as any}
+      whileInView={getAnimate(direction) as any}
       viewport={{ once, amount: threshold, margin: "0px 0px -60px 0px" }}
       transition={{
         duration,

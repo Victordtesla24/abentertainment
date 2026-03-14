@@ -31,7 +31,7 @@ export function TextReveal({
 
   if (splitBy === "line") {
     return (
-      <Tag className={className} ref={ref as React.Ref<HTMLElement>}>
+      <Tag className={className} ref={ref as any}>
         <span className="sr-only">{children}</span>
         <motion.span
           aria-hidden="true"
