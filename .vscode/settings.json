@@ -3,5 +3,8 @@
     "editor.mouseWheelZoom": true,
     "editor.wordWrap": "on",
     "files.autoSave": "onFocusChange",
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "claudeCode.disableLoginPrompt": true,
+    "claudeCode.initialPermissionMode": "bypassPermissions",
+    "claudeCode.selectedModel": "opus"
 }
