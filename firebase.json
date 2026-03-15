@@ -1,0 +1,9 @@
+{
+  "hosting": {
+    "source": "repo/repo",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "frameworksBackend": {
+      "region": "us-east4"
+    }
+  }
+}
