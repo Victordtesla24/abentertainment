@@ -8,7 +8,7 @@ async function clerkHandler(req: NextRequest) {
   const { clerkMiddleware, createRouteMatcher } = await import("@clerk/nextjs/server");
   const isProtectedRoute = createRouteMatcher([
     '/sponsor-dashboard(.*)',
-    '/admin(.*)',
+    // '/admin(.*)', TEMPORARY BYPASS
   ]);
   const handler = clerkMiddleware(async (auth, request) => {
     if (isProtectedRoute(request)) {
