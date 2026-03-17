@@ -27,6 +27,7 @@ export function NewsletterSignupForm() {
           placeholder="Enter your email"
           autoComplete="email"
           required
+          suppressHydrationWarning
           className="flex-1 rounded-full border border-ivory/10 bg-charcoal px-6 py-3 font-body text-sm text-ivory placeholder:text-ivory/45 transition-colors duration-300 focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30"
         />
         <button

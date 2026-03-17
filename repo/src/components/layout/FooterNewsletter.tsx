@@ -53,6 +53,7 @@ export function FooterNewsletter() {
             required
             disabled={status === 'loading'}
             aria-label="Email address"
+            suppressHydrationWarning
             className="flex-1 min-w-0 rounded-full border border-ivory/10 bg-ivory/5 px-4 py-2 font-body text-sm text-ivory placeholder-ivory/45 focus:border-gold/40 focus:outline-none disabled:opacity-60"
           />
           <button
