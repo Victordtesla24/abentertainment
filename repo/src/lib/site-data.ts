@@ -231,7 +231,7 @@ export const FALLBACK_GALLERY: GalleryImage[] = [
     aiCategory: "On Stage",
   },
   {
-    src: "/images/gallery/niyam-v-ati-4.jpg",
+    src: "/images/gallery/ab-event-2.jpg",
     title: "Backstage Preparation",
     alt: "Performers preparing backstage before curtain call.",
     eventName: "Niyam V Ati Lagu",

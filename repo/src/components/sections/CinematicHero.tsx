@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { ANIMATION } from "@/lib/constants";
 import { useEffect, useState, useCallback, useRef } from "react";
+import { SectionTorches } from "@/components/ui/TheatreDecorations";
 import { CountUp } from "@/components/animations/CountUp";
 
 /* ─── Data ─── */
@@ -154,6 +155,8 @@ export function CinematicHero() {
       className="relative min-h-screen overflow-hidden px-6 pb-10 pt-28 md:pt-32"
       aria-label="Welcome to AB Entertainment"
     >
+      <SectionTorches id="hero" variant="dark" />
+
       {/* ── Cinematic Image Carousel Background ── */}
       <div className="absolute inset-0" aria-hidden="true">
         <AnimatePresence mode="sync">

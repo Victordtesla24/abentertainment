@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { ANIMATION } from "@/lib/constants";
+import { SectionTorches } from "@/components/ui/TheatreDecorations";
 
 interface TeamMember {
   name: string;
@@ -49,6 +50,8 @@ export function TeamSection() {
       className="relative bg-white py-24 dark:bg-charcoal md:py-32 lg:py-36"
       aria-labelledby="team-heading"
     >
+      <SectionTorches id="team" variant="light" />
+
       {/* Decorative blob */}
       <div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-gold/5 blur-3xl" aria-hidden="true" />
       <div className="absolute bottom-0 left-0 h-64 w-64 rounded-full bg-burgundy/5 blur-3xl" aria-hidden="true" />

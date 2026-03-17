@@ -494,3 +494,98 @@ body {
 .animate-fade-in-up {
   animation: fadeInUp 0.6s var(--ease-luxury) both;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   TORCH FIRE & AMBIENT LIGHTING SYSTEM
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Persistent torch flicker — simulates firelight on nearby elements */
+@keyframes torchFlicker {
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  5% { opacity: 0.97; filter: brightness(1.02); }
+  10% { opacity: 0.99; filter: brightness(0.98); }
+  15% { opacity: 0.96; filter: brightness(1.03); }
+  25% { opacity: 1; filter: brightness(1.01); }
+  35% { opacity: 0.98; filter: brightness(0.99); }
+  45% { opacity: 0.97; filter: brightness(1.02); }
+  55% { opacity: 1; filter: brightness(1); }
+  65% { opacity: 0.95; filter: brightness(1.04); }
+  75% { opacity: 0.99; filter: brightness(0.97); }
+  85% { opacity: 0.97; filter: brightness(1.01); }
+  95% { opacity: 1; filter: brightness(1.03); }
+}
+
+.torch-lit {
+  animation: torchFlicker 3s ease-in-out infinite;
+}
+
+/* Warm ambient glow — cast by torches onto surrounding content */
+@keyframes warmGlow {
+  0%, 100% {
+    text-shadow:
+      0 0 20px rgba(255,140,0,0.05),
+      0 0 40px rgba(255,100,0,0.02);
+  }
+  33% {
+    text-shadow:
+      0 0 25px rgba(255,140,0,0.08),
+      0 0 50px rgba(255,100,0,0.03);
+  }
+  66% {
+    text-shadow:
+      0 0 18px rgba(255,140,0,0.04),
+      0 0 35px rgba(255,100,0,0.015);
+  }
+}
+
+.torch-text-glow {
+  animation: warmGlow 4s ease-in-out infinite;
+}
+
+/* Gold mask spotlight pulse */
+@keyframes maskSpotlight {
+  0%, 100% {
+    filter: drop-shadow(0 0 15px rgba(201,168,76,0.25));
+  }
+  50% {
+    filter: drop-shadow(0 0 30px rgba(201,168,76,0.4));
+  }
+}
+
+.mask-spotlight {
+  animation: maskSpotlight 4s ease-in-out infinite;
+}
+
+/* Ember float — for decorative floating particles */
+@keyframes emberFloat {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0;
+  }
+  10% { opacity: 0.8; }
+  50% {
+    transform: translateY(-30px) translateX(5px) scale(0.7);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-60px) translateX(-3px) scale(0.3);
+    opacity: 0;
+  }
+}
+
+.ember-particle {
+  animation: emberFloat 2s ease-out infinite;
+}
+
+/* Banner velvet wave */
+@keyframes velvetWave {
+  0%, 100% { transform: rotateZ(-0.3deg) skewX(0deg); }
+  25% { transform: rotateZ(0.3deg) skewX(0.15deg); }
+  50% { transform: rotateZ(-0.15deg) skewX(-0.1deg); }
+  75% { transform: rotateZ(0.4deg) skewX(0.2deg); }
+}
+
+.velvet-wave {
+  animation: velvetWave 8s ease-in-out infinite;
+  transform-origin: top center;
+}

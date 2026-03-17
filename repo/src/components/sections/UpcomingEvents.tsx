@@ -7,6 +7,7 @@ import { formatEventDate, formatTicketRange } from "@/lib/events";
 import { ANIMATION } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Event } from "@/types";
+import { SectionTorches } from "@/components/ui/TheatreDecorations";
 
 const accentSurfaces: Record<NonNullable<Event["accent"]>, string> = {
   gold: "from-gold/14 via-gold/4 to-transparent",
@@ -44,6 +45,8 @@ export function UpcomingEvents({ events }: { events: Event[] }) {
       className="relative overflow-hidden bg-charcoal py-24 md:py-32 lg:py-36"
       aria-labelledby="upcoming-events-heading"
     >
+      <SectionTorches id="upcoming" variant="dark" />
+
       {/* Background texture */}
       <div
         className="absolute inset-0 opacity-[0.03]"

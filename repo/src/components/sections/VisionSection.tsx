@@ -5,6 +5,7 @@ import { useRef } from "react";
 import Image from "next/image";
 import { ANIMATION } from "@/lib/constants";
 import { SponsorBanners } from "@/components/ui/SponsorBanners";
+import { TheatreMasks, MedievalLantern } from "@/components/ui/TheatreDecorations";
 
 /* ─── Content Data ─── */
 
@@ -325,6 +326,20 @@ export function VisionSection() {
           <div className="absolute left-0 top-0 h-full w-12 bg-gradient-to-r from-black/40 to-transparent" />
         </motion.div>
 
+        {/* Medieval Burning Lanterns — wall-mounted torches flanking the stage */}
+        <motion.div
+          className="absolute left-4 top-1/3 z-[18] hidden lg:block"
+          style={{ opacity: contentOpacity }}
+        >
+          <MedievalLantern side="left" className="w-20 h-28 xl:w-24 xl:h-32" />
+        </motion.div>
+        <motion.div
+          className="absolute right-4 top-1/3 z-[18] hidden lg:block"
+          style={{ opacity: contentOpacity }}
+        >
+          <MedievalLantern side="right" className="w-20 h-28 xl:w-24 xl:h-32" />
+        </motion.div>
+
         {/* Gold Light Rays behind curtain */}
         <motion.div className="absolute inset-0 z-10" style={{ opacity: contentOpacity }}>
           <GoldLightRays progress={isInView ? 1 : 0} />
@@ -363,16 +378,73 @@ export function VisionSection() {
                 viewport={{ once: true, margin: "0px" }}
                 className="mb-8 flex flex-col items-center justify-center overflow-hidden"
               >
-                {/* The 'AB' Script Typography */}
-                <div className="flex justify-center overflow-visible mb-2 pb-2">
+                {/* Golden Spotlight Burst — appears before text */}
+                <motion.div
+                  className="pointer-events-none absolute left-1/2 top-[8%] -translate-x-1/2 -translate-y-1/2"
+                  initial={{ opacity: 0, scale: 0.3 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.8, duration: 2.0, ease: [0.22, 1, 0.36, 1] }}
+                  aria-hidden="true"
+                >
+                  <div className="h-[400px] w-[400px] md:h-[600px] md:w-[600px] rounded-full bg-[radial-gradient(circle,rgba(201,168,76,0.18)_0%,rgba(201,168,76,0.06)_40%,transparent_70%)]" />
+                </motion.div>
+
+                {/* Decorative gold lines flanking the brand */}
+                <motion.div
+                  className="mb-6 flex items-center justify-center gap-4"
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 1.0, duration: 1.2 }}
+                >
                   <motion.span
+                    className="block h-px bg-gradient-to-r from-transparent to-gold/50"
+                    initial={{ width: 0 }}
+                    whileInView={{ width: 60 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 1.0, duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+                  />
+                  <motion.span
+                    className="block h-1.5 w-1.5 rounded-full bg-gold/60"
+                    initial={{ scale: 0 }}
+                    whileInView={{ scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 1.2, duration: 0.6 }}
+                  />
+                  <motion.span
+                    className="block h-px bg-gradient-to-l from-transparent to-gold/50"
+                    initial={{ width: 0 }}
+                    whileInView={{ width: 60 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 1.0, duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+                  />
+                </motion.div>
+
+                {/* Official AB Entertainment Logo — with glow pulse */}
+                <div className="relative flex justify-center overflow-visible mb-4 pb-2">
+                  {/* Pulsing glow behind logo */}
+                  <motion.div
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                    aria-hidden="true"
+                    initial={{ opacity: 0 }}
+                    whileInView={{ opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 1.4, duration: 1.0 }}
+                  >
+                    <motion.div
+                      className="h-32 w-56 md:h-40 md:w-72 rounded-full bg-gold/15 blur-3xl"
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.15, 0.3, 0.15] }}
+                      transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                    />
+                  </motion.div>
+                  <motion.div
                     variants={{
-                      hidden: { y: "100%", opacity: 0, rotateX: -50, rotateZ: -5, scale: 0.9 },
+                      hidden: { y: "100%", opacity: 0, rotateX: -50, scale: 0.9 },
                       visible: {
                         y: 0,
                         opacity: 1,
                         rotateX: 0,
-                        rotateZ: 0,
                         scale: 1,
                         transition: {
                           delay: 1.2,
@@ -381,10 +453,17 @@ export function VisionSection() {
                         },
                       },
                     }}
-                    className="inline-block font-script text-7xl leading-none text-gold md:text-8xl lg:text-[7rem] drop-shadow-[0_0_20px_rgba(201,168,76,0.25)] pr-4"
+                    className="relative drop-shadow-[0_0_40px_rgba(201,168,76,0.35)]"
                   >
-                    AB
-                  </motion.span>
+                    <Image
+                      src="/images/ab-logo-hq.jpg"
+                      alt="AB Entertainment"
+                      width={280}
+                      height={140}
+                      className="h-20 w-auto md:h-28 lg:h-36 object-contain"
+                      priority
+                    />
+                  </motion.div>
                 </div>
 
                 {/* The 'ENTERTAINMENT' Serif Typography */}
@@ -395,12 +474,12 @@ export function VisionSection() {
                       custom={i}
                       variants={{
                         hidden: { y: "100%", opacity: 0, rotateX: -40 },
-                        visible: (i) => ({
+                        visible: (idx: number) => ({
                           y: 0,
                           opacity: 1,
                           rotateX: 0,
                           transition: {
-                            delay: 1.5 + i * 0.05,
+                            delay: 1.5 + idx * 0.05,
                             duration: 1.2,
                             ease: [0.22, 1, 0.36, 1],
                           },
@@ -411,6 +490,53 @@ export function VisionSection() {
                       {letter}
                     </motion.span>
                   ))}
+                </div>
+
+                {/* Tagline reveal */}
+                <motion.p
+                  initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
+                  whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 2.3, duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
+                  className="mt-4 font-body text-[0.6rem] uppercase tracking-[0.5em] text-gold/50 dark:text-gold/40"
+                >
+                  Melbourne&apos;s Premier Cultural Stage
+                </motion.p>
+
+                {/* Bottom decorative lines */}
+                <motion.div
+                  className="mt-5 flex items-center justify-center gap-3"
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 2.5, duration: 1.0 }}
+                >
+                  <motion.span
+                    className="block h-px bg-gradient-to-r from-transparent to-gold/40"
+                    initial={{ width: 0 }}
+                    whileInView={{ width: 40 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 2.5, duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+                  />
+                  <motion.span
+                    className="block h-px w-3 bg-gold/30"
+                    initial={{ scaleX: 0 }}
+                    whileInView={{ scaleX: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 2.6, duration: 0.8 }}
+                  />
+                  <motion.span
+                    className="block h-px bg-gradient-to-l from-transparent to-gold/40"
+                    initial={{ width: 0 }}
+                    whileInView={{ width: 40 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 2.5, duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+                  />
+                </motion.div>
+
+                {/* Theatre Masks — Comedy & Tragedy */}
+                <div className="mt-6">
+                  <TheatreMasks />
                 </div>
               </motion.div>
 

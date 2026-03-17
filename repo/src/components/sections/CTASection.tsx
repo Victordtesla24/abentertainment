@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Mail, Users } from "lucide-react";
 import { NewsletterSignupForm } from "@/components/forms/NewsletterSignupForm";
 import { ANIMATION } from "@/lib/constants";
+import { SectionTorches } from "@/components/ui/TheatreDecorations";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
@@ -21,6 +22,8 @@ export function CTASection() {
       className="relative overflow-hidden bg-charcoal-deep py-24 md:py-32 lg:py-36"
       aria-labelledby="cta-heading"
     >
+      <SectionTorches id="cta" variant="dark" />
+
       {/* Background */}
       <div
         className="absolute inset-0"

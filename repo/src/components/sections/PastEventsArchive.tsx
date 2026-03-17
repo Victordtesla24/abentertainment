@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { ANIMATION } from "@/lib/constants";
+import { SectionTorches } from "@/components/ui/TheatreDecorations";
 
 interface ArchiveEvent {
   id: string;
@@ -76,6 +77,8 @@ export function PastEventsArchive() {
       className="relative overflow-hidden bg-charcoal py-24 md:py-32 lg:py-36"
       aria-labelledby="archive-heading"
     >
+      <SectionTorches id="archive" variant="dark" />
+
       {/* Background texture */}
       <div
         className="absolute inset-0 opacity-[0.04]"

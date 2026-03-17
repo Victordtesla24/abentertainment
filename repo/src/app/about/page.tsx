@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PageHero } from "@/components/layout/PageHero";
+import { PageDecorations } from "@/components/layout/PageDecorations";
 import { TeamSection } from "@/components/sections/TeamSection";
 import { VisionSection } from "@/components/sections/VisionSection";
 import { FALLBACK_SPONSORS } from "@/lib/site-data";
@@ -20,7 +21,8 @@ export default async function AboutPage() {
   }
 
   return (
-    <section className="min-h-screen bg-charcoal-deep">
+    <section className="relative min-h-screen bg-charcoal-deep">
+      <PageDecorations />
       <PageHero
         eyebrow={page.eyebrow}
         title={page.title}

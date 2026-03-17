@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { EventsPageClient } from "@/components/pages/EventsPageClient";
+import { PageDecorations } from "@/components/layout/PageDecorations";
 import { loadEvents } from "@/sanity/lib/loaders";
 
 export const metadata: Metadata = {
@@ -10,5 +11,10 @@ export const metadata: Metadata = {
 
 export default async function EventsPage() {
   const events = await loadEvents();
-  return <EventsPageClient events={events} />;
+  return (
+    <div className="relative">
+      <PageDecorations />
+      <EventsPageClient events={events} />
+    </div>
+  );
 }

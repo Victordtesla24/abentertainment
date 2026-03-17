@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { client } from '@/sanity/lib/client';
 import { blogPostsQuery } from '@/sanity/lib/queries';
 import imageUrlBuilder from '@sanity/image-url';
+import { PageDecorations } from "@/components/layout/PageDecorations";
 
 export const revalidate = 3600;
 
@@ -49,8 +50,9 @@ export default async function BlogPage() {
   }
 
   return (
-    <div className="min-h-screen bg-charcoal-deep pt-32 pb-24">
-      <div className="container mx-auto px-4 max-w-6xl">
+    <div className="relative min-h-screen bg-charcoal-deep pt-32 pb-24">
+      <PageDecorations />
+      <div className="relative container mx-auto px-4 max-w-6xl">
         {/* Header */}
         <header className="mb-16 text-center">
           <div className="flex items-center justify-center gap-4 mb-6">

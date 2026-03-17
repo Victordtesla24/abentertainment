@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ContactPageClient } from "@/components/pages/ContactPageClient";
+import { PageDecorations } from "@/components/layout/PageDecorations";
 import { CONTACT_CHANNELS, FALLBACK_SITE_PAGES } from "@/lib/site-data";
 import { loadSitePage } from "@/sanity/lib/loaders";
 
@@ -11,5 +12,10 @@ export const metadata: Metadata = {
 
 export default async function ContactPage() {
   const page = (await loadSitePage("contact")) ?? FALLBACK_SITE_PAGES.contact;
-  return <ContactPageClient page={page} channels={CONTACT_CHANNELS} />;
+  return (
+    <div className="relative">
+      <PageDecorations />
+      <ContactPageClient page={page} channels={CONTACT_CHANNELS} />
+    </div>
+  );
 }

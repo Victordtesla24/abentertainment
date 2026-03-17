@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { GalleryPageClient } from "@/components/pages/GalleryPageClient";
+import { PageDecorations } from "@/components/layout/PageDecorations";
 import { loadGallery } from "@/sanity/lib/loaders";
 
 export const metadata: Metadata = {
@@ -10,5 +11,10 @@ export const metadata: Metadata = {
 
 export default async function GalleryPage() {
   const galleryItems = await loadGallery();
-  return <GalleryPageClient galleryItems={galleryItems} />;
+  return (
+    <div className="relative">
+      <PageDecorations />
+      <GalleryPageClient galleryItems={galleryItems} />
+    </div>
+  );
 }

@@ -4,6 +4,7 @@ import { PastEventsArchive } from "@/components/sections/PastEventsArchive";
 import { TeamSection } from "@/components/sections/TeamSection";
 import { UpcomingEvents } from "@/components/sections/UpcomingEvents";
 import { VisionSection } from "@/components/sections/VisionSection";
+import { SponsorInterstitial } from "@/components/ui/SponsorBanners";
 import { getFeaturedEvents } from "@/lib/events";
 import { loadEvents } from "@/sanity/lib/loaders";
 import { SITE_CONFIG } from "@/lib/constants";
@@ -85,8 +86,10 @@ export default async function Home() {
       />
       <CinematicHero />
       <VisionSection />
+      <SponsorInterstitial variant="dark" />
       <UpcomingEvents events={featuredEvents} />
       <PastEventsArchive />
+      <SponsorInterstitial variant="light" />
       <TeamSection />
       <CTASection />
     </>
