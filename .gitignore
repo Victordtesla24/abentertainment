@@ -52,6 +52,7 @@ next-env.d.ts
 .local-data/
 .claude/    
 .github_backup/
+.firebase/
 
 *.log
 node_modules

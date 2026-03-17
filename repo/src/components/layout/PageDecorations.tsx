@@ -1,6 +1,6 @@
 "use client";
 
-import { TheatreMasksBackground, SectionTorches } from "@/components/ui/TheatreDecorations";
+import { TheatreMasksBackground } from "@/components/ui/TheatreDecorations";
 import { PageSponsorBanners } from "@/components/ui/SponsorBanners";
 
 /**

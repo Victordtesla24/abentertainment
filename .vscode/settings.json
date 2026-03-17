@@ -2,7 +2,7 @@
     "editor.formatOnPaste": true,
     "editor.mouseWheelZoom": true,
     "editor.wordWrap": "on",
-    "files.autoSave": "onFocusChange",
+    "files.autoSave": "afterDelay",
     "editor.formatOnSave": true,
     "claudeCode.disableLoginPrompt": true,
     "claudeCode.initialPermissionMode": "bypassPermissions",

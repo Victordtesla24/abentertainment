@@ -1,25 +1,62 @@
-import { Playfair_Display, JetBrains_Mono, Great_Vibes } from "next/font/google";
 import localFont from "next/font/local";
 
-export const playfair = Playfair_Display({
-  subsets: ["latin"],
-  display: "swap",
+export const playfair = localFont({
+  src: [
+    {
+      path: "../../public/fonts/Satoshi-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Satoshi-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Satoshi-Medium.woff2",
+      weight: "600",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Satoshi-Bold.woff2",
+      weight: "700",
+      style: "normal",
+    },
+  ],
   variable: "--font-playfair-next",
-  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  fallback: ["Georgia", "Times New Roman", "serif"],
 });
 
-export const greatVibes = Great_Vibes({
-  weight: "400",
-  subsets: ["latin"],
-  display: "swap",
+export const greatVibes = localFont({
+  src: [
+    {
+      path: "../../public/fonts/Satoshi-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+  ],
   variable: "--font-script-next",
+  display: "swap",
+  fallback: ["cursive", "Georgia", "serif"],
 });
 
-export const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  display: "swap",
+export const jetbrainsMono = localFont({
+  src: [
+    {
+      path: "../../public/fonts/Satoshi-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Satoshi-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+  ],
   variable: "--font-mono-next",
-  weight: ["400", "500"],
+  display: "swap",
+  fallback: ["SF Mono", "Monaco", "Consolas", "monospace"],
 });
 
 export const bodyFont = localFont({

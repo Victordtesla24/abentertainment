@@ -1,686 +1,907 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
+import Image from "next/image";
+import gsap from "gsap";
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PHOTOREALISTIC THEATRE DECORATIONS
+   Uses AI-generated golden mask & torch images with GSAP-powered
+   animations for spotlights, glow, floating, and fire effects.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const MASK_IMAGES = {
+  comedy: "/images/theatre/mask-comedy.webp",
+  tragedy: "/images/theatre/mask-tragedy.webp",
+} as const;
+
+const TORCH_IMAGES = {
+  bracket: "/images/theatre/torch-bracket.webp",
+} as const;
 
 /* ═══════════════════════════════════════════════════════════════════
-   THEATRE MASKS — Gold comedy/tragedy with spotlight illumination
+   TheatreMasks — photorealistic inline pair for VisionSection
    ═══════════════════════════════════════════════════════════════════ */
 
-function ComedyMask({ id = "comedy" }: { id?: string }) {
-  return (
-    <svg viewBox="0 0 140 160" aria-hidden="true">
-      <defs>
-        <linearGradient id={`mask-gold-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#F2E4A0" />
-          <stop offset="18%" stopColor="#E8D48B" />
-          <stop offset="40%" stopColor="#C9A84C" />
-          <stop offset="60%" stopColor="#B8943A" />
-          <stop offset="80%" stopColor="#A88230" />
-          <stop offset="100%" stopColor="#8B6F2A" />
-        </linearGradient>
-        <linearGradient id={`mask-highlight-${id}`} x1="50%" y1="0%" x2="50%" y2="100%">
-          <stop offset="0%" stopColor="#FFF8DC" stopOpacity="0.5" />
-          <stop offset="30%" stopColor="#F5E6A3" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="transparent" stopOpacity="0" />
-        </linearGradient>
-        <radialGradient id={`mask-spotlight-${id}`} cx="50%" cy="10%" r="70%">
-          <stop offset="0%" stopColor="#FFF8DC" stopOpacity="0.35" />
-          <stop offset="40%" stopColor="#C9A84C" stopOpacity="0.1" />
-          <stop offset="100%" stopColor="transparent" stopOpacity="0" />
-        </radialGradient>
-        <filter id={`mask-shadow-${id}`}>
-          <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000" floodOpacity="0.4" />
-        </filter>
-        <filter id={`mask-inner-glow-${id}`}>
-          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-        </filter>
-      </defs>
-      {/* Outer glow ring */}
-      <ellipse cx="70" cy="78" rx="52" ry="62" fill="none" stroke="#C9A84C" strokeWidth="0.5" opacity="0.15" />
-      {/* Main face shape with shadow */}
-      <path
-        d="M70 12 C30 12 10 40 10 75 C10 115 35 142 70 148 C105 142 130 115 130 75 C130 40 110 12 70 12Z"
-        fill={`url(#mask-gold-${id})`}
-        stroke="#8B6F2A"
-        strokeWidth="1.5"
-        filter={`url(#mask-shadow-${id})`}
-      />
-      {/* Spotlight highlight from above */}
-      <path
-        d="M70 12 C30 12 10 40 10 75 C10 115 35 142 70 148 C105 142 130 115 130 75 C130 40 110 12 70 12Z"
-        fill={`url(#mask-spotlight-${id})`}
-      />
-      {/* Specular highlight */}
-      <path
-        d="M70 12 C30 12 10 40 10 75 C10 115 35 142 70 148 C105 142 130 115 130 75 C130 40 110 12 70 12Z"
-        fill={`url(#mask-highlight-${id})`}
-      />
-      {/* Forehead ridge details */}
-      <path d="M35 30 Q70 18 105 30" fill="none" stroke="#8B6F2A" strokeWidth="0.8" opacity="0.4" />
-      <path d="M40 36 Q70 28 100 36" fill="none" stroke="#B8943A" strokeWidth="0.5" opacity="0.25" />
-      {/* Brow ridge */}
-      <path d="M28 50 Q42 40 56 48" fill="none" stroke="#7A5E22" strokeWidth="1.8" strokeLinecap="round" opacity="0.5" />
-      <path d="M84 48 Q98 40 112 50" fill="none" stroke="#7A5E22" strokeWidth="1.8" strokeLinecap="round" opacity="0.5" />
-      {/* Left eye — happy squint */}
-      <path d="M34 60 Q44 46 58 56" fill="none" stroke="#4A2A08" strokeWidth="3" strokeLinecap="round" />
-      <path d="M36 55 Q44 50 54 53" fill="none" stroke="#F2E4A0" strokeWidth="0.5" opacity="0.4" />
-      {/* Right eye — happy squint */}
-      <path d="M82 56 Q96 46 106 60" fill="none" stroke="#4A2A08" strokeWidth="3" strokeLinecap="round" />
-      <path d="M86 53 Q96 50 104 55" fill="none" stroke="#F2E4A0" strokeWidth="0.5" opacity="0.4" />
-      {/* Cheekbone highlights */}
-      <ellipse cx="38" cy="72" rx="8" ry="5" fill="#D4BA6A" opacity="0.15" />
-      <ellipse cx="102" cy="72" rx="8" ry="5" fill="#D4BA6A" opacity="0.15" />
-      {/* Nose — refined */}
-      <path d="M64 64 Q67 80 70 82 Q73 80 76 64" fill="none" stroke="#8B6F2A" strokeWidth="1.2" opacity="0.55" />
-      <path d="M65 82 Q70 86 75 82" fill="none" stroke="#8B6F2A" strokeWidth="0.8" opacity="0.35" />
-      {/* Nasolabial folds */}
-      <path d="M52 72 Q48 85 40 92" fill="none" stroke="#8B6F2A" strokeWidth="0.7" opacity="0.3" />
-      <path d="M88 72 Q92 85 100 92" fill="none" stroke="#8B6F2A" strokeWidth="0.7" opacity="0.3" />
-      {/* Big joyful smile */}
-      <path d="M36 90 Q52 118 70 122 Q88 118 104 90" fill="#4A2A08" opacity="0.85" />
-      {/* Teeth hint */}
-      <path d="M46 94 L94 94" fill="none" stroke="#E8D48B" strokeWidth="0.6" opacity="0.35" />
-      {/* Lower lip highlight */}
-      <path d="M50 112 Q70 120 90 112" fill="none" stroke="#C9A84C" strokeWidth="0.6" opacity="0.3" />
-      {/* Dimples */}
-      <circle cx="34" cy="88" r="2" fill="#8B6F2A" opacity="0.2" />
-      <circle cx="106" cy="88" r="2" fill="#8B6F2A" opacity="0.2" />
-      {/* Chin detail */}
-      <path d="M60 135 Q70 140 80 135" fill="none" stroke="#8B6F2A" strokeWidth="0.6" opacity="0.25" />
-    </svg>
-  );
-}
-
-function TragedyMask({ id = "tragedy" }: { id?: string }) {
-  return (
-    <svg viewBox="0 0 140 160" aria-hidden="true">
-      <defs>
-        <linearGradient id={`mask-gold-t-${id}`} x1="100%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#F2E4A0" />
-          <stop offset="18%" stopColor="#E8D48B" />
-          <stop offset="40%" stopColor="#C9A84C" />
-          <stop offset="60%" stopColor="#B8943A" />
-          <stop offset="80%" stopColor="#A88230" />
-          <stop offset="100%" stopColor="#8B6F2A" />
-        </linearGradient>
-        <radialGradient id={`mask-spotlight-t-${id}`} cx="50%" cy="10%" r="70%">
-          <stop offset="0%" stopColor="#FFF8DC" stopOpacity="0.3" />
-          <stop offset="40%" stopColor="#C9A84C" stopOpacity="0.08" />
-          <stop offset="100%" stopColor="transparent" stopOpacity="0" />
-        </radialGradient>
-        <filter id={`mask-shadow-t-${id}`}>
-          <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000" floodOpacity="0.45" />
-        </filter>
-      </defs>
-      <ellipse cx="70" cy="78" rx="52" ry="62" fill="none" stroke="#C9A84C" strokeWidth="0.5" opacity="0.12" />
-      {/* Main face */}
-      <path
-        d="M70 12 C30 12 10 40 10 75 C10 115 35 142 70 148 C105 142 130 115 130 75 C130 40 110 12 70 12Z"
-        fill={`url(#mask-gold-t-${id})`}
-        stroke="#8B6F2A"
-        strokeWidth="1.5"
-        filter={`url(#mask-shadow-t-${id})`}
-      />
-      <path
-        d="M70 12 C30 12 10 40 10 75 C10 115 35 142 70 148 C105 142 130 115 130 75 C130 40 110 12 70 12Z"
-        fill={`url(#mask-spotlight-t-${id})`}
-      />
-      {/* Forehead wrinkles — anguished */}
-      <path d="M35 26 Q70 16 105 26" fill="none" stroke="#8B6F2A" strokeWidth="0.9" opacity="0.45" />
-      <path d="M38 33 Q70 25 102 33" fill="none" stroke="#8B6F2A" strokeWidth="0.7" opacity="0.3" />
-      <path d="M42 39 Q70 33 98 39" fill="none" stroke="#8B6F2A" strokeWidth="0.5" opacity="0.2" />
-      {/* Anguished eyebrows */}
-      <path d="M30 44 Q44 34 58 46" fill="none" stroke="#4A2A08" strokeWidth="2" strokeLinecap="round" />
-      <path d="M82 46 Q96 34 110 44" fill="none" stroke="#4A2A08" strokeWidth="2" strokeLinecap="round" />
-      {/* Left eye — drooping sad */}
-      <path d="M34 54 Q44 64 58 58" fill="none" stroke="#4A2A08" strokeWidth="3" strokeLinecap="round" />
-      {/* Right eye — drooping sad */}
-      <path d="M82 58 Q96 64 106 54" fill="none" stroke="#4A2A08" strokeWidth="3" strokeLinecap="round" />
-      {/* Eye bags / weariness */}
-      <path d="M36 62 Q44 68 54 64" fill="none" stroke="#8B6F2A" strokeWidth="0.6" opacity="0.3" />
-      <path d="M86 64 Q96 68 104 62" fill="none" stroke="#8B6F2A" strokeWidth="0.6" opacity="0.3" />
-      {/* Nose */}
-      <path d="M64 62 Q67 78 70 80 Q73 78 76 62" fill="none" stroke="#8B6F2A" strokeWidth="1.2" opacity="0.55" />
-      <path d="M65 80 Q70 84 75 80" fill="none" stroke="#8B6F2A" strokeWidth="0.8" opacity="0.35" />
-      {/* Tear tracks */}
-      <path d="M46 62 Q43 74 46 84" fill="none" stroke="#B8943A" strokeWidth="0.7" opacity="0.3" />
-      <path d="M94 62 Q97 74 94 84" fill="none" stroke="#B8943A" strokeWidth="0.7" opacity="0.3" />
-      {/* Tear drops */}
-      <ellipse cx="44" cy="86" rx="1.5" ry="2.5" fill="#C9A84C" opacity="0.25" />
-      <ellipse cx="96" cy="86" rx="1.5" ry="2.5" fill="#C9A84C" opacity="0.25" />
-      {/* Tragic frown */}
-      <path d="M38 112 Q55 90 70 88 Q85 90 102 112" fill="#4A2A08" opacity="0.8" />
-      {/* Lower lip trembling line */}
-      <path d="M48 106 Q70 92 92 106" fill="none" stroke="#C9A84C" strokeWidth="0.5" opacity="0.3" />
-      {/* Nasolabial folds — deeper */}
-      <path d="M52 72 Q46 88 38 98" fill="none" stroke="#8B6F2A" strokeWidth="0.8" opacity="0.35" />
-      <path d="M88 72 Q94 88 102 98" fill="none" stroke="#8B6F2A" strokeWidth="0.8" opacity="0.35" />
-      {/* Chin quiver */}
-      <path d="M58 132 Q70 138 82 132" fill="none" stroke="#8B6F2A" strokeWidth="0.6" opacity="0.25" />
-    </svg>
-  );
-}
-
 export function TheatreMasks({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
+  const comedyRef = useRef<HTMLDivElement>(null);
+  const tragedyRef = useRef<HTMLDivElement>(null);
+  const comedyGlowRef = useRef<HTMLDivElement>(null);
+  const tragedyGlowRef = useRef<HTMLDivElement>(null);
+
   const sizeClasses = {
-    sm: "w-8 h-10 md:w-10 md:h-12",
-    md: "w-12 h-14 md:w-16 md:h-[4.5rem] lg:w-20 lg:h-24",
-    lg: "w-16 h-20 md:w-24 md:h-28 lg:w-28 lg:h-32",
+    sm: "w-14 h-14 md:w-18 md:h-18",
+    md: "w-20 h-20 md:w-28 md:h-28 lg:w-32 lg:h-32",
+    lg: "w-28 h-28 md:w-36 md:h-36 lg:w-44 lg:h-44",
   };
+
+  useEffect(() => {
+    if (!comedyRef.current || !tragedyRef.current) return;
+
+    // Floating comedy mask
+    gsap.to(comedyRef.current, {
+      y: -8,
+      rotation: 8,
+      duration: 6,
+      ease: "sine.inOut",
+      repeat: -1,
+      yoyo: true,
+    });
+
+    // Floating tragedy mask (offset)
+    gsap.to(tragedyRef.current, {
+      y: -8,
+      rotation: -8,
+      duration: 6,
+      delay: 0.8,
+      ease: "sine.inOut",
+      repeat: -1,
+      yoyo: true,
+    });
+
+    // Pulsing golden glow on comedy
+    if (comedyGlowRef.current) {
+      gsap.to(comedyGlowRef.current, {
+        opacity: 0.7,
+        scale: 1.15,
+        duration: 3,
+        ease: "sine.inOut",
+        repeat: -1,
+        yoyo: true,
+      });
+    }
+
+    // Pulsing golden glow on tragedy
+    if (tragedyGlowRef.current) {
+      gsap.to(tragedyGlowRef.current, {
+        opacity: 0.65,
+        scale: 1.12,
+        duration: 3,
+        delay: 1,
+        ease: "sine.inOut",
+        repeat: -1,
+        yoyo: true,
+      });
+    }
+
+    return () => {
+      gsap.killTweensOf([
+        comedyRef.current,
+        tragedyRef.current,
+        comedyGlowRef.current,
+        tragedyGlowRef.current,
+      ]);
+    };
+  }, []);
 
   return (
     <motion.div
-      className="pointer-events-none flex items-center justify-center gap-3 md:gap-5"
+      className="pointer-events-none flex items-center justify-center gap-4 md:gap-6"
       initial={{ opacity: 0, scale: 0.6, y: 30 }}
       whileInView={{ opacity: 1, scale: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: 1.8, duration: 1.6, ease: [0.22, 1, 0.36, 1] }}
       aria-hidden="true"
     >
-      {/* Comedy mask — tilted right, gentle float with gold pulse */}
-      <motion.div
-        className="relative"
-        animate={{ y: [0, -6, 0], rotateZ: [6, 9, 6] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-      >
-        {/* Spotlight from above */}
-        <motion.div
-          className="absolute -top-4 left-1/2 -translate-x-1/2 w-16 h-24 rounded-full"
-          style={{ background: "radial-gradient(ellipse at top, rgba(201,168,76,0.2) 0%, transparent 70%)" }}
-          animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.1, 1] }}
-          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+      {/* Comedy mask (left) */}
+      <div ref={comedyRef} className="relative" style={{ transform: "rotate(6deg)" }}>
+        {/* Golden aura glow */}
+        <div
+          ref={comedyGlowRef}
+          className="absolute -inset-6 rounded-full opacity-40"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, rgba(201,168,76,0.35) 0%, rgba(201,168,76,0.12) 40%, transparent 70%)",
+            filter: "blur(12px)",
+          }}
         />
-        {/* Gold shimmer sweep */}
+        {/* Specular shimmer sweep */}
         <motion.div className="absolute inset-0 overflow-hidden rounded-full">
           <motion.div
-            className="absolute inset-0 -skew-x-12 bg-gradient-to-b from-transparent via-[rgba(255,248,220,0.15)] to-transparent"
+            className="absolute inset-0 -skew-x-12 bg-gradient-to-b from-transparent via-[rgba(255,248,220,0.2)] to-transparent"
             animate={{ y: ["-150%", "150%"] }}
             transition={{ duration: 5, repeat: Infinity, repeatDelay: 4, ease: "easeInOut" }}
           />
         </motion.div>
-        <div className={`${sizeClasses[size]} drop-shadow-[0_0_20px_rgba(201,168,76,0.35)]`}>
-          <ComedyMask id="masks-comedy" />
+        <div
+          className={`${sizeClasses[size]} relative rounded-full overflow-hidden drop-shadow-[0_0_30px_rgba(201,168,76,0.45)]`}
+        >
+          <Image
+            src={MASK_IMAGES.comedy}
+            alt=""
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 80px, 128px"
+            priority
+          />
         </div>
-      </motion.div>
+      </div>
 
-      {/* Ornate divider */}
+      {/* Decorative separator */}
       <div className="flex flex-col items-center gap-1.5">
         <motion.div
-          className="h-8 w-px bg-gradient-to-b from-transparent via-gold/40 to-transparent md:h-12"
-          animate={{ scaleY: [0.8, 1.1, 0.8], opacity: [0.3, 0.6, 0.3] }}
+          className="h-8 w-px bg-gradient-to-b from-transparent via-gold/50 to-transparent md:h-12"
+          animate={{ scaleY: [0.8, 1.1, 0.8], opacity: [0.3, 0.7, 0.3] }}
           transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
-          className="h-2 w-2 rounded-full bg-gold/50"
-          animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.4, 0.8, 0.4] }}
+          className="h-2.5 w-2.5 rounded-full bg-gold/60"
+          animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.4, 0.9, 0.4] }}
           transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
-          className="h-8 w-px bg-gradient-to-b from-transparent via-gold/40 to-transparent md:h-12"
-          animate={{ scaleY: [1.1, 0.8, 1.1], opacity: [0.3, 0.6, 0.3] }}
+          className="h-8 w-px bg-gradient-to-b from-transparent via-gold/50 to-transparent md:h-12"
+          animate={{ scaleY: [1.1, 0.8, 1.1], opacity: [0.3, 0.7, 0.3] }}
           transition={{ duration: 3, delay: 0.5, repeat: Infinity, ease: "easeInOut" }}
         />
       </div>
 
-      {/* Tragedy mask — tilted left, offset float */}
-      <motion.div
-        className="relative"
-        animate={{ y: [0, -6, 0], rotateZ: [-6, -9, -6] }}
-        transition={{ duration: 6, delay: 0.8, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <motion.div
-          className="absolute -top-4 left-1/2 -translate-x-1/2 w-16 h-24 rounded-full"
-          style={{ background: "radial-gradient(ellipse at top, rgba(201,168,76,0.2) 0%, transparent 70%)" }}
-          animate={{ opacity: [0.3, 0.55, 0.3], scale: [1, 1.1, 1] }}
-          transition={{ duration: 3, delay: 1, repeat: Infinity, ease: "easeInOut" }}
+      {/* Tragedy mask (right) */}
+      <div ref={tragedyRef} className="relative" style={{ transform: "rotate(-6deg)" }}>
+        <div
+          ref={tragedyGlowRef}
+          className="absolute -inset-6 rounded-full opacity-35"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, rgba(201,168,76,0.3) 0%, rgba(201,168,76,0.1) 40%, transparent 70%)",
+            filter: "blur(12px)",
+          }}
         />
         <motion.div className="absolute inset-0 overflow-hidden rounded-full">
           <motion.div
-            className="absolute inset-0 -skew-x-12 bg-gradient-to-b from-transparent via-[rgba(255,248,220,0.12)] to-transparent"
+            className="absolute inset-0 -skew-x-12 bg-gradient-to-b from-transparent via-[rgba(255,248,220,0.15)] to-transparent"
             animate={{ y: ["-150%", "150%"] }}
             transition={{ duration: 5, delay: 2, repeat: Infinity, repeatDelay: 5, ease: "easeInOut" }}
           />
         </motion.div>
-        <div className={`${sizeClasses[size]} drop-shadow-[0_0_20px_rgba(201,168,76,0.35)]`}>
-          <TragedyMask id="masks-tragedy" />
+        <div
+          className={`${sizeClasses[size]} relative rounded-full overflow-hidden drop-shadow-[0_0_30px_rgba(201,168,76,0.45)]`}
+        >
+          <Image
+            src={MASK_IMAGES.tragedy}
+            alt=""
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 80px, 128px"
+            priority
+          />
         </div>
-      </motion.div>
+      </div>
     </motion.div>
   );
 }
 
-/* ─── Theatre Masks Background — For non-home pages ─── */
+/* ═══════════════════════════════════════════════════════════════════════
+   THEATRE MASKS BACKGROUND — Photorealistic floating masks
+   Fixed overlay for non-home pages (z-10, sponsor banners at z-20)
+   Uses real AI-generated golden mask images with GSAP animations
+   ═══════════════════════════════════════════════════════════════════════ */
 
-export function TheatreMasksBackground() {
+function PhotorealisticMaskBg({
+  type,
+  id,
+  position,
+  size,
+  baseOpacity,
+  rotation,
+}: {
+  type: "comedy" | "tragedy";
+  id: string;
+  position: string;
+  size: string;
+  baseOpacity: number;
+  rotation: number;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const glowRef = useRef<HTMLDivElement>(null);
+  const spotlightRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const ctx = gsap.context(() => {
+      // Floating mask with gentle rotation
+      gsap.to(containerRef.current, {
+        y: -18,
+        rotation: rotation + 5,
+        duration: 10,
+        ease: "sine.inOut",
+        repeat: -1,
+        yoyo: true,
+      });
+
+      // Pulsing golden aura glow
+      if (glowRef.current) {
+        gsap.to(glowRef.current, {
+          opacity: 0.85,
+          scale: 1.2,
+          duration: 4,
+          ease: "sine.inOut",
+          repeat: -1,
+          yoyo: true,
+        });
+      }
+
+      // Spotlight beam pulse from above
+      if (spotlightRef.current) {
+        gsap.to(spotlightRef.current, {
+          opacity: 0.7,
+          scaleX: 1.15,
+          duration: 5,
+          ease: "sine.inOut",
+          repeat: -1,
+          yoyo: true,
+        });
+      }
+
+      // Subtle brightness pulse on the mask image itself
+      if (imageRef.current) {
+        gsap.to(imageRef.current, {
+          filter: "brightness(1.3) drop-shadow(0 0 40px rgba(201,168,76,0.5))",
+          duration: 3.5,
+          ease: "sine.inOut",
+          repeat: -1,
+          yoyo: true,
+        });
+      }
+    }, containerRef);
+
+    return () => ctx.revert();
+  }, [rotation]);
+
+  const src = type === "comedy" ? MASK_IMAGES.comedy : MASK_IMAGES.tragedy;
+
   return (
-    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
-      {/* Top-left comedy mask — large, faded */}
-      <motion.div
-        className="absolute -left-8 top-[15%] opacity-[0.04]"
-        animate={{ y: [0, -10, 0], rotateZ: [12, 15, 12] }}
-        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <div className="w-40 h-48 md:w-56 md:h-64 drop-shadow-[0_0_60px_rgba(201,168,76,0.2)]">
-          <ComedyMask id="bg-comedy-tl" />
-        </div>
-        {/* Gold light shining down */}
-        <div
-          className="absolute -top-12 left-1/2 -translate-x-1/2 w-32 h-48"
-          style={{ background: "conic-gradient(from 0deg at 50% 0%, transparent 30%, rgba(201,168,76,0.06) 50%, transparent 70%)" }}
-        />
-      </motion.div>
+    <div
+      ref={containerRef}
+      className={`absolute ${position}`}
+      style={{ transform: `rotate(${rotation}deg)` }}
+    >
+      {/* Spotlight beam from above */}
+      <div
+        ref={spotlightRef}
+        className="absolute -top-48 left-1/2 -translate-x-1/2 opacity-40"
+        style={{
+          width: "200px",
+          height: "400px",
+          background:
+            "conic-gradient(from 0deg at 50% 0%, transparent 26%, rgba(201,168,76,0.1) 40%, rgba(255,248,220,0.22) 50%, rgba(201,168,76,0.1) 60%, transparent 74%)",
+          filter: "blur(8px)",
+        }}
+      />
 
-      {/* Bottom-right tragedy mask */}
-      <motion.div
-        className="absolute -right-8 bottom-[20%] opacity-[0.04]"
-        animate={{ y: [0, -8, 0], rotateZ: [-12, -15, -12] }}
-        transition={{ duration: 12, delay: 2, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <div className="w-40 h-48 md:w-56 md:h-64 drop-shadow-[0_0_60px_rgba(201,168,76,0.2)]">
-          <TragedyMask id="bg-tragedy-br" />
-        </div>
-        <div
-          className="absolute -top-12 left-1/2 -translate-x-1/2 w-32 h-48"
-          style={{ background: "conic-gradient(from 0deg at 50% 0%, transparent 30%, rgba(201,168,76,0.05) 50%, transparent 70%)" }}
-        />
-      </motion.div>
+      {/* Golden radial aura glow */}
+      <div
+        ref={glowRef}
+        className="absolute -inset-16 rounded-full opacity-50"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, rgba(201,168,76,0.3) 0%, rgba(201,168,76,0.12) 35%, rgba(201,168,76,0.04) 55%, transparent 70%)",
+          filter: "blur(20px)",
+        }}
+      />
 
-      {/* Center-right comedy mask (subtle) */}
-      <motion.div
-        className="absolute right-[5%] top-[55%] opacity-[0.025] hidden lg:block"
-        animate={{ y: [0, -6, 0], rotateZ: [8, 11, 8] }}
-        transition={{ duration: 14, delay: 4, repeat: Infinity, ease: "easeInOut" }}
+      {/* Photorealistic mask image */}
+      <div
+        ref={imageRef}
+        className={`${size} relative overflow-hidden rounded-2xl`}
+        style={{
+          opacity: baseOpacity,
+          filter: "brightness(1.1) drop-shadow(0 0 30px rgba(201,168,76,0.35))",
+          mixBlendMode: "screen",
+        }}
       >
-        <div className="w-32 h-40">
-          <ComedyMask id="bg-comedy-cr" />
-        </div>
-      </motion.div>
+        <Image
+          src={src}
+          alt=""
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 200px, 320px"
+        />
+      </div>
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   MEDIEVAL BURNING TORCH — UHD Fire Animation System
-   Multi-layered flame with turbulence, embers, smoke, ambient glow
-   ═══════════════════════════════════════════════════════════════════ */
-
-function FlameSystem({ id }: { id: string }) {
+export function TheatreMasksBackground() {
   return (
-    <motion.g>
-      {/* ── Layer 1: Outer flame aura (large, soft) ── */}
-      <motion.ellipse
-        cx="0" cy="-22" rx="18" ry="30"
-        fill={`url(#flame-aura-${id})`}
-        animate={{
-          ry: [30, 35, 26, 33, 30],
-          rx: [18, 15, 20, 14, 18],
-          cy: [-22, -25, -19, -23, -22],
-        }}
-        transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
-        opacity={0.5}
+    <div
+      className="pointer-events-none fixed inset-0 z-10 overflow-hidden"
+      aria-hidden="true"
+    >
+      {/* Top-left comedy mask — LARGE, CLEARLY VISIBLE */}
+      <PhotorealisticMaskBg
+        type="comedy"
+        id="bg-comedy-tl"
+        position="-left-8 top-[8%]"
+        size="w-60 h-60 md:w-72 md:h-72 lg:w-80 lg:h-80"
+        baseOpacity={0.35}
+        rotation={12}
       />
 
-      {/* ── Layer 2: Main outer flame ── */}
-      <motion.path
-        d="M0,-48 C-5,-38 -14,-24 -11,-10 C-8,0 -3,6 0,8 C3,6 8,0 11,-10 C14,-24 5,-38 0,-48Z"
-        fill={`url(#flame-outer-${id})`}
-        animate={{
-          d: [
-            "M0,-48 C-5,-38 -14,-24 -11,-10 C-8,0 -3,6 0,8 C3,6 8,0 11,-10 C14,-24 5,-38 0,-48Z",
-            "M0,-54 C-6,-42 -16,-28 -12,-12 C-9,0 -3,7 0,9 C3,7 9,0 12,-12 C16,-28 6,-42 0,-54Z",
-            "M0,-44 C-4,-34 -11,-20 -9,-8 C-7,0 -3,5 0,6 C3,5 7,0 9,-8 C11,-20 4,-34 0,-44Z",
-            "M0,-52 C-5,-40 -15,-26 -11,-11 C-8,0 -3,6 0,8 C3,6 8,0 11,-11 C15,-26 5,-40 0,-52Z",
-            "M0,-48 C-5,-38 -14,-24 -11,-10 C-8,0 -3,6 0,8 C3,6 8,0 11,-10 C14,-24 5,-38 0,-48Z",
-          ],
-        }}
-        transition={{ duration: 0.5, repeat: Infinity, ease: "easeInOut" }}
-        filter={`url(#flame-turbulence-${id})`}
+      {/* Bottom-right tragedy mask — LARGE, CLEARLY VISIBLE */}
+      <PhotorealisticMaskBg
+        type="tragedy"
+        id="bg-tragedy-br"
+        position="-right-8 bottom-[10%]"
+        size="w-60 h-60 md:w-72 md:h-72 lg:w-80 lg:h-80"
+        baseOpacity={0.3}
+        rotation={-12}
       />
 
-      {/* ── Layer 3: Inner bright flame ── */}
-      <motion.path
-        d="M0,-38 C-3,-30 -8,-18 -6,-8 C-4,0 -2,4 0,5 C2,4 4,0 6,-8 C8,-18 3,-30 0,-38Z"
-        fill={`url(#flame-inner-${id})`}
-        animate={{
-          d: [
-            "M0,-38 C-3,-30 -8,-18 -6,-8 C-4,0 -2,4 0,5 C2,4 4,0 6,-8 C8,-18 3,-30 0,-38Z",
-            "M0,-42 C-4,-33 -9,-20 -7,-9 C-5,0 -2,5 0,6 C2,5 5,0 7,-9 C9,-20 4,-33 0,-42Z",
-            "M0,-35 C-3,-28 -7,-16 -5,-7 C-3,0 -2,3 0,4 C2,3 3,0 5,-7 C7,-16 3,-28 0,-35Z",
-            "M0,-40 C-3,-31 -8,-19 -6,-8 C-4,0 -2,4 0,5 C2,4 4,0 6,-8 C8,-19 3,-31 0,-40Z",
-            "M0,-38 C-3,-30 -8,-18 -6,-8 C-4,0 -2,4 0,5 C2,4 4,0 6,-8 C8,-18 3,-30 0,-38Z",
-          ],
-        }}
-        transition={{ duration: 0.4, repeat: Infinity, ease: "easeInOut" }}
+      {/* Center-right comedy — secondary accent */}
+      <PhotorealisticMaskBg
+        type="comedy"
+        id="bg-comedy-cr"
+        position="right-[4%] top-[48%] hidden lg:block"
+        size="w-44 h-44 xl:w-52 xl:h-52"
+        baseOpacity={0.18}
+        rotation={8}
       />
 
-      {/* ── Layer 4: White-hot core ── */}
-      <motion.ellipse
-        cx="0" cy="-14" rx="3.5" ry="10"
-        fill={`url(#flame-core-${id})`}
-        animate={{
-          ry: [10, 13, 8, 12, 10],
-          rx: [3.5, 3, 4, 2.8, 3.5],
-          cy: [-14, -17, -12, -15, -14],
-        }}
-        transition={{ duration: 0.35, repeat: Infinity, ease: "easeInOut" }}
+      {/* Center-left tragedy — secondary accent (xl only) */}
+      <PhotorealisticMaskBg
+        type="tragedy"
+        id="bg-tragedy-cl"
+        position="left-[3%] top-[58%] hidden xl:block"
+        size="w-40 h-40 xl:w-48 xl:h-48"
+        baseOpacity={0.14}
+        rotation={-8}
       />
-
-      {/* ── Layer 5: Blue base flicker ── */}
-      <motion.ellipse
-        cx="0" cy="2" rx="5" ry="3"
-        fill="#4169E1"
-        opacity={0.25}
-        animate={{
-          rx: [5, 4, 6, 4.5, 5],
-          opacity: [0.25, 0.35, 0.2, 0.3, 0.25],
-        }}
-        transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut" }}
-      />
-
-      {/* ── Ember / spark particles (8 particles) ── */}
-      {[...Array(8)].map((_, i) => {
-        const startX = -4 + (i % 4) * 2.5;
-        const startY = -40 - (i % 3) * 5;
-        const driftX = (i % 2 === 0 ? -1 : 1) * (3 + (i % 3) * 2);
-        return (
-          <motion.circle
-            key={i}
-            cx={startX}
-            cy={startY}
-            r={0.5 + (i % 3) * 0.3}
-            fill={i % 3 === 0 ? "#FFD700" : i % 3 === 1 ? "#FF8C00" : "#FF4500"}
-            animate={{
-              cy: [startY, startY - 20 - i * 3, startY - 35 - i * 4],
-              cx: [startX, startX + driftX, startX + driftX * 1.5],
-              opacity: [0.9, 0.5, 0],
-              r: [0.5 + (i % 3) * 0.3, 0.3 + (i % 3) * 0.2, 0],
-            }}
-            transition={{
-              duration: 1.0 + i * 0.15,
-              delay: i * 0.18,
-              repeat: Infinity,
-              ease: "easeOut",
-            }}
-          />
-        );
-      })}
-
-      {/* ── Smoke wisps (3 particles) ── */}
-      {[...Array(3)].map((_, i) => (
-        <motion.ellipse
-          key={`smoke-${i}`}
-          cx={-2 + i * 2}
-          cy={-50}
-          rx={2 + i}
-          ry={1.5}
-          fill="rgba(180,180,180,0.08)"
-          animate={{
-            cy: [-50, -65 - i * 8, -80],
-            rx: [2 + i, 4 + i * 1.5, 7 + i * 2],
-            opacity: [0.08, 0.04, 0],
-          }}
-          transition={{
-            duration: 2.5,
-            delay: i * 0.8,
-            repeat: Infinity,
-            ease: "easeOut",
-          }}
-        />
-      ))}
-    </motion.g>
+    </div>
   );
 }
 
-function TorchSVG({ id, side }: { id: string; side: "left" | "right" }) {
-  const flipX = side === "right" ? -1 : 1;
-  return (
-    <svg viewBox="-40 -85 80 170" className="w-full h-full" aria-hidden="true">
-      <defs>
-        {/* Flame gradients — rich orange/yellow palette */}
-        <radialGradient id={`flame-aura-${id}`} cx="50%" cy="30%" r="60%">
-          <stop offset="0%" stopColor="#FF8C00" stopOpacity="0.3" />
-          <stop offset="50%" stopColor="#FF6B00" stopOpacity="0.12" />
-          <stop offset="100%" stopColor="transparent" />
-        </radialGradient>
-        <linearGradient id={`flame-outer-${id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#CC2200" />
-          <stop offset="20%" stopColor="#FF4500" />
-          <stop offset="45%" stopColor="#FF6B00" />
-          <stop offset="70%" stopColor="#FF8C00" />
-          <stop offset="100%" stopColor="#FFB347" />
-        </linearGradient>
-        <linearGradient id={`flame-inner-${id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#FF6B00" />
-          <stop offset="30%" stopColor="#FFA500" />
-          <stop offset="60%" stopColor="#FFD700" />
-          <stop offset="100%" stopColor="#FFEC8B" />
-        </linearGradient>
-        <linearGradient id={`flame-core-${id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
-          <stop offset="35%" stopColor="#FFFACD" />
-          <stop offset="70%" stopColor="#FFD700" />
-          <stop offset="100%" stopColor="#FFA500" />
-        </linearGradient>
-        {/* Iron/metal gradient for bracket */}
-        <linearGradient id={`iron-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#555" />
-          <stop offset="25%" stopColor="#333" />
-          <stop offset="50%" stopColor="#444" />
-          <stop offset="75%" stopColor="#2A2A2A" />
-          <stop offset="100%" stopColor="#1A1A1A" />
-        </linearGradient>
-        <linearGradient id={`iron-highlight-${id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#666" />
-          <stop offset="50%" stopColor="#444" />
-          <stop offset="100%" stopColor="#333" />
-        </linearGradient>
-        {/* Ambient light cast */}
-        <radialGradient id={`fire-glow-${id}`} cx="50%" cy="20%" r="70%">
-          <stop offset="0%" stopColor="#FF8C00" stopOpacity="0.3" />
-          <stop offset="40%" stopColor="#FF6B00" stopOpacity="0.12" />
-          <stop offset="70%" stopColor="#FF4500" stopOpacity="0.04" />
-          <stop offset="100%" stopColor="transparent" />
-        </radialGradient>
-        {/* Organic flame turbulence filter */}
-        <filter id={`flame-turbulence-${id}`} x="-20%" y="-20%" width="140%" height="140%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="3" seed="2" result="noise">
-            <animate attributeName="seed" values="1;5;3;7;2;8;4;6;1" dur="1.5s" repeatCount="indefinite" />
-          </feTurbulence>
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-      </defs>
+/* ═══════════════════════════════════════════════════════════════════════
+   UHD TORCH FIRE — Photorealistic torch image with GSAP-animated
+   SVG flame overlay. Multi-layered flame with turbulence filter,
+   glowing embers, smoke wisps, and massive ambient firelight.
+   ═══════════════════════════════════════════════════════════════════════ */
 
-      {/* ── Ambient fire glow (large, pulsing) ── */}
-      <motion.circle
-        cx={18 * flipX} cy="-20" r="40"
-        fill={`url(#fire-glow-${id})`}
-        animate={{
-          r: [40, 48, 36, 45, 40],
-          opacity: [0.6, 0.85, 0.5, 0.75, 0.6],
-        }}
-        transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+function GsapFlame({ id }: { id: string }) {
+  const flameRef = useRef<SVGGElement>(null);
+
+  useEffect(() => {
+    if (!flameRef.current) return;
+
+    const outer = flameRef.current.querySelector(`#outer-${id}`);
+    const inner = flameRef.current.querySelector(`#inner-${id}`);
+    const core = flameRef.current.querySelector(`#core-${id}`);
+    const aura = flameRef.current.querySelector(`#aura-${id}`);
+
+    const tweens: gsap.core.Tween[] = [];
+
+    if (outer) {
+      tweens.push(
+        gsap.to(outer, {
+          attr: {
+            d: "M0,-62 C-7,-48 -18,-30 -13,-12 C-10,0 -3,8 0,10 C3,8 10,0 13,-12 C18,-30 7,-48 0,-62Z",
+          },
+          duration: 0.35,
+          repeat: -1,
+          yoyo: true,
+          ease: "sine.inOut",
+        }),
+        gsap.to(outer, {
+          attr: {
+            d: "M0,-50 C-5,-38 -13,-22 -10,-8 C-7,0 -3,6 0,7 C3,6 7,0 10,-8 C13,-22 5,-38 0,-50Z",
+          },
+          duration: 0.5,
+          delay: 0.2,
+          repeat: -1,
+          yoyo: true,
+          ease: "power1.inOut",
+        })
+      );
+    }
+
+    if (inner) {
+      tweens.push(
+        gsap.to(inner, {
+          attr: {
+            d: "M0,-50 C-4,-38 -10,-22 -8,-10 C-5,0 -2,5 0,6 C2,5 5,0 8,-10 C10,-22 4,-38 0,-50Z",
+          },
+          duration: 0.3,
+          repeat: -1,
+          yoyo: true,
+          ease: "sine.inOut",
+        })
+      );
+    }
+
+    if (core) {
+      tweens.push(
+        gsap.to(core, {
+          attr: { ry: 16, cy: -22 },
+          duration: 0.25,
+          repeat: -1,
+          yoyo: true,
+          ease: "sine.inOut",
+        })
+      );
+    }
+
+    if (aura) {
+      tweens.push(
+        gsap.to(aura, {
+          attr: { ry: 48, rx: 24, cy: -28 },
+          opacity: 0.65,
+          duration: 0.6,
+          repeat: -1,
+          yoyo: true,
+          ease: "sine.inOut",
+        })
+      );
+    }
+
+    return () => {
+      tweens.forEach((t) => t.kill());
+    };
+  }, [id]);
+
+  return (
+    <g ref={flameRef}>
+      {/* Outer flame aura */}
+      <ellipse
+        id={`aura-${id}`}
+        cx="0"
+        cy="-24"
+        rx="22"
+        ry="40"
+        fill={`url(#flame-aura-${id})`}
+        opacity={0.5}
       />
 
-      {/* ── Wall-mount bracket (ornate wrought iron) ── */}
-      <g transform={`scale(${flipX}, 1)`}>
-        {/* Wall plate — rounded rectangle with rivets */}
-        <rect x="-8" y="18" width="16" height="44" rx="3" fill={`url(#iron-${id})`} stroke="#555" strokeWidth="0.6" />
-        {/* Decorative plate border */}
-        <rect x="-6" y="20" width="12" height="40" rx="2" fill="none" stroke="#4A4A4A" strokeWidth="0.4" />
-        {/* Rivets */}
-        <circle cx="0" cy="24" r="1.5" fill="#555" stroke="#666" strokeWidth="0.3" />
-        <circle cx="0" cy="54" r="1.5" fill="#555" stroke="#666" strokeWidth="0.3" />
+      {/* Main outer flame */}
+      <path
+        id={`outer-${id}`}
+        d="M0,-56 C-6,-42 -16,-28 -12,-10 C-9,0 -3,7 0,9 C3,7 9,0 12,-10 C16,-28 6,-42 0,-56Z"
+        fill={`url(#flame-outer-${id})`}
+        filter={`url(#flame-turb-${id})`}
+      />
 
-        {/* Bracket arm — curved iron with scroll detail */}
-        <path
-          d="M0,32 C8,32 14,26 18,18 C20,12 20,6 20,0"
-          fill="none"
-          stroke={`url(#iron-highlight-${id})`}
-          strokeWidth="5"
-          strokeLinecap="round"
+      {/* Inner bright flame */}
+      <path
+        id={`inner-${id}`}
+        d="M0,-44 C-3,-34 -9,-20 -7,-9 C-5,0 -2,4 0,5 C2,4 5,0 7,-9 C9,-20 3,-34 0,-44Z"
+        fill={`url(#flame-inner-${id})`}
+      />
+
+      {/* White-hot core */}
+      <ellipse
+        id={`core-${id}`}
+        cx="0"
+        cy="-18"
+        rx="4.5"
+        ry="13"
+        fill={`url(#flame-core-${id})`}
+      />
+
+      {/* Blue base */}
+      <ellipse cx="0" cy="2" rx="6" ry="3.5" fill="#4169E1" opacity="0.3">
+        <animate attributeName="rx" values="6;5;7;5.5;6" dur="0.5s" repeatCount="indefinite" />
+        <animate
+          attributeName="opacity"
+          values="0.3;0.45;0.25;0.4;0.3"
+          dur="0.6s"
+          repeatCount="indefinite"
         />
-        {/* Bracket arm inner line */}
-        <path
-          d="M0,32 C8,32 14,26 18,18 C20,12 20,6 20,0"
-          fill="none"
-          stroke="#555"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          opacity="0.4"
+      </ellipse>
+
+      {/* Ember particles */}
+      {[...Array(12)].map((_, i) => {
+        const sx = -5 + (i % 5) * 2.5;
+        const sy = -45 - (i % 4) * 6;
+        const dx = (i % 2 === 0 ? -1 : 1) * (4 + (i % 3) * 3);
+        const dur = `${1.0 + i * 0.12}s`;
+        const begin = `${i * 0.15}s`;
+        const color =
+          i % 4 === 0 ? "#FFD700" : i % 4 === 1 ? "#FF8C00" : i % 4 === 2 ? "#FF4500" : "#FFAA00";
+        return (
+          <circle key={i} cx={sx} cy={sy} r={0.8 + (i % 3) * 0.4} fill={color}>
+            <animate
+              attributeName="cy"
+              values={`${sy};${sy - 25 - i * 4};${sy - 50 - i * 5}`}
+              dur={dur}
+              begin={begin}
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="cx"
+              values={`${sx};${sx + dx * 0.6};${sx + dx}`}
+              dur={dur}
+              begin={begin}
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="1;0.5;0"
+              dur={dur}
+              begin={begin}
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="r"
+              values={`${0.8 + (i % 3) * 0.4};${0.4 + (i % 3) * 0.2};0`}
+              dur={dur}
+              begin={begin}
+              repeatCount="indefinite"
+            />
+          </circle>
+        );
+      })}
+
+      {/* Smoke wisps */}
+      {[...Array(4)].map((_, i) => (
+        <ellipse
+          key={`sm-${i}`}
+          cx={-3 + i * 2}
+          cy={-55}
+          rx={3 + i}
+          ry={2}
+          fill="rgba(180,180,180,0.06)"
+        >
+          <animate
+            attributeName="cy"
+            values={`-55;${-75 - i * 10};-95`}
+            dur={`${2.5 + i * 0.5}s`}
+            begin={`${i * 0.7}s`}
+            repeatCount="indefinite"
+          />
+          <animate
+            attributeName="rx"
+            values={`${3 + i};${5 + i * 2};${8 + i * 3}`}
+            dur={`${2.5 + i * 0.5}s`}
+            begin={`${i * 0.7}s`}
+            repeatCount="indefinite"
+          />
+          <animate
+            attributeName="opacity"
+            values="0.06;0.03;0"
+            dur={`${2.5 + i * 0.5}s`}
+            begin={`${i * 0.7}s`}
+            repeatCount="indefinite"
+          />
+        </ellipse>
+      ))}
+    </g>
+  );
+}
+
+/** SVG defs shared by all torches */
+function FlameDefs({ id }: { id: string }) {
+  return (
+    <defs>
+      <radialGradient id={`flame-aura-${id}`} cx="50%" cy="30%" r="60%">
+        <stop offset="0%" stopColor="#FF8C00" stopOpacity="0.35" />
+        <stop offset="50%" stopColor="#FF6B00" stopOpacity="0.15" />
+        <stop offset="100%" stopColor="transparent" />
+      </radialGradient>
+      <linearGradient id={`flame-outer-${id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#CC2200" />
+        <stop offset="20%" stopColor="#FF4500" />
+        <stop offset="45%" stopColor="#FF6B00" />
+        <stop offset="70%" stopColor="#FF8C00" />
+        <stop offset="100%" stopColor="#FFB347" />
+      </linearGradient>
+      <linearGradient id={`flame-inner-${id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#FF6B00" />
+        <stop offset="30%" stopColor="#FFA500" />
+        <stop offset="60%" stopColor="#FFD700" />
+        <stop offset="100%" stopColor="#FFEC8B" />
+      </linearGradient>
+      <linearGradient id={`flame-core-${id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
+        <stop offset="35%" stopColor="#FFFACD" />
+        <stop offset="70%" stopColor="#FFD700" />
+        <stop offset="100%" stopColor="#FFA500" />
+      </linearGradient>
+      <radialGradient id={`fire-glow-${id}`} cx="50%" cy="20%" r="80%">
+        <stop offset="0%" stopColor="#FF8C00" stopOpacity="0.35" />
+        <stop offset="30%" stopColor="#FF6B00" stopOpacity="0.15" />
+        <stop offset="60%" stopColor="#FF4500" stopOpacity="0.05" />
+        <stop offset="100%" stopColor="transparent" />
+      </radialGradient>
+      <filter id={`flame-turb-${id}`} x="-25%" y="-25%" width="150%" height="150%">
+        <feTurbulence
+          type="fractalNoise"
+          baseFrequency="0.012"
+          numOctaves="4"
+          seed="2"
+          result="noise"
+        >
+          <animate
+            attributeName="seed"
+            values="1;5;3;8;2;7;4;6;1"
+            dur="1.2s"
+            repeatCount="indefinite"
+          />
+        </feTurbulence>
+        <feDisplacementMap
+          in="SourceGraphic"
+          in2="noise"
+          scale="4"
+          xChannelSelector="R"
+          yChannelSelector="G"
         />
-        {/* Decorative scroll at base */}
-        <path
-          d="M6,40 C10,38 14,34 16,28 C18,22 17,18 15,16"
-          fill="none"
-          stroke="#4A4A4A"
-          strokeWidth="2"
-          strokeLinecap="round"
-          opacity="0.5"
+      </filter>
+    </defs>
+  );
+}
+
+/**
+ * PhotorealisticTorch — Uses the AI-generated torch bracket image
+ * as the base, with GSAP-animated SVG flame overlaid on top.
+ */
+function PhotorealisticTorch({ id, side }: { id: string; side: "left" | "right" }) {
+  const torchGlowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!torchGlowRef.current) return;
+
+    const tween = gsap.to(torchGlowRef.current, {
+      opacity: 1,
+      scale: 1.15,
+      duration: 0.8,
+      ease: "sine.inOut",
+      repeat: -1,
+      yoyo: true,
+    });
+
+    return () => {
+      tween.kill();
+    };
+  }, []);
+
+  return (
+    <div className="relative w-full h-full">
+      {/* Massive ambient fire glow behind torch */}
+      <div
+        ref={torchGlowRef}
+        className="absolute -inset-12 opacity-70"
+        style={{
+          background:
+            "radial-gradient(ellipse at 50% 30%, rgba(255,140,0,0.3) 0%, rgba(255,100,0,0.12) 40%, transparent 70%)",
+          filter: "blur(16px)",
+        }}
+      />
+
+      {/* Photorealistic torch bracket image */}
+      <div
+        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[85%] h-[65%]"
+        style={{
+          transform: `translateX(-50%) scaleX(${side === "right" ? -1 : 1})`,
+        }}
+      >
+        <Image
+          src={TORCH_IMAGES.bracket}
+          alt=""
+          fill
+          className="object-contain object-bottom"
+          sizes="128px"
         />
-        {/* Small spiral terminus */}
-        <path
-          d="M14,16 C12,14 14,12 16,13"
-          fill="none"
-          stroke="#555"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          opacity="0.4"
+      </div>
+
+      {/* SVG flame overlay on top of the bracket */}
+      <div
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[60%] h-[55%]"
+        style={{ filter: "drop-shadow(0 0 12px rgba(255,140,0,0.5))" }}
+      >
+        <svg viewBox="-30 -80 60 100" className="w-full h-full" aria-hidden="true">
+          <FlameDefs id={id} />
+          <GsapFlame id={id} />
+        </svg>
+      </div>
+
+      {/* Downward light cone from fire */}
+      <motion.div
+        className="absolute top-[40%] left-1/2 -translate-x-1/2 w-32 h-48"
+        style={{
+          background:
+            "conic-gradient(from 0deg at 50% 0%, transparent 20%, rgba(255,160,0,0.06) 40%, rgba(255,140,0,0.12) 50%, rgba(255,160,0,0.06) 60%, transparent 80%)",
+          filter: "blur(6px)",
+        }}
+        animate={{ opacity: [0.3, 0.6, 0.25, 0.55, 0.3] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+      />
+    </div>
+  );
+}
+
+/** Fallback SVG-only torch for when image isn't needed */
+function SvgTorchWithFlame({ id, side }: { id: string; side: "left" | "right" }) {
+  const flipX = side === "right" ? -1 : 1;
+  return (
+    <svg viewBox="-50 -100 100 190" className="w-full h-full" aria-hidden="true">
+      <FlameDefs id={id} />
+
+      {/* Ambient fire glow */}
+      <circle cx={20 * flipX} cy="-25" r="55" fill={`url(#fire-glow-${id})`}>
+        <animate attributeName="r" values="55;65;48;60;55" dur="1.2s" repeatCount="indefinite" />
+        <animate
+          attributeName="opacity"
+          values="0.7;1;0.6;0.9;0.7"
+          dur="1.5s"
+          repeatCount="indefinite"
         />
+      </circle>
+
+      {/* Iron bracket */}
+      <g transform={`scale(${flipX}, 1)`}>
+        <defs>
+          <linearGradient id={`iron-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#555" />
+            <stop offset="25%" stopColor="#333" />
+            <stop offset="50%" stopColor="#444" />
+            <stop offset="75%" stopColor="#2A2A2A" />
+            <stop offset="100%" stopColor="#1A1A1A" />
+          </linearGradient>
+        </defs>
+        <rect x="-8" y="20" width="16" height="50" rx="3" fill={`url(#iron-${id})`} stroke="#555" strokeWidth="0.6" />
+        <rect x="-6" y="22" width="12" height="46" rx="2" fill="none" stroke="#4A4A4A" strokeWidth="0.4" />
+        <circle cx="0" cy="26" r="1.5" fill="#555" stroke="#666" strokeWidth="0.3" />
+        <circle cx="0" cy="62" r="1.5" fill="#555" stroke="#666" strokeWidth="0.3" />
+        <path d="M0,36 C8,36 14,30 20,20 C22,14 22,6 22,0" fill="none" stroke="#555" strokeWidth="5.5" strokeLinecap="round" />
+        <path d="M0,36 C8,36 14,30 20,20 C22,14 22,6 22,0" fill="none" stroke="#4A4A4A" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
+        <path d="M6,46 C10,44 14,38 16,32 C18,26 17,22 15,20" fill="none" stroke="#4A4A4A" strokeWidth="2" strokeLinecap="round" opacity="0.5" />
       </g>
 
-      {/* ── Torch cup / brazier (more detailed) ── */}
-      <g transform={`translate(${18 * flipX}, 0)`}>
-        {/* Brazier body */}
-        <path
-          d="M-10,8 L-12,2 L-9,-3 L-6,-5 L6,-5 L9,-3 L12,2 L10,8Z"
-          fill={`url(#iron-${id})`}
-          stroke="#555"
-          strokeWidth="0.6"
-        />
-        {/* Brazier rim highlight */}
-        <path
-          d="M-9,-3 L-6,-5 L6,-5 L9,-3"
-          fill="none"
-          stroke="#666"
-          strokeWidth="0.8"
-        />
-        {/* Brazier decorative band */}
-        <path d="M-11,3 L11,3" fill="none" stroke="#4A4A4A" strokeWidth="0.6" />
-        {/* Coal bed — red-hot embers */}
-        <ellipse cx="0" cy="0" rx="7" ry="2.5" fill="#5C0000" opacity="0.7" />
-        <motion.ellipse
-          cx="0" cy="-1" rx="6" ry="2"
-          fill="#8B0000"
-          animate={{ opacity: [0.4, 0.7, 0.4] }}
-          transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.ellipse
-          cx="0" cy="-1.5" rx="4" ry="1.5"
-          fill="#FF4500"
-          animate={{ opacity: [0.3, 0.55, 0.3], rx: [4, 3.5, 4.5, 4] }}
-          transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut" }}
-        />
-        {/* Individual ember glows */}
-        {[...Array(4)].map((_, i) => (
-          <motion.circle
-            key={`ember-${i}`}
-            cx={-3 + i * 2}
-            cy={-1 + (i % 2)}
-            r={0.6}
-            fill="#FF6B00"
-            animate={{ opacity: [0.3, 0.7, 0.3] }}
-            transition={{ duration: 0.5 + i * 0.1, delay: i * 0.15, repeat: Infinity, ease: "easeInOut" }}
-          />
+      {/* Torch cup / brazier */}
+      <g transform={`translate(${20 * flipX}, 0)`}>
+        <path d="M-11,10 L-14,3 L-10,-3 L-7,-5.5 L7,-5.5 L10,-3 L14,3 L11,10Z" fill={`url(#iron-${id})`} stroke="#555" strokeWidth="0.6" />
+        <path d="M-10,-3 L-7,-5.5 L7,-5.5 L10,-3" fill="none" stroke="#666" strokeWidth="0.8" />
+        <ellipse cx="0" cy="0" rx="8" ry="3" fill="#5C0000" opacity="0.7" />
+        <ellipse cx="0" cy="-1" rx="7" ry="2.5" fill="#8B0000" opacity="0.6">
+          <animate attributeName="opacity" values="0.4;0.7;0.4" dur="0.7s" repeatCount="indefinite" />
+        </ellipse>
+        <ellipse cx="0" cy="-2" rx="5" ry="2" fill="#FF4500" opacity="0.4">
+          <animate attributeName="opacity" values="0.3;0.6;0.3" dur="0.5s" repeatCount="indefinite" />
+        </ellipse>
+        {[...Array(5)].map((_, i) => (
+          <circle key={`coal-${i}`} cx={-3.5 + i * 1.8} cy={-1 + (i % 2)} r={0.7} fill="#FF6B00">
+            <animate
+              attributeName="opacity"
+              values="0.3;0.8;0.3"
+              dur={`${0.4 + i * 0.1}s`}
+              begin={`${i * 0.1}s`}
+              repeatCount="indefinite"
+            />
+          </circle>
         ))}
-
-        {/* ── The Flame ── */}
-        <FlameSystem id={id} />
+        <GsapFlame id={id} />
       </g>
     </svg>
   );
 }
 
-/* ─── Medieval Lantern wrapper with ambient light cast ─── */
+/* ─── MedievalLantern — for VisionSection ─── */
 
-export function MedievalLantern({ side, className = "" }: { side: "left" | "right"; className?: string }) {
+export function MedievalLantern({
+  side,
+  className = "",
+}: {
+  side: "left" | "right";
+  className?: string;
+}) {
   return (
     <motion.div
       className={`pointer-events-none ${className}`}
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ delay: side === "left" ? 1.4 : 1.6, duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+      transition={{
+        delay: side === "left" ? 1.4 : 1.6,
+        duration: 1.4,
+        ease: [0.22, 1, 0.36, 1],
+      }}
       aria-hidden="true"
     >
-      {/* Large ambient light halo */}
+      {/* Large warm ambient halo */}
       <motion.div
-        className="absolute -inset-12 rounded-full"
+        className="absolute -inset-16 rounded-full"
         style={{
-          background: "radial-gradient(ellipse at center top, rgba(255,140,0,0.12) 0%, rgba(255,100,0,0.04) 40%, transparent 70%)",
+          background:
+            "radial-gradient(ellipse at center top, rgba(255,140,0,0.18) 0%, rgba(255,100,0,0.07) 40%, transparent 70%)",
         }}
-        animate={{ opacity: [0.4, 0.75, 0.35, 0.65, 0.4], scale: [1, 1.05, 0.98, 1.03, 1] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+        animate={{
+          opacity: [0.5, 0.9, 0.4, 0.8, 0.5],
+          scale: [1, 1.08, 0.96, 1.05, 1],
+        }}
+        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
       />
-      {/* Directional light cone cast downward */}
+      {/* Downward light cone */}
       <motion.div
-        className="absolute top-full left-1/2 -translate-x-1/2 w-32 h-48"
+        className="absolute top-full left-1/2 -translate-x-1/2 w-44 h-64"
         style={{
-          background: "conic-gradient(from 0deg at 50% 0%, transparent 25%, rgba(255,160,0,0.04) 45%, rgba(255,140,0,0.06) 50%, rgba(255,160,0,0.04) 55%, transparent 75%)",
+          background:
+            "conic-gradient(from 0deg at 50% 0%, transparent 22%, rgba(255,160,0,0.06) 42%, rgba(255,140,0,0.1) 50%, rgba(255,160,0,0.06) 58%, transparent 78%)",
         }}
-        animate={{ opacity: [0.3, 0.5, 0.25, 0.45, 0.3] }}
+        animate={{ opacity: [0.35, 0.6, 0.3, 0.55, 0.35] }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
       />
-      <TorchSVG id={`lantern-${side}`} side={side} />
+      <PhotorealisticTorch id={`lantern-${side}`} side={side} />
     </motion.div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   SECTION TORCHES — Larger, more prominent paired torches
-   With realistic ambient lighting that illuminates nearby content
-   ═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════
+   SECTION TORCHES — Paired torches for homepage sections
+   Uses photorealistic torch bracket + GSAP SVG flame overlay
+   ═══════════════════════════════════════════════════════════════════════ */
 
-export function SectionTorches({ id, variant = "dark" }: { id: string; variant?: "dark" | "light" }) {
-  const glowIntensity = variant === "dark" ? 0.1 : 0.06;
+export function SectionTorches({
+  id,
+  variant = "dark",
+}: {
+  id: string;
+  variant?: "dark" | "light";
+}) {
+  const g = variant === "dark" ? 1 : 0.6;
 
   return (
     <>
       {/* Left torch */}
       <motion.div
-        className="pointer-events-none absolute left-1 top-6 z-10 hidden md:block lg:left-3 xl:left-5"
+        className="pointer-events-none absolute left-0 top-4 z-10 hidden md:block lg:left-2 xl:left-4"
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
         transition={{ delay: 0.3, duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
         aria-hidden="true"
       >
-        {/* Ambient halo */}
+        {/* Massive ambient halo */}
         <motion.div
-          className="absolute -inset-12 rounded-full"
+          className="absolute -inset-24 rounded-full"
           style={{
-            background: `radial-gradient(ellipse at center, rgba(255,140,0,${glowIntensity}) 0%, rgba(255,100,0,${glowIntensity * 0.3}) 50%, transparent 70%)`,
+            background: `radial-gradient(ellipse at center, rgba(255,140,0,${0.14 * g}) 0%, rgba(255,100,0,${0.06 * g}) 40%, transparent 70%)`,
+            filter: "blur(12px)",
           }}
-          animate={{ opacity: [0.5, 0.85, 0.4, 0.75, 0.5], scale: [1, 1.08, 0.96, 1.04, 1] }}
-          transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+          animate={{
+            opacity: [0.5, 0.95, 0.4, 0.85, 0.5],
+            scale: [1, 1.12, 0.94, 1.08, 1],
+          }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
         />
-        {/* Torch light cone illuminating wall */}
+        {/* Light cone on wall */}
         <motion.div
-          className="absolute -left-4 top-0 w-24 h-32 lg:w-28 lg:h-40"
+          className="absolute -left-8 top-0 w-40 h-52 lg:w-48 lg:h-64"
           style={{
-            background: `radial-gradient(ellipse at 80% 20%, rgba(255,160,0,${glowIntensity * 0.5}) 0%, transparent 70%)`,
+            background: `radial-gradient(ellipse at 80% 20%, rgba(255,160,0,${0.08 * g}) 0%, transparent 70%)`,
+            filter: "blur(8px)",
           }}
-          animate={{ opacity: [0.3, 0.55, 0.25, 0.5, 0.3] }}
+          animate={{ opacity: [0.35, 0.65, 0.3, 0.6, 0.35] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         />
-        <div className="w-16 h-24 lg:w-20 lg:h-28 xl:w-22 xl:h-32">
-          <TorchSVG id={`section-${id}-left`} side="left" />
+        <div className="w-24 h-36 lg:w-28 lg:h-40 xl:w-32 xl:h-48">
+          <SvgTorchWithFlame id={`sec-${id}-l`} side="left" />
         </div>
       </motion.div>
 
       {/* Right torch */}
       <motion.div
-        className="pointer-events-none absolute right-1 top-6 z-10 hidden md:block lg:right-3 xl:right-5"
+        className="pointer-events-none absolute right-0 top-4 z-10 hidden md:block lg:right-2 xl:right-4"
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
@@ -688,23 +909,38 @@ export function SectionTorches({ id, variant = "dark" }: { id: string; variant?:
         aria-hidden="true"
       >
         <motion.div
-          className="absolute -inset-12 rounded-full"
+          className="absolute -inset-24 rounded-full"
           style={{
-            background: `radial-gradient(ellipse at center, rgba(255,140,0,${glowIntensity}) 0%, rgba(255,100,0,${glowIntensity * 0.3}) 50%, transparent 70%)`,
+            background: `radial-gradient(ellipse at center, rgba(255,140,0,${0.14 * g}) 0%, rgba(255,100,0,${0.06 * g}) 40%, transparent 70%)`,
+            filter: "blur(12px)",
           }}
-          animate={{ opacity: [0.4, 0.8, 0.35, 0.7, 0.4], scale: [1, 1.06, 0.97, 1.05, 1] }}
-          transition={{ duration: 1.8, delay: 0.3, repeat: Infinity, ease: "easeInOut" }}
+          animate={{
+            opacity: [0.45, 0.9, 0.35, 0.8, 0.45],
+            scale: [1, 1.1, 0.95, 1.07, 1],
+          }}
+          transition={{
+            duration: 1.5,
+            delay: 0.3,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
         />
         <motion.div
-          className="absolute -right-4 top-0 w-24 h-32 lg:w-28 lg:h-40"
+          className="absolute -right-8 top-0 w-40 h-52 lg:w-48 lg:h-64"
           style={{
-            background: `radial-gradient(ellipse at 20% 20%, rgba(255,160,0,${glowIntensity * 0.5}) 0%, transparent 70%)`,
+            background: `radial-gradient(ellipse at 20% 20%, rgba(255,160,0,${0.08 * g}) 0%, transparent 70%)`,
+            filter: "blur(8px)",
           }}
-          animate={{ opacity: [0.25, 0.5, 0.2, 0.45, 0.25] }}
-          transition={{ duration: 2, delay: 0.4, repeat: Infinity, ease: "easeInOut" }}
+          animate={{ opacity: [0.3, 0.6, 0.25, 0.55, 0.3] }}
+          transition={{
+            duration: 2,
+            delay: 0.4,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
         />
-        <div className="w-16 h-24 lg:w-20 lg:h-28 xl:w-22 xl:h-32">
-          <TorchSVG id={`section-${id}-right`} side="right" />
+        <div className="w-24 h-36 lg:w-28 lg:h-40 xl:w-32 xl:h-48">
+          <SvgTorchWithFlame id={`sec-${id}-r`} side="right" />
         </div>
       </motion.div>
     </>
