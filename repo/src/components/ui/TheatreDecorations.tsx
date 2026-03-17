@@ -20,6 +20,85 @@ const TORCH_IMAGES = {
   bracket: "/images/theatre/torch-bracket.webp",
 } as const;
 
+const COMEDY_ROTATION_CLASS = "rotate-[6deg]";
+const TRAGEDY_ROTATION_CLASS = "-rotate-[6deg]";
+
+const COMEDY_SPOTLIGHT_CLASS =
+  "absolute -top-32 left-1/2 -translate-x-1/2 h-40 w-32 opacity-30 bg-[conic-gradient(from_0deg_at_50%_0%,transparent_30%,rgba(201,168,76,0.15)_44%,rgba(255,248,220,0.25)_50%,rgba(201,168,76,0.15)_56%,transparent_70%)] blur-[6px]";
+const COMEDY_GLOW_CLASS =
+  "absolute -inset-10 rounded-full opacity-50 bg-[radial-gradient(ellipse_at_center,rgba(201,168,76,0.45)_0%,rgba(201,168,76,0.18)_35%,rgba(201,168,76,0.06)_55%,transparent_70%)] blur-[16px]";
+const COMEDY_HALO_CLASS =
+  "absolute -inset-16 rounded-full opacity-20 bg-[radial-gradient(circle_at_center,rgba(255,200,100,0.3)_0%,transparent_60%)] blur-[24px]";
+
+const TRAGEDY_SPOTLIGHT_CLASS =
+  "absolute -top-32 left-1/2 -translate-x-1/2 h-40 w-32 opacity-25 bg-[conic-gradient(from_0deg_at_50%_0%,transparent_30%,rgba(201,168,76,0.12)_44%,rgba(255,248,220,0.2)_50%,rgba(201,168,76,0.12)_56%,transparent_70%)] blur-[6px]";
+const TRAGEDY_GLOW_CLASS =
+  "absolute -inset-10 rounded-full opacity-45 bg-[radial-gradient(ellipse_at_center,rgba(201,168,76,0.4)_0%,rgba(201,168,76,0.15)_35%,rgba(201,168,76,0.05)_55%,transparent_70%)] blur-[16px]";
+const TRAGEDY_HALO_CLASS =
+  "absolute -inset-16 rounded-full opacity-18 bg-[radial-gradient(circle_at_center,rgba(255,200,100,0.25)_0%,transparent_60%)] blur-[24px]";
+
+const MASK_IMAGE_SHADOW_CLASS =
+  "drop-shadow-[0_0_35px_rgba(201,168,76,0.5)] drop-shadow-[0_8px_24px_rgba(0,0,0,0.3)]";
+
+const MASK_BG_SPOTLIGHT_CLASS =
+  "absolute -top-48 left-1/2 -translate-x-1/2 h-[400px] w-[200px] opacity-40 bg-[conic-gradient(from_0deg_at_50%_0%,transparent_26%,rgba(201,168,76,0.1)_40%,rgba(255,248,220,0.22)_50%,rgba(201,168,76,0.1)_60%,transparent_74%)] blur-[8px]";
+const MASK_BG_GLOW_CLASS =
+  "absolute -inset-16 rounded-full opacity-50 bg-[radial-gradient(ellipse_at_center,rgba(201,168,76,0.3)_0%,rgba(201,168,76,0.12)_35%,rgba(201,168,76,0.04)_55%,transparent_70%)] blur-[20px]";
+const MASK_BG_IMAGE_CLASS =
+  "relative overflow-hidden rounded-2xl mix-blend-screen brightness-[1.1] drop-shadow-[0_0_30px_rgba(201,168,76,0.35)]";
+
+const TORCH_GLOW_CLASS =
+  "absolute -inset-16 opacity-70 bg-[radial-gradient(ellipse_at_50%_25%,rgba(255,140,0,0.4)_0%,rgba(255,100,0,0.18)_35%,rgba(255,80,0,0.06)_60%,transparent_80%)] blur-[20px]";
+const TORCH_HALO_CLASS =
+  "absolute -inset-10 opacity-50 bg-[radial-gradient(circle_at_50%_30%,rgba(255,200,50,0.2)_0%,rgba(255,160,0,0.08)_50%,transparent_75%)] blur-[12px]";
+const TORCH_FLAME_GLOW_CLASS =
+  "absolute top-0 left-1/2 -translate-x-1/2 h-[58%] w-[65%] drop-shadow-[0_0_18px_rgba(255,140,0,0.6)] drop-shadow-[0_0_8px_rgba(255,200,50,0.3)]";
+const TORCH_CONE_CLASS =
+  "absolute top-[38%] left-1/2 -translate-x-1/2 h-60 w-40 lg:h-72 lg:w-48 bg-[conic-gradient(from_0deg_at_50%_0%,transparent_18%,rgba(255,160,0,0.08)_38%,rgba(255,140,0,0.16)_50%,rgba(255,160,0,0.08)_62%,transparent_82%)] blur-[8px]";
+
+const maskRotationClasses: Record<string, string> = {
+  "12": "rotate-[12deg]",
+  "-12": "-rotate-[12deg]",
+  "8": "rotate-[8deg]",
+  "-8": "-rotate-[8deg]",
+};
+const maskOpacityClasses: Record<string, string> = {
+  "0.35": "opacity-[0.35]",
+  "0.3": "opacity-[0.3]",
+  "0.18": "opacity-[0.18]",
+  "0.14": "opacity-[0.14]",
+};
+
+const TORCH_HALO_LARGE_CLASS: Record<"dark" | "light", string> = {
+  dark:
+    "absolute -inset-32 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,140,0,0.18)_0%,rgba(255,100,0,0.09)_35%,rgba(255,80,0,0.03)_60%,transparent_80%)] blur-[18px]",
+  light:
+    "absolute -inset-32 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,140,0,0.108)_0%,rgba(255,100,0,0.054)_35%,rgba(255,80,0,0.018)_60%,transparent_80%)] blur-[18px]",
+};
+const TORCH_HALO_MEDIUM_CLASS: Record<"dark" | "light", string> = {
+  dark:
+    "absolute -inset-20 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,200,50,0.1)_0%,rgba(255,160,0,0.04)_50%,transparent_75%)] blur-[10px]",
+  light:
+    "absolute -inset-20 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,200,50,0.06)_0%,rgba(255,160,0,0.024)_50%,transparent_75%)] blur-[10px]",
+};
+const TORCH_HALO_SIDE_LEFT_CLASS: Record<"dark" | "light", string> = {
+  dark:
+    "absolute -left-10 top-0 h-72 w-52 lg:h-80 lg:w-64 xl:h-96 xl:w-72 bg-[radial-gradient(ellipse_at_80%_15%,rgba(255,160,0,0.12)_0%,rgba(255,120,0,0.05)_40%,transparent_75%)] blur-[10px]",
+  light:
+    "absolute -left-10 top-0 h-72 w-52 lg:h-80 lg:w-64 xl:h-96 xl:w-72 bg-[radial-gradient(ellipse_at_80%_15%,rgba(255,160,0,0.072)_0%,rgba(255,120,0,0.03)_40%,transparent_75%)] blur-[10px]",
+};
+const TORCH_HALO_SIDE_RIGHT_CLASS: Record<"dark" | "light", string> = {
+  dark:
+    "absolute -right-10 top-0 h-72 w-52 lg:h-80 lg:w-64 xl:h-96 xl:w-72 bg-[radial-gradient(ellipse_at_20%_15%,rgba(255,160,0,0.12)_0%,rgba(255,120,0,0.05)_40%,transparent_75%)] blur-[10px]",
+  light:
+    "absolute -right-10 top-0 h-72 w-52 lg:h-80 lg:w-64 xl:h-96 xl:w-72 bg-[radial-gradient(ellipse_at_20%_15%,rgba(255,160,0,0.072)_0%,rgba(255,120,0,0.03)_40%,transparent_75%)] blur-[10px]",
+};
+
+const LANTERN_HALO_CLASS =
+  "absolute -inset-16 rounded-full bg-[radial-gradient(ellipse_at_center_top,rgba(255,140,0,0.18)_0%,rgba(255,100,0,0.07)_40%,transparent_70%)]";
+const LANTERN_CONE_CLASS =
+  "absolute top-full left-1/2 -translate-x-1/2 h-64 w-44 bg-[conic-gradient(from_0deg_at_50%_0%,transparent_22%,rgba(255,160,0,0.06)_42%,rgba(255,140,0,0.1)_50%,rgba(255,160,0,0.06)_58%,transparent_78%)]";
+
 /* ═══════════════════════════════════════════════════════════════════
    TheatreMasks — photorealistic inline pair for VisionSection
    ═══════════════════════════════════════════════════════════════════ */
@@ -31,54 +110,55 @@ export function TheatreMasks({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const tragedyGlowRef = useRef<HTMLDivElement>(null);
 
   const sizeClasses = {
-    sm: "w-14 h-14 md:w-18 md:h-18",
-    md: "w-20 h-20 md:w-28 md:h-28 lg:w-32 lg:h-32",
-    lg: "w-28 h-28 md:w-36 md:h-36 lg:w-44 lg:h-44",
+    sm: "w-16 h-16 md:w-20 md:h-20",
+    md: "w-24 h-24 md:w-32 md:h-32 lg:w-40 lg:h-40",
+    lg: "w-32 h-32 md:w-44 md:h-44 lg:w-52 lg:h-52",
   };
 
   useEffect(() => {
-    if (!comedyRef.current || !tragedyRef.current) return;
+    const comedyEl = comedyRef.current;
+    const tragedyEl = tragedyRef.current;
+    const comedyGlowEl = comedyGlowRef.current;
+    const tragedyGlowEl = tragedyGlowRef.current;
 
-    // Floating comedy mask
-    gsap.to(comedyRef.current, {
-      y: -8,
-      rotation: 8,
-      duration: 6,
+    if (!comedyEl || !tragedyEl) return;
+
+    gsap.to(comedyEl, {
+      y: -12,
+      rotation: 10,
+      duration: 7,
       ease: "sine.inOut",
       repeat: -1,
       yoyo: true,
     });
 
-    // Floating tragedy mask (offset)
-    gsap.to(tragedyRef.current, {
-      y: -8,
-      rotation: -8,
-      duration: 6,
-      delay: 0.8,
+    gsap.to(tragedyEl, {
+      y: -12,
+      rotation: -10,
+      duration: 7,
+      delay: 1,
       ease: "sine.inOut",
       repeat: -1,
       yoyo: true,
     });
 
-    // Pulsing golden glow on comedy
-    if (comedyGlowRef.current) {
-      gsap.to(comedyGlowRef.current, {
-        opacity: 0.7,
-        scale: 1.15,
-        duration: 3,
+    if (comedyGlowEl) {
+      gsap.to(comedyGlowEl, {
+        opacity: 0.85,
+        scale: 1.25,
+        duration: 3.5,
         ease: "sine.inOut",
         repeat: -1,
         yoyo: true,
       });
     }
 
-    // Pulsing golden glow on tragedy
-    if (tragedyGlowRef.current) {
-      gsap.to(tragedyGlowRef.current, {
-        opacity: 0.65,
-        scale: 1.12,
-        duration: 3,
-        delay: 1,
+    if (tragedyGlowEl) {
+      gsap.to(tragedyGlowEl, {
+        opacity: 0.8,
+        scale: 1.2,
+        duration: 3.5,
+        delay: 1.2,
         ease: "sine.inOut",
         repeat: -1,
         yoyo: true,
@@ -87,17 +167,17 @@ export function TheatreMasks({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
 
     return () => {
       gsap.killTweensOf([
-        comedyRef.current,
-        tragedyRef.current,
-        comedyGlowRef.current,
-        tragedyGlowRef.current,
+        comedyEl,
+        tragedyEl,
+        comedyGlowEl,
+        tragedyGlowEl,
       ]);
     };
   }, []);
 
   return (
     <motion.div
-      className="pointer-events-none flex items-center justify-center gap-4 md:gap-6"
+      className="pointer-events-none flex items-center justify-center gap-6 md:gap-10"
       initial={{ opacity: 0, scale: 0.6, y: 30 }}
       whileInView={{ opacity: 1, scale: 1, y: 0 }}
       viewport={{ once: true }}
@@ -105,87 +185,78 @@ export function TheatreMasks({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
       aria-hidden="true"
     >
       {/* Comedy mask (left) */}
-      <div ref={comedyRef} className="relative" style={{ transform: "rotate(6deg)" }}>
-        {/* Golden aura glow */}
-        <div
-          ref={comedyGlowRef}
-          className="absolute -inset-6 rounded-full opacity-40"
-          style={{
-            background:
-              "radial-gradient(ellipse at center, rgba(201,168,76,0.35) 0%, rgba(201,168,76,0.12) 40%, transparent 70%)",
-            filter: "blur(12px)",
-          }}
-        />
+      <div ref={comedyRef} className={`relative ${COMEDY_ROTATION_CLASS}`}>
+        {/* Spotlight cone from above */}
+        <div className={COMEDY_SPOTLIGHT_CLASS} />
+        {/* Primary golden aura glow */}
+        <div ref={comedyGlowRef} className={COMEDY_GLOW_CLASS} />
+        {/* Secondary warm halo */}
+        <div className={COMEDY_HALO_CLASS} />
         {/* Specular shimmer sweep */}
-        <motion.div className="absolute inset-0 overflow-hidden rounded-full">
+        <motion.div className="absolute inset-0 overflow-hidden rounded-2xl z-10">
           <motion.div
-            className="absolute inset-0 -skew-x-12 bg-gradient-to-b from-transparent via-[rgba(255,248,220,0.2)] to-transparent"
+            className="absolute inset-0 -skew-x-12 bg-gradient-to-b from-transparent via-[rgba(255,248,220,0.25)] to-transparent"
             animate={{ y: ["-150%", "150%"] }}
-            transition={{ duration: 5, repeat: Infinity, repeatDelay: 4, ease: "easeInOut" }}
+            transition={{ duration: 4.5, repeat: Infinity, repeatDelay: 5, ease: "easeInOut" }}
           />
         </motion.div>
-        <div
-          className={`${sizeClasses[size]} relative rounded-full overflow-hidden drop-shadow-[0_0_30px_rgba(201,168,76,0.45)]`}
-        >
+        <div className={`${sizeClasses[size]} relative rounded-2xl overflow-hidden ${MASK_IMAGE_SHADOW_CLASS}`}>
           <Image
             src={MASK_IMAGES.comedy}
             alt=""
             fill
             className="object-cover"
-            sizes="(max-width: 768px) 80px, 128px"
+            sizes="(max-width: 768px) 96px, 160px"
             priority
           />
+          {/* Inner border glow */}
+          <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-gold/20" />
         </div>
       </div>
 
-      {/* Decorative separator */}
-      <div className="flex flex-col items-center gap-1.5">
+      {/* Ornate decorative separator */}
+      <div className="flex flex-col items-center gap-2">
         <motion.div
-          className="h-8 w-px bg-gradient-to-b from-transparent via-gold/50 to-transparent md:h-12"
-          animate={{ scaleY: [0.8, 1.1, 0.8], opacity: [0.3, 0.7, 0.3] }}
+          className="h-10 w-px bg-gradient-to-b from-transparent via-gold/60 to-transparent md:h-16"
+          animate={{ scaleY: [0.8, 1.1, 0.8], opacity: [0.3, 0.8, 0.3] }}
           transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
-          className="h-2.5 w-2.5 rounded-full bg-gold/60"
-          animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.4, 0.9, 0.4] }}
+          className="relative h-4 w-4 rotate-45 rounded-sm border border-gold/50 bg-gold/20"
+          animate={{ scale: [0.85, 1.2, 0.85], opacity: [0.5, 1, 0.5] }}
           transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-        />
+        >
+          <div className="absolute inset-0.5 rounded-sm bg-gold/30" />
+        </motion.div>
         <motion.div
-          className="h-8 w-px bg-gradient-to-b from-transparent via-gold/50 to-transparent md:h-12"
-          animate={{ scaleY: [1.1, 0.8, 1.1], opacity: [0.3, 0.7, 0.3] }}
+          className="h-10 w-px bg-gradient-to-b from-transparent via-gold/60 to-transparent md:h-16"
+          animate={{ scaleY: [1.1, 0.8, 1.1], opacity: [0.3, 0.8, 0.3] }}
           transition={{ duration: 3, delay: 0.5, repeat: Infinity, ease: "easeInOut" }}
         />
       </div>
 
       {/* Tragedy mask (right) */}
-      <div ref={tragedyRef} className="relative" style={{ transform: "rotate(-6deg)" }}>
-        <div
-          ref={tragedyGlowRef}
-          className="absolute -inset-6 rounded-full opacity-35"
-          style={{
-            background:
-              "radial-gradient(ellipse at center, rgba(201,168,76,0.3) 0%, rgba(201,168,76,0.1) 40%, transparent 70%)",
-            filter: "blur(12px)",
-          }}
-        />
-        <motion.div className="absolute inset-0 overflow-hidden rounded-full">
+      <div ref={tragedyRef} className={`relative ${TRAGEDY_ROTATION_CLASS}`}>
+        <div className={TRAGEDY_SPOTLIGHT_CLASS} />
+        <div ref={tragedyGlowRef} className={TRAGEDY_GLOW_CLASS} />
+        <div className={TRAGEDY_HALO_CLASS} />
+        <motion.div className="absolute inset-0 overflow-hidden rounded-2xl z-10">
           <motion.div
-            className="absolute inset-0 -skew-x-12 bg-gradient-to-b from-transparent via-[rgba(255,248,220,0.15)] to-transparent"
+            className="absolute inset-0 -skew-x-12 bg-gradient-to-b from-transparent via-[rgba(255,248,220,0.2)] to-transparent"
             animate={{ y: ["-150%", "150%"] }}
-            transition={{ duration: 5, delay: 2, repeat: Infinity, repeatDelay: 5, ease: "easeInOut" }}
+            transition={{ duration: 4.5, delay: 2.5, repeat: Infinity, repeatDelay: 5.5, ease: "easeInOut" }}
           />
         </motion.div>
-        <div
-          className={`${sizeClasses[size]} relative rounded-full overflow-hidden drop-shadow-[0_0_30px_rgba(201,168,76,0.45)]`}
-        >
+        <div className={`${sizeClasses[size]} relative rounded-2xl overflow-hidden ${MASK_IMAGE_SHADOW_CLASS}`}>
           <Image
             src={MASK_IMAGES.tragedy}
             alt=""
             fill
             className="object-cover"
-            sizes="(max-width: 768px) 80px, 128px"
+            sizes="(max-width: 768px) 96px, 160px"
             priority
           />
+          <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-gold/20" />
         </div>
       </div>
     </motion.div>
@@ -200,14 +271,12 @@ export function TheatreMasks({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
 
 function PhotorealisticMaskBg({
   type,
-  id,
   position,
   size,
   baseOpacity,
   rotation,
 }: {
   type: "comedy" | "tragedy";
-  id: string;
   position: string;
   size: string;
   baseOpacity: number;
@@ -272,46 +341,21 @@ function PhotorealisticMaskBg({
   }, [rotation]);
 
   const src = type === "comedy" ? MASK_IMAGES.comedy : MASK_IMAGES.tragedy;
+  const rotationClass = maskRotationClasses[String(rotation)] ?? "";
+  const opacityClass = maskOpacityClasses[String(baseOpacity)] ?? "";
 
   return (
-    <div
-      ref={containerRef}
-      className={`absolute ${position}`}
-      style={{ transform: `rotate(${rotation}deg)` }}
-    >
+    <div ref={containerRef} className={`absolute ${position} ${rotationClass}`}>
       {/* Spotlight beam from above */}
-      <div
-        ref={spotlightRef}
-        className="absolute -top-48 left-1/2 -translate-x-1/2 opacity-40"
-        style={{
-          width: "200px",
-          height: "400px",
-          background:
-            "conic-gradient(from 0deg at 50% 0%, transparent 26%, rgba(201,168,76,0.1) 40%, rgba(255,248,220,0.22) 50%, rgba(201,168,76,0.1) 60%, transparent 74%)",
-          filter: "blur(8px)",
-        }}
-      />
+      <div ref={spotlightRef} className={MASK_BG_SPOTLIGHT_CLASS} />
 
       {/* Golden radial aura glow */}
-      <div
-        ref={glowRef}
-        className="absolute -inset-16 rounded-full opacity-50"
-        style={{
-          background:
-            "radial-gradient(ellipse at center, rgba(201,168,76,0.3) 0%, rgba(201,168,76,0.12) 35%, rgba(201,168,76,0.04) 55%, transparent 70%)",
-          filter: "blur(20px)",
-        }}
-      />
+      <div ref={glowRef} className={MASK_BG_GLOW_CLASS} />
 
       {/* Photorealistic mask image */}
       <div
         ref={imageRef}
-        className={`${size} relative overflow-hidden rounded-2xl`}
-        style={{
-          opacity: baseOpacity,
-          filter: "brightness(1.1) drop-shadow(0 0 30px rgba(201,168,76,0.35))",
-          mixBlendMode: "screen",
-        }}
+        className={`${size} ${MASK_BG_IMAGE_CLASS} ${opacityClass}`}
       >
         <Image
           src={src}
@@ -334,7 +378,6 @@ export function TheatreMasksBackground() {
       {/* Top-left comedy mask — LARGE, CLEARLY VISIBLE */}
       <PhotorealisticMaskBg
         type="comedy"
-        id="bg-comedy-tl"
         position="-left-8 top-[8%]"
         size="w-60 h-60 md:w-72 md:h-72 lg:w-80 lg:h-80"
         baseOpacity={0.35}
@@ -344,7 +387,6 @@ export function TheatreMasksBackground() {
       {/* Bottom-right tragedy mask — LARGE, CLEARLY VISIBLE */}
       <PhotorealisticMaskBg
         type="tragedy"
-        id="bg-tragedy-br"
         position="-right-8 bottom-[10%]"
         size="w-60 h-60 md:w-72 md:h-72 lg:w-80 lg:h-80"
         baseOpacity={0.3}
@@ -354,7 +396,6 @@ export function TheatreMasksBackground() {
       {/* Center-right comedy — secondary accent */}
       <PhotorealisticMaskBg
         type="comedy"
-        id="bg-comedy-cr"
         position="right-[4%] top-[48%] hidden lg:block"
         size="w-44 h-44 xl:w-52 xl:h-52"
         baseOpacity={0.18}
@@ -364,7 +405,6 @@ export function TheatreMasksBackground() {
       {/* Center-left tragedy — secondary accent (xl only) */}
       <PhotorealisticMaskBg
         type="tragedy"
-        id="bg-tragedy-cl"
         position="left-[3%] top-[58%] hidden xl:block"
         size="w-40 h-40 xl:w-48 xl:h-48"
         baseOpacity={0.14}
@@ -657,73 +697,66 @@ function FlameDefs({ id }: { id: string }) {
  */
 function PhotorealisticTorch({ id, side }: { id: string; side: "left" | "right" }) {
   const torchGlowRef = useRef<HTMLDivElement>(null);
+  const warmHaloRef = useRef<HTMLDivElement>(null);
+  const bracketScaleClass = side === "right" ? "scale-x-[-1]" : "scale-x-100";
 
   useEffect(() => {
     if (!torchGlowRef.current) return;
 
     const tween = gsap.to(torchGlowRef.current, {
       opacity: 1,
-      scale: 1.15,
+      scale: 1.2,
       duration: 0.8,
       ease: "sine.inOut",
       repeat: -1,
       yoyo: true,
     });
 
+    const haloTween = warmHaloRef.current
+      ? gsap.to(warmHaloRef.current, {
+          opacity: 0.9,
+          scale: 1.1,
+          duration: 1.2,
+          ease: "sine.inOut",
+          repeat: -1,
+          yoyo: true,
+        })
+      : null;
+
     return () => {
       tween.kill();
+      haloTween?.kill();
     };
   }, []);
 
   return (
     <div className="relative w-full h-full">
-      {/* Massive ambient fire glow behind torch */}
-      <div
-        ref={torchGlowRef}
-        className="absolute -inset-12 opacity-70"
-        style={{
-          background:
-            "radial-gradient(ellipse at 50% 30%, rgba(255,140,0,0.3) 0%, rgba(255,100,0,0.12) 40%, transparent 70%)",
-          filter: "blur(16px)",
-        }}
-      />
+      <div ref={torchGlowRef} className={TORCH_GLOW_CLASS} />
 
-      {/* Photorealistic torch bracket image */}
+      <div ref={warmHaloRef} className={TORCH_HALO_CLASS} />
+
       <div
-        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[85%] h-[65%]"
-        style={{
-          transform: `translateX(-50%) scaleX(${side === "right" ? -1 : 1})`,
-        }}
+        className={`absolute bottom-0 left-1/2 h-[65%] w-[85%] -translate-x-1/2 ${bracketScaleClass}`}
       >
         <Image
           src={TORCH_IMAGES.bracket}
           alt=""
           fill
           className="object-contain object-bottom"
-          sizes="128px"
+          sizes="160px"
         />
       </div>
 
-      {/* SVG flame overlay on top of the bracket */}
-      <div
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[60%] h-[55%]"
-        style={{ filter: "drop-shadow(0 0 12px rgba(255,140,0,0.5))" }}
-      >
+      <div className={TORCH_FLAME_GLOW_CLASS}>
         <svg viewBox="-30 -80 60 100" className="w-full h-full" aria-hidden="true">
           <FlameDefs id={id} />
           <GsapFlame id={id} />
         </svg>
       </div>
 
-      {/* Downward light cone from fire */}
       <motion.div
-        className="absolute top-[40%] left-1/2 -translate-x-1/2 w-32 h-48"
-        style={{
-          background:
-            "conic-gradient(from 0deg at 50% 0%, transparent 20%, rgba(255,160,0,0.06) 40%, rgba(255,140,0,0.12) 50%, rgba(255,160,0,0.06) 60%, transparent 80%)",
-          filter: "blur(6px)",
-        }}
-        animate={{ opacity: [0.3, 0.6, 0.25, 0.55, 0.3] }}
+        className={TORCH_CONE_CLASS}
+        animate={{ opacity: [0.35, 0.7, 0.25, 0.6, 0.35] }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
       />
     </div>
@@ -820,11 +853,7 @@ export function MedievalLantern({
     >
       {/* Large warm ambient halo */}
       <motion.div
-        className="absolute -inset-16 rounded-full"
-        style={{
-          background:
-            "radial-gradient(ellipse at center top, rgba(255,140,0,0.18) 0%, rgba(255,100,0,0.07) 40%, transparent 70%)",
-        }}
+        className={LANTERN_HALO_CLASS}
         animate={{
           opacity: [0.5, 0.9, 0.4, 0.8, 0.5],
           scale: [1, 1.08, 0.96, 1.05, 1],
@@ -833,11 +862,7 @@ export function MedievalLantern({
       />
       {/* Downward light cone */}
       <motion.div
-        className="absolute top-full left-1/2 -translate-x-1/2 w-44 h-64"
-        style={{
-          background:
-            "conic-gradient(from 0deg at 50% 0%, transparent 22%, rgba(255,160,0,0.06) 42%, rgba(255,140,0,0.1) 50%, rgba(255,160,0,0.06) 58%, transparent 78%)",
-        }}
+        className={LANTERN_CONE_CLASS}
         animate={{ opacity: [0.35, 0.6, 0.3, 0.55, 0.35] }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
       />
@@ -858,50 +883,45 @@ export function SectionTorches({
   id: string;
   variant?: "dark" | "light";
 }) {
-  const g = variant === "dark" ? 1 : 0.6;
+  const torchVariant = variant === "dark" ? "dark" : "light";
 
   return (
     <>
       {/* Left torch */}
       <motion.div
-        className="pointer-events-none absolute left-0 top-4 z-10 hidden md:block lg:left-2 xl:left-4"
+        className="pointer-events-none absolute left-0 top-0 z-10 hidden md:block lg:left-2 xl:left-6"
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
         transition={{ delay: 0.3, duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
         aria-hidden="true"
       >
-        {/* Massive ambient halo */}
         <motion.div
-          className="absolute -inset-24 rounded-full"
-          style={{
-            background: `radial-gradient(ellipse at center, rgba(255,140,0,${0.14 * g}) 0%, rgba(255,100,0,${0.06 * g}) 40%, transparent 70%)`,
-            filter: "blur(12px)",
-          }}
+          className={TORCH_HALO_LARGE_CLASS[torchVariant]}
           animate={{
-            opacity: [0.5, 0.95, 0.4, 0.85, 0.5],
-            scale: [1, 1.12, 0.94, 1.08, 1],
+            opacity: [0.5, 1, 0.4, 0.9, 0.5],
+            scale: [1, 1.15, 0.92, 1.1, 1],
           }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
         />
-        {/* Light cone on wall */}
         <motion.div
-          className="absolute -left-8 top-0 w-40 h-52 lg:w-48 lg:h-64"
-          style={{
-            background: `radial-gradient(ellipse at 80% 20%, rgba(255,160,0,${0.08 * g}) 0%, transparent 70%)`,
-            filter: "blur(8px)",
-          }}
-          animate={{ opacity: [0.35, 0.65, 0.3, 0.6, 0.35] }}
+          className={TORCH_HALO_MEDIUM_CLASS[torchVariant]}
+          animate={{ opacity: [0.6, 1, 0.5, 0.9, 0.6] }}
+          transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className={TORCH_HALO_SIDE_LEFT_CLASS[torchVariant]}
+          animate={{ opacity: [0.35, 0.7, 0.3, 0.65, 0.35] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         />
-        <div className="w-24 h-36 lg:w-28 lg:h-40 xl:w-32 xl:h-48">
+        <div className="w-32 h-48 lg:w-40 lg:h-56 xl:w-44 xl:h-64">
           <SvgTorchWithFlame id={`sec-${id}-l`} side="left" />
         </div>
       </motion.div>
 
       {/* Right torch */}
       <motion.div
-        className="pointer-events-none absolute right-0 top-4 z-10 hidden md:block lg:right-2 xl:right-4"
+        className="pointer-events-none absolute right-0 top-0 z-10 hidden md:block lg:right-2 xl:right-6"
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
@@ -909,14 +929,10 @@ export function SectionTorches({
         aria-hidden="true"
       >
         <motion.div
-          className="absolute -inset-24 rounded-full"
-          style={{
-            background: `radial-gradient(ellipse at center, rgba(255,140,0,${0.14 * g}) 0%, rgba(255,100,0,${0.06 * g}) 40%, transparent 70%)`,
-            filter: "blur(12px)",
-          }}
+          className={TORCH_HALO_LARGE_CLASS[torchVariant]}
           animate={{
-            opacity: [0.45, 0.9, 0.35, 0.8, 0.45],
-            scale: [1, 1.1, 0.95, 1.07, 1],
+            opacity: [0.45, 0.95, 0.35, 0.85, 0.45],
+            scale: [1, 1.13, 0.93, 1.08, 1],
           }}
           transition={{
             duration: 1.5,
@@ -926,12 +942,13 @@ export function SectionTorches({
           }}
         />
         <motion.div
-          className="absolute -right-8 top-0 w-40 h-52 lg:w-48 lg:h-64"
-          style={{
-            background: `radial-gradient(ellipse at 20% 20%, rgba(255,160,0,${0.08 * g}) 0%, transparent 70%)`,
-            filter: "blur(8px)",
-          }}
-          animate={{ opacity: [0.3, 0.6, 0.25, 0.55, 0.3] }}
+          className={TORCH_HALO_MEDIUM_CLASS[torchVariant]}
+          animate={{ opacity: [0.55, 0.95, 0.45, 0.85, 0.55] }}
+          transition={{ duration: 1.2, delay: 0.2, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className={TORCH_HALO_SIDE_RIGHT_CLASS[torchVariant]}
+          animate={{ opacity: [0.3, 0.65, 0.25, 0.6, 0.3] }}
           transition={{
             duration: 2,
             delay: 0.4,
@@ -939,7 +956,7 @@ export function SectionTorches({
             ease: "easeInOut",
           }}
         />
-        <div className="w-24 h-36 lg:w-28 lg:h-40 xl:w-32 xl:h-48">
+        <div className="w-32 h-48 lg:w-40 lg:h-56 xl:w-44 xl:h-64">
           <SvgTorchWithFlame id={`sec-${id}-r`} side="right" />
         </div>
       </motion.div>

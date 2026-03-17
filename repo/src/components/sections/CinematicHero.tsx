@@ -152,7 +152,7 @@ export function CinematicHero() {
   return (
     <section
       ref={sectionRef}
-      className="relative min-h-screen overflow-hidden px-6 pb-10 pt-28 md:pt-32"
+      className="relative min-h-screen overflow-hidden px-6 pb-12 pt-28 md:pt-36"
       aria-label="Welcome to AB Entertainment"
     >
       <SectionTorches id="hero" variant="dark" />
@@ -194,16 +194,18 @@ export function CinematicHero() {
           style={{ opacity: opacityOverlay }}
           aria-hidden="true"
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-charcoal-deep via-charcoal/80 to-charcoal-deep/60" />
-          <div className="absolute inset-0 bg-gradient-to-t from-charcoal-deep via-transparent to-charcoal-deep/30" />
+          <div className="absolute inset-0 bg-gradient-to-br from-charcoal-deep via-charcoal/85 to-charcoal-deep/70" />
+          <div className="absolute inset-0 bg-gradient-to-t from-charcoal-deep via-transparent to-charcoal-deep/40" />
+          <div className="absolute inset-0 bg-gradient-to-r from-charcoal-deep/50 via-transparent to-charcoal-deep/50" />
         </motion.div>
 
         {/* Gold / Burgundy accent radials */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(201,168,76,0.14),transparent_55%)] pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(107,29,58,0.2),transparent_50%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(201,168,76,0.18),transparent_50%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(107,29,58,0.25),transparent_45%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(201,168,76,0.04),transparent_60%)] pointer-events-none" />
 
         {/* Cinematic vignette */}
-        <div className="absolute inset-0 shadow-[inset_0_0_250px_rgba(0,0,0,0.6)] pointer-events-none" />
+        <div className="absolute inset-0 shadow-[inset_0_0_300px_rgba(0,0,0,0.7)] pointer-events-none" />
       </div>
 
       {/* ── Carousel Controls ── */}
@@ -336,7 +338,7 @@ export function CinematicHero() {
           {/* Metrics with animated counters */}
           <motion.div
             ref={metricsRef}
-            className="mt-14 grid gap-4 lg:grid-cols-3"
+            className="mt-16 grid gap-5 lg:grid-cols-3"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.8, duration: 0.8 }}
@@ -344,13 +346,13 @@ export function CinematicHero() {
             {seasonMetrics.map((metric, i) => (
               <motion.div
                 key={metric.label}
-                className="luxury-card-hover group/metric rounded-[1.5rem] border border-ivory/8 bg-charcoal-deep/50 p-5 backdrop-blur-xl"
+                className="luxury-card-hover group/metric rounded-[1.5rem] border border-ivory/10 bg-charcoal-deep/60 p-6 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.3)]"
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1.9 + i * 0.12, duration: 0.6 }}
-                whileHover={{ borderColor: "rgba(201,168,76,0.3)" }}
+                whileHover={{ borderColor: "rgba(201,168,76,0.35)", boxShadow: "0 12px 40px rgba(0,0,0,0.4), 0 0 20px rgba(201,168,76,0.06)" }}
               >
-                <p className="font-body text-[0.55rem] uppercase tracking-[0.35em] text-ivory/60">{metric.label}</p>
+                <p className="font-body text-[0.6rem] uppercase tracking-[0.35em] text-gold/50">{metric.label}</p>
                 <div className="mt-3">
                   {metricsInView ? (
                     <CountUp
@@ -358,13 +360,13 @@ export function CinematicHero() {
                       suffix={metric.suffix}
                       prefix={metric.prefix}
                       delay={0.2 + i * 0.15}
-                      className="font-display text-3xl text-gold"
+                      className="font-display text-4xl text-gold"
                     />
                   ) : (
-                    <span className="font-display text-3xl text-gold">0</span>
+                    <span className="font-display text-4xl text-gold">0</span>
                   )}
                 </div>
-                <p className="mt-3 font-body text-[0.82rem] leading-relaxed text-ivory/70">{metric.detail}</p>
+                <p className="mt-3 font-body text-[0.82rem] leading-relaxed text-ivory/65">{metric.detail}</p>
               </motion.div>
             ))}
           </motion.div>
@@ -377,21 +379,27 @@ export function CinematicHero() {
           transition={{ delay: 0.6, duration: ANIMATION.duration.slow, ease: ANIMATION.ease.luxury }}
           className="relative pb-6 lg:pb-12"
         >
-          <div className="relative overflow-hidden rounded-[2.2rem] border border-gold/12 bg-charcoal-deep/60 p-6 shadow-[0_40px_80px_rgba(0,0,0,0.4)] backdrop-blur-2xl md:p-8">
-            {/* Animated glow accent */}
+          <div className="relative overflow-hidden rounded-[2.5rem] border border-gold/15 bg-charcoal-deep/65 p-7 shadow-[0_40px_100px_rgba(0,0,0,0.5),0_0_40px_rgba(201,168,76,0.04)] backdrop-blur-2xl md:p-9">
+            {/* Animated glow accents */}
             <motion.div
-              className="absolute -right-12 top-8 h-40 w-40 rounded-full bg-gold/10 blur-3xl"
-              animate={{ scale: [1, 1.3, 1], opacity: [0.1, 0.18, 0.1] }}
+              className="absolute -right-16 top-6 h-48 w-48 rounded-full bg-gold/10 blur-3xl"
+              animate={{ scale: [1, 1.3, 1], opacity: [0.1, 0.2, 0.1] }}
               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
               aria-hidden="true"
             />
-            <div className="absolute left-8 top-0 h-28 w-px bg-gradient-to-b from-gold/50 to-transparent" aria-hidden="true" />
+            <motion.div
+              className="absolute -left-10 bottom-20 h-32 w-32 rounded-full bg-burgundy/10 blur-3xl"
+              animate={{ scale: [1, 1.2, 1], opacity: [0.08, 0.15, 0.08] }}
+              transition={{ duration: 5, delay: 1, repeat: Infinity, ease: "easeInOut" }}
+              aria-hidden="true"
+            />
+            <div className="absolute left-9 top-0 h-32 w-px bg-gradient-to-b from-gold/60 to-transparent" aria-hidden="true" />
 
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.9, duration: 0.6 }}
-              className="inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/8 px-3.5 py-2 font-body text-[0.6rem] uppercase tracking-[0.3em] text-gold/80"
+              className="inline-flex items-center gap-2.5 rounded-full border border-gold/25 bg-gold/10 px-4 py-2.5 font-body text-[0.6rem] uppercase tracking-[0.3em] text-gold/85"
             >
               <Sparkles className="h-3.5 w-3.5" strokeWidth={1.8} />
               Opening Act · 2026 Program
@@ -401,18 +409,18 @@ export function CinematicHero() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.0, duration: 0.7, ease: ANIMATION.ease.luxury }}
-              className="mt-6 max-w-sm font-display text-3xl leading-tight text-ivory md:text-[2.2rem]"
+              className="mt-7 max-w-sm font-display text-[2rem] leading-tight text-ivory md:text-[2.4rem]"
             >
               A season composed like a live performance.
             </motion.h2>
 
             <div className="hr-gold-pulse mt-8" />
 
-            <div className="mt-8 space-y-3">
+            <div className="mt-8 space-y-3.5">
               {seasonProgram.map((item, i) => (
                 <motion.div
                   key={item.title}
-                  className="group/card rounded-[1.4rem] border border-ivory/8 bg-ivory/[0.03] p-4 transition-all duration-400 hover:border-gold/25 hover:bg-gold/[0.06] hover:shadow-[0_8px_32px_rgba(201,168,76,0.06)]"
+                  className="group/card rounded-[1.4rem] border border-ivory/8 bg-ivory/[0.03] p-5 transition-all duration-400 hover:border-gold/30 hover:bg-gold/[0.07] hover:shadow-[0_8px_32px_rgba(201,168,76,0.08)]"
                   initial={{ opacity: 0, x: 24 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 1.1 + i * 0.12, duration: 0.6, ease: ANIMATION.ease.luxury }}
@@ -420,7 +428,7 @@ export function CinematicHero() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="font-display text-lg text-ivory transition-colors duration-300 group-hover/card:text-gold">{item.title}</p>
-                      <div className="mt-2 space-y-1.5 font-body text-sm text-ivory/70">
+                      <div className="mt-2.5 space-y-1.5 font-body text-sm text-ivory/70">
                         <p className="flex items-center gap-2">
                           <CalendarDays className="h-3.5 w-3.5 text-gold/60" strokeWidth={1.8} />
                           {item.date}
@@ -432,7 +440,7 @@ export function CinematicHero() {
                       </div>
                     </div>
                     <motion.span
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/20 bg-gold/8 text-gold"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gold/25 bg-gold/10 text-gold shadow-[0_0_12px_rgba(201,168,76,0.08)]"
                       whileHover={{ scale: 1.15, backgroundColor: "rgba(201,168,76,0.2)" }}
                       transition={{ type: "spring", stiffness: 400, damping: 20 }}
                     >
@@ -443,24 +451,24 @@ export function CinematicHero() {
               ))}
             </div>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-2">
+            <div className="mt-7 grid gap-3.5 md:grid-cols-2">
               <motion.div
-                className="rounded-[1.4rem] border border-ivory/8 bg-charcoal-deep/50 p-4"
+                className="rounded-[1.4rem] border border-ivory/10 bg-charcoal-deep/55 p-5"
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1.5, duration: 0.6 }}
               >
-                <p className="font-body text-[0.55rem] uppercase tracking-[0.3em] text-ivory/60">Melbourne&apos;s Finest Venues</p>
-                <p className="mt-2.5 font-display text-base text-ivory/85">Convention Centre · Palais Theatre · Sidney Myer Music Bowl</p>
+                <p className="font-body text-[0.55rem] uppercase tracking-[0.3em] text-ivory/55">Melbourne&apos;s Finest Venues</p>
+                <p className="mt-3 font-display text-base text-ivory/85">Convention Centre · Palais Theatre · Sidney Myer Music Bowl</p>
               </motion.div>
               <motion.div
-                className="rounded-[1.4rem] border border-gold/15 bg-gold/[0.06] p-4"
+                className="rounded-[1.4rem] border border-gold/20 bg-gold/[0.07] p-5"
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1.6, duration: 0.6 }}
               >
-                <p className="font-body text-[0.55rem] uppercase tracking-[0.3em] text-gold/60">Premium Experience</p>
-                <p className="mt-2.5 font-display text-base text-ivory/85">Curated artists, world-class staging, unforgettable nights.</p>
+                <p className="font-body text-[0.55rem] uppercase tracking-[0.3em] text-gold/55">Premium Experience</p>
+                <p className="mt-3 font-display text-base text-ivory/85">Curated artists, world-class staging, unforgettable nights.</p>
               </motion.div>
             </div>
           </div>

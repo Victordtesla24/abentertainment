@@ -120,27 +120,38 @@ function CurtainDrape({ side }: { side: "left" | "right" }) {
           x2={side === "left" ? "100%" : "0%"}
           y2="0%"
         >
-          <stop offset="0%" stopColor="#3a0a1a" />
+          <stop offset="0%" stopColor="#2a0610" />
+          <stop offset="20%" stopColor="#4a1228" />
           <stop offset="40%" stopColor="#6B1D3A" />
-          <stop offset="70%" stopColor="#8B2E50" />
+          <stop offset="55%" stopColor="#8B2E50" />
+          <stop offset="70%" stopColor="#7A2544" />
           <stop offset="85%" stopColor="#6B1D3A" />
-          <stop offset="100%" stopColor="#3a0a1a" />
+          <stop offset="100%" stopColor="#2a0610" />
         </linearGradient>
         {/* Velvet fold highlights */}
         <linearGradient id={`fold-${side}`} x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="rgba(201,168,76,0)" />
-          <stop offset="15%" stopColor="rgba(201,168,76,0.08)" />
-          <stop offset="30%" stopColor="rgba(201,168,76,0)" />
-          <stop offset="45%" stopColor="rgba(201,168,76,0.06)" />
-          <stop offset="60%" stopColor="rgba(201,168,76,0)" />
-          <stop offset="75%" stopColor="rgba(201,168,76,0.1)" />
+          <stop offset="12%" stopColor="rgba(201,168,76,0.12)" />
+          <stop offset="25%" stopColor="rgba(201,168,76,0)" />
+          <stop offset="38%" stopColor="rgba(201,168,76,0.09)" />
+          <stop offset="50%" stopColor="rgba(201,168,76,0)" />
+          <stop offset="62%" stopColor="rgba(201,168,76,0.1)" />
+          <stop offset="75%" stopColor="rgba(201,168,76,0.14)" />
+          <stop offset="88%" stopColor="rgba(201,168,76,0.04)" />
           <stop offset="100%" stopColor="rgba(201,168,76,0)" />
+        </linearGradient>
+        <linearGradient id={`curtain-depth-${side}`} x1="50%" y1="0%" x2="50%" y2="100%">
+          <stop offset="0%" stopColor="rgba(0,0,0,0.15)" />
+          <stop offset="50%" stopColor="rgba(0,0,0,0)" />
+          <stop offset="100%" stopColor="rgba(0,0,0,0.25)" />
         </linearGradient>
       </defs>
       {/* Main curtain fabric */}
       <rect width="100" height="100" fill={`url(#curtain-grad-${side})`} />
       {/* Fold overlay */}
       <rect width="100" height="100" fill={`url(#fold-${side})`} />
+      {/* Depth detail layer */}
+      <rect width="100" height="100" fill={`url(#curtain-depth-${side})`} />
       {/* Bottom drape curve */}
       <path
         d={
@@ -149,7 +160,7 @@ function CurtainDrape({ side }: { side: "left" | "right" }) {
             : "M0,98 Q25,94 50,97 Q75,100 100,95 L100,100 L0,100 Z"
         }
         fill="#1A1A1A"
-        opacity="0.4"
+        opacity="0.5"
       />
     </svg>
   );
@@ -169,22 +180,42 @@ function GoldLightRays({ progress }: { progress: number }) {
       <div
         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
         style={{
-          width: "120%",
-          height: "120%",
+          width: "140%",
+          height: "140%",
           background:
-            "radial-gradient(ellipse at center, rgba(201,168,76,0.12) 0%, rgba(201,168,76,0.04) 35%, transparent 70%)",
+            "radial-gradient(ellipse at center, rgba(201,168,76,0.16) 0%, rgba(201,168,76,0.06) 30%, rgba(201,168,76,0.02) 55%, transparent 75%)",
+        }}
+      />
+      {/* Secondary glow for enhanced brightness */}
+      <div
+        className="absolute left-1/2 top-[30%] -translate-x-1/2 -translate-y-1/2"
+        style={{
+          width: "60%",
+          height: "40%",
+          background:
+            "radial-gradient(ellipse at center, rgba(201,168,76,0.1) 0%, rgba(201,168,76,0.02) 55%, transparent 75%)",
+        }}
+      />
+      {/* Secondary glow for enhanced brightness */}
+      <div
+        className="absolute left-1/2 top-[35%] -translate-x-1/2 -translate-y-1/2"
+        style={{
+          width: "60%",
+          height: "40%",
+          background:
+            "radial-gradient(ellipse at center, rgba(201,168,76,0.1) 0%, transparent 70%)",
         }}
       />
       {/* Diagonal rays */}
-      {[...Array(5)].map((_, i) => (
+      {[...Array(7)].map((_, i) => (
         <div
           key={i}
           className="absolute left-1/2 top-0 origin-top"
           style={{
-            width: "2px",
-            height: "140%",
-            background: `linear-gradient(to bottom, rgba(201,168,76,${0.15 - i * 0.02}), transparent 80%)`,
-            transform: `translateX(-50%) rotate(${-30 + i * 15}deg)`,
+            width: i === 3 ? "3px" : "2px",
+            height: "150%",
+            background: `linear-gradient(to bottom, rgba(201,168,76,${0.18 - i * 0.02}), transparent 80%)`,
+            transform: `translateX(-50%) rotate(${-45 + i * 15}deg)`,
             filter: "blur(3px)",
           }}
         />
@@ -237,7 +268,6 @@ function ShimmerParticles({ progress }: { progress: number }) {
 export function VisionSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const curtainTriggerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(curtainTriggerRef, { once: true, amount: 0.3 });
 
   const { scrollYProgress } = useScroll({
@@ -309,7 +339,7 @@ export function VisionSection() {
         >
           <CurtainDrape side="left" />
           {/* Curtain edge shadow */}
-          <div className="absolute right-0 top-0 h-full w-12 bg-gradient-to-l from-black/40 to-transparent" />
+          <div className="absolute right-0 top-0 h-full w-16 bg-gradient-to-l from-black/50 to-transparent" />
         </motion.div>
 
         {/* Right Curtain */}
@@ -323,21 +353,27 @@ export function VisionSection() {
         >
           <CurtainDrape side="right" />
           {/* Curtain edge shadow */}
-          <div className="absolute left-0 top-0 h-full w-12 bg-gradient-to-r from-black/40 to-transparent" />
+          <div className="absolute left-0 top-0 h-full w-16 bg-gradient-to-r from-black/50 to-transparent" />
         </motion.div>
 
         {/* Medieval Burning Lanterns — wall-mounted torches flanking the stage */}
         <motion.div
-          className="absolute left-4 top-1/3 z-[18] hidden lg:block"
+          className="absolute left-3 top-1/3 z-[18] hidden lg:block"
           style={{ opacity: contentOpacity }}
         >
-          <MedievalLantern side="left" className="w-20 h-28 xl:w-24 xl:h-32" />
+          <div className="relative">
+            <div className="absolute -inset-10 rounded-full bg-[radial-gradient(circle,rgba(201,168,76,0.14)_0%,transparent_70%)]" />
+            <MedievalLantern side="left" className="w-24 h-32 xl:w-28 xl:h-36" />
+          </div>
         </motion.div>
         <motion.div
-          className="absolute right-4 top-1/3 z-[18] hidden lg:block"
+          className="absolute right-3 top-1/3 z-[18] hidden lg:block"
           style={{ opacity: contentOpacity }}
         >
-          <MedievalLantern side="right" className="w-20 h-28 xl:w-24 xl:h-32" />
+          <div className="relative">
+            <div className="absolute -inset-10 rounded-full bg-[radial-gradient(circle,rgba(201,168,76,0.14)_0%,transparent_70%)]" />
+            <MedievalLantern side="right" className="w-24 h-32 xl:w-28 xl:h-36" />
+          </div>
         </motion.div>
 
         {/* Gold Light Rays behind curtain */}
@@ -348,7 +384,7 @@ export function VisionSection() {
 
         {/* ── Stage Content (revealed as curtains part) ── */}
         <motion.div
-          className="relative z-[15] px-6 py-24 md:py-32 lg:px-8 lg:py-36"
+          className="relative z-[15] px-6 py-28 md:py-36 lg:px-8 lg:py-40"
           style={{
             opacity: contentOpacity,
             scale: contentScale,
@@ -359,18 +395,19 @@ export function VisionSection() {
           {/* Background blobs */}
           <div className="pointer-events-none absolute inset-0" aria-hidden="true">
             <motion.div
-              className="absolute -left-16 top-24 h-72 w-72 rounded-full bg-gold/10 blur-3xl"
+              className="absolute -left-20 top-24 h-96 w-96 rounded-full bg-gold/12 blur-3xl"
               style={{ y: blobY1 }}
             />
             <motion.div
-              className="absolute right-0 top-20 h-80 w-80 rounded-full bg-burgundy/10 blur-3xl"
+              className="absolute -right-8 top-20 h-[26rem] w-[26rem] rounded-full bg-burgundy/12 blur-3xl"
               style={{ y: blobY2 }}
             />
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle,rgba(201,168,76,0.05)_0%,transparent_60%)]" />
           </div>
 
           <div className="relative mx-auto max-w-7xl">
             {/* ── Curtain Rise Hero Moment ── */}
-            <div className="relative mb-16 text-center md:mb-20 [perspective:1000px] z-10">
+            <div className="relative mb-20 text-center md:mb-24 [perspective:1000px] z-10">
               {/* Powerful Brand Name Reveal matching Logo Style */}
               <motion.div
                 initial="hidden"
@@ -387,7 +424,7 @@ export function VisionSection() {
                   transition={{ delay: 0.8, duration: 2.0, ease: [0.22, 1, 0.36, 1] }}
                   aria-hidden="true"
                 >
-                  <div className="h-[400px] w-[400px] md:h-[600px] md:w-[600px] rounded-full bg-[radial-gradient(circle,rgba(201,168,76,0.18)_0%,rgba(201,168,76,0.06)_40%,transparent_70%)]" />
+                  <div className="h-[500px] w-[500px] md:h-[700px] md:w-[700px] rounded-full bg-[radial-gradient(circle,rgba(201,168,76,0.22)_0%,rgba(201,168,76,0.08)_35%,rgba(201,168,76,0.02)_55%,transparent_75%)]" />
                 </motion.div>
 
                 {/* Decorative gold lines flanking the brand */}
@@ -399,23 +436,23 @@ export function VisionSection() {
                   transition={{ delay: 1.0, duration: 1.2 }}
                 >
                   <motion.span
-                    className="block h-px bg-gradient-to-r from-transparent to-gold/50"
+                    className="block h-px bg-gradient-to-r from-transparent to-gold/60"
                     initial={{ width: 0 }}
-                    whileInView={{ width: 60 }}
+                    whileInView={{ width: 80 }}
                     viewport={{ once: true }}
                     transition={{ delay: 1.0, duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
                   />
                   <motion.span
-                    className="block h-1.5 w-1.5 rounded-full bg-gold/60"
+                    className="block h-2 w-2 rounded-full bg-gold/70"
                     initial={{ scale: 0 }}
                     whileInView={{ scale: 1 }}
                     viewport={{ once: true }}
                     transition={{ delay: 1.2, duration: 0.6 }}
                   />
                   <motion.span
-                    className="block h-px bg-gradient-to-l from-transparent to-gold/50"
+                    className="block h-px bg-gradient-to-l from-transparent to-gold/60"
                     initial={{ width: 0 }}
-                    whileInView={{ width: 60 }}
+                    whileInView={{ width: 80 }}
                     viewport={{ once: true }}
                     transition={{ delay: 1.0, duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
                   />
@@ -433,8 +470,8 @@ export function VisionSection() {
                     transition={{ delay: 1.4, duration: 1.0 }}
                   >
                     <motion.div
-                      className="h-32 w-56 md:h-40 md:w-72 rounded-full bg-gold/15 blur-3xl"
-                      animate={{ scale: [1, 1.3, 1], opacity: [0.15, 0.3, 0.15] }}
+                      className="h-40 w-64 md:h-48 md:w-80 rounded-full bg-gold/18 blur-3xl"
+                      animate={{ scale: [1, 1.35, 1], opacity: [0.18, 0.35, 0.18] }}
                       transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                     />
                   </motion.div>
@@ -453,14 +490,14 @@ export function VisionSection() {
                         },
                       },
                     }}
-                    className="relative drop-shadow-[0_0_40px_rgba(201,168,76,0.35)]"
+                    className="relative drop-shadow-[0_0_50px_rgba(201,168,76,0.4)]"
                   >
                     <Image
                       src="/images/ab-logo-hq.jpg"
                       alt="AB Entertainment"
                       width={280}
                       height={140}
-                      className="h-20 w-auto md:h-28 lg:h-36 object-contain"
+                      className="h-24 w-auto md:h-32 lg:h-40 object-contain"
                       priority
                     />
                   </motion.div>

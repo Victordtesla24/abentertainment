@@ -31,7 +31,7 @@ function useSponsors() {
 
 /* ─── Velvet Banner SVG with ornate gold borders ─── */
 
-function VelvetBannerSVG({ side, hovered }: { side: "left" | "right"; hovered: boolean }) {
+function VelvetBannerSVG({ side }: { side: "left" | "right" }) {
   return (
     <svg
       className="absolute inset-0 h-full w-full transition-all duration-700"
@@ -42,13 +42,15 @@ function VelvetBannerSVG({ side, hovered }: { side: "left" | "right"; hovered: b
       <defs>
         {/* Deep velvet fabric gradient — rich burgundy/purple */}
         <linearGradient id={`velvet-fabric-${side}`} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#2a0c16" />
-          <stop offset="8%" stopColor="#4A1428" />
-          <stop offset="25%" stopColor="#6B1D3A" />
+          <stop offset="0%" stopColor="#1e0810" />
+          <stop offset="8%" stopColor="#3D1022" />
+          <stop offset="20%" stopColor="#5A1832" />
+          <stop offset="35%" stopColor="#6B1D3A" />
           <stop offset="50%" stopColor="#7B2545" />
-          <stop offset="75%" stopColor="#6B1D3A" />
-          <stop offset="92%" stopColor="#4A1428" />
-          <stop offset="100%" stopColor="#2a0c16" />
+          <stop offset="65%" stopColor="#6B1D3A" />
+          <stop offset="80%" stopColor="#5A1832" />
+          <stop offset="92%" stopColor="#3D1022" />
+          <stop offset="100%" stopColor="#1e0810" />
         </linearGradient>
         {/* Velvet fabric texture — subtle fold highlights */}
         <linearGradient id={`velvet-folds-${side}`} x1="0%" y1="0%" x2="100%" y2="0%">
@@ -66,27 +68,33 @@ function VelvetBannerSVG({ side, hovered }: { side: "left" | "right"; hovered: b
         </linearGradient>
         {/* Velvet sheen — light from top */}
         <linearGradient id={`velvet-sheen-${side}`} x1="50%" y1="0%" x2="50%" y2="100%">
-          <stop offset="0%" stopColor="rgba(201,168,76,0.12)" />
-          <stop offset="15%" stopColor="rgba(201,168,76,0.04)" />
+          <stop offset="0%" stopColor="rgba(201,168,76,0.18)" />
+          <stop offset="10%" stopColor="rgba(201,168,76,0.08)" />
+          <stop offset="30%" stopColor="rgba(201,168,76,0.02)" />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
         {/* Rich gold border gradient */}
         <linearGradient id={`gold-border-${side}`} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#E8D48B" />
-          <stop offset="20%" stopColor="#C9A84C" />
-          <stop offset="50%" stopColor="#B8943A" />
-          <stop offset="80%" stopColor="#C9A84C" />
-          <stop offset="100%" stopColor="#A88B3D" />
+          <stop offset="0%" stopColor="#F5E3B3" />
+          <stop offset="15%" stopColor="#E8D48B" />
+          <stop offset="25%" stopColor="#D4B860" />
+          <stop offset="50%" stopColor="#C9A84C" />
+          <stop offset="75%" stopColor="#D4B860" />
+          <stop offset="85%" stopColor="#E8D48B" />
+          <stop offset="100%" stopColor="#B8943A" />
         </linearGradient>
         {/* Gold corner ornament gradient */}
         <linearGradient id={`gold-ornament-${side}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#F2E4A0" />
-          <stop offset="50%" stopColor="#C9A84C" />
+          <stop offset="0%" stopColor="#FFF5D1" />
+          <stop offset="35%" stopColor="#F2E4A0" />
+          <stop offset="50%" stopColor="#D4B860" />
+          <stop offset="65%" stopColor="#C9A84C" />
           <stop offset="100%" stopColor="#8B6F2A" />
         </linearGradient>
         {/* Shadow for depth */}
         <filter id={`banner-depth-${side}`}>
-          <feDropShadow dx="2" dy="4" stdDeviation="4" floodColor="#000" floodOpacity="0.5" />
+          <feDropShadow dx="2" dy="4" stdDeviation="6" floodColor="#000" floodOpacity="0.6" />
+          <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#C9A84C" floodOpacity="0.08" />
         </filter>
       </defs>
 
@@ -112,55 +120,58 @@ function VelvetBannerSVG({ side, hovered }: { side: "left" | "right"; hovered: b
         d="M6,0 L154,0 L154,290 L80,335 L6,290 Z"
         fill="none"
         stroke={`url(#gold-border-${side})`}
-        strokeWidth="3.5"
+        strokeWidth="4.5"
       />
       {/* Inner decorative border */}
       <path
         d="M14,8 L146,8 L146,282 L80,322 L14,282 Z"
         fill="none"
-        stroke="rgba(201,168,76,0.25)"
-        strokeWidth="1.2"
+        stroke="rgba(201,168,76,0.35)"
+        strokeWidth="1.5"
       />
       {/* Second inner border — dashed filigree */}
       <path
         d="M20,14 L140,14 L140,276 L80,312 L20,276 Z"
         fill="none"
-        stroke="rgba(201,168,76,0.12)"
+        stroke="rgba(201,168,76,0.18)"
         strokeWidth="0.8"
         strokeDasharray="4,8"
       />
 
       {/* Corner ornaments */}
       {/* Top-left */}
-      <path d="M14,8 L14,28 M14,8 L34,8" fill="none" stroke={`url(#gold-ornament-${side})`} strokeWidth="2" strokeLinecap="round" />
-      <circle cx="14" cy="8" r="2.5" fill={`url(#gold-ornament-${side})`} />
+      <path d="M14,8 L14,32 M14,8 L38,8" fill="none" stroke={`url(#gold-ornament-${side})`} strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="14" cy="8" r="3" fill={`url(#gold-ornament-${side})`} />
       {/* Top-right */}
-      <path d="M146,8 L146,28 M146,8 L126,8" fill="none" stroke={`url(#gold-ornament-${side})`} strokeWidth="2" strokeLinecap="round" />
-      <circle cx="146" cy="8" r="2.5" fill={`url(#gold-ornament-${side})`} />
+      <path d="M146,8 L146,32 M146,8 L122,8" fill="none" stroke={`url(#gold-ornament-${side})`} strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="146" cy="8" r="3" fill={`url(#gold-ornament-${side})`} />
 
       {/* Hanging rod — ornate gold bar with finials */}
-      <rect x="0" y="0" width="160" height="8" rx="4" fill="rgba(201,168,76,0.7)" />
-      <rect x="2" y="1.5" width="156" height="5" rx="2.5" fill="rgba(201,168,76,0.4)" />
+      <rect x="0" y="0" width="160" height="9" rx="4.5" fill="rgba(201,168,76,0.75)" />
+      <rect x="2" y="1.5" width="156" height="6" rx="3" fill="rgba(201,168,76,0.45)" />
       {/* Rod highlight */}
-      <rect x="10" y="2" width="140" height="1.5" rx="0.75" fill="rgba(255,248,220,0.3)" />
+      <rect x="10" y="2.5" width="140" height="2" rx="1" fill="rgba(255,248,220,0.35)" />
       {/* Finial left */}
-      <circle cx="4" cy="4" r="4" fill="#C9A84C" stroke="#8B6F2A" strokeWidth="0.5" />
+      <circle cx="4" cy="4.5" r="5" fill="#D4B860" stroke="#8B6F2A" strokeWidth="0.6" />
       {/* Finial right */}
-      <circle cx="156" cy="4" r="4" fill="#C9A84C" stroke="#8B6F2A" strokeWidth="0.5" />
+      <circle cx="156" cy="4.5" r="5" fill="#D4B860" stroke="#8B6F2A" strokeWidth="0.6" />
 
       {/* Center decorative crest — fleur-de-lis inspired */}
-      <g transform="translate(80, 48)" opacity="0.35">
+      <g transform="translate(80, 48)" opacity="0.5">
         <path
-          d="M0,-12 C-2,-8 -6,-4 -8,0 C-6,2 -2,2 0,6 C2,2 6,2 8,0 C6,-4 2,-8 0,-12Z"
-          fill="#C9A84C"
+          d="M0,-14 C-2.5,-9 -7,-4.5 -9,0 C-7,2.5 -2.5,2.5 0,7 C2.5,2.5 7,2.5 9,0 C7,-4.5 2.5,-9 0,-14Z"
+          fill="#D4B860"
         />
-        <line x1="-12" y1="0" x2="12" y2="0" stroke="#C9A84C" strokeWidth="0.5" />
+        <line x1="-14" y1="0" x2="14" y2="0" stroke="#C9A84C" strokeWidth="0.6" />
       </g>
     </svg>
   );
 }
 
 /* ─── Individual Hanging Banner with unfurl-on-hover ─── */
+
+const BANNER_CLIP_CLASS =
+  "[clip-path:polygon(4%_0%,_96%_0%,_96%_85%,_50%_98%,_4%_85%)]";
 
 function HangingBanner({ sponsor, delay, side }: { sponsor: SponsorAd; delay: number; side: "left" | "right" }) {
   const [hovered, setHovered] = useState(false);
@@ -195,19 +206,17 @@ function HangingBanner({ sponsor, delay, side }: { sponsor: SponsorAd; delay: nu
       >
         {/* The banner fabric */}
         <motion.div
-          className="relative w-full"
-          style={{ aspectRatio: "160/340" }}
+          className="relative w-full aspect-[160/340]"
           animate={{
             scale: hovered ? 1.04 : 1,
           }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
-          <VelvetBannerSVG side={side} hovered={hovered} />
+          <VelvetBannerSVG side={side} />
 
           {/* Gold shimmer sweep on hover */}
           <motion.div
-            className="absolute inset-0 overflow-hidden"
-            style={{ clipPath: "polygon(4% 0%, 96% 0%, 96% 85%, 50% 98%, 4% 85%)" }}
+            className={`absolute inset-0 overflow-hidden ${BANNER_CLIP_CLASS}`}
           >
             <motion.div
               className="absolute inset-0 -skew-x-12 bg-gradient-to-b from-transparent via-gold/15 to-transparent"
@@ -231,8 +240,7 @@ function HangingBanner({ sponsor, delay, side }: { sponsor: SponsorAd; delay: nu
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="absolute inset-0 flex flex-col items-center justify-center px-5 pt-14 pb-16"
-                style={{ clipPath: "polygon(4% 0%, 96% 0%, 96% 85%, 50% 98%, 4% 85%)" }}
+                className={`absolute inset-0 flex flex-col items-center justify-center px-5 pt-14 pb-16 ${BANNER_CLIP_CLASS}`}
               >
                 {sponsor.logo?.asset?.url ? (
                   <>
@@ -283,8 +291,7 @@ function HangingBanner({ sponsor, delay, side }: { sponsor: SponsorAd; delay: nu
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                className="absolute inset-0 flex flex-col items-center justify-center px-4 pt-14 pb-16"
-                style={{ clipPath: "polygon(4% 0%, 96% 0%, 96% 85%, 50% 98%, 4% 85%)" }}
+                className={`absolute inset-0 flex flex-col items-center justify-center px-4 pt-14 pb-16 ${BANNER_CLIP_CLASS}`}
               >
                 {sponsor.logo?.asset?.url && (
                   <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-gold/30 mb-3">
@@ -350,14 +357,14 @@ export function SponsorBanners() {
   return (
     <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden hidden xl:block">
       {/* Left hanging banners */}
-      <div className="pointer-events-auto absolute left-2 top-0 flex w-[160px] flex-col items-center gap-5 2xl:left-5 2xl:w-[180px]">
+      <div className="pointer-events-auto absolute left-3 top-0 flex w-[175px] flex-col items-center gap-6 2xl:left-6 2xl:w-[195px]">
         {leftSponsors.map((sponsor, i) => (
           <HangingBanner key={sponsor.id} sponsor={sponsor} delay={0.8 + i * 0.3} side="left" />
         ))}
       </div>
 
       {/* Right hanging banners */}
-      <div className="pointer-events-auto absolute right-2 top-0 flex w-[160px] flex-col items-center gap-5 2xl:right-5 2xl:w-[180px]">
+      <div className="pointer-events-auto absolute right-3 top-0 flex w-[175px] flex-col items-center gap-6 2xl:right-6 2xl:w-[195px]">
         {rightSponsors.map((sponsor, i) => (
           <HangingBanner key={sponsor.id} sponsor={sponsor} delay={1.0 + i * 0.3} side="right" />
         ))}
@@ -382,14 +389,14 @@ export function PageSponsorBanners() {
   return (
     <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden hidden xl:block" aria-hidden="true">
       {/* Left banners — fixed position */}
-      <div className="pointer-events-auto absolute left-1 top-20 flex w-[140px] flex-col items-center gap-4 2xl:left-4 2xl:w-[160px]">
+      <div className="pointer-events-auto absolute left-2 top-20 flex w-[155px] flex-col items-center gap-5 2xl:left-5 2xl:w-[175px]">
         {leftSponsors.slice(0, 2).map((sponsor, i) => (
           <HangingBanner key={sponsor.id} sponsor={sponsor} delay={1.2 + i * 0.4} side="left" />
         ))}
       </div>
 
       {/* Right banners — fixed position */}
-      <div className="pointer-events-auto absolute right-1 top-20 flex w-[140px] flex-col items-center gap-4 2xl:right-4 2xl:w-[160px]">
+      <div className="pointer-events-auto absolute right-2 top-20 flex w-[155px] flex-col items-center gap-5 2xl:right-5 2xl:w-[175px]">
         {rightSponsors.slice(0, 2).map((sponsor, i) => (
           <HangingBanner key={sponsor.id} sponsor={sponsor} delay={1.4 + i * 0.4} side="right" />
         ))}
@@ -437,13 +444,8 @@ export function SponsorInterstitial({ variant = "dark" }: { variant?: "dark" | "
     >
       {/* Subtle background pattern */}
       <div
-        className="absolute inset-0 opacity-[0.02]"
+        className="absolute inset-0 opacity-[0.02] bg-[linear-gradient(90deg,rgba(201,168,76,0.1)_1px,transparent_1px),linear-gradient(180deg,rgba(201,168,76,0.06)_1px,transparent_1px)] bg-[length:60px_60px]"
         aria-hidden="true"
-        style={{
-          backgroundImage:
-            "linear-gradient(90deg, rgba(201,168,76,0.1) 1px, transparent 1px), linear-gradient(180deg, rgba(201,168,76,0.06) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
-        }}
       />
 
       {/* Gold accent lines */}
