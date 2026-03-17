@@ -30,10 +30,11 @@
   --border: #E5E0D8;
   --ring: var(--gold);
 
-  /* Typography scale (fluid) */
-  --font-display: 'Playfair Display', serif;
-  --font-body: 'Satoshi', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  /* Typography scale (fluid) — references Next.js font variables with fallbacks */
+  --font-display: var(--font-playfair-next, 'Playfair Display'), serif;
+  --font-body: var(--font-satoshi-next, 'Satoshi'), sans-serif;
+  --font-mono: var(--font-mono-next, 'JetBrains Mono'), monospace;
+  --font-script: var(--font-script-next, 'Great Vibes'), cursive;
 
   /* Spacing (8px grid) */
   --space-1: 0.25rem;
@@ -94,10 +95,11 @@
   --color-burgundy: #6B1D3A;
   --color-burgundy-light: #8B2E50;
 
-  /* Font families */
-  --font-display: 'Playfair Display', serif;
-  --font-body: 'Satoshi', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  /* Font families — wired to Next.js font variables */
+  --font-display: var(--font-playfair-next, 'Playfair Display'), serif;
+  --font-body: var(--font-satoshi-next, 'Satoshi'), sans-serif;
+  --font-mono: var(--font-mono-next, 'JetBrains Mono'), monospace;
+  --font-script: var(--font-script-next, 'Great Vibes'), cursive;
 }
 
 /* ─── Base Styles ─── */
@@ -138,6 +140,10 @@ body {
 
 .font-mono {
   font-family: var(--font-mono);
+}
+
+.font-script {
+  font-family: var(--font-script);
 }
 
 /* ─── Smooth scrollbar ─── */

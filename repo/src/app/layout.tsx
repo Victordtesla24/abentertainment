@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { playfair, jetbrainsMono, bodyFont } from "@/lib/fonts";
+import { playfair, jetbrainsMono, bodyFont, greatVibes } from "@/lib/fonts";
 import { FloatingBookingPill } from "@/components/layout/FloatingBookingPill";
 import { SITE_CONFIG } from "@/lib/constants";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
@@ -81,7 +81,7 @@ export default async function RootLayout({
         lang="en"
         suppressHydrationWarning
         data-scroll-behavior="smooth"
-        className={`${playfair.variable} ${jetbrainsMono.variable} ${bodyFont.variable}`}
+        className={`${playfair.variable} ${jetbrainsMono.variable} ${bodyFont.variable} ${greatVibes.variable}`}
       >
         <body className="min-h-screen bg-background font-body text-foreground antialiased">
           <NextIntlClientProvider messages={messages} locale="en">

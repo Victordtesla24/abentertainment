@@ -13,13 +13,16 @@ export function Preloader() {
   const [phase, setPhase] = useState<"brand" | "opening" | "done">("brand");
 
   useEffect(() => {
-    // Phase 1: Show branding for 1.8s, then open curtains
-    const brandTimer = setTimeout(() => setPhase("opening"), 1800);
-    // Phase 2: Curtains animate for 1.2s, then unmount
-    const doneTimer = setTimeout(() => setPhase("done"), 3200);
+    // Phase 1: Show branding for 1.2s, then open curtains
+    const brandTimer = setTimeout(() => setPhase("opening"), 1200);
+    // Phase 2: Curtains animate for 1s, then unmount
+    const doneTimer = setTimeout(() => setPhase("done"), 2400);
+    // Safety fallback: force-remove after 4s no matter what
+    const safetyTimer = setTimeout(() => setPhase("done"), 4000);
     return () => {
       clearTimeout(brandTimer);
       clearTimeout(doneTimer);
+      clearTimeout(safetyTimer);
     };
   }, []);
 
@@ -49,9 +52,9 @@ export function Preloader() {
           initial={{ x: "0%" }}
           animate={phase === "opening" ? { x: "-100%" } : { x: "0%" }}
           transition={{
-            duration: 1.2,
+            duration: 1.0,
             ease: [0.76, 0, 0.24, 1],
-            delay: phase === "opening" ? 0.1 : 0,
+            delay: phase === "opening" ? 0.05 : 0,
           }}
         >
           {/* Velvet fabric base */}
@@ -104,9 +107,9 @@ export function Preloader() {
           initial={{ x: "0%" }}
           animate={phase === "opening" ? { x: "100%" } : { x: "0%" }}
           transition={{
-            duration: 1.2,
+            duration: 1.0,
             ease: [0.76, 0, 0.24, 1],
-            delay: phase === "opening" ? 0.1 : 0,
+            delay: phase === "opening" ? 0.05 : 0,
           }}
         >
           <svg
@@ -221,7 +224,7 @@ export function Preloader() {
             <motion.div
               className="mt-8 h-[1px] w-0 bg-gradient-to-r from-transparent via-gold to-transparent"
               animate={{ width: 140 }}
-              transition={{ duration: 1.4, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
             />
 
             {/* Tagline */}

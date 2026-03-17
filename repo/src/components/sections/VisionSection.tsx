@@ -2,7 +2,9 @@
 
 import { motion, useScroll, useTransform, useInView, useSpring } from "framer-motion";
 import { useRef } from "react";
+import Image from "next/image";
 import { ANIMATION } from "@/lib/constants";
+import { SponsorBanners } from "@/components/ui/SponsorBanners";
 
 /* ─── Content Data ─── */
 
@@ -62,6 +64,39 @@ const fadeUp = {
       ease: ANIMATION.ease.luxury,
     },
   }),
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.15,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const premiumItemFade = {
+  hidden: { opacity: 0, y: 30, filter: "blur(8px)", rotateX: -15, scale: 0.96 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    rotateX: 0,
+    scale: 1,
+    transition: { duration: 0.8, ease: ANIMATION.ease.luxury },
+  },
+};
+
+const premiumSlideRight = {
+  hidden: { opacity: 0, x: -30, filter: "blur(8px)" },
+  visible: {
+    opacity: 1,
+    x: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.8, ease: ANIMATION.ease.luxury },
+  },
 };
 
 const viewport = { once: true, amount: 0.06, margin: "0px 0px -70px 0px" };
@@ -232,11 +267,6 @@ export function VisionSection() {
   const contentY = useTransform(smoothCurtain, [0.15, 0.55], [40, 0]);
   const contentBlur = useTransform(smoothCurtain, [0.15, 0.55], [8, 0]);
 
-  /* Heading split reveal */
-  const headingClip = useTransform(smoothCurtain, [0.2, 0.5], [100, 0]);
-
-  /* Gold divider line animation */
-  const dividerWidth = useTransform(smoothCurtain, [0.3, 0.6], ["0%", "100%"]);
 
   return (
     <section
@@ -250,6 +280,7 @@ export function VisionSection() {
         className="relative overflow-hidden"
         style={{ minHeight: "100vh" }}
       >
+        <SponsorBanners />
         {/* Theatre top valance */}
         <div
           className="pointer-events-none absolute left-0 right-0 top-0 z-30"
@@ -302,7 +333,7 @@ export function VisionSection() {
 
         {/* ── Stage Content (revealed as curtains part) ── */}
         <motion.div
-          className="relative z-15 px-6 py-24 md:py-32 lg:px-8 lg:py-36"
+          className="relative z-[15] px-6 py-24 md:py-32 lg:px-8 lg:py-36"
           style={{
             opacity: contentOpacity,
             scale: contentScale,
@@ -324,50 +355,183 @@ export function VisionSection() {
 
           <div className="relative mx-auto max-w-7xl">
             {/* ── Curtain Rise Hero Moment ── */}
-            <div className="mb-16 text-center md:mb-20">
-              <motion.span
-                className="eyebrow-label inline-block"
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: 0.1, ease: ANIMATION.ease.luxury }}
+            <div className="relative mb-16 text-center md:mb-20 [perspective:1000px] z-10">
+              {/* Powerful Brand Name Reveal matching Logo Style */}
+              <motion.div
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "0px" }}
+                className="mb-8 flex flex-col items-center justify-center overflow-hidden"
               >
+                {/* The 'AB' Script Typography */}
+                <div className="flex justify-center overflow-visible mb-2 pb-2">
+                  <motion.span
+                    variants={{
+                      hidden: { y: "100%", opacity: 0, rotateX: -50, rotateZ: -5, scale: 0.9 },
+                      visible: {
+                        y: 0,
+                        opacity: 1,
+                        rotateX: 0,
+                        rotateZ: 0,
+                        scale: 1,
+                        transition: {
+                          delay: 1.2,
+                          duration: 1.6,
+                          ease: [0.22, 1, 0.36, 1],
+                        },
+                      },
+                    }}
+                    className="inline-block font-script text-7xl leading-none text-gold md:text-8xl lg:text-[7rem] drop-shadow-[0_0_20px_rgba(201,168,76,0.25)] pr-4"
+                  >
+                    AB
+                  </motion.span>
+                </div>
+
+                {/* The 'ENTERTAINMENT' Serif Typography */}
+                <div className="flex justify-center overflow-hidden">
+                  {["E", "N", "T", "E", "R", "T", "A", "I", "N", "M", "E", "N", "T"].map((letter, i) => (
+                    <motion.span
+                      key={i}
+                      custom={i}
+                      variants={{
+                        hidden: { y: "100%", opacity: 0, rotateX: -40 },
+                        visible: (i) => ({
+                          y: 0,
+                          opacity: 1,
+                          rotateX: 0,
+                          transition: {
+                            delay: 1.5 + i * 0.05,
+                            duration: 1.2,
+                            ease: [0.22, 1, 0.36, 1],
+                          },
+                        }),
+                      }}
+                      className="inline-block font-display text-sm font-normal tracking-[0.45em] text-charcoal/80 dark:text-ivory/80 md:text-base lg:text-lg uppercase"
+                    >
+                      {letter}
+                    </motion.span>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* Grand Logo Background Watermark (Moved down to cover bottom cards) */}
+              <motion.div
+                className="pointer-events-none absolute left-1/2 top-[120%] -z-20 -translate-x-1/2 -translate-y-1/2 opacity-0"
+                initial={{ scale: 0.8, opacity: 0, filter: "blur(15px)" }}
+                whileInView={{ scale: 1.1, opacity: 0.04, filter: "blur(3px)" }}
+                transition={{ duration: 4.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                viewport={{ once: true }}
+              >
+                <div className="relative h-[800px] w-[800px] md:h-[1200px] md:w-[1200px]">
+                  <Image
+                    src="/images/ab-logo-hq.jpg"
+                    alt=""
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              </motion.div>
+
+              {/* High-End Floating Centerpiece Logo */}
+              <motion.div
+                className="mx-auto mb-10 flex justify-center perspective-1000"
+                initial={{ scale: 0.85, opacity: 0, y: 50, rotateX: 25, filter: "blur(12px)" }}
+                whileInView={{ scale: 1, opacity: 1, y: 0, rotateX: 0, filter: "blur(0px)" }}
+                transition={{ duration: 1.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+                viewport={{ once: true }}
+              >
+                {/* Organic slow sway container */}
+                <motion.div
+                  className="relative group"
+                  animate={{ y: [0, -8, 0], rotateZ: [-1, 1, -1] }}
+                  transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  {/* Subtle outer aura */}
+                  <div className="absolute -inset-6 rounded-[2rem] bg-gold/10 blur-3xl transition-opacity duration-1000 group-hover:bg-gold/25 group-hover:opacity-100" />
+
+                  {/* Outer celestial glow ring (slow clockwise) */}
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+                    className="absolute -inset-2 rounded-full bg-gradient-to-tr from-transparent via-gold/20 to-transparent blur-[5px]"
+                  />
+
+                  {/* Inner celestial glow ring (slow counter-clockwise) */}
+                  <motion.div
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+                    className="absolute inset-0 rounded-full bg-gradient-to-bl from-transparent via-white/10 to-transparent blur-[3px]"
+                  />
+
+                  {/* The Glassmorphic Logo Plate */}
+                  <motion.div
+                    className="relative z-10 flex h-24 w-24 md:h-36 md:w-36 items-center justify-center rounded-[1.8rem] border border-gold/15 bg-black/60 p-4 shadow-[0_20px_40px_rgba(0,0,0,0.8),inset_0_1px_2px_rgba(255,255,255,0.1),inset_0_0_20px_rgba(201,168,76,0.15)] backdrop-blur-xl transform-gpu overflow-hidden"
+                  >
+                    {/* Sweeping Shine overlay for glass reflection */}
+                    <motion.div
+                      animate={{ x: ["-150%", "150%"] }}
+                      transition={{ duration: 3, repeat: Infinity, delay: 1.5, repeatDelay: 6, ease: "easeInOut" }}
+                      className="absolute inset-0 z-20 w-[200%] h-[200%] -top-[50%] -skew-x-[25deg] bg-gradient-to-r from-transparent via-white/10 to-transparent mix-blend-overlay"
+                    />
+
+                    {/* The Inner Image with 3D Hover Tilt */}
+                    <motion.div
+                      whileHover={{ scale: 1.05, rotateY: 10, rotateX: -10 }}
+                      transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                      className="flex h-full w-full items-center justify-center relative z-30"
+                    >
+                      <Image
+                        src="/images/ab-logo-hq.jpg"
+                        alt="AB Entertainment"
+                        width={100}
+                        height={100}
+                        className="h-auto w-[68%] object-contain drop-shadow-[0_0_15px_rgba(201,168,76,0.25)] transition-transform duration-700"
+                        priority
+                      />
+                    </motion.div>
+                  </motion.div>
+                </motion.div>
+              </motion.div>
+
+              <motion.span
+                initial={{ opacity: 0, y: 16, filter: "blur(4px)" }}
+                whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                transition={{ duration: 1, delay: 1.8, ease: ANIMATION.ease.luxury }}
+                viewport={viewport}
+                className="eyebrow-label mx-auto mb-6 flex w-fit items-center gap-4 dark:text-ivory/60"
+              >
+                <span className="hpx w-8 bg-gold/50" />
                 The Vision
+                <span className="hpx w-8 bg-gold/50" />
               </motion.span>
 
-              <div className="relative mt-6 overflow-hidden">
-                <motion.h2
-                  id="vision-heading"
-                  className="font-display text-[clamp(2.5rem,6vw,5.5rem)] leading-[0.92] text-charcoal dark:text-ivory"
-                  style={{
-                    clipPath: useTransform(
-                      headingClip,
-                      (v) => `inset(0 0 ${v}% 0)`
-                    ),
-                  }}
-                >
-                  The curtain rises.
-                  <br />
-                  <span className="bg-gradient-to-r from-gold via-gold-light to-gold bg-clip-text text-transparent">
-                    Culture takes the stage.
-                  </span>
-                </motion.h2>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, scaleX: 0 }}
+                whileInView={{ opacity: 1, scaleX: 1 }}
+                transition={{ duration: 1.5, delay: 2.4, ease: [0.22, 1, 0.36, 1] }}
+                viewport={viewport}
+                className="mx-auto mt-8 h-px w-24 origin-center bg-gradient-to-r from-transparent via-gold/50 to-transparent"
+              />
 
-              {/* Gold divider line */}
-              <div className="mx-auto mt-8 flex items-center justify-center">
-                <motion.div
-                  className="h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent"
-                  style={{ width: dividerWidth }}
-                />
-              </div>
+              <motion.h2
+                initial={{ opacity: 0, y: 30, rotateX: -15, filter: "blur(8px)" }}
+                whileInView={{ opacity: 1, y: 0, rotateX: 0, filter: "blur(0px)" }}
+                transition={{ duration: 1.4, delay: 2.0, ease: [0.22, 1, 0.36, 1] }}
+                viewport={viewport}
+                className="mx-auto max-w-4xl font-display text-4xl leading-[1.1] tracking-tight text-charcoal md:text-5xl lg:text-6xl dark:text-white transform-gpu"
+              >
+                The curtain rises.{" "}
+                <span className="italic text-charcoal/70 dark:text-ivory/80">
+                  Culture takes the stage.
+                </span>
+              </motion.h2>
 
               <motion.p
-                className="mx-auto mt-8 max-w-2xl font-body text-base leading-relaxed text-charcoal/80 dark:text-ivory/75 md:text-lg"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.8, delay: 0.3, ease: ANIMATION.ease.luxury }}
+                initial={{ opacity: 0, y: 20, filter: "blur(4px)" }}
+                whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                transition={{ duration: 1.2, delay: 2.6, ease: ANIMATION.ease.luxury }}
+                viewport={viewport}
+                className="mx-auto mt-8 max-w-2xl font-body text-lg leading-relaxed text-charcoal/80 dark:text-ivory/70"
               >
                 Since 2007, AB Entertainment has been Melbourne&apos;s home for premium Indian
                 and Marathi cultural experiences — bringing together the finest artists,
@@ -482,19 +646,19 @@ export function VisionSection() {
                   className="stage-card rounded-[2.2rem] p-7 md:col-span-2 md:p-8"
                 >
                   <span className="eyebrow-label">Our Journey</span>
-                  <div className="mt-7 space-y-4">
-                    {milestones.map((milestone, index) => (
+                  <motion.div
+                    variants={staggerContainer}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: "-40px" }}
+                    className="mt-7 space-y-4 [perspective:1000px]"
+                  >
+                    {milestones.map((milestone) => (
                       <motion.div
                         key={milestone.year}
-                        initial={{ opacity: 0, x: -16 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true, margin: "-20px" }}
-                        transition={{
-                          duration: 0.5,
-                          delay: index * 0.06,
-                          ease: [0.22, 1, 0.36, 1],
-                        }}
-                        className="luxury-card-hover rounded-[1.5rem] border border-black/5 bg-white/72 p-5 dark:border-gold/10 dark:bg-charcoal-light/70"
+                        variants={premiumSlideRight}
+                        whileHover={{ scale: 1.02, x: 5, transition: { duration: 0.4, ease: "easeOut" } }}
+                        className="luxury-card-hover rounded-[1.5rem] border border-black/5 bg-white/72 p-5 dark:border-gold/10 dark:bg-charcoal-light/70 transform-gpu"
                       >
                         <div className="flex items-start gap-4">
                           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-gold/18 bg-gold/10 font-mono text-sm font-semibold text-gold">
@@ -511,7 +675,7 @@ export function VisionSection() {
                         </div>
                       </motion.div>
                     ))}
-                  </div>
+                  </motion.div>
                 </motion.article>
 
                 {/* Signature Venues */}
@@ -524,7 +688,13 @@ export function VisionSection() {
                   className="stage-card rounded-[2.2rem] p-7 md:p-8"
                 >
                   <span className="eyebrow-label">Signature Venues</span>
-                  <div className="mt-7 space-y-3">
+                  <motion.div
+                    variants={staggerContainer}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: "-40px" }}
+                    className="mt-7 space-y-3 [perspective:1000px]"
+                  >
                     {[
                       "Melbourne Convention Centre",
                       "Palais Theatre",
@@ -534,15 +704,9 @@ export function VisionSection() {
                     ].map((venue, index) => (
                       <motion.div
                         key={venue}
-                        initial={{ opacity: 0, x: 20, filter: "blur(3px)" }}
-                        whileInView={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-                        viewport={{ once: true, margin: "-20px" }}
-                        transition={{
-                          duration: 0.5,
-                          delay: index * 0.06,
-                          ease: [0.22, 1, 0.36, 1],
-                        }}
-                        className="luxury-card-hover flex gap-4 rounded-[1.35rem] border border-black/5 bg-white/72 px-4 py-4 dark:border-gold/10 dark:bg-charcoal-light/70"
+                        variants={premiumItemFade}
+                        whileHover={{ scale: 1.02, rotateX: 6, transition: { duration: 0.4, ease: "easeOut" } }}
+                        className="luxury-card-hover flex gap-4 rounded-[1.35rem] border border-black/5 bg-white/72 px-4 py-4 dark:border-gold/10 dark:bg-charcoal-light/70 transform-gpu"
                       >
                         <span className="numeric-label !text-gold/80">0{index + 1}</span>
                         <p className="font-body text-sm leading-relaxed text-charcoal/80 dark:text-ivory/75">
@@ -550,7 +714,7 @@ export function VisionSection() {
                         </p>
                       </motion.div>
                     ))}
-                  </div>
+                  </motion.div>
                 </motion.article>
 
                 {/* The AB Experience */}
@@ -563,44 +727,35 @@ export function VisionSection() {
                   className="stage-card rounded-[2.2rem] p-7 md:p-8"
                 >
                   <span className="eyebrow-label">The AB Experience</span>
-                  <div className="mt-7 space-y-6">
-                    <motion.div
-                      initial={{ opacity: 0, y: 16 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: "-20px" }}
-                      transition={{ duration: 0.5, delay: 0.05 }}
-                    >
+                  <motion.div
+                    variants={staggerContainer}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: "-40px" }}
+                    className="mt-7 space-y-6 [perspective:1000px]"
+                  >
+                    <motion.div variants={premiumItemFade}>
                       <p className="numeric-label !text-gold/80">Before the Show</p>
                       <p className="mt-2 font-body text-sm leading-relaxed text-charcoal/80 dark:text-ivory/75">
                         Premium seating selection, curated program notes, and a composed
                         arrival experience that sets the tone for the evening.
                       </p>
                     </motion.div>
-                    <motion.div
-                      initial={{ opacity: 0, y: 16 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: "-20px" }}
-                      transition={{ duration: 0.5, delay: 0.1 }}
-                    >
+                    <motion.div variants={premiumItemFade}>
                       <p className="numeric-label !text-gold/80">During the Performance</p>
                       <p className="mt-2 font-body text-sm leading-relaxed text-charcoal/80 dark:text-ivory/75">
                         World-class artists, immersive stagecraft, and production values that
                         rival the finest cultural institutions globally.
                       </p>
                     </motion.div>
-                    <motion.div
-                      initial={{ opacity: 0, y: 16 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: "-20px" }}
-                      transition={{ duration: 0.5, delay: 0.15 }}
-                    >
+                    <motion.div variants={premiumItemFade}>
                       <p className="numeric-label !text-gold/80">After the Curtain</p>
                       <p className="mt-2 font-body text-sm leading-relaxed text-charcoal/80 dark:text-ivory/75">
                         Artist meet-and-greets, sponsor hospitality, and a lasting connection
                         to the cultural stories that brought the evening to life.
                       </p>
                     </motion.div>
-                  </div>
+                  </motion.div>
                 </motion.article>
               </div>
             </div>

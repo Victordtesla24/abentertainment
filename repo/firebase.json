@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "abentertainment-prod-new",
     "source": ".",
     "ignore": [
       "firebase.json",

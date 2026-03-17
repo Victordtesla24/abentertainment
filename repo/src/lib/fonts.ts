@@ -1,4 +1,4 @@
-import { Playfair_Display, JetBrains_Mono } from "next/font/google";
+import { Playfair_Display, JetBrains_Mono, Great_Vibes } from "next/font/google";
 import localFont from "next/font/local";
 
 export const playfair = Playfair_Display({
@@ -6,6 +6,13 @@ export const playfair = Playfair_Display({
   display: "swap",
   variable: "--font-playfair-next",
   weight: ["400", "500", "600", "700"],
+});
+
+export const greatVibes = Great_Vibes({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-script-next",
 });
 
 export const jetbrainsMono = JetBrains_Mono({

@@ -39,6 +39,23 @@ export const eventsQuery = groq`
   }
 `;
 
+export const sponsorsSidebarQuery = groq`
+  *[_type == "sponsor"] | order(name asc) {
+    "id": _id,
+    name,
+    "slug": slug.current,
+    tier,
+    logo {
+      asset-> {
+        _id,
+        url
+      }
+    },
+    website,
+    description
+  }
+`;
+
 export const eventBySlugQuery = groq`
   *[_type == "event" && slug.current == $slug][0] {
     "id": _id,
