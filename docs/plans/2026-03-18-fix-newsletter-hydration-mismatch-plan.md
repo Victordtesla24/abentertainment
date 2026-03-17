@@ -1,7 +1,7 @@
 ---
 title: Fix newsletter input hydration mismatch
 type: fix
-status: active
+status: completed
 date: 2026-03-18
 ---
 
@@ -47,9 +47,9 @@ The console reports a hydration mismatch on the newsletter email inputs. The war
 - Do not alter `autoComplete`, `type`, or form behavior.
 
 ## Acceptance Criteria
-- [ ] No hydration mismatch warning appears for the newsletter inputs.
-- [ ] Newsletter forms remain functional and visually unchanged.
-- [ ] No unrelated UI or logic changes.
+- [x] No hydration mismatch warning appears for the newsletter inputs.
+- [x] Newsletter forms remain functional and visually unchanged.
+- [x] No unrelated UI or logic changes.
 
 ### Research Insights
 **Verification:**  
