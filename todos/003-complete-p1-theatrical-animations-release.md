@@ -99,5 +99,19 @@ Proceed with Option 1: complete testing, address build dependency deterministica
 **Learnings:**
 - Firebase frameworks deploy may take significant time due to Cloud Build and function updates.
 
+---
+
+### 2026-03-17 - Production Hotfix for Missing Image
+
+**By:** Codex
+
+**Actions:**
+- Fixed missing gallery image reference by switching hero image to an existing asset in `repo/src/lib/admin-store.ts`.
+- Validated `/gallery` locally with headless Playwright (0 console errors).
+- Redeployed to Firebase and re-ran production smoke checks.
+
+**Learnings:**
+- Image optimizer 400s surface as console errors; ensure all referenced assets exist in `public/`.
+
 ## Notes
 - Use headless browser testing for automated runs.

@@ -156,7 +156,7 @@ const DEFAULT_DATA: AdminData = {
         "Expect soul-stirring performances, immersive stagecraft, and a program designed to honor the community's cultural memory while presenting it with contemporary precision.",
         "This flagship production is positioned as the centerpiece of AB Entertainment's 2026 season.",
       ],
-      heroImage: "/images/events/vasantotsav-poster.jpg",
+      heroImage: "/images/events/sahi-re-sahi-poster.jpg",
       accent: "gold",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
