@@ -11,8 +11,16 @@ export const metadata: Metadata = {
 
 export default async function EventsPage() {
   const events = await loadEvents();
+  const archiveCount = events.filter((event) => event.status === "past").length;
+  const upcomingCount = events.filter(
+    (event) => event.status === "upcoming" || event.status === "live"
+  ).length;
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      data-archive-count={archiveCount}
+      data-upcoming-count={upcomingCount}
+    >
       <PageDecorations />
       <EventsPageClient events={events} />
     </div>

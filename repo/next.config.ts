@@ -10,6 +10,15 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
+  experimental: {
+    optimizePackageImports: [
+      "three",
+      "@react-three/fiber",
+      "@react-three/drei",
+      "gsap",
+      "framer-motion",
+    ],
+  },
   images: {
     formats: ["image/avif", "image/webp"],
     qualities: [75, 85, 90],

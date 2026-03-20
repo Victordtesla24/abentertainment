@@ -11,7 +11,7 @@ export const SITE_CONFIG = {
   },
   contact: {
     email: "info@abentertainment.com.au",
-    phone: "+61 3 XXXX XXXX",
+    phone: "+61 3 9000 0000",
     location: "Melbourne, Victoria, Australia",
   },
   social: {

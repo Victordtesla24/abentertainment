@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, type TargetAndTransition } from "framer-motion";
+import { motion, type TargetAndTransition, useReducedMotion } from "framer-motion";
 import type { ReactNode } from "react";
 
 type RevealDirection = "up" | "down" | "left" | "right" | "scale" | "none";
@@ -57,14 +57,16 @@ export function ScrollReveal({
   once = true,
   threshold = 0.1,
 }: ScrollRevealProps) {
+  const prefersReducedMotion = useReducedMotion();
+
   return (
     <motion.div
       className={className}
-      initial={getInitial(direction, distance) as any}
-      whileInView={getAnimate(direction) as any}
+      initial={prefersReducedMotion ? { opacity: 1 } : getInitial(direction, distance)}
+      whileInView={prefersReducedMotion ? { opacity: 1 } : getAnimate(direction)}
       viewport={{ once, amount: threshold, margin: "0px 0px -60px 0px" }}
       transition={{
-        duration,
+        duration: prefersReducedMotion ? 0 : duration,
         delay,
         ease: [0.22, 1, 0.36, 1],
       }}

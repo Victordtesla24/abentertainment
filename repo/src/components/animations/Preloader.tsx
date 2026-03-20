@@ -1,8 +1,9 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import { ClothSimulation } from "@/lib/curtain-physics";
 
 /**
  * Cinematic preloader with theatrical curtain-opening reveal.
@@ -10,9 +11,35 @@ import Image from "next/image";
  * with gold trim, stage lighting, and premium branding.
  */
 export function Preloader() {
+  const prefersReducedMotion = useReducedMotion();
   const [phase, setPhase] = useState<"brand" | "opening" | "done">("brand");
+  const cloth = useMemo(
+    () =>
+      new ClothSimulation({
+        width: 2,
+        height: 2,
+        segmentsX: 10,
+        segmentsY: 14,
+        mass: 1,
+        stiffness: 0.12,
+        damping: 0.08,
+        gravity: 9.8,
+      }),
+    []
+  );
 
   useEffect(() => {
+    if (prefersReducedMotion) {
+      setPhase("done");
+      return;
+    }
+
+    // Keep simulation warm during preload to avoid a cold-start stutter.
+    let frameId = window.requestAnimationFrame(function tick() {
+      cloth.simulate(1 / 60, phase === "opening" ? 0.7 : 0);
+      frameId = window.requestAnimationFrame(tick);
+    });
+
     // Phase 1: Show branding for 1.2s, then open curtains
     const brandTimer = setTimeout(() => setPhase("opening"), 1200);
     // Phase 2: Curtains animate for 1s, then unmount
@@ -23,8 +50,9 @@ export function Preloader() {
       clearTimeout(brandTimer);
       clearTimeout(doneTimer);
       clearTimeout(safetyTimer);
+      window.cancelAnimationFrame(frameId);
     };
-  }, []);
+  }, [cloth, phase, prefersReducedMotion]);
 
   if (phase === "done") return null;
 

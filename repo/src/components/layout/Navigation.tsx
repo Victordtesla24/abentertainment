@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Sparkles, Shield, LogOut } from "lucide-react";
+import { gsap } from "gsap";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, SITE_CONFIG } from "@/lib/constants";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -16,8 +17,10 @@ export function Navigation() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [eventsMenuOpen, setEventsMenuOpen] = useState(false);
   const { isSignedIn, user } = useUser();
   const { signOut } = useClerk();
+  const eventsMenuRef = useRef<HTMLDivElement>(null);
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
@@ -37,6 +40,32 @@ export function Navigation() {
   }, [isOpen]);
 
   const closeMenu = () => setIsOpen(false);
+
+  const openMegaMenu = (menuRef: RefObject<HTMLDivElement | null>) => {
+    if (!menuRef.current) return;
+    const items = menuRef.current.querySelectorAll(".menu-item");
+    gsap.killTweensOf([menuRef.current, items]);
+    gsap.set(menuRef.current, { display: "block", opacity: 0, y: -10 });
+    gsap.to(menuRef.current, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" });
+    gsap.fromTo(
+      items,
+      { opacity: 0, y: 15, filter: "blur(4px)" },
+      { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.3, stagger: 0.05, ease: "power2.out", delay: 0.1 }
+    );
+  };
+
+  const closeMegaMenu = (menuRef: RefObject<HTMLDivElement | null>) => {
+    if (!menuRef.current) return;
+    gsap.to(menuRef.current, {
+      opacity: 0,
+      y: -8,
+      duration: 0.25,
+      ease: "power2.in",
+      onComplete: () => {
+        if (menuRef.current) gsap.set(menuRef.current, { display: "none" });
+      },
+    });
+  };
 
   return (
     <>
@@ -68,21 +97,63 @@ export function Navigation() {
             />
           </Link>
 
-          <div className="hidden items-center gap-2 lg:flex">
-            {NAV_ITEMS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "relative rounded-full px-4 py-2 font-body text-xs uppercase tracking-[0.26em] transition-all duration-300",
-                  isActive(item.href)
-                    ? "bg-gold/12 text-gold"
-                    : "text-ivory/62 hover:bg-ivory/6 hover:text-ivory"
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
+          <div className="relative hidden items-center gap-2 lg:flex">
+            {NAV_ITEMS.map((item) =>
+              item.href === "/events" ? (
+                <div
+                  key={item.href}
+                  onMouseEnter={() => {
+                    setEventsMenuOpen(true);
+                    openMegaMenu(eventsMenuRef);
+                  }}
+                  onMouseLeave={() => {
+                    setEventsMenuOpen(false);
+                    closeMegaMenu(eventsMenuRef);
+                  }}
+                >
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "relative rounded-full px-4 py-2 font-body text-xs uppercase tracking-[0.26em] transition-all duration-300",
+                      isActive(item.href) || eventsMenuOpen
+                        ? "bg-gold/12 text-gold"
+                        : "text-ivory/62 hover:bg-ivory/6 hover:text-ivory"
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                  <div
+                    ref={eventsMenuRef}
+                    className="absolute left-0 top-14 hidden w-[30rem] rounded-2xl border border-gold/20 bg-charcoal-deep/95 p-4 shadow-2xl backdrop-blur-xl"
+                  >
+                    <div className="menu-item rounded-xl border border-ivory/10 bg-ivory/5 p-4">
+                      <p className="font-body text-[0.58rem] uppercase tracking-[0.28em] text-gold/70">Featured Event</p>
+                      <p className="mt-2 font-display text-xl text-ivory">Swaranirmiti 2026</p>
+                      <p className="mt-2 font-body text-sm text-ivory/70">Premium cultural showcase at Melbourne Convention Centre.</p>
+                    </div>
+                    <div className="menu-item mt-3 flex items-center justify-between rounded-xl border border-ivory/10 bg-ivory/5 px-4 py-3">
+                      <p className="font-body text-xs uppercase tracking-[0.2em] text-ivory/70">Quick Book</p>
+                      <Link href="/contact" className="font-body text-xs uppercase tracking-[0.2em] text-gold">
+                        Reserve
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "relative rounded-full px-4 py-2 font-body text-xs uppercase tracking-[0.26em] transition-all duration-300",
+                    isActive(item.href)
+                      ? "bg-gold/12 text-gold"
+                      : "text-ivory/62 hover:bg-ivory/6 hover:text-ivory"
+                  )}
+                >
+                  {item.label}
+                </Link>
+              )
+            )}
           </div>
 
           <div className="hidden items-center gap-3 lg:flex">

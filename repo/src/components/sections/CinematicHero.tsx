@@ -11,6 +11,7 @@ import {
 } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import {
   ArrowRight,
   CalendarDays,
@@ -24,6 +25,20 @@ import { ANIMATION } from "@/lib/constants";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { SectionTorches } from "@/components/ui/TheatreDecorations";
 import { CountUp } from "@/components/animations/CountUp";
+import { EventCountdown } from "@/components/ui/EventCountdown";
+
+const StageScene = dynamic(
+  () => import("@/components/three/StageScene").then((mod) => mod.StageScene),
+  {
+    ssr: false,
+    loading: () => <div className="absolute inset-0 bg-charcoal-deep" aria-hidden="true" />,
+  }
+);
+
+const GoldDustShader = dynamic(
+  () => import("@/components/three/GoldDustShader").then((mod) => mod.GoldDustShader),
+  { ssr: false }
+);
 
 /* ─── Data ─── */
 
@@ -65,6 +80,41 @@ const seasonProgram = [
   { title: "Rhythm & Raaga", date: "22 August 2026", venue: "Palais Theatre" },
   { title: "Diwali Spectacular", date: "18 October 2026", venue: "Sidney Myer Music Bowl" },
 ];
+
+function VideoHero({ fallbackImage }: { fallbackImage: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  return (
+    <div className="absolute inset-0">
+      <video
+        ref={videoRef}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${isLoaded ? "opacity-100" : "opacity-0"}`}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        onLoadedData={() => setIsLoaded(true)}
+        poster={fallbackImage}
+      >
+        <source src="/video/hero-reel.mp4" type="video/mp4" />
+        <source src="/video/hero-reel.webm" type="video/webm" />
+      </video>
+      {!isLoaded ? (
+        <Image src={fallbackImage} alt="AB Entertainment" fill className="object-cover" priority />
+      ) : null}
+      <div className="absolute inset-0 bg-gradient-to-b from-charcoal-deep/70 via-charcoal/40 to-charcoal-deep/90" />
+      <div
+        className="absolute inset-0 mix-blend-color"
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(201,168,76,0.08) 0%, transparent 40%, rgba(107,29,58,0.1) 100%)",
+        }}
+      />
+    </div>
+  );
+}
 
 /* ─── Word-by-word reveal sub-component ─── */
 
@@ -159,6 +209,7 @@ export function CinematicHero() {
 
       {/* ── Cinematic Image Carousel Background ── */}
       <div className="absolute inset-0" aria-hidden="true">
+        <StageScene />
         <AnimatePresence mode="sync">
           <motion.div
             key={currentSlide}
@@ -168,22 +219,8 @@ export function CinematicHero() {
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 2.0, ease: [0.22, 1, 0.36, 1] }}
           >
-            <motion.div
-              className="absolute inset-0"
-              style={{
-                scale: scaleImg,
-                x: parallaxX,
-                y: parallaxY,
-              }}
-            >
-              <Image
-                src={heroImages[currentSlide].src}
-                alt={heroImages[currentSlide].alt}
-                fill
-                className="object-cover object-center"
-                priority={currentSlide === 0}
-                sizes="100vw"
-              />
+            <motion.div className="absolute inset-0" style={{ scale: scaleImg, x: parallaxX, y: parallaxY }}>
+              <VideoHero fallbackImage={heroImages[currentSlide].src} />
             </motion.div>
           </motion.div>
         </AnimatePresence>
@@ -245,6 +282,9 @@ export function CinematicHero() {
 
       {/* ── Floating Particles ── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <div className="absolute inset-0">
+          <GoldDustShader count={5000} />
+        </div>
         {heroParticles.map((particle, index) => (
           <motion.span
             key={index}
@@ -333,6 +373,15 @@ export function CinematicHero() {
             >
               Our Story
             </Link>
+          </motion.div>
+
+          <motion.div
+            className="mt-8"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.4, duration: 0.7 }}
+          >
+            <EventCountdown targetDate="2026-06-14T19:00:00+10:00" eventTitle="Swaranirmiti 2026" />
           </motion.div>
 
           {/* Metrics with animated counters */}

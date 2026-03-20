@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { useGSAP } from "@gsap/react";
+import { gsap } from "gsap";
 import { getSponsorsAction, type SponsorAd } from "@/app/actions/sponsors";
 import { ExternalLink } from "lucide-react";
 
@@ -341,6 +343,43 @@ function HangingBanner({ sponsor, delay, side }: { sponsor: SponsorAd; delay: nu
     </a>
   ) : (
     <div className="w-full">{inner}</div>
+  );
+}
+
+type MarqueeProps = {
+  sponsors: SponsorAd[];
+  speed?: number;
+  direction?: "left" | "right";
+};
+
+export function SponsorMarquee({ sponsors, speed = 30, direction = "left" }: MarqueeProps) {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    if (!trackRef.current) return;
+    const track = trackRef.current;
+    const totalWidth = track.scrollWidth / 2;
+    gsap.to(track, {
+      x: direction === "left" ? -totalWidth : totalWidth,
+      duration: totalWidth / speed,
+      ease: "none",
+      repeat: -1,
+      modifiers: {
+        x: gsap.utils.unitize((x) => parseFloat(x) % totalWidth),
+      },
+    });
+  }, [direction, speed]);
+
+  return (
+    <div className="overflow-hidden">
+      <div ref={trackRef} className="flex gap-12 will-change-transform">
+        {[...sponsors, ...sponsors].map((sponsor, index) => (
+          <div key={`${sponsor.id}-${index}`} className="h-12 w-24 rounded-lg border border-gold/20 bg-charcoal-light/40 px-3 py-2">
+            <p className="truncate font-body text-[0.55rem] uppercase tracking-[0.2em] text-ivory/70">{sponsor.name}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
