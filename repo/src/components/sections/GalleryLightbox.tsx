@@ -13,7 +13,14 @@ type GalleryLightboxProps = {
 };
 
 export function GalleryLightbox({ images, initialIndex = 0, onClose }: GalleryLightboxProps) {
-  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const fallbackSrc =
+    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+  const safeImages =
+    images.length > 0 ? images : [{ src: fallbackSrc, alt: "Gallery image unavailable" }];
+  const normalizedInitialIndex =
+    initialIndex >= 0 ? initialIndex % safeImages.length : (initialIndex + safeImages.length) % safeImages.length;
+
+  const [activeIndex, setActiveIndex] = useState(normalizedInitialIndex);
   const overlayRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
 
@@ -27,19 +34,21 @@ export function GalleryLightbox({ images, initialIndex = 0, onClose }: GalleryLi
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
       if (event.key === "ArrowRight") {
-        setActiveIndex((prev) => (prev + 1) % images.length);
+        setActiveIndex((prev) => (prev + 1) % safeImages.length);
       }
       if (event.key === "ArrowLeft") {
-        setActiveIndex((prev) => (prev - 1 + images.length) % images.length);
+        setActiveIndex((prev) => (prev - 1 + safeImages.length) % safeImages.length);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [images.length, onClose]);
+  }, [onClose, safeImages.length]);
 
   const handleSwipe = (direction: "left" | "right") => {
     const next =
-      direction === "left" ? (activeIndex + 1) % images.length : (activeIndex - 1 + images.length) % images.length;
+      direction === "left"
+        ? (activeIndex + 1) % safeImages.length
+        : (activeIndex - 1 + safeImages.length) % safeImages.length;
     if (!imageRef.current) {
       setActiveIndex(next);
       return;
@@ -59,7 +68,8 @@ export function GalleryLightbox({ images, initialIndex = 0, onClose }: GalleryLi
     });
   };
 
-  const image = images[activeIndex];
+  const image = safeImages[activeIndex] ?? safeImages[0];
+  const imageSrc = image.src ?? fallbackSrc;
 
   return (
     <div
@@ -70,7 +80,7 @@ export function GalleryLightbox({ images, initialIndex = 0, onClose }: GalleryLi
       aria-label="Gallery image viewer"
     >
       <div ref={imageRef} className="relative mx-auto h-full max-h-[90vh] w-full max-w-6xl overflow-hidden rounded-2xl">
-        <Image src={image.src} alt={image.alt} fill className="object-cover" />
+        <Image src={imageSrc} alt={image.alt} fill className="object-cover" />
       </div>
       <button
         onClick={onClose}

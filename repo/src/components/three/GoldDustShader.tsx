@@ -97,9 +97,9 @@ function ShaderPoints({ count = 5000 }: { count?: number }) {
   return (
     <points ref={pointsRef}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" array={positions} count={count} itemSize={3} />
-        <bufferAttribute attach="attributes-aScale" array={scales} count={count} itemSize={1} />
-        <bufferAttribute attach="attributes-aPhase" array={phases} count={count} itemSize={1} />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute attach="attributes-aScale" args={[scales, 1]} />
+        <bufferAttribute attach="attributes-aPhase" args={[phases, 1]} />
       </bufferGeometry>
       <shaderMaterial
         uniforms={uniforms}

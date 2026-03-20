@@ -13,6 +13,7 @@ import {
   FileText,
   Settings,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface DashboardStats {
   totalEvents: number;
@@ -36,7 +37,7 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  icon: React.ElementType;
+  icon: LucideIcon;
   href: string;
   accent?: boolean;
 }) {
