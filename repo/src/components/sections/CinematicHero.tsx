@@ -61,14 +61,6 @@ const heroImages = [
   },
 ];
 
-const heroParticles = Array.from({ length: 20 }, (_, index) => ({
-  left: `${(index * 13.37 + 5) % 100}%`,
-  top: `${(index * 19.51 + 8) % 100}%`,
-  size: 1 + (index % 3) * 0.4,
-  duration: 5 + (index % 5) * 0.8,
-  delay: (index % 4) * 0.4,
-}));
-
 const seasonMetrics = [
   { label: "Since", value: 2007, suffix: "", prefix: "", detail: "Luxury cultural programming with long-term community trust." },
   { label: "Audience", value: 25, suffix: "K+", prefix: "", detail: "Guests welcomed across headline productions in Australia and New Zealand." },
@@ -165,21 +157,44 @@ export function CinematicHero() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
 
-  // Mouse-driven parallax for subtle depth on desktop
+  // ── Critically-damped parallax springs ──────────────────────────────────
+  // stiffness: 60, damping: 15 (critically damped — fast settle, no overshoot)
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const parallaxX = useSpring(mouseX, { stiffness: 50, damping: 30 });
-  const parallaxY = useSpring(mouseY, { stiffness: 50, damping: 30 });
+  const parallaxX = useSpring(mouseX, { stiffness: 60, damping: 15 });
+  const parallaxY = useSpring(mouseY, { stiffness: 60, damping: 15 });
 
   useEffect(() => {
+    let gyroActive = false;
+
+    // ── Gyroscope handler (mobile DeviceOrientationEvent) ──────────────
+    const handleOrientation = (e: DeviceOrientationEvent) => {
+      if (e.gamma === null || e.beta === null) return;
+      gyroActive = true;
+      const x = Math.max(-20, Math.min(20, (e.gamma / 45) * 20));
+      const y = Math.max(-12, Math.min(12, (e.beta  / 45) * 12));
+      mouseX.set(x);
+      mouseY.set(y);
+    };
+
+    // ── Mouse fallback (desktop) ─────────────────────────────────────────
     const handleMouseMove = (e: MouseEvent) => {
-      const x = (e.clientX / window.innerWidth - 0.5) * 20;
+      if (gyroActive) return;
+      const x = (e.clientX / window.innerWidth  - 0.5) * 20;
       const y = (e.clientY / window.innerHeight - 0.5) * 12;
       mouseX.set(x);
       mouseY.set(y);
     };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
+
+    if (typeof DeviceOrientationEvent !== "undefined") {
+      window.addEventListener("deviceorientation", handleOrientation, { passive: true });
+    }
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+
+    return () => {
+      window.removeEventListener("deviceorientation", handleOrientation);
+      window.removeEventListener("mousemove", handleMouseMove);
+    };
   }, [mouseX, mouseY]);
 
   const nextSlide = useCallback(() => {
@@ -280,35 +295,11 @@ export function CinematicHero() {
         <ChevronRight className="h-5 w-5" strokeWidth={1.5} />
       </button>
 
-      {/* ── Floating Particles ── */}
+      {/* ── Gold Dust Shader (GPU-only, no CSS DOM particles) ── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
         <div className="absolute inset-0">
           <GoldDustShader count={5000} />
         </div>
-        {heroParticles.map((particle, index) => (
-          <motion.span
-            key={index}
-            className="absolute rounded-full bg-gold/30"
-            style={{
-              left: particle.left,
-              top: particle.top,
-              width: particle.size,
-              height: particle.size,
-            }}
-            animate={{
-              y: [0, -70, 0],
-              x: [0, (index % 2 === 0 ? 10 : -10), 0],
-              opacity: [0.05, 0.45, 0.05],
-              scale: [1, 1.6, 1],
-            }}
-            transition={{
-              duration: particle.duration,
-              repeat: Infinity,
-              delay: particle.delay,
-              ease: "easeInOut",
-            }}
-          />
-        ))}
       </div>
 
       {/* ── Main Content ── */}

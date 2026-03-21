@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, MapPin, Ticket } from "lucide-react";
 import { formatEventDate, formatTicketRange } from "@/lib/events";
@@ -8,6 +8,36 @@ import { ANIMATION } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Event } from "@/types";
 import { SectionTorches } from "@/components/ui/TheatreDecorations";
+import { useRef, type ReactNode } from "react";
+
+// -- 3D Tilt Card ----------------------------------------------------------
+function TiltCard({ children, className }: { children: ReactNode; className?: string }) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const rawX = useMotionValue(0);
+  const rawY = useMotionValue(0);
+  const rotX = useSpring(useTransform(rawY, [-0.5, 0.5], [8, -8]), { stiffness: 200, damping: 20 });
+  const rotY = useSpring(useTransform(rawX, [-0.5, 0.5], [-8, 8]), { stiffness: 200, damping: 20 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    rawX.set((e.clientX - rect.left) / rect.width - 0.5);
+    rawY.set((e.clientY - rect.top) / rect.height - 0.5);
+  };
+  const handleMouseLeave = () => { rawX.set(0); rawY.set(0); };
+
+  return (
+    <motion.div
+      ref={cardRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{ rotateX: rotX, rotateY: rotY, transformPerspective: 800 }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 const accentSurfaces: Record<NonNullable<Event["accent"]>, string> = {
   gold: "from-gold/14 via-gold/4 to-transparent",
@@ -92,6 +122,7 @@ export function UpcomingEvents({ events }: { events: Event[] }) {
         {/* Events grid */}
         <div className="mt-16 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           {/* Featured event card */}
+          <TiltCard>
           <motion.article
             initial="hidden"
             whileInView="visible"
@@ -198,6 +229,7 @@ export function UpcomingEvents({ events }: { events: Event[] }) {
               </div>
             </div>
           </motion.article>
+          </TiltCard>
 
           {/* Supporting event cards */}
           <div className="grid gap-6">

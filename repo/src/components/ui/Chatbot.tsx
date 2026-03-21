@@ -11,8 +11,9 @@ import type { UIMessage } from "ai";
 function getMessageText(message: UIMessage): string {
   if (!message.parts) return "";
   return message.parts
-    .filter((p: any) => p.type === "text")
-    .map((p: any) => p.text as string)
+    .filter((p) => p.type === "text")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((p) => (p as any).text as string)
     .join("");
 }
 
@@ -58,7 +59,7 @@ export function Chatbot() {
       <motion.button
         onClick={() => setIsOpen((v) => !v)}
         className={cn(
-          "fixed bottom-6 right-6 z-[60] flex h-14 w-14 items-center justify-center rounded-full shadow-2xl border transition-all duration-500",
+          "fixed bottom-6 right-6 z-[60] flex h-14 w-14 items-center justify-center rounded-full shadow-2xl border transition-all duration-500 animate-gold-pulse",
           isOpen
             ? "border-gold/60 bg-charcoal-deep text-ivory"
             : "border-gold/40 bg-charcoal text-ivory hover:border-gold hover:bg-gold hover:text-charcoal"
@@ -96,10 +97,10 @@ export function Chatbot() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.95 }}
+            initial={{ opacity: 0, y: 32, scale: 0.92 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 24, scale: 0.95 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            exit={{ opacity: 0, y: 32, scale: 0.92 }}
+            transition={{ type: "spring", stiffness: 280, damping: 26 }}
             className="fixed bottom-24 right-6 z-[60] flex h-[560px] w-[340px] sm:w-[400px] flex-col overflow-hidden rounded-[2rem] border border-gold/15 shadow-2xl"
             style={{
               background:

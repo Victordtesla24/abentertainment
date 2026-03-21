@@ -97,7 +97,7 @@ export function TeamSection() {
                   src={member.photo}
                   alt={`${member.name} – ${member.role}`}
                   fill
-                  className="object-contain object-bottom transition-all duration-700 group-hover:scale-105 group-hover:brightness-110"
+                  className="object-contain object-bottom grayscale transition-all duration-700 group-hover:grayscale-0 group-hover:scale-105 group-hover:brightness-110"
                   sizes="(max-width: 1024px) 100vw, 50vw"
                   quality={90}
                 />

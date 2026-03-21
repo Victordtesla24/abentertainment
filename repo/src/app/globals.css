@@ -497,3 +497,52 @@ body {
 
 /* Torch fire, mask glow, and ambient effects are handled
    inline by GSAP in TheatreDecorations.tsx */
+
+/* ─── GPU Compositing Hints ─── */
+.will-change-transform { will-change: transform; }
+.will-change-opacity   { will-change: opacity; }
+.transform-gpu         { transform: translateZ(0); }
+
+/* ─── Reduced Motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-fade-in-up {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ─── Gold Pulse Keyframe ─── */
+@keyframes gold-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 168, 76, 0); }
+  50%       { box-shadow: 0 0 16px 4px rgba(201, 168, 76, 0.25); }
+}
+.animate-gold-pulse {
+  animation: gold-pulse 2.4s ease-in-out infinite;
+}
+
+/* ─── Shimmer sweep (used by SponsorBanners) ─── */
+@keyframes shimmer-sweep {
+  from { background-position: -200% center; }
+  to   { background-position:  200% center; }
+}
+.shimmer-sweep {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(201, 168, 76, 0.18) 40%,
+    rgba(201, 168, 76, 0.35) 50%,
+    rgba(201, 168, 76, 0.18) 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-sweep 2.4s linear infinite;
+}

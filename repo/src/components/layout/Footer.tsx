@@ -1,7 +1,19 @@
+"use client";
+
+import { motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { SITE_CONFIG, NAV_ITEMS } from "@/lib/constants";
 import { FooterNewsletter } from "./FooterNewsletter";
+
+const colFade = {
+  hidden: { opacity: 0, y: 24 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] as const },
+  }),
+};
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -10,9 +22,14 @@ export function Footer() {
     <footer className="border-t border-border bg-charcoal-deep text-ivory/70">
       {/* Main footer */}
       <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
-        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-5">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.05 }}
+          className="grid gap-12 md:grid-cols-2 lg:grid-cols-5"
+        >
           {/* Brand column */}
-          <div className="lg:col-span-2" id="footer">
+          <motion.div variants={colFade} custom={0} className="lg:col-span-2" id="footer">
             <Link href="/" className="group inline-flex items-center">
               <Image
                 src="/images/ab-logo-hq.jpg"
@@ -39,10 +56,10 @@ export function Footer() {
                 </a>
               ))}
             </div>
-          </div>
+          </motion.div>
 
           {/* Navigation column */}
-          <div>
+          <motion.div variants={colFade} custom={1}>
             <h3 className="font-body text-xs font-medium uppercase tracking-[0.2em] text-ivory/65">
               Navigate
             </h3>
@@ -58,10 +75,10 @@ export function Footer() {
                 </li>
               ))}
             </ul>
-          </div>
+          </motion.div>
 
           {/* Contact column */}
-          <div>
+          <motion.div variants={colFade} custom={2}>
             <h3 className="font-body text-xs font-medium uppercase tracking-[0.2em] text-ivory/65">
               Get in Touch
             </h3>
@@ -86,11 +103,13 @@ export function Footer() {
                 {SITE_CONFIG.contact.location}
               </li>
             </ul>
-          </div>
+          </motion.div>
 
           {/* Newsletter column */}
-          <FooterNewsletter />
-        </div>
+          <motion.div variants={colFade} custom={3}>
+            <FooterNewsletter />
+          </motion.div>
+        </motion.div>
       </div>
 
       {/* Bottom bar */}

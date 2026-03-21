@@ -1,11 +1,15 @@
 "use client";
 
 import { motion, useScroll, useTransform, useInView, useSpring } from "framer-motion";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Image from "next/image";
 import { ANIMATION } from "@/lib/constants";
 import { SponsorBanners } from "@/components/ui/SponsorBanners";
 import { TheatreMasks, MedievalLantern } from "@/components/ui/TheatreDecorations";
+
+gsap.registerPlugin(ScrollTrigger);
 
 /* ─── Content Data ─── */
 
@@ -267,8 +271,34 @@ function ShimmerParticles({ progress }: { progress: number }) {
 
 export function VisionSection() {
   const sectionRef = useRef<HTMLElement>(null);
-  const curtainTriggerRef = useRef<HTMLDivElement>(null);
+  const curtainTriggerRef  = useRef<HTMLDivElement>(null);
+  const leftCurtainRef    = useRef<HTMLDivElement>(null);
+  const rightCurtainRef   = useRef<HTMLDivElement>(null);
+  const curtainContentRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(curtainTriggerRef, { once: true, amount: 0.3 });
+
+  // ── GSAP ScrollTrigger scrub:1.5 for frame-perfect curtain timing ─────────
+  useEffect(() => {
+    if (!curtainTriggerRef.current || !leftCurtainRef.current ||
+        !rightCurtainRef.current || !curtainContentRef.current) return;
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: curtainTriggerRef.current,
+        start: "top 85%",
+        end: "top 20%",
+        scrub: 1.5,
+      },
+    });
+    tl.to(leftCurtainRef.current,
+      { xPercent: -105, duration: 0.6, ease: "power3.inOut" }, 0);
+    tl.to(rightCurtainRef.current,
+      { xPercent: 105, duration: 0.6, ease: "power3.inOut" }, 0);
+    tl.fromTo(curtainContentRef.current,
+      { opacity: 0, y: 40, scale: 0.95, filter: "blur(8px)" },
+      { opacity: 1, y: 0, scale: 1, filter: "blur(0px)",
+        duration: 0.5, ease: "power2.out" }, 0.15);
+    return () => { tl.kill(); };
+  }, []);
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -330,6 +360,7 @@ export function VisionSection() {
 
         {/* Left Curtain */}
         <motion.div
+          ref={leftCurtainRef}
           className="absolute left-0 top-0 z-20 h-full w-[52%]"
           style={{
             x: leftCurtainX,
@@ -344,6 +375,7 @@ export function VisionSection() {
 
         {/* Right Curtain */}
         <motion.div
+          ref={rightCurtainRef}
           className="absolute right-0 top-0 z-20 h-full w-[52%]"
           style={{
             x: rightCurtainX,
@@ -384,6 +416,7 @@ export function VisionSection() {
 
         {/* ── Stage Content (revealed as curtains part) ── */}
         <motion.div
+          ref={curtainContentRef}
           className="relative z-[15] px-6 py-28 md:py-36 lg:px-8 lg:py-40"
           style={{
             opacity: contentOpacity,

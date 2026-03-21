@@ -1,11 +1,40 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useMotionValue, useSpring } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight, Mail, Users } from "lucide-react";
 import { NewsletterSignupForm } from "@/components/forms/NewsletterSignupForm";
 import { ANIMATION } from "@/lib/constants";
 import { SectionTorches } from "@/components/ui/TheatreDecorations";
+import { useRef, type ReactNode } from "react";
+
+// -- Magnetic Button: pulls toward cursor within 100px radius --------------
+function MagneticButton({ children, className }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const springX = useSpring(x, { stiffness: 300, damping: 20 });
+  const springY = useSpring(y, { stiffness: 300, damping: 20 });
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const dx = e.clientX - (rect.left + rect.width / 2);
+    const dy = e.clientY - (rect.top + rect.height / 2);
+    const dist = Math.hypot(dx, dy);
+    if (dist < 100) {
+      const s = (1 - dist / 100) * 0.45;
+      x.set(dx * s);
+      y.set(dy * s);
+    }
+  };
+  const handleMouseLeave = () => { x.set(0); y.set(0); };
+  return (
+    <motion.div ref={ref} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
+      style={{ x: springX, y: springY }} className={className}>
+      {children}
+    </motion.div>
+  );
+}
 
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
@@ -88,22 +117,26 @@ export function CTASection() {
                 variants={fadeUp}
                 className="mt-10 flex flex-col items-start gap-4 sm:flex-row"
               >
-                <Link
-                  href="/events"
-                  className="group inline-flex items-center gap-3 rounded-full bg-gold px-7 py-4 font-body text-sm uppercase tracking-[0.22em] text-charcoal transition-colors duration-300 hover:bg-gold-light"
-                >
-                  Explore Events
-                  <ArrowRight
-                    className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
-                    strokeWidth={1.8}
-                  />
-                </Link>
-                <Link
-                  href="/contact"
-                  className="inline-flex items-center gap-3 rounded-full border border-ivory/12 bg-ivory/5 px-7 py-4 font-body text-sm uppercase tracking-[0.22em] text-ivory/70 transition-colors duration-300 hover:border-ivory/30 hover:text-ivory"
-                >
-                  Speak to the Team
-                </Link>
+                <MagneticButton>
+                  <Link
+                    href="/events"
+                    className="group inline-flex items-center gap-3 rounded-full bg-gold px-7 py-4 font-body text-sm uppercase tracking-[0.22em] text-charcoal transition-colors duration-300 hover:bg-gold-light"
+                  >
+                    Explore Events
+                    <ArrowRight
+                      className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
+                      strokeWidth={1.8}
+                    />
+                  </Link>
+                </MagneticButton>
+                <MagneticButton>
+                  <Link
+                    href="/contact"
+                    className="inline-flex items-center gap-3 rounded-full border border-ivory/12 bg-ivory/5 px-7 py-4 font-body text-sm uppercase tracking-[0.22em] text-ivory/70 transition-colors duration-300 hover:border-ivory/30 hover:text-ivory"
+                  >
+                    Speak to the Team
+                  </Link>
+                </MagneticButton>
               </motion.div>
             </div>
 

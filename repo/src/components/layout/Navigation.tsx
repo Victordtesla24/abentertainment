@@ -7,16 +7,20 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Sparkles, Shield, LogOut } from "lucide-react";
 import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, SITE_CONFIG } from "@/lib/constants";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { LocaleSwitcher } from "@/components/ui/LocaleSwitcher";
 import { useUser, useClerk } from "@clerk/nextjs";
 
+gsap.registerPlugin(ScrollTrigger);
+
 export function Navigation() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [navBlur, setNavBlur] = useState(12);
   const [eventsMenuOpen, setEventsMenuOpen] = useState(false);
   const { isSignedIn, user } = useUser();
   const { signOut } = useClerk();
@@ -25,11 +29,20 @@ export function Navigation() {
   const isActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
 
+  // ── Scroll-velocity-based blur intensity via GSAP ScrollTrigger ──────────
   useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 42);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-    return () => window.removeEventListener("scroll", handleScroll);
+    const trigger = ScrollTrigger.create({
+      start: 0,
+      end: "max",
+      onUpdate: (self) => {
+        const velocity = Math.abs(self.getVelocity());
+        // Map velocity to blur range 12–32px
+        const mapped = gsap.utils.clamp(12, 32, 12 + velocity * 0.008);
+        setNavBlur(mapped);
+        setIsScrolled(self.scroll() > 42);
+      },
+    });
+    return () => trigger.kill();
   }, []);
 
   useEffect(() => {
@@ -80,6 +93,7 @@ export function Navigation() {
               ? "border-gold/18 bg-charcoal-deep/88 shadow-[0_20px_60px_rgba(0,0,0,0.5),0_0_1px_rgba(201,168,76,0.15)]"
               : "border-transparent bg-charcoal-deep/50"
           )}
+          style={{ backdropFilter: `blur(${navBlur}px)`, WebkitBackdropFilter: `blur(${navBlur}px)` }}
         >
           <Link
             href="/"

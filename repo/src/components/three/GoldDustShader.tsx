@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 
@@ -12,42 +12,98 @@ uniform float uPixelRatio;
 attribute float aScale;
 attribute float aPhase;
 varying float vAlpha;
+varying float vDepth;
 
 void main() {
   vec3 pos = position;
-  float wave = sin(uTime * 0.45 + aPhase * 6.2831);
-  float drift = cos(uTime * 0.22 + aPhase * 3.1415);
 
-  pos.x += wave * 0.45;
+  // Sinusoidal wave drift
+  float wave  = sin(uTime * 0.45 + aPhase * 6.2831);
+  float drift = cos(uTime * 0.22 + aPhase * 3.1415);
+  pos.x += wave  * 0.45;
   pos.y += drift * 0.3 + wave * 0.15;
   pos.z += sin(uTime * 0.3 + aPhase * 4.0) * 0.25;
 
+  // Mouse-reactive repulsion in screen-space
   vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-  vec2 screenPos = mvPosition.xy / -mvPosition.z;
-  float dist = distance(screenPos, uMouse);
+  vec2 screenPos  = mvPosition.xy / -mvPosition.z;
+  float dist      = distance(screenPos, uMouse);
   float influence = smoothstep(0.8, 0.0, dist);
   pos.xy += normalize(screenPos - uMouse) * influence * 0.35;
 
   vec4 finalMv = modelViewMatrix * vec4(pos, 1.0);
-  gl_Position = projectionMatrix * finalMv;
+  gl_Position  = projectionMatrix * finalMv;
+
+  // Perspective-correct point sizing
   gl_PointSize = uSize * aScale * uPixelRatio * (280.0 / -finalMv.z);
 
+  // Soft vertical fade
   vAlpha = smoothstep(-6.0, 1.0, pos.y) * smoothstep(6.0, 1.0, pos.y);
+
+  // Pass camera-space depth for atmospheric perspective
+  vDepth = -finalMv.z;
 }
 `;
 
 const fragmentShader = `
 varying float vAlpha;
-uniform vec3 uColor;
-uniform vec3 uColorSecondary;
+varying float vDepth;
+uniform vec3  uColor;
+uniform vec3  uColorSecondary;
+uniform float uTime;
+
+// SDF: circle
+float sdCircle(vec2 p) {
+  return length(p);
+}
+
+// SDF: diamond (L1 norm)
+float sdDiamond(vec2 p) {
+  return abs(p.x) + abs(p.y);
+}
+
+// SDF: 5-point star
+float sdStar(vec2 p, float r, int n, float m) {
+  float an = 3.14159265 / float(n);
+  float en = 3.14159265 / m;
+  vec2 acs = vec2(cos(an), sin(an));
+  vec2 ecs = vec2(cos(en), sin(en));
+  float bn = mod(atan(p.x, p.y), 2.0 * an) - an;
+  p = length(p) * vec2(cos(bn), abs(sin(bn)));
+  p -= r * acs;
+  p += ecs * clamp(-dot(p, ecs), 0.0, r * acs.y / ecs.y);
+  return length(p) * sign(p.x);
+}
 
 void main() {
-  float d = length(gl_PointCoord - vec2(0.5));
+  vec2 p = gl_PointCoord - vec2(0.5);
+
+  // Deterministically select shape per-particle
+  float selector = fract(vAlpha * 3.7);
+  float d;
+  if (selector < 0.33) {
+    d = sdCircle(p);                      // Circle
+  } else if (selector < 0.66) {
+    d = sdDiamond(p * 1.8);               // Diamond
+  } else {
+    d = sdStar(p * 2.2, 0.35, 5, 2.5);   // 5-point Star
+  }
+
   if (d > 0.5) discard;
 
-  float glow = pow(1.0 - smoothstep(0.0, 0.5, d), 2.2);
-  vec3 color = mix(uColorSecondary, uColor, glow);
-  gl_FragColor = vec4(color, glow * vAlpha * 0.75);
+  // Gamma-corrected glow falloff
+  float glow  = pow(1.0 - smoothstep(0.0, 0.5, d), 2.2);
+
+  // Colour blend: secondary at edges, primary at core
+  vec3 color  = mix(uColorSecondary, uColor, glow);
+
+  // HDR: core exceeds 1.0 to drive bloom accumulation
+  float hdr   = glow * 1.8;
+
+  // Atmospheric depth fade
+  float depthFade = smoothstep(12.0, 2.0, vDepth);
+
+  gl_FragColor = vec4(color * hdr, glow * vAlpha * depthFade * 0.85);
 }
 `;
 
@@ -62,7 +118,8 @@ export function GoldDustShader({ count = 5000 }: { count?: number }) {
 }
 
 function ShaderPoints({ count = 5000 }: { count?: number }) {
-  const pointsRef = useRef<THREE.Points>(null);
+  const pointsRef   = useRef<THREE.Points>(null);
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
 
   const { positions, scales, phases } = useMemo(() => {
     const seeded = (seed: number) => {
@@ -87,12 +144,19 @@ function ShaderPoints({ count = 5000 }: { count?: number }) {
       uTime: { value: 0 },
       uSize: { value: 1.5 },
       uMouse: { value: new THREE.Vector2(99, 99) },
-      uPixelRatio: { value: 1 },
+      uPixelRatio: { value: typeof window !== "undefined" ? Math.min(window.devicePixelRatio, 2) : 1 },
       uColor: { value: new THREE.Color("#C9A84C") },
       uColorSecondary: { value: new THREE.Color("#6B1D3A") },
     }),
     []
   );
+
+  // ── FIX: drive uTime uniform every frame so shader animation runs ──────
+  useFrame((state) => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
+    }
+  });
 
   return (
     <points ref={pointsRef}>
@@ -102,6 +166,7 @@ function ShaderPoints({ count = 5000 }: { count?: number }) {
         <bufferAttribute attach="attributes-aPhase" args={[phases, 1]} />
       </bufferGeometry>
       <shaderMaterial
+        ref={materialRef}
         uniforms={uniforms}
         vertexShader={vertexShader}
         fragmentShader={fragmentShader}

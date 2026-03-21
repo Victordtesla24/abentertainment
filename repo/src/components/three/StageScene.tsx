@@ -1,8 +1,8 @@
 "use client";
 
-import { Bloom, ChromaticAberration, EffectComposer, Vignette } from "@react-three/postprocessing";
+import { Bloom, ChromaticAberration, DepthOfField, EffectComposer, Vignette } from "@react-three/postprocessing";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Environment, Float, MeshDistortMaterial, PointMaterial, Points, SpotLight } from "@react-three/drei";
+import { Environment, Float, MeshDistortMaterial, MeshReflectorMaterial, PointMaterial, Points, SpotLight } from "@react-three/drei";
 import { BlendFunction } from "postprocessing";
 import { useMemo, useRef } from "react";
 import { useReducedMotion } from "framer-motion";
@@ -90,7 +90,19 @@ function StageFloor() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3, 0]} receiveShadow>
       <planeGeometry args={[30, 20]} />
-      <meshStandardMaterial color="#1A1A1A" roughness={0.2} metalness={0.8} envMapIntensity={0.3} />
+      <MeshReflectorMaterial
+        blur={[300, 100]}
+        resolution={512}
+        mixBlur={1}
+        mixStrength={40}
+        roughness={0.8}
+        depthScale={1.2}
+        minDepthThreshold={0.4}
+        maxDepthThreshold={1.4}
+        color="#1A1A1A"
+        metalness={0.8}
+        mirror={0}
+      />
     </mesh>
   );
 }
@@ -135,7 +147,9 @@ export function StageScene() {
         <SuspendedScene />
         <EffectComposer>
           <Bloom intensity={0.65} luminanceThreshold={0.3} luminanceSmoothing={0.7} />
-          <ChromaticAberration blendFunction={BlendFunction.NORMAL} offset={[0.001, 0.0015]} />
+          {/* DepthOfField — cinematic bokeh for theatre depth */}
+          <DepthOfField focusDistance={0.01} focalLength={0.02} bokehScale={3} />
+          <ChromaticAberration blendFunction={BlendFunction.NORMAL} offset={[0.001, 0.0015] as unknown as THREE.Vector2} />
           <Vignette eskil={false} offset={0.25} darkness={0.7} />
         </EffectComposer>
       </Canvas>
@@ -146,7 +160,8 @@ export function StageScene() {
 function SuspendedScene() {
   return (
     <>
-      <Environment preset="city" />
+      {/* Warm tungsten environment — approximates 2700K-3200K theatre lighting */}
+      <Environment preset="warehouse" />
       <GoldParticleField />
       <StageFloor />
       <FloatingOrb />

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 
+// ── Gold particle trail on canvas ─────────────────────────────────────────
 function CursorTrail() {
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -70,6 +71,7 @@ function CursorTrail() {
   return null;
 }
 
+// ── Main cursor component ──────────────────────────────────────────────────
 export function MagneticCursor() {
   const [isHovered, setIsHovered] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -78,9 +80,12 @@ export function MagneticCursor() {
   const cursorX = useMotionValue(-100);
   const cursorY = useMotionValue(-100);
 
-  const springConfig = { damping: 25, stiffness: 300, mass: 0.5 };
-  const cursorXSpring = useSpring(cursorX, springConfig);
-  const cursorYSpring = useSpring(cursorY, springConfig);
+  // Outer ring: slower / more inertia
+  const ringX = useSpring(cursorX, { damping: 28, stiffness: 220, mass: 0.6 });
+  const ringY = useSpring(cursorY, { damping: 28, stiffness: 220, mass: 0.6 });
+  // Inner dot: snappy
+  const dotX = useSpring(cursorX, { damping: 20, stiffness: 500, mass: 0.3 });
+  const dotY = useSpring(cursorY, { damping: 20, stiffness: 500, mass: 0.3 });
 
   useEffect(() => {
     const checkDesktop = () => setIsDesktop(window.innerWidth >= 1024);
@@ -93,13 +98,12 @@ export function MagneticCursor() {
     if (!isDesktop) return;
 
     const moveCursor = (e: MouseEvent) => {
-      cursorX.set(e.clientX - 16);
-      cursorY.set(e.clientY - 16);
+      cursorX.set(e.clientX - 18);
+      cursorY.set(e.clientY - 18);
     };
 
     const handleMouseEnter = () => setIsVisible(true);
     const handleMouseLeave = () => setIsVisible(false);
-
     const handleLinkHover = () => setIsHovered(true);
     const handleLinkLeave = () => setIsHovered(false);
 
@@ -107,23 +111,22 @@ export function MagneticCursor() {
     document.addEventListener("mouseenter", handleMouseEnter);
     document.addEventListener("mouseleave", handleMouseLeave);
 
-    const interactiveElements = document.querySelectorAll(
-      "a, button, [role='button'], [data-magnetic]"
-    );
-
-    interactiveElements.forEach((el) => {
-      el.addEventListener("mouseenter", handleLinkHover);
-      el.addEventListener("mouseleave", handleLinkLeave);
-    });
+    // Attach hover listeners and re-attach on DOM mutations (dynamic elements)
+    const attachListeners = () => {
+      document.querySelectorAll("a, button, [role='button'], [data-magnetic]").forEach((el) => {
+        el.addEventListener("mouseenter", handleLinkHover);
+        el.addEventListener("mouseleave", handleLinkLeave);
+      });
+    };
+    attachListeners();
+    const observer = new MutationObserver(attachListeners);
+    observer.observe(document.body, { childList: true, subtree: true });
 
     return () => {
       window.removeEventListener("mousemove", moveCursor);
       document.removeEventListener("mouseenter", handleMouseEnter);
       document.removeEventListener("mouseleave", handleMouseLeave);
-      interactiveElements.forEach((el) => {
-        el.removeEventListener("mouseenter", handleLinkHover);
-        el.removeEventListener("mouseleave", handleLinkLeave);
-      });
+      observer.disconnect();
     };
   }, [cursorX, cursorY, isDesktop]);
 
@@ -132,24 +135,31 @@ export function MagneticCursor() {
   return (
     <>
       <CursorTrail />
+
+      {/* Outer gold ring */}
       <motion.div
-        className="pointer-events-none fixed left-0 top-0 z-[100] h-8 w-8 mix-blend-difference"
-        style={{
-          x: cursorXSpring,
-          y: cursorYSpring,
-          opacity: isVisible ? 1 : 0,
-        }}
+        className="pointer-events-none fixed left-0 top-0 z-[100] h-9 w-9"
+        style={{ x: ringX, y: ringY, opacity: isVisible ? 1 : 0 }}
       >
         <motion.div
-          className="flex h-full w-full items-center justify-center rounded-full border border-ivory/50 bg-ivory/10 backdrop-blur-sm"
+          className="h-full w-full rounded-full border border-gold/60"
           animate={{
-            scale: isHovered ? 1.8 : 1,
-            backgroundColor: isHovered
-              ? "rgba(245, 240, 232, 1)"
-              : "rgba(245, 240, 232, 0.1)",
-            borderWidth: isHovered ? "0px" : "1px",
+            scale: isHovered ? 2.2 : 1,
+            borderColor: isHovered ? "rgba(201,168,76,1)" : "rgba(201,168,76,0.6)",
           }}
-          transition={{ type: "spring", stiffness: 400, damping: 28 }}
+          transition={{ type: "spring", stiffness: 300, damping: 22 }}
+        />
+      </motion.div>
+
+      {/* Inner dot */}
+      <motion.div
+        className="pointer-events-none fixed left-0 top-0 z-[101] h-2 w-2"
+        style={{ x: dotX, y: dotY, marginLeft: "16px", marginTop: "16px", opacity: isVisible ? 1 : 0 }}
+      >
+        <motion.div
+          className="h-full w-full rounded-full bg-gold"
+          animate={{ scale: isHovered ? 0 : 1 }}
+          transition={{ type: "spring", stiffness: 500, damping: 25 }}
         />
       </motion.div>
     </>

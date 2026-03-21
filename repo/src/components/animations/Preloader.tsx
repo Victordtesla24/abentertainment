@@ -40,12 +40,12 @@ export function Preloader() {
       frameId = window.requestAnimationFrame(tick);
     });
 
-    // Phase 1: Show branding for 1.2s, then open curtains
-    const brandTimer = setTimeout(() => setPhase("opening"), 1200);
-    // Phase 2: Curtains animate for 1s, then unmount
-    const doneTimer = setTimeout(() => setPhase("done"), 2400);
-    // Safety fallback: force-remove after 4s no matter what
-    const safetyTimer = setTimeout(() => setPhase("done"), 4000);
+    // Phase 1: Show branding for 900ms, then open curtains
+    const brandTimer = setTimeout(() => setPhase("opening"), 900);
+    // Phase 2: Curtains animate for 850ms, then unmount
+    const doneTimer = setTimeout(() => setPhase("done"), 1900);
+    // Safety fallback: force-remove after 3s no matter what
+    const safetyTimer = setTimeout(() => setPhase("done"), 3000);
     return () => {
       clearTimeout(brandTimer);
       clearTimeout(doneTimer);
@@ -80,8 +80,9 @@ export function Preloader() {
           initial={{ x: "0%" }}
           animate={phase === "opening" ? { x: "-100%" } : { x: "0%" }}
           transition={{
-            duration: 1.0,
-            ease: [0.76, 0, 0.24, 1],
+            type: "spring",
+            stiffness: 55,
+            damping: 16,
             delay: phase === "opening" ? 0.05 : 0,
           }}
         >
@@ -135,8 +136,9 @@ export function Preloader() {
           initial={{ x: "0%" }}
           animate={phase === "opening" ? { x: "100%" } : { x: "0%" }}
           transition={{
-            duration: 1.0,
-            ease: [0.76, 0, 0.24, 1],
+            type: "spring",
+            stiffness: 55,
+            damping: 16,
             delay: phase === "opening" ? 0.05 : 0,
           }}
         >
