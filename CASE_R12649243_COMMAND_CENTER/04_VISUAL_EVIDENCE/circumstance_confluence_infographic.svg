@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
+  <defs>
+    <style>
+      text { font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#111111"/>
+
+  <!-- Title -->
+  <text x="600" y="50" text-anchor="middle" fill="#C9A84C" font-size="22" font-weight="700">Four Exceptional Factors — Convergence Analysis</text>
+  <text x="600" y="78" text-anchor="middle" fill="#F5F0E8" font-size="13">Case R12649243 | March 2026 | Adjournment Application Grounds</text>
+
+  <!-- Central node -->
+  <circle cx="600" cy="400" r="80" fill="#6B1D3A" stroke="#C9A84C" stroke-width="3"/>
+  <text x="600" y="390" text-anchor="middle" fill="#F5F0E8" font-size="14" font-weight="700">EXCEPTIONAL</text>
+  <text x="600" y="410" text-anchor="middle" fill="#F5F0E8" font-size="14" font-weight="700">CIRCUMSTANCES</text>
+  <text x="600" y="430" text-anchor="middle" fill="#C9A84C" font-size="11">Convergence Point</text>
+
+  <!-- Factor 1: Material Hardship (Top) -->
+  <line x1="600" y1="320" x2="600" y2="180" stroke="#C9A84C" stroke-width="2"/>
+  <rect x="440" y="110" width="320" height="80" rx="8" fill="#1a1a1a" stroke="#C9A84C" stroke-width="2"/>
+  <text x="600" y="140" text-anchor="middle" fill="#C9A84C" font-size="15" font-weight="700">1. MATERIAL HARDSHIP</text>
+  <text x="600" y="160" text-anchor="middle" fill="#F5F0E8" font-size="11">New employment commences 21 January 2026</text>
+  <text x="600" y="178" text-anchor="middle" fill="#F5F0E8" font-size="11">Mandatory first-day attendance; non-attendance risks offer withdrawal</text>
+
+  <!-- Factor 2: Exceptional Circumstances (Right) -->
+  <line x1="680" y1="400" x2="840" y2="400" stroke="#C9A84C" stroke-width="2"/>
+  <rect x="840" y="350" width="320" height="100" rx="8" fill="#1a1a1a" stroke="#C9A84C" stroke-width="2"/>
+  <text x="1000" y="380" text-anchor="middle" fill="#C9A84C" font-size="15" font-weight="700">2. EXCEPTIONAL CIRCUMSTANCES</text>
+  <text x="1000" y="400" text-anchor="middle" fill="#F5F0E8" font-size="11">Unique convergence of:</text>
+  <text x="1000" y="418" text-anchor="middle" fill="#F5F0E8" font-size="11">First offence + Employment start date coincidence</text>
+  <text x="1000" y="436" text-anchor="middle" fill="#F5F0E8" font-size="11">+ Career transition period</text>
+
+  <!-- Factor 3: Good Faith (Bottom) -->
+  <line x1="600" y1="480" x2="600" y2="600" stroke="#C9A84C" stroke-width="2"/>
+  <rect x="440" y="600" width="320" height="80" rx="8" fill="#1a1a1a" stroke="#C9A84C" stroke-width="2"/>
+  <text x="600" y="630" text-anchor="middle" fill="#C9A84C" font-size="15" font-weight="700">3. GOOD FAITH APPLICATION</text>
+  <text x="600" y="650" text-anchor="middle" fill="#F5F0E8" font-size="11">Submitted 5 days in advance with full supporting</text>
+  <text x="600" y="668" text-anchor="middle" fill="#F5F0E8" font-size="11">documentation — no delay tactics</text>
+
+  <!-- Factor 4: No Prior Adjournments (Left) -->
+  <line x1="520" y1="400" x2="360" y2="400" stroke="#C9A84C" stroke-width="2"/>
+  <rect x="40" y="350" width="320" height="100" rx="8" fill="#1a1a1a" stroke="#C9A84C" stroke-width="2"/>
+  <text x="200" y="380" text-anchor="middle" fill="#C9A84C" font-size="15" font-weight="700">4. NO PRIOR ADJOURNMENTS</text>
+  <text x="200" y="400" text-anchor="middle" fill="#F5F0E8" font-size="11">First and only adjournment request</text>
+  <text x="200" y="418" text-anchor="middle" fill="#F5F0E8" font-size="11">Not a pattern of court avoidance</text>
+  <text x="200" y="436" text-anchor="middle" fill="#F5F0E8" font-size="11">Zero prior criminal record</text>
+
+  <!-- Outcome arrow -->
+  <line x1="600" y1="480" x2="600" y2="520" stroke="#C9A84C" stroke-width="0" opacity="0"/>
+
+  <!-- Result box at bottom -->
+  <rect x="350" y="720" width="500" height="50" rx="8" fill="#C9A84C"/>
+  <text x="600" y="750" text-anchor="middle" fill="#111111" font-size="15" font-weight="700">REQUEST: Reschedule Hearing to 28 January 2026 or Later</text>
+
+  <!-- Connecting lines to result -->
+  <line x1="600" y1="680" x2="600" y2="720" stroke="#C9A84C" stroke-width="2" stroke-dasharray="6,3"/>
+
+  <!-- Footer -->
+  <text x="600" y="790" text-anchor="middle" fill="#666666" font-size="10">Case R12649243 | v1.0 FINAL | March 2026</text>
+</svg>
