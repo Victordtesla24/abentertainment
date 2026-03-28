@@ -108,7 +108,7 @@ export default function Footer() {
             <div className="flex items-center gap-3 mb-5">
               <div className="relative w-14 h-14">
                 <Image
-                  src="/images/AB_Logo_4.png"
+                  src="/images/AB_Logo_transparent.png"
                   alt="AB Entertainment"
                   fill
                   className="object-contain"

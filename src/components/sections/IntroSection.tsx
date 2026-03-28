@@ -86,7 +86,7 @@ export function IntroSection() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="relative w-48 h-48 md:w-64 md:h-64">
                   <Image
-                    src="/images/AB_Logo_4.png"
+                    src="/images/AB_Logo_transparent.png"
                     alt="AB Entertainment"
                     fill
                     className="object-contain drop-shadow-[0_0_40px_rgba(201,168,76,0.25)]"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   motion,
   AnimatePresence,
@@ -21,22 +21,26 @@ const heroSlides = [
     badge: 'Welcome to',
     title: 'AB ENTERTAINMENT',
     subtitle: 'Experience Events Like No Other',
+    bg: '/images/hero-bg.jpg',
   },
   {
     id: 'slide-2',
     badge: 'Celebrating',
     title: 'CULTURAL EXCELLENCE',
     subtitle: 'Indian & Marathi Performing Arts in Melbourne',
+    bg: '/images/hero-bg-2.jpg',
   },
   {
     id: 'slide-3',
     badge: 'Discover',
     title: 'UNFORGETTABLE MOMENTS',
     subtitle: '6+ Events · 25+ Team · 25,000+ Audience Reach',
+    bg: '/images/hero-bg.jpg',
   },
 ];
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
+const SLIDE_DURATION = 6000;
 
 export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -46,10 +50,14 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
   const parallaxContent = useTransform(scrollY, [0, 800], [0, -50]);
   const heroOpacity = useTransform(scrollY, [0, 600], [1, 0.3]);
 
+  const goToSlide = useCallback((index: number) => {
+    setCurrentSlide(index);
+  }, []);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
-    }, 6000);
+    }, SLIDE_DURATION);
     return () => clearInterval(interval);
   }, []);
 
@@ -57,31 +65,45 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
 
   return (
     <section className="relative w-full h-screen overflow-hidden bg-black">
-      {/* Background Image with parallax */}
+      {/* ═══ Animated Background Images — cross-fade between slides ═══ */}
       <motion.div className="absolute inset-0" style={{ y: parallaxBg }}>
-        <img
-          src="/images/hero-bg.jpg"
-          alt=""
-          aria-hidden="true"
-          className="w-full h-[120%] object-cover"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = '/scraped-data/images/wp-content_uploads_2024_02_ab-entertainment-event-1-1024x683_jpg_c731c265.jpg';
-          }}
-        />
+        <AnimatePresence mode="sync">
+          <motion.div
+            key={heroSlides[currentSlide].bg + currentSlide}
+            className="absolute inset-0"
+            initial={{ opacity: 0, scale: 1.1 }}
+            animate={{ opacity: 1, scale: 1.0 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ duration: 1.8, ease: EASE }}
+          >
+            <img
+              src={heroSlides[currentSlide].bg}
+              alt=""
+              aria-hidden="true"
+              className="w-full h-[120%] object-cover"
+            />
+          </motion.div>
+        </AnimatePresence>
       </motion.div>
 
+      {/* ═══ Cinematic overlays ═══ */}
       {/* Dark gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/90" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/85 z-[1]" />
+      {/* Radial vignette */}
+      <div className="absolute inset-0 z-[2]" style={{
+        background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%)',
+      }} />
+      {/* Subtle gold film grain */}
+      <div className="absolute inset-0 opacity-[0.02] z-[3]" style={{
+        backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(201,168,76,0.15) 2px, rgba(201,168,76,0.15) 4px)',
+      }} />
 
-      {/* Subtle gold grain texture overlay */}
-      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(201,168,76,0.1) 2px, rgba(201,168,76,0.1) 4px)' }} />
-
-      {/* Hero Content */}
+      {/* ═══ Hero Content ═══ */}
       <motion.div
         className="relative z-10 w-full h-full flex flex-col items-center justify-center text-center"
         style={{ y: parallaxContent, opacity: heroOpacity }}
       >
-        {/* AB Logo — prominently centered */}
+        {/* AB Logo — transparent monogram */}
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -90,7 +112,7 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
         >
           <div className="relative w-28 h-28 md:w-36 md:h-36 mx-auto">
             <Image
-              src="/images/AB_Logo_4.png"
+              src="/images/AB_Logo_transparent.png"
               alt="AB Entertainment Logo"
               fill
               className="object-contain drop-shadow-[0_0_30px_rgba(201,168,76,0.4)]"
@@ -99,6 +121,7 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
           </div>
         </motion.div>
 
+        {/* ═══ Slide text content with cross-fade ═══ */}
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlide}
@@ -161,7 +184,7 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
           {heroSlides.map((_, index) => (
             <button
               key={index}
-              onClick={() => setCurrentSlide(index)}
+              onClick={() => goToSlide(index)}
               className={`h-[3px] transition-all duration-500 ease-out ${
                 currentSlide === index
                   ? 'bg-[#C9A84C] w-10'

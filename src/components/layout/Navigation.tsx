@@ -91,7 +91,7 @@ export function Navigation() {
           <Link href="/" className="group flex items-center gap-3">
             <div className="relative w-12 h-12 overflow-hidden">
               <Image
-                src="/images/AB_Logo_4.png"
+                src="/images/AB_Logo_transparent.png"
                 alt="AB Entertainment"
                 fill
                 className="object-contain drop-shadow-[0_0_8px_rgba(201,168,76,0.3)] group-hover:drop-shadow-[0_0_12px_rgba(201,168,76,0.5)] transition-all duration-300"
@@ -150,7 +150,7 @@ export function Navigation() {
           <Link href="/" className="flex items-center gap-2.5">
             <div className="relative w-10 h-10 overflow-hidden">
               <Image
-                src="/images/AB_Logo_4.png"
+                src="/images/AB_Logo_transparent.png"
                 alt="AB Entertainment"
                 fill
                 className="object-contain"

@@ -46,7 +46,7 @@ export default function CTASection() {
         <motion.div variants={itemVariants} className="mb-8">
           <div className="relative w-16 h-16 mx-auto opacity-40">
             <Image
-              src="/images/AB_Logo_4.png"
+              src="/images/AB_Logo_transparent.png"
               alt=""
               fill
               className="object-contain"
