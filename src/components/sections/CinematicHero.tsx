@@ -115,7 +115,7 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
               src="/images/AB_Logo_transparent.png"
               alt="AB Entertainment Logo"
               fill
-              className="object-contain drop-shadow-[0_0_30px_rgba(201,168,76,0.4)]"
+              className="object-contain"
               priority
             />
           </div>
