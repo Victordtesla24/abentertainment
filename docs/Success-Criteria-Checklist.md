@@ -380,3 +380,7 @@ flowchart TD
 - **NO** fake/mocked asset loads — all 3D assets must be real files served from `/public/`
 - **NO** suppressed errors or silent `catch` blocks without Sentry reporting
 - **NO** stopping the loop until all exit conditions are simultaneously satisfied
+
+
+
+
