@@ -4,298 +4,198 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import gsap from 'gsap';
 
 /**
- * Cinematic Preloader — Curtain Call with Disney/Pixar Logo Animation
+ * Cinematic Preloader — Theatre Curtain Call
  *
- * Sequence:
- * 1. Stage is dark. Red velvet curtains fill the screen.
- * 2. Golden ropes appear and begin PULLING curtains apart from center —
- *    realistic physics: fabric bunches, sways, settles with weight.
- * 3. Halfway through curtain opening, AB logo appears center-stage:
- *    - Letters animate Disney/Pixar style: "B" bounces in from right,
- *      "A" chases and catches up from left, they collide and settle.
- *    - Logo then does a majestic 3D vertical-axis rotation with golden glow.
- * 4. Once logo settles, "Entertainment" is SKETCHED underneath letter by letter
- *    like a sketchpad/calligraphy pen — with a soft pencil/pen sound effect.
- * 5. A warm spotlight fades in on the logo from above.
- * 6. Brief hold, then the entire preloader fades to reveal the site.
+ * Uses the ACTUAL hero-bg-2.jpg image (red velvet curtains already open with
+ * gold rope tassels). Animation approach:
+ *
+ * 1. Start zoomed into the dark center of the curtain image (appears as
+ *    a dark stage). The curtain edges are NOT visible yet.
+ * 2. A warm amber light slowly fades in on the stage.
+ * 3. The camera (scale) slowly pulls BACK, revealing the red velvet curtains
+ *    framing the stage — like the audience seeing the curtains for the first
+ *    time as house lights come up.
+ * 4. The AB logo materializes center-stage with a cinematic 3D entrance:
+ *    scales from tiny + rotates on Y-axis + golden bloom glow.
+ * 5. "Entertainment" is written underneath in an elegant reveal.
+ * 6. Spotlight intensifies, then the whole preloader fades to reveal the site.
  */
 export default function Preloader() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const curtainLeftRef = useRef<HTMLDivElement>(null);
-  const curtainRightRef = useRef<HTMLDivElement>(null);
-  const ropeLeftRef = useRef<HTMLDivElement>(null);
-  const ropeRightRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
-  const logoContainerRef = useRef<HTMLDivElement>(null);
-  const letterARef = useRef<HTMLSpanElement>(null);
-  const letterBRef = useRef<HTMLSpanElement>(null);
-  const logoGlowRef = useRef<HTMLDivElement>(null);
-  const sketchTextRef = useRef<HTMLDivElement>(null);
+  const curtainFrameRef = useRef<HTMLDivElement>(null);
+  const stageGlowRef = useRef<HTMLDivElement>(null);
+  const logoRef = useRef<HTMLDivElement>(null);
+  const logoInnerRef = useRef<HTMLImageElement>(null);
+  const glowRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLDivElement>(null);
   const spotlightRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const vignetteRef = useRef<HTMLDivElement>(null);
   const [isDismissed, setIsDismissed] = useState(false);
 
-  // Generate sketch sound via Web Audio API (soft pen/pencil scratch)
   const playSketchSound = useCallback(() => {
     try {
       const ctx = new AudioContext();
-      const duration = 1.8;
+      const duration = 1.4;
       const bufferSize = ctx.sampleRate * duration;
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
-
-      // Generate soft scratching noise — filtered white noise with envelope
       for (let i = 0; i < bufferSize; i++) {
         const t = i / ctx.sampleRate;
-        // Envelope: gentle fade in/out with rhythmic scratching
-        const scratchEnvelope = Math.sin(t * Math.PI * 12) * 0.5 + 0.5;
-        const overallEnvelope = Math.sin((t / duration) * Math.PI) * 0.6;
-        data[i] = (Math.random() * 2 - 1) * scratchEnvelope * overallEnvelope * 0.03;
+        const env = Math.sin((t / duration) * Math.PI);
+        const scratch = Math.sin(t * 800) * 0.3 + Math.random() * 0.7;
+        data[i] = scratch * env * env * 0.015;
       }
-
       const source = ctx.createBufferSource();
       source.buffer = buffer;
-
-      // Low-pass filter for soft pencil sound
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.value = 2000;
-      filter.Q.value = 0.5;
-
-      source.connect(filter);
-      filter.connect(ctx.destination);
+      const lpf = ctx.createBiquadFilter();
+      lpf.type = 'lowpass';
+      lpf.frequency.value = 1500;
+      source.connect(lpf).connect(ctx.destination);
       source.start();
-      audioRef.current = null;
-    } catch {
-      // Audio not available — skip silently
-    }
+    } catch { /* audio not available */ }
   }, []);
 
   useEffect(() => {
     const container = containerRef.current;
-    const curtainL = curtainLeftRef.current;
-    const curtainR = curtainRightRef.current;
-    const ropeL = ropeLeftRef.current;
-    const ropeR = ropeRightRef.current;
-    const stage = stageRef.current;
-    const logoContainer = logoContainerRef.current;
-    const letterA = letterARef.current;
-    const letterB = letterBRef.current;
-    const logoGlow = logoGlowRef.current;
-    const sketchText = sketchTextRef.current;
+    const curtainFrame = curtainFrameRef.current;
+    const stageGlow = stageGlowRef.current;
+    const logo = logoRef.current;
+    const logoInner = logoInnerRef.current;
+    const glow = glowRef.current;
+    const text = textRef.current;
     const spotlight = spotlightRef.current;
+    const vignette = vignetteRef.current;
 
-    if (!container || !curtainL || !curtainR || !ropeL || !ropeR || !stage || !logoContainer || !letterA || !letterB || !logoGlow || !sketchText || !spotlight) return;
+    if (!container || !curtainFrame || !stageGlow || !logo || !logoInner || !glow || !text || !spotlight || !vignette) return;
 
     // ═══ INITIAL STATE ═══
-    // Curtains closed, centered, overlapping slightly at middle
-    gsap.set(curtainL, { x: '0%', skewX: 0 });
-    gsap.set(curtainR, { x: '0%', skewX: 0 });
-    gsap.set([ropeL, ropeR], { opacity: 0, y: -20 });
-    gsap.set(stage, { opacity: 0 });
-    gsap.set(logoContainer, { opacity: 0, scale: 0 });
-    gsap.set(letterA, { x: -200, opacity: 0, scale: 0.5, rotateY: -90 });
-    gsap.set(letterB, { x: 200, opacity: 0, scale: 0.5, rotateY: 90 });
-    gsap.set(logoGlow, { opacity: 0, scale: 0.3 });
-    gsap.set(sketchText, { opacity: 0 });
+    // Curtain image zoomed in tight on dark center (looks like a dark void)
+    gsap.set(curtainFrame, { scale: 2.8, opacity: 0.15, filter: 'brightness(0.1) saturate(0)' });
+    gsap.set(stageGlow, { opacity: 0 });
+    gsap.set(logo, { opacity: 0, scale: 0, rotateY: -180 });
+    gsap.set(logoInner, { filter: 'brightness(0.3) saturate(0)' });
+    gsap.set(glow, { opacity: 0, scale: 0.3 });
+    gsap.set(text, { opacity: 0, clipPath: 'inset(0 100% 0 0)' });
     gsap.set(spotlight, { opacity: 0 });
+    gsap.set(vignette, { opacity: 1 });
 
-    const master = gsap.timeline({
+    const tl = gsap.timeline({
       onComplete: () => {
         if (container) container.style.pointerEvents = 'none';
-        setTimeout(() => setIsDismissed(true), 300);
+        setTimeout(() => setIsDismissed(true), 400);
       }
     });
 
-    // ═══ ACT 1: ROPES APPEAR & BEGIN PULLING (0s - 1s) ═══
-    // Golden ropes materialize at the edges
-    master.to([ropeL, ropeR], {
+    // ═══ ACT 1: STAGE AWAKENS (0s → 2.5s) ═══
+    // Amber stage light slowly illuminates the void
+    tl.to(stageGlow, {
+      opacity: 0.6,
+      duration: 2.5,
+      ease: 'power1.inOut',
+    }, 0);
+
+    // Curtain image begins to warm up (color returns)
+    tl.to(curtainFrame, {
+      opacity: 0.4,
+      filter: 'brightness(0.3) saturate(0.5)',
+      duration: 2,
+      ease: 'power1.in',
+    }, 0.5);
+
+    // ═══ ACT 2: CAMERA PULLS BACK — CURTAINS REVEALED (1.5s → 4.5s) ═══
+    // The signature moment: scale pulls back from 2.8 → 1.0,
+    // revealing the full red velvet curtain frame with gold rope tassels
+    tl.to(curtainFrame, {
+      scale: 1.0,
       opacity: 1,
-      y: 0,
-      duration: 0.6,
-      ease: 'power2.out',
-    }, 0.3);
-
-    // Ropes tense — slight pull animation (they tighten before pulling)
-    master.to(ropeL, {
-      x: -8,
-      duration: 0.3,
-      ease: 'power1.in',
-    }, 0.8);
-    master.to(ropeR, {
-      x: 8,
-      duration: 0.3,
-      ease: 'power1.in',
-    }, 0.8);
-
-    // ═══ ACT 2: CURTAINS OPEN WITH PHYSICS (1s - 3.5s) ═══
-    // Left curtain pulls open — starts slow (inertia), accelerates, then decelerates
-    // with fabric bunching (skewX) and overshoot (elastic settle)
-    master.to(curtainL, {
-      x: '-85%',
-      duration: 2.2,
-      ease: 'power2.inOut',
-    }, 1.1);
-
-    // Right curtain mirrors
-    master.to(curtainR, {
-      x: '85%',
-      duration: 2.2,
-      ease: 'power2.inOut',
-    }, 1.1);
-
-    // Fabric physics: curtains skew as they're pulled (dragging effect)
-    master.to(curtainL, {
-      skewX: -3,
-      duration: 0.8,
-      ease: 'power1.in',
-    }, 1.1);
-    master.to(curtainL, {
-      skewX: 2,
-      duration: 0.6,
-      ease: 'power1.out',
-    }, 1.9);
-    master.to(curtainL, {
-      skewX: 0,
-      duration: 0.8,
-      ease: 'elastic.out(1.2, 0.5)',
-    }, 2.5);
-
-    master.to(curtainR, {
-      skewX: 3,
-      duration: 0.8,
-      ease: 'power1.in',
-    }, 1.1);
-    master.to(curtainR, {
-      skewX: -2,
-      duration: 0.6,
-      ease: 'power1.out',
-    }, 1.9);
-    master.to(curtainR, {
-      skewX: 0,
-      duration: 0.8,
-      ease: 'elastic.out(1.2, 0.5)',
-    }, 2.5);
-
-    // Ropes follow the curtains (they're attached)
-    master.to(ropeL, {
-      x: -60,
-      duration: 2.2,
-      ease: 'power2.inOut',
-    }, 1.1);
-    master.to(ropeR, {
-      x: 60,
-      duration: 2.2,
-      ease: 'power2.inOut',
-    }, 1.1);
-
-    // Stage light illuminates as curtains part
-    master.to(stage, {
-      opacity: 1,
-      duration: 1.5,
-      ease: 'power1.in',
+      filter: 'brightness(0.65) saturate(1.3)',
+      duration: 3,
+      ease: 'power2.out', // Starts fast (dramatic), settles gracefully
     }, 1.5);
 
-    // ═══ ACT 3: DISNEY/PIXAR LOGO ANIMATION (2.2s - 4.2s) ═══
-    // Halfway through curtain opening — logo appears
-    master.to(logoContainer, {
-      opacity: 1,
-      scale: 1,
-      duration: 0.4,
-      ease: 'power2.out',
-    }, 2.2);
-
-    // "B" BOUNCES in from the right — Disney/Pixar style overshoot
-    master.to(letterB, {
-      x: 10,
-      opacity: 1,
-      scale: 1.2,
-      rotateY: 0,
-      duration: 0.6,
-      ease: 'back.out(2.5)',
-    }, 2.3);
-
-    // "A" CHASES from the left — catches up with momentum
-    master.to(letterA, {
-      x: -10,
-      opacity: 1,
-      scale: 1.2,
-      rotateY: 0,
-      duration: 0.7,
-      ease: 'back.out(2)',
-    }, 2.5);
-
-    // They COLLIDE and settle into final position with a bounce
-    master.to(letterA, {
-      x: 0,
-      scale: 1,
-      duration: 0.4,
-      ease: 'elastic.out(1, 0.4)',
-    }, 3.2);
-    master.to(letterB, {
-      x: 0,
-      scale: 1,
-      duration: 0.4,
-      ease: 'elastic.out(1, 0.4)',
-    }, 3.2);
-
-    // 3D vertical axis rotation — majestic spin with golden glow
-    master.to(logoContainer, {
-      rotateY: 360,
-      duration: 1.2,
-      ease: 'power2.inOut',
-    }, 3.5);
-
-    // Golden glow pulses during rotation
-    master.to(logoGlow, {
-      opacity: 0.9,
-      scale: 1.5,
-      duration: 0.6,
-      ease: 'power2.out',
-    }, 3.5);
-    master.to(logoGlow, {
+    // Vignette eases during reveal
+    tl.to(vignette, {
       opacity: 0.4,
-      scale: 1.0,
-      duration: 0.6,
-      ease: 'power2.in',
-    }, 4.1);
+      duration: 2,
+      ease: 'power1.out',
+    }, 2);
 
-    // ═══ ACT 4: "ENTERTAINMENT" SKETCH EFFECT (4.7s - 6.5s) ═══
-    // The word is revealed letter by letter like being drawn with a pen
-    master.to(sketchText, {
+    // ═══ ACT 3: LOGO ENTRANCE — CINEMATIC 3D REVEAL (3s → 5.5s) ═══
+    // Logo appears center-stage: scales up from nothing while rotating
+    // on its vertical axis — like a golden coin flipping into view
+
+    // Golden glow bloom appears first (anticipation)
+    tl.to(glow, {
+      opacity: 0.8,
+      scale: 1.2,
+      duration: 1,
+      ease: 'power2.out',
+    }, 3);
+
+    // Logo scales in with 3D rotation
+    tl.to(logo, {
       opacity: 1,
-      duration: 0.1,
-    }, 4.7);
-
-    // Each letter clips in from left to right (mask reveal)
-    master.to(sketchText, {
-      '--sketch-progress': '100%',
+      scale: 1,
+      rotateY: 0,
       duration: 1.8,
-      ease: 'power1.inOut',
-      onStart: () => {
-        playSketchSound();
-      },
-    }, 4.8);
+      ease: 'back.out(1.4)', // Overshoots slightly then settles — Pixar style
+    }, 3.2);
 
-    // ═══ ACT 5: SPOTLIGHT GLOW ON LOGO (6.5s - 7.5s) ═══
-    // Warm spotlight cone fades in from above
-    master.to(spotlight, {
-      opacity: 0.7,
+    // Logo color comes alive (from dark metallic to full gold)
+    tl.to(logoInner, {
+      filter: 'brightness(1.1) saturate(1.2)',
+      duration: 1.5,
+      ease: 'power2.out',
+    }, 3.5);
+
+    // Glow pulses once (breathing)
+    tl.to(glow, {
+      scale: 1.5,
+      opacity: 0.4,
+      duration: 0.8,
+      ease: 'sine.in',
+    }, 4.5);
+    tl.to(glow, {
+      scale: 1.0,
+      opacity: 0.6,
+      duration: 0.8,
+      ease: 'sine.out',
+    }, 5.3);
+
+    // ═══ ACT 4: "ENTERTAINMENT" SKETCH REVEAL (5s → 6.8s) ═══
+    tl.to(text, {
+      opacity: 1,
+      duration: 0.15,
+    }, 5.2);
+
+    tl.to(text, {
+      clipPath: 'inset(0 0% 0 0)',
+      duration: 1.6,
+      ease: 'power1.inOut',
+      onStart: () => playSketchSound(),
+    }, 5.3);
+
+    // ═══ ACT 5: SPOTLIGHT INTENSIFIES (6.5s → 7.5s) ═══
+    tl.to(spotlight, {
+      opacity: 0.6,
       duration: 1,
       ease: 'power2.out',
     }, 6.5);
 
-    // ═══ ACT 6: FADE OUT & REVEAL (7.5s - 8.5s) ═══
-    master.to(container, {
+    // Brief hold — let the audience take it in
+    tl.to({}, { duration: 0.5 }, 7.5);
+
+    // ═══ ACT 6: CURTAIN CALL COMPLETE — FADE TO SHOW (8s → 9s) ═══
+    tl.to(container, {
       opacity: 0,
       duration: 1,
-      ease: 'power2.inOut',
+      ease: 'power3.inOut',
       onStart: () => {
         if (container) container.style.pointerEvents = 'none';
       },
-    }, 7.8);
+    }, 8);
 
-    return () => { master.kill(); };
+    return () => { tl.kill(); };
   }, [playSketchSound]);
 
   if (isDismissed) return null;
@@ -303,208 +203,115 @@ export default function Preloader() {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[9999] overflow-hidden"
-      style={{ background: '#020202' }}
+      className="fixed inset-0 z-[9999] overflow-hidden bg-black"
     >
-      {/* ═══ STAGE BACKDROP (behind curtains) ═══ */}
+      {/* ═══ STAGE GLOW — warm amber light from behind ═══ */}
       <div
-        ref={stageRef}
-        className="absolute inset-0"
+        ref={stageGlowRef}
+        className="absolute inset-0 z-[1]"
         style={{
-          background: 'radial-gradient(ellipse at 50% 30%, #1a0a00 0%, #0a0502 40%, #020202 80%)',
+          background: 'radial-gradient(ellipse at 50% 40%, rgba(180,120,40,0.25) 0%, rgba(80,40,10,0.15) 30%, transparent 60%)',
         }}
       />
 
-      {/* ═══ LEFT CURTAIN ═══ */}
+      {/* ═══ THE CURTAIN IMAGE — hero-bg-2.jpg ═══
+           This IS the curtain. It already has red velvet + gold rope tassels.
+           We start zoomed in (only dark center visible) and pull back to reveal. */}
       <div
-        ref={curtainLeftRef}
-        className="absolute top-0 left-0 w-[52%] h-full overflow-hidden will-change-transform"
+        ref={curtainFrameRef}
+        className="absolute inset-0 z-[2] will-change-transform"
+        style={{ transformOrigin: '50% 45%' }}
       >
         <img
           src="/images/hero-bg-2.jpg"
           alt=""
           aria-hidden="true"
-          className="absolute top-0 right-0 w-[200%] h-full object-cover object-right"
-          style={{ filter: 'brightness(0.5) saturate(1.4) contrast(1.1)' }}
+          className="w-full h-full object-cover"
+          style={{ objectPosition: '50% 40%' }}
         />
-        {/* Curtain fold shadows — creates depth illusion */}
-        <div className="absolute top-0 right-0 w-24 h-full bg-gradient-to-l from-black/70 via-black/30 to-transparent" />
-        {/* Inner fold highlight */}
-        <div className="absolute top-0 right-6 w-3 h-full bg-gradient-to-l from-white/5 to-transparent" />
-        {/* Fabric bunching texture lines near the center */}
-        <div className="absolute top-0 right-0 w-1 h-full bg-black/40" />
-        <div className="absolute top-0 right-3 w-[0.5px] h-full bg-black/20" />
       </div>
 
-      {/* ═══ RIGHT CURTAIN ═══ */}
+      {/* ═══ CINEMATIC VIGNETTE ═══ */}
       <div
-        ref={curtainRightRef}
-        className="absolute top-0 right-0 w-[52%] h-full overflow-hidden will-change-transform"
-      >
-        <img
-          src="/images/hero-bg-2.jpg"
-          alt=""
-          aria-hidden="true"
-          className="absolute top-0 left-0 w-[200%] h-full object-cover object-left"
-          style={{ filter: 'brightness(0.5) saturate(1.4) contrast(1.1)', transform: 'scaleX(-1)' }}
-        />
-        <div className="absolute top-0 left-0 w-24 h-full bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
-        <div className="absolute top-0 left-6 w-3 h-full bg-gradient-to-r from-white/5 to-transparent" />
-        <div className="absolute top-0 left-0 w-1 h-full bg-black/40" />
-        <div className="absolute top-0 left-3 w-[0.5px] h-full bg-black/20" />
-      </div>
-
-      {/* ═══ GOLDEN ROPE — LEFT ═══ */}
-      <div
-        ref={ropeLeftRef}
-        className="absolute top-0 left-[48%] z-20 w-3 h-full pointer-events-none"
+        ref={vignetteRef}
+        className="absolute inset-0 z-[3] pointer-events-none"
         style={{
-          background: 'linear-gradient(180deg, #8B6914 0%, #D4AF37 20%, #FFD700 40%, #D4AF37 60%, #8B6914 80%, #D4AF37 100%)',
-          borderRadius: '4px',
-          boxShadow: '0 0 15px rgba(212,175,55,0.4), 2px 0 8px rgba(0,0,0,0.5)',
-          backgroundSize: '100% 30px',
+          boxShadow: 'inset 0 0 250px 80px rgba(0,0,0,0.9)',
         }}
-      >
-        {/* Rope texture — braided pattern */}
-        <div className="absolute inset-0 opacity-30" style={{
-          backgroundImage: 'repeating-linear-gradient(45deg, transparent 0px, transparent 2px, rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 4px)',
-          backgroundSize: '6px 6px',
-        }} />
-        {/* Tassel at bottom */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-6 h-10 flex flex-col items-center">
-          <div className="w-5 h-3 rounded-b-full bg-gradient-to-b from-[#D4AF37] to-[#8B6914]" />
-          <div className="w-4 h-6 bg-gradient-to-b from-[#D4AF37]/80 to-[#8B6914]/60" style={{ clipPath: 'polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%)' }} />
-        </div>
-      </div>
+      />
 
-      {/* ═══ GOLDEN ROPE — RIGHT ═══ */}
-      <div
-        ref={ropeRightRef}
-        className="absolute top-0 right-[48%] z-20 w-3 h-full pointer-events-none"
-        style={{
-          background: 'linear-gradient(180deg, #8B6914 0%, #D4AF37 20%, #FFD700 40%, #D4AF37 60%, #8B6914 80%, #D4AF37 100%)',
-          borderRadius: '4px',
-          boxShadow: '0 0 15px rgba(212,175,55,0.4), -2px 0 8px rgba(0,0,0,0.5)',
-          backgroundSize: '100% 30px',
-        }}
-      >
-        <div className="absolute inset-0 opacity-30" style={{
-          backgroundImage: 'repeating-linear-gradient(-45deg, transparent 0px, transparent 2px, rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 4px)',
-          backgroundSize: '6px 6px',
-        }} />
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-6 h-10 flex flex-col items-center">
-          <div className="w-5 h-3 rounded-b-full bg-gradient-to-b from-[#D4AF37] to-[#8B6914]" />
-          <div className="w-4 h-6 bg-gradient-to-b from-[#D4AF37]/80 to-[#8B6914]/60" style={{ clipPath: 'polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%)' }} />
-        </div>
-      </div>
-
-      {/* ═══ SPOTLIGHT CONE (from above) ═══ */}
+      {/* ═══ SPOTLIGHT CONE from above ═══ */}
       <div
         ref={spotlightRef}
-        className="absolute top-0 left-1/2 -translate-x-1/2 z-25 pointer-events-none"
+        className="absolute inset-0 z-[4] pointer-events-none"
         style={{
-          width: '500px',
-          height: '100vh',
-          background: 'conic-gradient(from 180deg at 50% 0%, transparent 30%, rgba(255,220,130,0.08) 45%, rgba(255,220,130,0.15) 50%, rgba(255,220,130,0.08) 55%, transparent 70%)',
+          background: 'radial-gradient(ellipse at 50% 20%, rgba(255,220,130,0.12) 0%, rgba(255,200,100,0.04) 30%, transparent 55%)',
         }}
       />
 
-      {/* ═══ CENTER STAGE — Logo + Sketch Text ═══ */}
-      <div className="absolute inset-0 z-30 flex flex-col items-center justify-center">
-        {/* Golden glow halo */}
+      {/* ═══ CENTER STAGE: Logo + Text ═══ */}
+      <div className="absolute inset-0 z-[10] flex flex-col items-center justify-center">
+
+        {/* Golden glow halo behind logo */}
         <div
-          ref={logoGlowRef}
-          className="absolute w-72 h-72 md:w-[450px] md:h-[450px] rounded-full pointer-events-none"
+          ref={glowRef}
+          className="absolute w-64 h-64 md:w-96 md:h-96 rounded-full pointer-events-none"
           style={{
-            background: 'radial-gradient(circle, rgba(212,175,55,0.25) 0%, rgba(212,175,55,0.08) 35%, transparent 65%)',
+            background: 'radial-gradient(circle, rgba(212,175,55,0.3) 0%, rgba(180,140,40,0.1) 40%, transparent 65%)',
+            filter: 'blur(20px)',
           }}
         />
 
-        {/* Logo container — Disney/Pixar style animation using ACTUAL brand logo */}
+        {/* AB Logo — SINGLE instance, 3D entrance */}
         <div
-          ref={logoContainerRef}
-          className="relative flex items-center justify-center mb-4"
-          style={{ perspective: '800px', transformStyle: 'preserve-3d' }}
+          ref={logoRef}
+          className="relative w-40 h-40 md:w-56 md:h-56 lg:w-64 lg:h-64 mb-6"
+          style={{
+            perspective: '1200px',
+            transformStyle: 'preserve-3d',
+          }}
         >
-          {/* The actual AB brand logo — split into two halves for the chase animation */}
-          {/* Left half of logo (A side) — chases from left */}
-          <span
-            ref={letterARef}
-            className="inline-block relative w-[120px] h-[120px] md:w-[180px] md:h-[180px] overflow-hidden"
+          <img
+            ref={logoInnerRef}
+            src="/images/AB_Logo_transparent.png"
+            alt="AB Entertainment"
+            className="w-full h-full object-contain"
             style={{
-              willChange: 'transform',
-              filter: 'drop-shadow(0 4px 20px rgba(212,175,55,0.5))',
+              filter: 'drop-shadow(0 8px 30px rgba(212,175,55,0.6)) drop-shadow(0 2px 10px rgba(212,175,55,0.3))',
             }}
-          >
-            <img
-              src="/images/AB_Logo_transparent.png"
-              alt=""
-              aria-hidden="true"
-              className="absolute top-0 left-0 w-[200%] h-full object-contain object-left"
-            />
-          </span>
-
-          {/* Right half of logo (B side) — bounces in from right */}
-          <span
-            ref={letterBRef}
-            className="inline-block relative w-[120px] h-[120px] md:w-[180px] md:h-[180px] overflow-hidden"
-            style={{
-              willChange: 'transform',
-              filter: 'drop-shadow(0 4px 20px rgba(212,175,55,0.5))',
-            }}
-          >
-            <img
-              src="/images/AB_Logo_transparent.png"
-              alt=""
-              aria-hidden="true"
-              className="absolute top-0 right-0 w-[200%] h-full object-contain object-right"
-            />
-          </span>
+          />
         </div>
 
-        {/* "Entertainment" — Sketch/Calligraphy reveal effect */}
+        {/* "Entertainment" — elegant clip-path reveal */}
         <div
-          ref={sketchTextRef}
-          className="relative h-12 overflow-hidden"
-          style={{
-            '--sketch-progress': '0%',
-            clipPath: 'inset(0 calc(100% - var(--sketch-progress)) 0 0)',
-          } as React.CSSProperties}
+          ref={textRef}
+          className="relative"
         >
           <span
-            className="text-xl md:text-2xl tracking-[0.5em] uppercase font-body font-light"
+            className="text-lg md:text-xl lg:text-2xl tracking-[0.45em] uppercase font-body font-light"
             style={{
               color: '#C9A84C',
-              textShadow: '0 0 20px rgba(201,168,76,0.3)',
+              textShadow: '0 0 20px rgba(201,168,76,0.4), 0 2px 8px rgba(0,0,0,0.5)',
             }}
           >
             Entertainment
           </span>
-          {/* Pen tip cursor that follows the sketch */}
-          <span
-            className="absolute top-1/2 -translate-y-1/2 w-0.5 h-8 bg-[#FFD700]"
-            style={{
-              right: '0',
-              boxShadow: '0 0 8px rgba(255,215,0,0.8), 0 0 20px rgba(255,215,0,0.3)',
-              transition: 'opacity 0.3s',
-            }}
-          />
         </div>
       </div>
 
-      {/* ═══ Floating embers (atmosphere) ═══ */}
-      <div className="absolute inset-0 z-15 pointer-events-none overflow-hidden">
-        {Array.from({ length: 15 }, (_, i) => (
+      {/* ═══ Floating embers ═══ */}
+      <div className="absolute inset-0 z-[5] pointer-events-none overflow-hidden">
+        {Array.from({ length: 12 }, (_, i) => (
           <div
             key={i}
             className="particle particle-ember"
             style={{
-              left: `${(i * 7.1 + 5) % 100}%`,
-              bottom: `${(i * 4.3) % 20}%`,
+              left: `${(i * 8.5 + 5) % 100}%`,
+              bottom: `${(i * 5.2) % 25}%`,
               width: 1.5 + (i % 3),
               height: 1.5 + (i % 3),
-              '--duration': `${7 + (i % 5) * 2}s`,
-              '--delay': `${(i * 0.7) % 6}s`,
+              '--duration': `${8 + (i % 4) * 2.5}s`,
+              '--delay': `${(i * 0.8) % 7}s`,
             } as React.CSSProperties}
           />
         ))}
