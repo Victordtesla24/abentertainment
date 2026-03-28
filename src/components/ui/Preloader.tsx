@@ -4,317 +4,294 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import gsap from 'gsap';
 
 /**
- * Cinematic Preloader — Theatre Curtain Call
+ * Theatre Curtain Preloader
  *
- * Uses the ACTUAL hero-bg-2.jpg image (red velvet curtains already open with
- * gold rope tassels). Animation approach:
+ * The curtain image (hero-bg-2.jpg) shows red velvet curtains ALREADY OPEN
+ * with gold rope tassels tying them back. We use this by:
  *
- * 1. Start zoomed into the dark center of the curtain image (appears as
- *    a dark stage). The curtain edges are NOT visible yet.
- * 2. A warm amber light slowly fades in on the stage.
- * 3. The camera (scale) slowly pulls BACK, revealing the red velvet curtains
- *    framing the stage — like the audience seeing the curtains for the first
- *    time as house lights come up.
- * 4. The AB logo materializes center-stage with a cinematic 3D entrance:
- *    scales from tiny + rotates on Y-axis + golden bloom glow.
- * 5. "Entertainment" is written underneath in an elegant reveal.
- * 6. Spotlight intensifies, then the whole preloader fades to reveal the site.
+ * 1. Showing two overlapping halves of the image — positioned so the curtain
+ *    panels overlap at center, appearing CLOSED (dark center hidden)
+ * 2. GSAP animates the halves APART — the left half slides left, right slides
+ *    right — mimicking the ropes pulling the curtains open
+ * 3. The natural rope/tassel imagery in the photo creates realistic physics
+ * 4. As gap opens, the AB logo is revealed center-stage
+ * 5. Logo uses a split animation: left clip (A) flies from left, right clip (B)
+ *    flies from right, they merge into the full logo
+ * 6. "Entertainment" sketches in below, spotlight fades up, then scene fades out
  */
 export default function Preloader() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const curtainFrameRef = useRef<HTMLDivElement>(null);
-  const stageGlowRef = useRef<HTMLDivElement>(null);
-  const logoRef = useRef<HTMLDivElement>(null);
-  const logoInnerRef = useRef<HTMLImageElement>(null);
-  const glowRef = useRef<HTMLDivElement>(null);
+  const leftCurtainRef = useRef<HTMLDivElement>(null);
+  const rightCurtainRef = useRef<HTMLDivElement>(null);
+  const darknessRef = useRef<HTMLDivElement>(null);
+  const logoARef = useRef<HTMLDivElement>(null);
+  const logoBRef = useRef<HTMLDivElement>(null);
+  const logoFullRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const spotlightRef = useRef<HTMLDivElement>(null);
-  const vignetteRef = useRef<HTMLDivElement>(null);
   const [isDismissed, setIsDismissed] = useState(false);
 
-  const playSketchSound = useCallback(() => {
+  const playPenSound = useCallback(() => {
     try {
-      const ctx = new AudioContext();
-      const duration = 1.4;
-      const bufferSize = ctx.sampleRate * duration;
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        const t = i / ctx.sampleRate;
-        const env = Math.sin((t / duration) * Math.PI);
-        const scratch = Math.sin(t * 800) * 0.3 + Math.random() * 0.7;
-        data[i] = scratch * env * env * 0.015;
+      const ac = new AudioContext();
+      const d = 1.2;
+      const buf = ac.createBuffer(1, ac.sampleRate * d, ac.sampleRate);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < ch.length; i++) {
+        const t = i / ac.sampleRate;
+        const env = Math.sin((t / d) * Math.PI);
+        ch[i] = (Math.random() * 2 - 1) * env * env * 0.012;
       }
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      const lpf = ctx.createBiquadFilter();
-      lpf.type = 'lowpass';
-      lpf.frequency.value = 1500;
-      source.connect(lpf).connect(ctx.destination);
-      source.start();
-    } catch { /* audio not available */ }
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 1800;
+      src.connect(lp).connect(ac.destination);
+      src.start();
+    } catch { /* silent */ }
   }, []);
 
   useEffect(() => {
-    const container = containerRef.current;
-    const curtainFrame = curtainFrameRef.current;
-    const stageGlow = stageGlowRef.current;
-    const logo = logoRef.current;
-    const logoInner = logoInnerRef.current;
-    const glow = glowRef.current;
-    const text = textRef.current;
-    const spotlight = spotlightRef.current;
-    const vignette = vignetteRef.current;
+    const el = {
+      container: containerRef.current,
+      leftCurtain: leftCurtainRef.current,
+      rightCurtain: rightCurtainRef.current,
+      darkness: darknessRef.current,
+      logoA: logoARef.current,
+      logoB: logoBRef.current,
+      logoFull: logoFullRef.current,
+      text: textRef.current,
+      spotlight: spotlightRef.current,
+    };
 
-    if (!container || !curtainFrame || !stageGlow || !logo || !logoInner || !glow || !text || !spotlight || !vignette) return;
+    if (Object.values(el).some(v => !v)) return;
 
     // ═══ INITIAL STATE ═══
-    // Curtain image zoomed in tight on dark center (looks like a dark void)
-    gsap.set(curtainFrame, { scale: 2.8, opacity: 0.15, filter: 'brightness(0.1) saturate(0)' });
-    gsap.set(stageGlow, { opacity: 0 });
-    gsap.set(logo, { opacity: 0, scale: 0, rotateY: -180 });
-    gsap.set(logoInner, { filter: 'brightness(0.3) saturate(0)' });
-    gsap.set(glow, { opacity: 0, scale: 0.3 });
-    gsap.set(text, { opacity: 0, clipPath: 'inset(0 100% 0 0)' });
-    gsap.set(spotlight, { opacity: 0 });
-    gsap.set(vignette, { opacity: 1 });
+    // Curtains: overlapping at center (closed position)
+    // Left curtain shifted RIGHT so its right edge overlaps center
+    // Right curtain shifted LEFT so its left edge overlaps center
+    gsap.set(el.leftCurtain, { x: '25%' });
+    gsap.set(el.rightCurtain, { x: '-25%' });
+    gsap.set(el.darkness, { opacity: 0.7 });
+    gsap.set(el.logoA, { x: -300, opacity: 0, scale: 1.3, rotation: -15 });
+    gsap.set(el.logoB, { x: 300, opacity: 0, scale: 1.3, rotation: 15 });
+    gsap.set(el.logoFull, { opacity: 0, scale: 0.95 });
+    gsap.set(el.text, { opacity: 0, clipPath: 'inset(0 100% 0 0)' });
+    gsap.set(el.spotlight, { opacity: 0 });
 
     const tl = gsap.timeline({
+      defaults: { ease: 'power3.inOut' },
       onComplete: () => {
-        if (container) container.style.pointerEvents = 'none';
-        setTimeout(() => setIsDismissed(true), 400);
+        if (el.container) el.container.style.pointerEvents = 'none';
+        setTimeout(() => setIsDismissed(true), 300);
       }
     });
 
-    // ═══ ACT 1: STAGE AWAKENS (0s → 2.5s) ═══
-    // Amber stage light slowly illuminates the void
-    tl.to(stageGlow, {
-      opacity: 0.6,
-      duration: 2.5,
-      ease: 'power1.inOut',
+    // ═══ ACT 1: DARKNESS LIFTS (0 → 1.5s) ═══
+    // Stage lights warm up
+    tl.to(el.darkness, {
+      opacity: 0.2,
+      duration: 1.5,
     }, 0);
 
-    // Curtain image begins to warm up (color returns)
-    tl.to(curtainFrame, {
-      opacity: 0.4,
-      filter: 'brightness(0.3) saturate(0.5)',
-      duration: 2,
-      ease: 'power1.in',
-    }, 0.5);
+    // ═══ ACT 2: CURTAINS PULL APART (1s → 3.5s) ═══
+    // The signature moment — halves slide to their natural "open" positions
+    // Uses power2.inOut for realistic rope-pull physics: slow start (inertia),
+    // smooth acceleration, gentle deceleration (fabric settling)
+    tl.to(el.leftCurtain, {
+      x: '0%',
+      duration: 2.5,
+      ease: 'power2.inOut',
+    }, 1);
 
-    // ═══ ACT 2: CAMERA PULLS BACK — CURTAINS REVEALED (1.5s → 4.5s) ═══
-    // The signature moment: scale pulls back from 2.8 → 1.0,
-    // revealing the full red velvet curtain frame with gold rope tassels
-    tl.to(curtainFrame, {
-      scale: 1.0,
-      opacity: 1,
-      filter: 'brightness(0.65) saturate(1.3)',
-      duration: 3,
-      ease: 'power2.out', // Starts fast (dramatic), settles gracefully
-    }, 1.5);
+    tl.to(el.rightCurtain, {
+      x: '0%',
+      duration: 2.5,
+      ease: 'power2.inOut',
+    }, 1);
 
-    // Vignette eases during reveal
-    tl.to(vignette, {
-      opacity: 0.4,
-      duration: 2,
-      ease: 'power1.out',
+    // Darkness fades as curtains open
+    tl.to(el.darkness, {
+      opacity: 0,
+      duration: 1.5,
     }, 2);
 
-    // ═══ ACT 3: LOGO ENTRANCE — CINEMATIC 3D REVEAL (3s → 5.5s) ═══
-    // Logo appears center-stage: scales up from nothing while rotating
-    // on its vertical axis — like a golden coin flipping into view
-
-    // Golden glow bloom appears first (anticipation)
-    tl.to(glow, {
-      opacity: 0.8,
-      scale: 1.2,
-      duration: 1,
-      ease: 'power2.out',
-    }, 3);
-
-    // Logo scales in with 3D rotation
-    tl.to(logo, {
+    // ═══ ACT 3: LOGO SPLIT ANIMATION (2.5s → 4.5s) ═══
+    // "A" half flies in from left with rotation
+    tl.to(el.logoA, {
+      x: 0,
       opacity: 1,
       scale: 1,
-      rotateY: 0,
-      duration: 1.8,
-      ease: 'back.out(1.4)', // Overshoots slightly then settles — Pixar style
-    }, 3.2);
+      rotation: 0,
+      duration: 1,
+      ease: 'back.out(1.7)',
+    }, 2.8);
 
-    // Logo color comes alive (from dark metallic to full gold)
-    tl.to(logoInner, {
-      filter: 'brightness(1.1) saturate(1.2)',
-      duration: 1.5,
-      ease: 'power2.out',
-    }, 3.5);
-
-    // Glow pulses once (breathing)
-    tl.to(glow, {
-      scale: 1.5,
-      opacity: 0.4,
-      duration: 0.8,
-      ease: 'sine.in',
-    }, 4.5);
-    tl.to(glow, {
-      scale: 1.0,
-      opacity: 0.6,
-      duration: 0.8,
-      ease: 'sine.out',
-    }, 5.3);
-
-    // ═══ ACT 4: "ENTERTAINMENT" SKETCH REVEAL (5s → 6.8s) ═══
-    tl.to(text, {
+    // "B" half flies in from right with rotation
+    tl.to(el.logoB, {
+      x: 0,
       opacity: 1,
-      duration: 0.15,
-    }, 5.2);
+      scale: 1,
+      rotation: 0,
+      duration: 1,
+      ease: 'back.out(1.7)',
+    }, 3.0);
 
-    tl.to(text, {
+    // At collision point: hide halves, show unified logo with a flash
+    tl.to([el.logoA, el.logoB], {
+      opacity: 0,
+      duration: 0.15,
+    }, 4.0);
+
+    tl.to(el.logoFull, {
+      opacity: 1,
+      scale: 1,
+      duration: 0.15,
+    }, 4.0);
+
+    // Logo does a subtle 3D Y-axis spin
+    tl.to(el.logoFull, {
+      rotateY: 360,
+      duration: 1.2,
+      ease: 'power2.inOut',
+    }, 4.2);
+
+    // ═══ ACT 4: "ENTERTAINMENT" SKETCH (5s → 6.5s) ═══
+    tl.to(el.text, { opacity: 1, duration: 0.1 }, 5.2);
+    tl.to(el.text, {
       clipPath: 'inset(0 0% 0 0)',
-      duration: 1.6,
+      duration: 1.3,
       ease: 'power1.inOut',
-      onStart: () => playSketchSound(),
+      onStart: () => playPenSound(),
     }, 5.3);
 
-    // ═══ ACT 5: SPOTLIGHT INTENSIFIES (6.5s → 7.5s) ═══
-    tl.to(spotlight, {
-      opacity: 0.6,
-      duration: 1,
-      ease: 'power2.out',
-    }, 6.5);
+    // ═══ ACT 5: SPOTLIGHT + FADE (6.5s → 8s) ═══
+    tl.to(el.spotlight, {
+      opacity: 0.5,
+      duration: 0.8,
+    }, 6.3);
 
-    // Brief hold — let the audience take it in
-    tl.to({}, { duration: 0.5 }, 7.5);
+    // Hold for audience appreciation
+    tl.to({}, { duration: 0.5 }, 7.1);
 
-    // ═══ ACT 6: CURTAIN CALL COMPLETE — FADE TO SHOW (8s → 9s) ═══
-    tl.to(container, {
+    // Final fade out
+    tl.to(el.container, {
       opacity: 0,
-      duration: 1,
-      ease: 'power3.inOut',
+      duration: 0.8,
       onStart: () => {
-        if (container) container.style.pointerEvents = 'none';
+        if (el.container) el.container.style.pointerEvents = 'none';
       },
-    }, 8);
+    }, 7.6);
 
     return () => { tl.kill(); };
-  }, [playSketchSound]);
+  }, [playPenSound]);
 
   if (isDismissed) return null;
 
   return (
-    <div
-      ref={containerRef}
-      className="fixed inset-0 z-[9999] overflow-hidden bg-black"
-    >
-      {/* ═══ STAGE GLOW — warm amber light from behind ═══ */}
-      <div
-        ref={stageGlowRef}
-        className="absolute inset-0 z-[1]"
-        style={{
-          background: 'radial-gradient(ellipse at 50% 40%, rgba(180,120,40,0.25) 0%, rgba(80,40,10,0.15) 30%, transparent 60%)',
-        }}
-      />
+    <div ref={containerRef} className="fixed inset-0 z-[9999] overflow-hidden bg-black">
+      {/* ═══ DARKNESS OVERLAY ═══ */}
+      <div ref={darknessRef} className="absolute inset-0 bg-black z-[5]" />
 
-      {/* ═══ THE CURTAIN IMAGE — hero-bg-2.jpg ═══
-           This IS the curtain. It already has red velvet + gold rope tassels.
-           We start zoomed in (only dark center visible) and pull back to reveal. */}
+      {/* ═══ LEFT CURTAIN HALF ═══
+           Shows the LEFT portion of the curtain image.
+           Starts shifted right (overlapping center), animates to x:0 (natural position) */}
       <div
-        ref={curtainFrameRef}
-        className="absolute inset-0 z-[2] will-change-transform"
-        style={{ transformOrigin: '50% 45%' }}
+        ref={leftCurtainRef}
+        className="absolute top-0 left-0 w-1/2 h-full z-[3] will-change-transform"
       >
+        {/* Image positioned so the LEFT half of the full image is visible */}
         <img
           src="/images/hero-bg-2.jpg"
           alt=""
           aria-hidden="true"
-          className="w-full h-full object-cover"
-          style={{ objectPosition: '50% 40%' }}
+          className="absolute top-0 left-0 w-[200%] h-full object-cover"
         />
       </div>
 
-      {/* ═══ CINEMATIC VIGNETTE ═══ */}
+      {/* ═══ RIGHT CURTAIN HALF ═══
+           Shows the RIGHT portion of the curtain image.
+           Starts shifted left (overlapping center), animates to x:0 */}
       <div
-        ref={vignetteRef}
-        className="absolute inset-0 z-[3] pointer-events-none"
-        style={{
-          boxShadow: 'inset 0 0 250px 80px rgba(0,0,0,0.9)',
-        }}
-      />
+        ref={rightCurtainRef}
+        className="absolute top-0 right-0 w-1/2 h-full z-[3] will-change-transform"
+      >
+        {/* Image positioned so the RIGHT half of the full image is visible */}
+        <img
+          src="/images/hero-bg-2.jpg"
+          alt=""
+          aria-hidden="true"
+          className="absolute top-0 right-0 w-[200%] h-full object-cover"
+        />
+      </div>
 
-      {/* ═══ SPOTLIGHT CONE from above ═══ */}
+      {/* ═══ CENTER STAGE: Spotlight ═══ */}
       <div
         ref={spotlightRef}
         className="absolute inset-0 z-[4] pointer-events-none"
         style={{
-          background: 'radial-gradient(ellipse at 50% 20%, rgba(255,220,130,0.12) 0%, rgba(255,200,100,0.04) 30%, transparent 55%)',
+          background: 'radial-gradient(ellipse at 50% 35%, rgba(255,220,130,0.15) 0%, transparent 50%)',
         }}
       />
 
       {/* ═══ CENTER STAGE: Logo + Text ═══ */}
-      <div className="absolute inset-0 z-[10] flex flex-col items-center justify-center">
+      <div className="absolute inset-0 z-[6] flex flex-col items-center justify-center pointer-events-none">
+        {/* Logo "A" half — clips left portion of logo image */}
+        <div className="relative w-40 h-40 md:w-56 md:h-56">
+          <div
+            ref={logoARef}
+            className="absolute inset-0 will-change-transform"
+            style={{ clipPath: 'inset(0 50% 0 0)' }}
+          >
+            <img
+              src="/images/AB_Logo_transparent.png"
+              alt=""
+              aria-hidden="true"
+              className="w-full h-full object-contain"
+              style={{ filter: 'drop-shadow(0 4px 20px rgba(201,168,76,0.5))' }}
+            />
+          </div>
 
-        {/* Golden glow halo behind logo */}
-        <div
-          ref={glowRef}
-          className="absolute w-64 h-64 md:w-96 md:h-96 rounded-full pointer-events-none"
-          style={{
-            background: 'radial-gradient(circle, rgba(212,175,55,0.3) 0%, rgba(180,140,40,0.1) 40%, transparent 65%)',
-            filter: 'blur(20px)',
-          }}
-        />
+          {/* Logo "B" half — clips right portion of logo image */}
+          <div
+            ref={logoBRef}
+            className="absolute inset-0 will-change-transform"
+            style={{ clipPath: 'inset(0 0 0 50%)' }}
+          >
+            <img
+              src="/images/AB_Logo_transparent.png"
+              alt=""
+              aria-hidden="true"
+              className="w-full h-full object-contain"
+              style={{ filter: 'drop-shadow(0 4px 20px rgba(201,168,76,0.5))' }}
+            />
+          </div>
 
-        {/* AB Logo — SINGLE instance, 3D entrance */}
-        <div
-          ref={logoRef}
-          className="relative w-40 h-40 md:w-56 md:h-56 lg:w-64 lg:h-64 mb-6"
-          style={{
-            perspective: '1200px',
-            transformStyle: 'preserve-3d',
-          }}
-        >
-          <img
-            ref={logoInnerRef}
-            src="/images/AB_Logo_transparent.png"
-            alt="AB Entertainment"
-            className="w-full h-full object-contain"
-            style={{
-              filter: 'drop-shadow(0 8px 30px rgba(212,175,55,0.6)) drop-shadow(0 2px 10px rgba(212,175,55,0.3))',
-            }}
-          />
+          {/* Full unified logo (shown after halves merge) */}
+          <div
+            ref={logoFullRef}
+            className="absolute inset-0"
+            style={{ perspective: '1200px', transformStyle: 'preserve-3d' }}
+          >
+            <img
+              src="/images/AB_Logo_transparent.png"
+              alt="AB Entertainment"
+              className="w-full h-full object-contain"
+              style={{ filter: 'drop-shadow(0 6px 30px rgba(201,168,76,0.6))' }}
+            />
+          </div>
         </div>
 
-        {/* "Entertainment" — elegant clip-path reveal */}
-        <div
-          ref={textRef}
-          className="relative"
-        >
+        {/* "Entertainment" text — clip-path reveal */}
+        <div ref={textRef} className="mt-4">
           <span
-            className="text-lg md:text-xl lg:text-2xl tracking-[0.45em] uppercase font-body font-light"
-            style={{
-              color: '#C9A84C',
-              textShadow: '0 0 20px rgba(201,168,76,0.4), 0 2px 8px rgba(0,0,0,0.5)',
-            }}
+            className="text-lg md:text-xl tracking-[0.4em] uppercase font-body font-light"
+            style={{ color: '#C9A84C', textShadow: '0 0 15px rgba(201,168,76,0.3)' }}
           >
             Entertainment
           </span>
         </div>
-      </div>
-
-      {/* ═══ Floating embers ═══ */}
-      <div className="absolute inset-0 z-[5] pointer-events-none overflow-hidden">
-        {Array.from({ length: 12 }, (_, i) => (
-          <div
-            key={i}
-            className="particle particle-ember"
-            style={{
-              left: `${(i * 8.5 + 5) % 100}%`,
-              bottom: `${(i * 5.2) % 25}%`,
-              width: 1.5 + (i % 3),
-              height: 1.5 + (i % 3),
-              '--duration': `${8 + (i % 4) * 2.5}s`,
-              '--delay': `${(i * 0.8) % 7}s`,
-            } as React.CSSProperties}
-          />
-        ))}
       </div>
     </div>
   );
