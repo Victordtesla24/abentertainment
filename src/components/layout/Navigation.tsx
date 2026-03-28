@@ -45,24 +45,50 @@ const mobileItemVariants = {
   },
 };
 
+/**
+ * Logo Monogram — matching eventsunleashed.com "EU" circular logo
+ * We use "AB" for AB Entertainment
+ */
+function LogoMonogram({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none">
+      <circle cx="24" cy="24" r="22" stroke="white" strokeWidth="1.5" />
+      <text
+        x="24"
+        y="28"
+        textAnchor="middle"
+        fill="white"
+        fontSize="18"
+        fontWeight="bold"
+        fontFamily="serif"
+      >
+        AB
+      </text>
+    </svg>
+  );
+}
+
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const { scrollY } = useScroll();
   const pathname = usePathname();
 
+  // Hide navigation on admin routes
+  if (pathname.startsWith('/admin')) return null;
+
   const navBg = useTransform(
     scrollY,
     [0, 80, 200],
     [
-      'rgba(6, 36, 52, 0.85)',
-      'rgba(6, 36, 52, 0.92)',
-      'rgba(6, 36, 52, 0.97)',
+      'rgba(6, 36, 52, 0)',
+      'rgba(6, 36, 52, 0.7)',
+      'rgba(6, 36, 52, 0.95)',
     ]
   );
   const navBlur = useTransform(
     scrollY,
     [0, 80, 200],
-    ['blur(4px)', 'blur(12px)', 'blur(20px)']
+    ['blur(0px)', 'blur(8px)', 'blur(16px)']
   );
 
   useEffect(() => {
@@ -73,87 +99,85 @@ export function Navigation() {
 
   return (
     <>
-      {/* Desktop Navigation */}
+      {/* ====== DESKTOP NAV — matching eventsunleashed.com ====== */}
       <motion.nav
         style={{
           backgroundColor: navBg,
           backdropFilter: navBlur,
           WebkitBackdropFilter: navBlur,
         }}
-        className="hidden md:flex fixed top-0 left-0 right-0 z-40 border-b border-[#CC8A1C]/20"
+        className="hidden md:flex fixed top-0 left-0 right-0 z-40"
       >
-        <div className="container-eu py-4 flex items-center justify-between">
-          {/* Logo */}
-          <Link href="/" className="group flex items-center gap-2">
-            <span className="text-[#CC8A1C] font-display text-xl font-bold tracking-tight group-hover:text-[#e0a83a] transition-colors duration-300">
+        <div className="container-eu py-5 flex items-center justify-between">
+          {/* Logo — monogram + text, matching EU style */}
+          <Link href="/" className="group flex items-center gap-3">
+            <LogoMonogram className="w-10 h-10 group-hover:opacity-80 transition-opacity" />
+            <span className="text-white font-body text-xs uppercase tracking-[0.2em] font-semibold">
               AB Entertainment
             </span>
           </Link>
 
-          {/* Center Links */}
+          {/* Center Links — WHITE UPPERCASE like eventsunleashed */}
           <div className="flex items-center gap-8">
             {NAVIGATION.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`relative py-1 text-sm font-medium font-body transition-colors duration-300 group ${
+                className={`text-xs uppercase tracking-[0.15em] font-body font-medium transition-colors duration-300 ${
                   isActive(link.href)
                     ? 'text-[#CC8A1C]'
-                    : 'text-[#7E7180] hover:text-[#CC8A1C]'
+                    : 'text-white/80 hover:text-white'
                 }`}
               >
                 {link.label}
-                <span
-                  className={`absolute bottom-0 left-0 h-px bg-[#CC8A1C] transition-all duration-300 ease-out ${
-                    isActive(link.href)
-                      ? 'w-full'
-                      : 'w-0 group-hover:w-full'
-                  }`}
-                />
               </Link>
             ))}
           </div>
 
-          {/* Right: Book Now CTA */}
-          <Link
-            href="/contact"
-            className="btn-accent px-6 py-2 text-sm font-semibold"
-          >
-            Book Now
-          </Link>
+          {/* Right: "Contact Us" white bordered button — matching EU exactly */}
+          <div className="flex items-center gap-3">
+            <Link
+              href="/contact"
+              className="px-6 py-2.5 border border-white/60 text-white text-xs uppercase tracking-[0.15em] font-body font-medium hover:bg-white hover:text-[#062434] transition-all duration-300"
+            >
+              Contact Us
+            </Link>
+            {/* Arrow icon next to Contact Us — matching EU */}
+            <Link
+              href="/contact"
+              className="w-10 h-10 flex items-center justify-center border border-white/60 text-white hover:bg-white hover:text-[#062434] transition-all duration-300"
+              aria-label="Contact"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17L17 7M17 7H7M17 7v10" />
+              </svg>
+            </Link>
+          </div>
         </div>
       </motion.nav>
 
-      {/* Mobile Navigation */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-[#062434]/95 backdrop-blur-md border-b border-[#CC8A1C]/20">
+      {/* ====== MOBILE NAV ====== */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-[#062434]/95 backdrop-blur-md">
         <div className="px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-[#CC8A1C] font-display text-lg font-bold">
+            <LogoMonogram className="w-8 h-8" />
+            <span className="text-white font-body text-xs uppercase tracking-[0.15em] font-semibold">
               AB Entertainment
             </span>
           </Link>
 
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="p-2 text-[#CC8A1C]"
+            className="p-2 text-white"
             aria-label="Toggle menu"
             aria-expanded={isOpen}
           >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d={
-                  isOpen
-                    ? 'M6 18L18 6M6 6l12 12'
-                    : 'M4 6h16M4 12h16M4 18h16'
-                }
+                d={isOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'}
               />
             </svg>
           </button>
@@ -166,33 +190,29 @@ export function Navigation() {
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="border-t border-[#CC8A1C]/20 overflow-hidden"
+              className="border-t border-white/10 overflow-hidden"
             >
               <div className="px-4 py-6 space-y-1">
                 {NAVIGATION.map((link) => (
                   <motion.div key={link.href} variants={mobileItemVariants}>
                     <Link
                       href={link.href}
-                      className={`block py-3 px-2 text-sm font-medium font-body transition-all duration-200 ${
+                      className={`block py-3 px-2 text-sm uppercase tracking-wider font-body transition-all duration-200 ${
                         isActive(link.href)
-                          ? 'text-[#CC8A1C] bg-[#CC8A1C]/5'
-                          : 'text-[#7E7180] hover:text-[#CC8A1C] hover:bg-[#CC8A1C]/5'
+                          ? 'text-[#CC8A1C]'
+                          : 'text-white/70 hover:text-white'
                       }`}
                     >
                       {link.label}
                     </Link>
                   </motion.div>
                 ))}
-
-                <motion.div
-                  variants={mobileItemVariants}
-                  className="border-t border-[#CC8A1C]/20 pt-4 mt-4"
-                >
+                <motion.div variants={mobileItemVariants} className="pt-4 mt-4 border-t border-white/10">
                   <Link
                     href="/contact"
-                    className="block w-full px-4 py-3 btn-accent text-sm text-center font-bold"
+                    className="block w-full px-4 py-3 border border-white/60 text-white text-sm text-center uppercase tracking-wider font-body"
                   >
-                    Book Now
+                    Contact Us
                   </Link>
                 </motion.div>
               </div>
@@ -201,8 +221,7 @@ export function Navigation() {
         </AnimatePresence>
       </div>
 
-      {/* Spacer for fixed nav */}
-      <div className="h-16 md:h-[72px]" />
+      {/* NO spacer — hero goes behind nav (transparent nav over hero, like EU) */}
     </>
   );
 }

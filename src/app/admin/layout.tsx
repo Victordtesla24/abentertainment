@@ -5,12 +5,12 @@ interface AdminLayoutProps {
 }
 
 /**
- * Admin layout — strips public Navigation and Footer.
- * Auth is handled at the page level (admin/page.tsx redirects to /admin/login).
+ * Admin layout — hides public Navigation and Footer.
+ * Uses data attribute to signal the root layout's client components.
  */
 export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
-    <div className="min-h-screen bg-[#0a1628]">
+    <div data-admin-layout="true" className="min-h-screen bg-[#0a1628] admin-layout">
       {children}
     </div>
   );

@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { CinematicHero } from '@/components/sections/CinematicHero';
+import { IntroSection } from '@/components/sections/IntroSection';
 import EventsShowcase from '@/components/sections/EventsShowcase';
 import { VisionSection } from '@/components/sections/VisionSection';
 import { TestimonialsSection } from '@/components/sections/TestimonialsSection';
@@ -34,6 +35,8 @@ export default async function Home() {
   return (
     <>
       <CinematicHero upcomingEvents={upcomingEvents} />
+      {/* Cream intro section — matching EU's below-hero text area */}
+      <IntroSection />
       <VisionSection />
       <EventsShowcase events={allEvents} />
       <TestimonialsSection />

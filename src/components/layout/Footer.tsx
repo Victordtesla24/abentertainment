@@ -2,9 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { SITE_CONFIG, NAVIGATION } from '@/lib/constants';
 
 export default function Footer() {
+  const pathname = usePathname();
+  // Hide footer on admin routes
+  if (pathname.startsWith('/admin')) return null;
   const [email, setEmail] = useState('');
   const [subscribeStatus, setSubscribeStatus] = useState<
     'idle' | 'loading' | 'success' | 'error'

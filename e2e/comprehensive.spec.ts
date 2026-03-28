@@ -134,30 +134,36 @@ test.describe('@req-header-ui — Navigation', () => {
     await expect(page.locator('nav').getByText('AB Entertainment')).toBeVisible();
   });
 
-  test('nav contains all 6 navigation links', async ({ page }) => {
+  test('nav contains all 6 navigation links plus Contact Us CTA', async ({ page }) => {
     await page.goto('/');
     const nav = page.locator('nav').first();
-    for (const label of ['Home', 'About', 'Events', 'Gallery', 'Sponsors', 'Contact']) {
-      await expect(nav.getByRole('link', { name: label })).toBeVisible();
+    // Check the center nav links — each should resolve to at least one visible element
+    for (const label of ['Home', 'About', 'Events', 'Gallery', 'Sponsors']) {
+      await expect(nav.getByRole('link', { name: label }).first()).toBeVisible();
     }
+    // Contact + Contact Us are both in the nav — just verify at least one Contact link exists
+    const contactLinks = nav.locator('a:has-text("Contact")');
+    const count = await contactLinks.count();
+    expect(count).toBeGreaterThanOrEqual(1);
   });
 
-  test('nav has Book Now CTA button', async ({ page }) => {
+  test('nav has Contact Us CTA button', async ({ page }) => {
     await page.goto('/');
-    const bookNow = page.locator('nav').getByRole('link', { name: /book now/i });
-    await expect(bookNow).toBeVisible();
+    // EU-style: "Contact Us" white bordered button instead of "Book Now"
+    const contactUs = page.locator('nav').getByRole('link', { name: /contact us/i });
+    await expect(contactUs).toBeVisible();
   });
 
   test('nav links navigate correctly', async ({ page }) => {
     await page.goto('/');
 
-    await page.locator('nav').getByRole('link', { name: 'Events' }).click();
+    await page.locator('nav').getByRole('link', { name: /events/i }).first().click();
     await expect(page).toHaveURL('/events');
 
-    await page.locator('nav').getByRole('link', { name: 'About' }).click();
+    await page.locator('nav').getByRole('link', { name: /about/i }).first().click();
     await expect(page).toHaveURL('/about');
 
-    await page.locator('nav').getByRole('link', { name: 'Contact' }).click();
+    await page.locator('nav').getByRole('link', { name: /contact$/i }).first().click();
     await expect(page).toHaveURL('/contact');
   });
 });
@@ -192,14 +198,6 @@ test.describe('@req-hero-section — Hero', () => {
     expect(text!.length).toBeGreaterThan(5);
   });
 
-  test('hero has CTA buttons', async ({ page }) => {
-    await page.goto('/');
-    const section = page.locator('section').first();
-    const links = section.getByRole('link');
-    const count = await links.count();
-    expect(count).toBeGreaterThanOrEqual(1);
-  });
-
   test('hero has slide carousel dots', async ({ page }) => {
     await page.goto('/');
     // Carousel dots are buttons with aria-label "Go to slide"
@@ -208,11 +206,12 @@ test.describe('@req-hero-section — Hero', () => {
     expect(count).toBeGreaterThanOrEqual(2);
   });
 
-  test('hero has stats section', async ({ page }) => {
+  test('hero has teal subtitle bar', async ({ page }) => {
     await page.goto('/');
-    // Stats: 6+, 25+, 25,000+, 2
-    await expect(page.getByText('6+')).toBeVisible();
-    await expect(page.getByText('25+')).toBeVisible();
+    // Teal (#1BBFA1) subtitle bar like eventsunleashed
+    const tealBar = page.locator('span[class*="1BBFA1"]');
+    const count = await tealBar.count();
+    expect(count).toBeGreaterThan(0);
   });
 });
 

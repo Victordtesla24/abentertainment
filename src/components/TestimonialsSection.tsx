@@ -103,7 +103,7 @@ export function TestimonialsSection() {
   const current = TESTIMONIALS[currentIndex];
 
   return (
-    <section className="relative py-24 bg-gradient-to-b from-[#062434] to-[#FDF8F1]/5 overflow-hidden">
+    <section className="relative py-24 bg-[#FDF8F1] overflow-hidden">
       <div className="container-eu">
         {/* Section header */}
         <motion.div
@@ -113,7 +113,7 @@ export function TestimonialsSection() {
           transition={{ duration: 0.8, ease: [0.25, 1, 0.5, 1] }}
           viewport={{ once: true }}
         >
-          <h2 className="text-4xl md:text-5xl font-display font-bold text-white mb-4">
+          <h2 className="text-4xl md:text-5xl font-display font-bold text-[#062434] mb-4">
             What People <span className="text-[#CC8A1C]">Say</span>
           </h2>
           <p className="text-[#7E7180] text-lg font-body">
@@ -164,7 +164,7 @@ export function TestimonialsSection() {
                       </span>
                     </div>
                     <div>
-                      <p className="text-white font-semibold font-body">
+                      <p className="text-[#062434] font-semibold font-body">
                         {current.name}
                       </p>
                       <p className="text-[#7E7180] text-sm font-body">
@@ -179,7 +179,7 @@ export function TestimonialsSection() {
             {/* Prev / Next */}
             <button
               onClick={() => paginate(-1)}
-              className="absolute -left-4 md:-left-12 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center bg-[#CC8A1C] text-white hover:bg-[#e0a83a] transition-colors"
+              className="absolute -left-4 md:-left-12 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center bg-[#CC8A1C] text-[#062434] hover:bg-[#e0a83a] transition-colors"
               aria-label="Previous testimonial"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -188,7 +188,7 @@ export function TestimonialsSection() {
             </button>
             <button
               onClick={() => paginate(1)}
-              className="absolute -right-4 md:-right-12 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center bg-[#CC8A1C] text-white hover:bg-[#e0a83a] transition-colors"
+              className="absolute -right-4 md:-right-12 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center bg-[#CC8A1C] text-[#062434] hover:bg-[#e0a83a] transition-colors"
               aria-label="Next testimonial"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
