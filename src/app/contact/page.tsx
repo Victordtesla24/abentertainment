@@ -50,7 +50,7 @@ export default function ContactPage() {
   };
 
   return (
-    <main className="bg-[#062434]">
+    <main className="bg-[#0A0A0A]">
       {/* Header */}
       <section className="py-24 md:py-32">
         <div className="container-eu">
@@ -59,13 +59,13 @@ export default function ContactPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: CINEMATIC_EASE }}
           >
-            <span className="inline-block px-4 py-2 bg-[#CC8A1C] text-white text-xs font-semibold font-body uppercase tracking-[0.2em] mb-6">
+            <span className="inline-block px-4 py-2 bg-[#C9A84C] text-white text-xs font-semibold font-body uppercase tracking-[0.2em] mb-6">
               Contact
             </span>
             <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4">
-              Get in <span className="text-[#CC8A1C]">Touch</span>
+              Get in <span className="text-[#C9A84C]">Touch</span>
             </h1>
-            <p className="text-[#7E7180] text-lg font-body max-w-2xl">
+            <p className="text-[rgba(255,255,255,0.4)] text-lg font-body max-w-2xl">
               Whether you&apos;re interested in attending an event, exploring
               sponsorship opportunities, or simply want to connect -- we&apos;d love
               to hear from you.
@@ -86,10 +86,10 @@ export default function ContactPage() {
               transition={{ duration: 0.8, delay: 0.1, ease: CINEMATIC_EASE }}
             >
               {status === 'success' ? (
-                <div className="bg-[#CC8A1C]/10 border border-[#CC8A1C]/30 p-12 text-center">
-                  <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center border border-[#CC8A1C]/30">
+                <div className="bg-[#C9A84C]/10 border border-[#C9A84C]/30 p-12 text-center">
+                  <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center border border-[#C9A84C]/30">
                     <svg
-                      className="w-8 h-8 text-[#CC8A1C]"
+                      className="w-8 h-8 text-[#C9A84C]"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -102,16 +102,16 @@ export default function ContactPage() {
                       />
                     </svg>
                   </div>
-                  <h2 className="text-2xl font-display text-[#CC8A1C] mb-4">
+                  <h2 className="text-2xl font-display text-[#C9A84C] mb-4">
                     Message Sent
                   </h2>
-                  <p className="text-[#FDF8F1] text-lg font-body mb-8">
+                  <p className="text-[white] text-lg font-body mb-8">
                     Thank you for reaching out. Our team will respond within 24
                     hours.
                   </p>
                   <button
                     onClick={() => setStatus('idle')}
-                    className="px-6 py-3 border border-[#CC8A1C] text-[#CC8A1C] font-semibold hover:bg-[#CC8A1C] hover:text-white transition-all duration-300"
+                    className="px-6 py-3 border border-[#C9A84C] text-[#C9A84C] font-semibold hover:bg-[#C9A84C] hover:text-white transition-all duration-300"
                   >
                     Send Another Message
                   </button>
@@ -122,7 +122,7 @@ export default function ContactPage() {
                     <div>
                       <label
                         htmlFor="contact-name"
-                        className="block text-xs font-medium text-[#CC8A1C] mb-2 uppercase tracking-wider font-body"
+                        className="block text-xs font-medium text-[#C9A84C] mb-2 uppercase tracking-wider font-body"
                       >
                         Full Name
                       </label>
@@ -138,14 +138,14 @@ export default function ContactPage() {
                           }))
                         }
                         disabled={status === 'submitting'}
-                        className="w-full px-4 py-3 bg-[#0a3a52]/50 border border-[#CC8A1C]/20 text-white font-body placeholder-[#7E7180] focus:outline-none focus:border-[#CC8A1C] transition-all duration-300 disabled:opacity-50"
+                        className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-[rgba(255,255,255,0.4)] focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
                         placeholder="Your name"
                       />
                     </div>
                     <div>
                       <label
                         htmlFor="contact-email"
-                        className="block text-xs font-medium text-[#CC8A1C] mb-2 uppercase tracking-wider font-body"
+                        className="block text-xs font-medium text-[#C9A84C] mb-2 uppercase tracking-wider font-body"
                       >
                         Email Address
                       </label>
@@ -161,7 +161,7 @@ export default function ContactPage() {
                           }))
                         }
                         disabled={status === 'submitting'}
-                        className="w-full px-4 py-3 bg-[#0a3a52]/50 border border-[#CC8A1C]/20 text-white font-body placeholder-[#7E7180] focus:outline-none focus:border-[#CC8A1C] transition-all duration-300 disabled:opacity-50"
+                        className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-[rgba(255,255,255,0.4)] focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
                         placeholder="your@email.com"
                       />
                     </div>
@@ -171,7 +171,7 @@ export default function ContactPage() {
                     <div>
                       <label
                         htmlFor="contact-phone"
-                        className="block text-xs font-medium text-[#CC8A1C] mb-2 uppercase tracking-wider font-body"
+                        className="block text-xs font-medium text-[#C9A84C] mb-2 uppercase tracking-wider font-body"
                       >
                         Phone (optional)
                       </label>
@@ -186,14 +186,14 @@ export default function ContactPage() {
                           }))
                         }
                         disabled={status === 'submitting'}
-                        className="w-full px-4 py-3 bg-[#0a3a52]/50 border border-[#CC8A1C]/20 text-white font-body placeholder-[#7E7180] focus:outline-none focus:border-[#CC8A1C] transition-all duration-300 disabled:opacity-50"
+                        className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-[rgba(255,255,255,0.4)] focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
                         placeholder="Your phone number"
                       />
                     </div>
                     <div>
                       <label
                         htmlFor="contact-subject"
-                        className="block text-xs font-medium text-[#CC8A1C] mb-2 uppercase tracking-wider font-body"
+                        className="block text-xs font-medium text-[#C9A84C] mb-2 uppercase tracking-wider font-body"
                       >
                         Subject
                       </label>
@@ -207,7 +207,7 @@ export default function ContactPage() {
                           }))
                         }
                         disabled={status === 'submitting'}
-                        className="w-full px-4 py-3 bg-[#0a3a52]/50 border border-[#CC8A1C]/20 text-white font-body focus:outline-none focus:border-[#CC8A1C] transition-all duration-300 disabled:opacity-50"
+                        className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
                       >
                         <option value="">Select a topic</option>
                         <option value="event-inquiry">Event Inquiry</option>
@@ -222,7 +222,7 @@ export default function ContactPage() {
                   <div>
                     <label
                       htmlFor="contact-message"
-                      className="block text-xs font-medium text-[#CC8A1C] mb-2 uppercase tracking-wider font-body"
+                      className="block text-xs font-medium text-[#C9A84C] mb-2 uppercase tracking-wider font-body"
                     >
                       Message
                     </label>
@@ -238,7 +238,7 @@ export default function ContactPage() {
                         }))
                       }
                       disabled={status === 'submitting'}
-                      className="w-full px-4 py-3 bg-[#0a3a52]/50 border border-[#CC8A1C]/20 text-white font-body placeholder-[#7E7180] focus:outline-none focus:border-[#CC8A1C] transition-all duration-300 resize-vertical disabled:opacity-50"
+                      className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-[rgba(255,255,255,0.4)] focus:outline-none focus:border-[#C9A84C] transition-all duration-300 resize-vertical disabled:opacity-50"
                       placeholder="Tell us about your inquiry..."
                     />
                   </div>
@@ -269,40 +269,40 @@ export default function ContactPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.2, ease: CINEMATIC_EASE }}
             >
-              <div className="bg-[#0a3a52]/40 border border-[#CC8A1C]/10 p-8 space-y-6">
-                <h3 className="text-xl font-display text-[#CC8A1C] mb-4">
+              <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-8 space-y-6">
+                <h3 className="text-xl font-display text-[#C9A84C] mb-4">
                   Contact Details
                 </h3>
 
                 <div>
-                  <p className="text-xs text-[#CC8A1C]/60 uppercase tracking-[0.2em] mb-1 font-body">
+                  <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">
                     Phone
                   </p>
                   <a
                     href={`tel:${SITE_CONFIG.contact.phone}`}
-                    className="text-[#FDF8F1] hover:text-[#CC8A1C] transition-colors font-body font-medium"
+                    className="text-[white] hover:text-[#C9A84C] transition-colors font-body font-medium"
                   >
                     {SITE_CONFIG.contact.phone}
                   </a>
                 </div>
 
                 <div>
-                  <p className="text-xs text-[#CC8A1C]/60 uppercase tracking-[0.2em] mb-1 font-body">
+                  <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">
                     Email
                   </p>
                   <a
                     href={`mailto:${SITE_CONFIG.contact.email}`}
-                    className="text-[#FDF8F1] hover:text-[#CC8A1C] transition-colors font-body font-medium"
+                    className="text-[white] hover:text-[#C9A84C] transition-colors font-body font-medium"
                   >
                     {SITE_CONFIG.contact.email}
                   </a>
                 </div>
 
                 <div>
-                  <p className="text-xs text-[#CC8A1C]/60 uppercase tracking-[0.2em] mb-1 font-body">
+                  <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">
                     Location
                   </p>
-                  <address className="not-italic text-[#FDF8F1] leading-relaxed font-body">
+                  <address className="not-italic text-[white] leading-relaxed font-body">
                     {SITE_CONFIG.contact.address.city},{' '}
                     {SITE_CONFIG.contact.address.state}
                     <br />
@@ -311,28 +311,28 @@ export default function ContactPage() {
                 </div>
               </div>
 
-              <div className="bg-[#0a3a52]/40 border border-[#CC8A1C]/10 p-8">
-                <h3 className="text-xl font-display text-[#CC8A1C] mb-4">
+              <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-8">
+                <h3 className="text-xl font-display text-[#C9A84C] mb-4">
                   Office Hours
                 </h3>
                 <div className="space-y-2 text-sm font-body">
                   <div className="flex justify-between">
-                    <span className="text-[#7E7180]">Monday - Friday</span>
-                    <span className="text-[#FDF8F1]">9:00 AM - 6:00 PM</span>
+                    <span className="text-[rgba(255,255,255,0.4)]">Monday - Friday</span>
+                    <span className="text-[white]">9:00 AM - 6:00 PM</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#7E7180]">Saturday</span>
-                    <span className="text-[#FDF8F1]">10:00 AM - 4:00 PM</span>
+                    <span className="text-[rgba(255,255,255,0.4)]">Saturday</span>
+                    <span className="text-[white]">10:00 AM - 4:00 PM</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#7E7180]">Sunday</span>
-                    <span className="text-[#FDF8F1]">Closed</span>
+                    <span className="text-[rgba(255,255,255,0.4)]">Sunday</span>
+                    <span className="text-[white]">Closed</span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-[#0a3a52]/40 border border-[#CC8A1C]/10 p-8">
-                <h3 className="text-xl font-display text-[#CC8A1C] mb-4">
+              <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-8">
+                <h3 className="text-xl font-display text-[#C9A84C] mb-4">
                   Follow Us
                 </h3>
                 <div className="flex gap-3">
@@ -340,7 +340,7 @@ export default function ContactPage() {
                     href={SITE_CONFIG.social.instagram}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-10 h-10 flex items-center justify-center border border-[#CC8A1C]/20 text-[#CC8A1C] hover:bg-[#CC8A1C] hover:text-white transition-all duration-300"
+                    className="w-10 h-10 flex items-center justify-center border border-[#C9A84C]/20 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-white transition-all duration-300"
                     aria-label="Instagram"
                   >
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -351,7 +351,7 @@ export default function ContactPage() {
                     href={SITE_CONFIG.social.facebook}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-10 h-10 flex items-center justify-center border border-[#CC8A1C]/20 text-[#CC8A1C] hover:bg-[#CC8A1C] hover:text-white transition-all duration-300"
+                    className="w-10 h-10 flex items-center justify-center border border-[#C9A84C]/20 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-white transition-all duration-300"
                     aria-label="Facebook"
                   >
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">

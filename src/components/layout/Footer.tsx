@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { SITE_CONFIG, NAVIGATION } from '@/lib/constants';
 
 export default function Footer() {
   const pathname = usePathname();
-  // Hide footer on admin routes
   if (pathname.startsWith('/admin')) return null;
   const [email, setEmail] = useState('');
   const [subscribeStatus, setSubscribeStatus] = useState<
@@ -51,47 +51,49 @@ export default function Footer() {
   };
 
   return (
-    <footer className="bg-[#062434] border-t border-[#CC8A1C]/10">
+    <footer className="bg-[#0A0A0A] border-t border-[#C9A84C]/10">
       {/* Newsletter */}
-      <div className="border-b border-[#CC8A1C]/10">
-        <div className="container-eu py-12">
-          <div className="max-w-2xl mx-auto text-center mb-8">
-            <h3 className="text-2xl font-display text-[#CC8A1C] mb-2">
-              Stay Updated
-            </h3>
-            <p className="text-[#7E7180] font-body text-sm">
-              Subscribe for exclusive event updates and cultural insights.
-            </p>
+      <div className="border-b border-[#C9A84C]/10">
+        <div className="container-eu py-14">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="text-center md:text-left">
+              <h3 className="text-2xl font-display text-white mb-1">
+                Stay <span className="text-[#C9A84C]">Updated</span>
+              </h3>
+              <p className="text-white/40 font-body text-sm">
+                Subscribe for exclusive event updates and cultural insights.
+              </p>
+            </div>
+
+            <form
+              onSubmit={handleNewsletterSubmit}
+              className="flex flex-col sm:flex-row gap-3 w-full md:w-auto"
+            >
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                disabled={subscribeStatus === 'loading'}
+                className="flex-1 md:w-72 px-4 py-3 bg-white/5 border border-[#C9A84C]/15 text-white font-body text-sm placeholder-white/30 focus:outline-none focus:border-[#C9A84C]/50 transition-all duration-300 disabled:opacity-50"
+                required
+              />
+              <button
+                type="submit"
+                disabled={subscribeStatus === 'loading'}
+                className="px-6 py-3 bg-[#C9A84C] text-black text-sm font-semibold font-body uppercase tracking-wider hover:bg-[#D4B65C] transition-all duration-300 disabled:opacity-50"
+              >
+                {subscribeStatus === 'loading'
+                  ? 'Subscribing...'
+                  : subscribeStatus === 'success'
+                    ? 'Subscribed!'
+                    : 'Subscribe'}
+              </button>
+            </form>
           </div>
 
-          <form
-            onSubmit={handleNewsletterSubmit}
-            className="max-w-md mx-auto flex flex-col sm:flex-row gap-3"
-          >
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              disabled={subscribeStatus === 'loading'}
-              className="flex-1 px-4 py-3 bg-[#0a3a52]/50 border border-[#CC8A1C]/20 text-white font-body text-sm placeholder-[#7E7180] focus:outline-none focus:border-[#CC8A1C] transition-all duration-300 disabled:opacity-50"
-              required
-            />
-            <button
-              type="submit"
-              disabled={subscribeStatus === 'loading'}
-              className="btn-accent px-6 py-3 text-sm font-semibold disabled:opacity-50"
-            >
-              {subscribeStatus === 'loading'
-                ? 'Subscribing...'
-                : subscribeStatus === 'success'
-                  ? 'Subscribed!'
-                  : 'Subscribe'}
-            </button>
-          </form>
-
           {subscribeStatus === 'success' && (
-            <p className="text-center text-[#1BBFA1] text-sm mt-4 font-body">
+            <p className="text-center md:text-right text-[#C9A84C] text-sm mt-3 font-body">
               Thank you for subscribing!
             </p>
           )}
@@ -101,14 +103,31 @@ export default function Footer() {
       {/* Main footer grid */}
       <div className="container-eu py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
-          {/* Company info */}
+          {/* Company info with logo */}
           <div>
-            <h2 className="text-xl font-display text-[#CC8A1C] mb-3">
-              {SITE_CONFIG.name}
-            </h2>
-            <p className="text-[#7E7180] font-body text-sm mb-6 leading-relaxed">
-              {SITE_CONFIG.tagline}. Melbourne&apos;s premier Indian and Marathi
-              cultural entertainment company.
+            <div className="flex items-center gap-3 mb-5">
+              <div className="relative w-14 h-14">
+                <Image
+                  src="/images/AB_Logo_4.png"
+                  alt="AB Entertainment"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <div>
+                <h2 className="text-lg font-display text-white font-semibold leading-tight">
+                  {SITE_CONFIG.name}
+                </h2>
+                <p className="text-[#C9A84C]/60 text-[10px] uppercase tracking-[0.15em] font-body">
+                  Experience events like no other
+                </p>
+              </div>
+            </div>
+            <p className="text-white/35 font-body text-sm mb-6 leading-relaxed">
+              AB Entertainment where every detail is meticulously crafted to
+              create unforgettable experiences. With a passion for perfection
+              and a commitment to excellence, we specialize in bringing your
+              visions to life.
             </p>
 
             {/* Social icons */}
@@ -117,7 +136,7 @@ export default function Footer() {
                 href={SITE_CONFIG.social.instagram}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-10 h-10 flex items-center justify-center border border-[#CC8A1C]/20 text-[#CC8A1C] hover:bg-[#CC8A1C] hover:text-white transition-all duration-300"
+                className="w-10 h-10 flex items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-300"
                 aria-label="Follow us on Instagram"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -128,7 +147,7 @@ export default function Footer() {
                 href={SITE_CONFIG.social.facebook}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-10 h-10 flex items-center justify-center border border-[#CC8A1C]/20 text-[#CC8A1C] hover:bg-[#CC8A1C] hover:text-white transition-all duration-300"
+                className="w-10 h-10 flex items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-300"
                 aria-label="Follow us on Facebook"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -141,7 +160,7 @@ export default function Footer() {
           {/* Link columns */}
           {Object.entries(footerColumns).map(([heading, links]) => (
             <div key={heading}>
-              <h3 className="text-sm font-semibold text-[#CC8A1C] uppercase tracking-wider font-body mb-4 pb-2 border-b border-[#CC8A1C]/10">
+              <h3 className="text-xs font-semibold text-[#C9A84C] uppercase tracking-[0.2em] font-body mb-5 pb-3 border-b border-[#C9A84C]/10">
                 {heading}
               </h3>
               <ul className="space-y-3">
@@ -149,7 +168,7 @@ export default function Footer() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="text-[#7E7180] hover:text-[#CC8A1C] transition-colors duration-300 text-sm font-body"
+                      className="text-white/35 hover:text-[#C9A84C] transition-colors duration-300 text-sm font-body"
                     >
                       {link.label}
                     </Link>
@@ -162,11 +181,13 @@ export default function Footer() {
       </div>
 
       {/* Copyright */}
-      <div className="border-t border-[#CC8A1C]/10">
-        <div className="container-eu py-6 text-center">
-          <p className="text-[#7E7180] text-xs font-body">
+      <div className="border-t border-[#C9A84C]/10">
+        <div className="container-eu py-6 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p className="text-white/25 text-xs font-body">
             &copy; {currentYear} {SITE_CONFIG.name}. All rights reserved.
-            Crafted in Melbourne, Australia.
+          </p>
+          <p className="text-white/20 text-xs font-body">
+            Crafted with passion in Melbourne, Australia
           </p>
         </div>
       </div>

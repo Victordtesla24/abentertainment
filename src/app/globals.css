@@ -1,26 +1,26 @@
 @import 'tailwindcss';
 
 /**
- * eventsunleashed.com color palette:
- *   Primary:   #062434 (deep navy)
- *   Secondary: #1BBFA1 (teal)
- *   Accent:    #CC8A1C (gold)
- *   Text:      #7E7180 (muted gray)
- *   Cream:     #FDF8F1
+ * AB Entertainment color palette:
+ *   Primary:   #0A0A0A (rich black)
+ *   Gold:      #C9A84C (signature gold)
+ *   Gold Light:#D4B65C
+ *   Text:      rgba(255,255,255,0.5)
+ *   Surface:   #111111
  */
 @theme {
-  --color-primary: #062434;
-  --color-primary-light: #0a3a52;
-  --color-secondary: #1BBFA1;
-  --color-secondary-dark: #15997f;
-  --color-accent: #CC8A1C;
-  --color-accent-light: #e0a83a;
-  --color-text-muted: #7E7180;
+  --color-primary: #0A0A0A;
+  --color-primary-light: #1A1A1A;
+  --color-secondary: #C9A84C;
+  --color-secondary-dark: #B0923F;
+  --color-accent: #C9A84C;
+  --color-accent-light: #D4B65C;
+  --color-text-muted: rgba(255,255,255,0.4);
   --color-cream: #FDF8F1;
   --color-white: #FFFFFF;
   --color-gray-light: #CFCFCF;
   --color-gray: #A6A6A6;
-  --color-overlay: rgba(6, 36, 52, 0.75);
+  --color-overlay: rgba(0, 0, 0, 0.75);
 
   --font-display: var(--font-display), 'Georgia', serif;
   --font-body: var(--font-body), 'Helvetica Neue', sans-serif;
@@ -37,33 +37,33 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Custom scrollbar — deep navy theme */
+/* Custom scrollbar — dark with gold accent */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #062434;
+  background: #0A0A0A;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(204, 138, 28, 0.3);
-  border-radius: 4px;
+  background: rgba(201, 168, 76, 0.25);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(204, 138, 28, 0.5);
+  background: rgba(201, 168, 76, 0.45);
 }
 
 /* Selection — gold accent */
 ::selection {
-  background: rgba(204, 138, 28, 0.3);
+  background: rgba(201, 168, 76, 0.3);
   color: #FDF8F1;
 }
 
-/* Focus styles — gold accent */
+/* Focus styles — gold */
 :focus-visible {
-  outline: 2px solid #CC8A1C;
+  outline: 2px solid #C9A84C;
   outline-offset: 2px;
 }
 
@@ -80,21 +80,12 @@ body {
   border-width: 0;
 }
 
-/* Prose overrides for dark navy theme */
+/* Prose overrides for dark theme */
 .prose-invert {
   --tw-prose-body: #FDF8F1;
-  --tw-prose-headings: #CC8A1C;
-  --tw-prose-links: #1BBFA1;
+  --tw-prose-headings: #C9A84C;
+  --tw-prose-links: #C9A84C;
   --tw-prose-bold: #FDF8F1;
-}
-
-/* eventsunleashed-style gradient overlay — navy with gold transition */
-.cinematic-overlay {
-  background: linear-gradient(
-    180deg,
-    var(--color-primary) 86%,
-    var(--color-cream) 100%
-  );
 }
 
 /* Gold shimmer animation for premium elements */
@@ -110,11 +101,11 @@ body {
 .gold-shimmer {
   background: linear-gradient(
     90deg,
-    #CC8A1C 0%,
-    #e0a83a 25%,
-    #CC8A1C 50%,
-    #a87015 75%,
-    #CC8A1C 100%
+    #C9A84C 0%,
+    #D4B65C 25%,
+    #C9A84C 50%,
+    #B0923F 75%,
+    #C9A84C 100%
   );
   background-size: 200% auto;
   animation: goldShimmer 4s linear infinite;
@@ -123,82 +114,21 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
-/* Page transition background — matching eventsunleashed */
-.page-transition {
-  background-color: #FFBC7D;
-}
-
-/* Ember glow effect for particles */
-@keyframes emberGlow {
-  0%, 100% {
-    opacity: 0.3;
-    filter: blur(0px);
-  }
-  50% {
-    opacity: 1;
-    filter: blur(1px);
-  }
-}
-
-/* Cinematic letterbox bars */
-.letterbox::before,
-.letterbox::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 8vh;
-  background: #000;
-  z-index: 20;
-  pointer-events: none;
-}
-
-.letterbox::before {
-  top: 0;
-}
-
-.letterbox::after {
-  bottom: 0;
-}
-
-/* Curtain reveal animation */
-@keyframes curtainRevealLeft {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-100%);
-  }
-}
-
-@keyframes curtainRevealRight {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(100%);
-  }
-}
-
-/* Vignette overlay */
-.vignette {
-  box-shadow: inset 0 0 150px rgba(6, 36, 52, 0.7);
-}
-
-/* eventsunleashed-style sharp button (no border-radius) */
+/* Primary button — gold background, black text */
 .btn-accent {
-  background-color: #CC8A1C;
-  color: #FFFFFF;
+  background-color: #C9A84C;
+  color: #000000;
   font-weight: 600;
-  letter-spacing: -0.01rem;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: background-color 0.3s ease, color 0.3s ease, transform 0.2s ease;
 }
 
 .btn-accent:hover {
-  background-color: #e0a83a;
+  background-color: #D4B65C;
 }
 
-/* Section container — matches eventsunleashed 85% max-width */
+/* Section container — 85% max-width for cinematic spacing */
 .container-eu {
   width: 85%;
   max-width: 1400px;
@@ -214,8 +144,13 @@ body {
 
 @media (max-width: 768px) {
   .container-eu {
-    width: 95%;
+    width: 92%;
   }
+}
+
+/* Vignette overlay */
+.vignette {
+  box-shadow: inset 0 0 150px rgba(0, 0, 0, 0.7);
 }
 
 /* Reduced motion preferences */

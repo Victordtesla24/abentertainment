@@ -19,20 +19,20 @@ const tierOrder: Record<string, number> = {
 
 const tierColors: Record<string, string> = {
   platinum: '#E5E4E2',
-  gold: '#CC8A1C',
+  gold: '#C9A84C',
   silver: '#C0C0C0',
   bronze: '#CD7F32',
 };
 
 function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
-  const tierColor = tierColors[sponsor.tier] || '#CC8A1C';
+  const tierColor = tierColors[sponsor.tier] || '#C9A84C';
 
   return (
     <a
       href={sponsor.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group block bg-[#0a3a52]/40 border border-[#CC8A1C]/10 hover:border-[#CC8A1C]/40 p-8 transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_32px_rgba(204,138,28,0.1)]"
+      className="group block bg-[#111111]/40 border border-[#C9A84C]/10 hover:border-[#C9A84C]/40 p-8 transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_32px_rgba(204,138,28,0.1)]"
     >
       {/* Tier badge */}
       <div className="flex items-center justify-between mb-6">
@@ -58,18 +58,18 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
             className="max-h-16 max-w-full object-contain opacity-80 group-hover:opacity-100 transition-opacity duration-300"
           />
         ) : (
-          <span className="text-lg font-display font-bold text-[#7E7180] group-hover:text-[#CC8A1C] transition-colors duration-300">
+          <span className="text-lg font-display font-bold text-[rgba(255,255,255,0.4)] group-hover:text-[#C9A84C] transition-colors duration-300">
             {sponsor.name}
           </span>
         )}
       </div>
 
       {/* Info */}
-      <h3 className="text-lg font-display font-bold text-white group-hover:text-[#CC8A1C] transition-colors duration-300 mb-2">
+      <h3 className="text-lg font-display font-bold text-white group-hover:text-[#C9A84C] transition-colors duration-300 mb-2">
         {sponsor.name}
       </h3>
       {sponsor.description && (
-        <p className="text-[#7E7180] text-sm font-body leading-relaxed">
+        <p className="text-[rgba(255,255,255,0.4)] text-sm font-body leading-relaxed">
           {sponsor.description}
         </p>
       )}
@@ -91,17 +91,17 @@ export default async function SponsorsPage() {
   );
 
   return (
-    <main className="bg-[#062434]">
+    <main className="bg-[#0A0A0A]">
       {/* Header */}
       <section className="py-24 md:py-32">
         <div className="container-eu text-center">
-          <span className="inline-block px-4 py-2 bg-[#CC8A1C] text-white text-xs font-semibold font-body uppercase tracking-[0.2em] mb-6">
+          <span className="inline-block px-4 py-2 bg-[#C9A84C] text-white text-xs font-semibold font-body uppercase tracking-[0.2em] mb-6">
             Our Partners
           </span>
           <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4">
-            Sponsors & <span className="text-[#CC8A1C]">Partners</span>
+            Sponsors & <span className="text-[#C9A84C]">Partners</span>
           </h1>
-          <p className="text-[#7E7180] text-lg font-body max-w-2xl mx-auto">
+          <p className="text-[rgba(255,255,255,0.4)] text-lg font-body max-w-2xl mx-auto">
             We are grateful to the organizations that support and make our cultural
             events possible.
           </p>
@@ -118,11 +118,11 @@ export default async function SponsorsPage() {
               ))}
             </div>
           ) : (
-            <div className="bg-[#0a3a52]/40 border border-[#CC8A1C]/10 p-12 text-center">
-              <h2 className="text-2xl font-display text-[#CC8A1C] mb-4">
+            <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-12 text-center">
+              <h2 className="text-2xl font-display text-[#C9A84C] mb-4">
                 Become a Sponsor
               </h2>
-              <p className="text-[#FDF8F1] text-lg font-body mb-6">
+              <p className="text-[white] text-lg font-body mb-6">
                 We are currently welcoming sponsorship partnerships. Join us in
                 celebrating and preserving Indian cultural heritage in Melbourne.
               </p>
@@ -138,12 +138,12 @@ export default async function SponsorsPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-16 border-t border-[#CC8A1C]/10">
+      <section className="py-16 border-t border-[#C9A84C]/10">
         <div className="container-eu text-center">
           <h2 className="text-2xl md:text-3xl font-display font-bold text-white mb-4">
-            Interested in <span className="text-[#CC8A1C]">Sponsorship</span>?
+            Interested in <span className="text-[#C9A84C]">Sponsorship</span>?
           </h2>
-          <p className="text-[#7E7180] font-body mb-8 max-w-lg mx-auto">
+          <p className="text-[rgba(255,255,255,0.4)] font-body mb-8 max-w-lg mx-auto">
             Partner with us to reach Melbourne&apos;s vibrant Indian and Marathi
             community through world-class cultural events.
           </p>

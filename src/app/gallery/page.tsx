@@ -20,12 +20,12 @@ function GalleryCard({
 
   return (
     <div
-      className={`group relative overflow-hidden border border-[#CC8A1C]/10 hover:border-[#CC8A1C]/40 transition-all duration-500 hover:scale-[1.03] ${
+      className={`group relative overflow-hidden border border-[#C9A84C]/8 hover:border-[#C9A84C]/30 transition-all duration-500 ${
         isLarge ? 'md:col-span-2 md:row-span-2' : ''
       }`}
     >
       <div
-        className={`relative ${isLarge ? 'h-80 md:h-full' : 'h-64'} bg-gradient-to-br from-[#0a3a52] to-[#062434]`}
+        className={`relative ${isLarge ? 'h-80 md:h-full' : 'h-64'} bg-gradient-to-br from-[#111] to-[#0A0A0A]`}
       >
         <img
           src={image.src}
@@ -33,9 +33,9 @@ function GalleryCard({
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#062434]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         <div className="absolute bottom-0 left-0 right-0 p-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
-          <p className="text-[#CC8A1C] text-xs font-semibold font-body uppercase tracking-[0.25em] mb-1">
+          <p className="text-[#C9A84C] text-xs font-semibold font-body uppercase tracking-[0.25em] mb-1">
             {image.category}
           </p>
           <h3 className="text-white font-display text-lg font-bold">
@@ -52,12 +52,12 @@ function EventGalleryCard({ event, index }: { event: Event; index: number }) {
 
   return (
     <div
-      className={`group relative overflow-hidden border border-[#CC8A1C]/10 hover:border-[#CC8A1C]/40 transition-all duration-500 hover:scale-[1.03] ${
+      className={`group relative overflow-hidden border border-[#C9A84C]/10 hover:border-[#C9A84C]/40 transition-all duration-500 hover:scale-[1.03] ${
         isLarge ? 'md:col-span-2 md:row-span-2' : ''
       }`}
     >
       <div
-        className={`relative ${isLarge ? 'h-80 md:h-full' : 'h-64'} bg-gradient-to-br from-[#0a3a52] to-[#062434]`}
+        className={`relative ${isLarge ? 'h-80 md:h-full' : 'h-64'} bg-gradient-to-br from-[#111] to-[#0A0A0A]`}
       >
         {event.image ? (
           <img
@@ -69,7 +69,7 @@ function EventGalleryCard({ event, index }: { event: Event; index: number }) {
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <svg
-              className="w-16 h-16 text-[#CC8A1C]/15"
+              className="w-16 h-16 text-[#C9A84C]/15"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -83,15 +83,15 @@ function EventGalleryCard({ event, index }: { event: Event; index: number }) {
             </svg>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#062434]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         <div className="absolute bottom-0 left-0 right-0 p-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
-          <p className="text-[#CC8A1C] text-xs font-semibold font-body uppercase tracking-[0.25em] mb-1">
+          <p className="text-[#C9A84C] text-xs font-semibold font-body uppercase tracking-[0.25em] mb-1">
             {event.category}
           </p>
           <h3 className="text-white font-display text-lg font-bold mb-1">
             {event.title}
           </h3>
-          <p className="text-[#7E7180] text-sm font-body">{event.venue}</p>
+          <p className="text-[white/40] text-sm font-body">{event.venue}</p>
         </div>
       </div>
     </div>
@@ -112,17 +112,17 @@ export default async function GalleryPage() {
   const hasGalleryImages = galleryImages.length > 0;
 
   return (
-    <main className="bg-[#062434]">
+    <main className="bg-[#0A0A0A]">
       {/* Header */}
-      <section className="py-24 md:py-32">
+      <section className="pt-32 pb-20 md:pt-40 md:pb-28">
         <div className="container-eu text-center">
-          <span className="inline-block px-4 py-2 bg-[#CC8A1C] text-white text-xs font-semibold font-body uppercase tracking-[0.2em] mb-6">
+          <span className="inline-block px-5 py-2 bg-[#C9A84C]/10 border border-[#C9A84C]/20 text-[#C9A84C] text-xs font-semibold font-body uppercase tracking-[0.25em] mb-6">
             Gallery
           </span>
           <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4">
-            Moments of <span className="text-[#CC8A1C]">Magic</span>
+            Moments of <span className="text-[#C9A84C]">Magic</span>
           </h1>
-          <p className="text-[#7E7180] text-lg font-body max-w-2xl mx-auto">
+          <p className="text-white/40 text-lg font-body max-w-2xl mx-auto">
             A visual archive of cultural moments -- from classical performances to
             vibrant celebrations across Melbourne.
           </p>
@@ -145,11 +145,11 @@ export default async function GalleryPage() {
               ))}
             </div>
           ) : (
-            <div className="bg-[#0a3a52]/40 border border-[#CC8A1C]/10 p-12 text-center">
-              <h2 className="text-2xl font-display text-[#CC8A1C] mb-4">
+            <div className="bg-[#111]/40 border border-[#C9A84C]/10 p-12 text-center">
+              <h2 className="text-2xl font-display text-[#C9A84C] mb-4">
                 Gallery Coming Soon
               </h2>
-              <p className="text-[#FDF8F1] text-lg font-body">
+              <p className="text-[white] text-lg font-body">
                 We are preparing a visual showcase of our finest cultural moments.
                 Check back soon to explore our event photography and performance
                 highlights.

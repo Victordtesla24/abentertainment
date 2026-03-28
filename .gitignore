@@ -42,3 +42,4 @@ next-env.d.ts
 # docker volumes
 /docker-data/
 /pgdata/
+.env.production

@@ -7,6 +7,7 @@ import {
   useScroll,
   useTransform,
 } from 'framer-motion';
+import Image from 'next/image';
 
 import type { Event } from '@/lib/data';
 
@@ -14,82 +15,36 @@ interface CinematicHeroProps {
   upcomingEvents?: Event[];
 }
 
-/**
- * Hero slides — matching eventsunleashed.com structure:
- * "Welcome to" badge → massive bold headline → teal subtitle bar
- */
 const heroSlides = [
   {
     id: 'slide-1',
     badge: 'Welcome to',
     title: 'AB ENTERTAINMENT',
-    subtitle: 'Your Expert in Indian & Marathi Cultural Events in Melbourne',
+    subtitle: 'Experience Events Like No Other',
   },
   {
     id: 'slide-2',
-    badge: 'Experience',
-    title: 'EVENTS LIKE NO OTHER',
-    subtitle: '6+ Events, 25+ Team, 25,000+ Audience Reach Across Australia & NZ',
+    badge: 'Celebrating',
+    title: 'CULTURAL EXCELLENCE',
+    subtitle: 'Indian & Marathi Performing Arts in Melbourne',
   },
   {
     id: 'slide-3',
     badge: 'Discover',
-    title: 'CULTURAL EXCELLENCE',
-    subtitle: 'From Classical Theatre to Contemporary Marathi Drama',
+    title: 'UNFORGETTABLE MOMENTS',
+    subtitle: '6+ Events · 25+ Team · 25,000+ Audience Reach',
   },
 ];
 
-const CINEMATIC_EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.15, delayChildren: 0.2 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.8, ease: CINEMATIC_EASE },
-  },
-};
-
-/**
- * Geometric pattern bar — matching the colorful triangles/shapes at bottom of EU hero
- */
-function GeometricPatternBar() {
-  return (
-    <div className="absolute bottom-0 left-0 right-0 z-20 h-12 md:h-16 overflow-hidden">
-      <svg className="w-full h-full" viewBox="0 0 1440 64" preserveAspectRatio="none" fill="none">
-        {/* Repeating geometric pattern with teal, gold, and dark shapes */}
-        {Array.from({ length: 24 }).map((_, i) => {
-          const x = i * 60;
-          const colors = ['#1BBFA1', '#CC8A1C', '#062434', '#1BBFA1', '#CC8A1C'];
-          const color = colors[i % 5];
-          const shapes = [
-            <polygon key={`t-${i}`} points={`${x},64 ${x + 30},0 ${x + 60},64`} fill={color} opacity="0.9" />,
-            <rect key={`r-${i}`} x={x + 10} y={16} width={40} height={32} fill={color} opacity="0.85" />,
-            <circle key={`c-${i}`} cx={x + 30} cy={32} r={20} fill={color} opacity="0.8" />,
-            <polygon key={`d-${i}`} points={`${x + 30},4 ${x + 56},32 ${x + 30},60 ${x + 4},32`} fill={color} opacity="0.85" />,
-            <polygon key={`a-${i}`} points={`${x},64 ${x + 30},8 ${x + 60},64`} fill={color} opacity="0.9" />,
-          ];
-          return shapes[i % 5];
-        })}
-      </svg>
-    </div>
-  );
-}
+const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
 
 export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const { scrollY } = useScroll();
-  const parallaxBg = useTransform(scrollY, [0, 800], [0, -100]);
-  const parallaxContent = useTransform(scrollY, [0, 800], [0, -40]);
+  const parallaxBg = useTransform(scrollY, [0, 800], [0, -120]);
+  const parallaxContent = useTransform(scrollY, [0, 800], [0, -50]);
+  const heroOpacity = useTransform(scrollY, [0, 600], [1, 0.3]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -98,98 +53,138 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
     return () => clearInterval(interval);
   }, []);
 
-  void upcomingEvents; // Used for future event display
+  void upcomingEvents;
 
   return (
-    <section className="relative w-full h-screen overflow-hidden">
-      {/* ====== REAL EVENT PHOTO BACKGROUND ====== */}
+    <section className="relative w-full h-screen overflow-hidden bg-black">
+      {/* Background Image with parallax */}
       <motion.div className="absolute inset-0" style={{ y: parallaxBg }}>
-        {/* Use scraped event images as hero background */}
         <img
           src="/images/hero-bg.jpg"
           alt=""
           aria-hidden="true"
-          className="w-full h-full object-cover scale-110"
+          className="w-full h-[120%] object-cover"
           onError={(e) => {
-            // Fallback: use a scraped image
             (e.target as HTMLImageElement).src = '/scraped-data/images/wp-content_uploads_2024_02_ab-entertainment-event-1-1024x683_jpg_c731c265.jpg';
           }}
         />
       </motion.div>
 
-      {/* ====== DARK OVERLAY (matching EU ~0.75 opacity) ====== */}
-      <div className="absolute inset-0 bg-[#062434]/[0.78]" />
+      {/* Dark gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/90" />
 
-      {/* ====== HERO CONTENT — LEFT-ALIGNED like eventsunleashed ====== */}
+      {/* Subtle gold grain texture overlay */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(201,168,76,0.1) 2px, rgba(201,168,76,0.1) 4px)' }} />
+
+      {/* Hero Content */}
       <motion.div
-        className="relative z-10 w-full h-full flex items-end pb-24 md:pb-32"
-        style={{ y: parallaxContent }}
+        className="relative z-10 w-full h-full flex flex-col items-center justify-center text-center"
+        style={{ y: parallaxContent, opacity: heroOpacity }}
       >
-        <div className="container-eu">
+        {/* AB Logo — prominently centered */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1.2, ease: EASE }}
+          className="mb-8"
+        >
+          <div className="relative w-28 h-28 md:w-36 md:h-36 mx-auto">
+            <Image
+              src="/images/AB_Logo_4.png"
+              alt="AB Entertainment Logo"
+              fill
+              className="object-contain drop-shadow-[0_0_30px_rgba(201,168,76,0.4)]"
+              priority
+            />
+          </div>
+        </motion.div>
+
+        <AnimatePresence mode="wait">
           <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="max-w-3xl"
+            key={currentSlide}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -30 }}
+            transition={{ duration: 0.7, ease: EASE }}
+            className="max-w-4xl px-6"
           >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentSlide}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -30 }}
-                transition={{ duration: 0.7, ease: CINEMATIC_EASE }}
-              >
-                {/* "Welcome to" badge — gold/accent background, matching EU */}
-                <motion.div variants={itemVariants} className="mb-6">
-                  <span className="inline-block px-5 py-2.5 bg-[#CC8A1C] text-white text-sm md:text-base font-body font-medium">
-                    {heroSlides[currentSlide].badge}
-                  </span>
-                </motion.div>
-
-                {/* MASSIVE BOLD UPPERCASE HEADLINE — condensed sans-serif like EU's Marghote */}
-                <motion.h1
-                  variants={itemVariants}
-                  className="text-6xl md:text-7xl lg:text-[6rem] xl:text-[8rem] font-black leading-[0.95] tracking-tight text-white uppercase"
-                  style={{ fontFamily: 'var(--font-display), Impact, "Arial Black", sans-serif' }}
-                >
-                  {heroSlides[currentSlide].title}
-                </motion.h1>
-
-                {/* Teal subtitle BAR — matching EU's green/teal stripe */}
-                <motion.div variants={itemVariants} className="mt-6">
-                  <span className="inline-block px-6 py-3 bg-[#1BBFA1] text-[#062434] text-base md:text-lg font-body font-semibold">
-                    {heroSlides[currentSlide].subtitle}
-                  </span>
-                </motion.div>
-              </motion.div>
-            </AnimatePresence>
-
-            {/* Carousel dots */}
-            <motion.div
-              variants={itemVariants}
-              className="mt-10 flex gap-3 items-center"
-            >
-              {heroSlides.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentSlide(index)}
-                  className={`h-2 transition-all duration-500 ease-out ${
-                    currentSlide === index
-                      ? 'bg-[#CC8A1C] w-8'
-                      : 'bg-white/40 w-2 hover:bg-white/70'
-                  }`}
-                  aria-current={currentSlide === index ? 'true' : 'false'}
-                  aria-label={`Go to slide ${index + 1}`}
-                />
-              ))}
+            {/* Badge */}
+            <motion.div className="mb-5">
+              <span className="inline-block px-5 py-2 bg-[#C9A84C]/15 border border-[#C9A84C]/30 text-[#C9A84C] text-sm md:text-base font-body font-medium tracking-[0.15em] uppercase backdrop-blur-sm">
+                {heroSlides[currentSlide].badge}
+              </span>
             </motion.div>
+
+            {/* Main Headline */}
+            <h1
+              className="text-5xl md:text-7xl lg:text-[5.5rem] xl:text-[7rem] font-black leading-[0.92] tracking-tight text-white uppercase mb-6"
+              style={{ fontFamily: 'var(--font-display), Georgia, serif' }}
+            >
+              {heroSlides[currentSlide].title}
+            </h1>
+
+            {/* Subtitle */}
+            <p className="text-lg md:text-xl text-white/70 font-body font-light tracking-wide max-w-2xl mx-auto">
+              {heroSlides[currentSlide].subtitle}
+            </p>
           </motion.div>
-        </div>
+        </AnimatePresence>
+
+        {/* CTA Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.6, ease: EASE }}
+          className="mt-10 flex flex-col sm:flex-row gap-4"
+        >
+          <a
+            href="/events"
+            className="px-8 py-3.5 bg-[#C9A84C] text-black text-sm uppercase tracking-[0.12em] font-body font-semibold hover:bg-[#D4B65C] transition-all duration-300"
+          >
+            Explore Events
+          </a>
+          <a
+            href="/contact"
+            className="px-8 py-3.5 border border-white/30 text-white text-sm uppercase tracking-[0.12em] font-body font-medium hover:bg-white/10 transition-all duration-300 backdrop-blur-sm"
+          >
+            Get In Touch
+          </a>
+        </motion.div>
+
+        {/* Carousel dots */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+          className="mt-12 flex gap-3 items-center"
+        >
+          {heroSlides.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => setCurrentSlide(index)}
+              className={`h-[3px] transition-all duration-500 ease-out ${
+                currentSlide === index
+                  ? 'bg-[#C9A84C] w-10'
+                  : 'bg-white/25 w-3 hover:bg-white/50'
+              }`}
+              aria-current={currentSlide === index ? 'true' : 'false'}
+              aria-label={`Go to slide ${index + 1}`}
+            />
+          ))}
+        </motion.div>
       </motion.div>
 
-      {/* ====== GEOMETRIC PATTERN BAR at bottom of hero ====== */}
-      <GeometricPatternBar />
+      {/* Bottom fade to next section */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#0A0A0A] to-transparent z-20 pointer-events-none" />
+
+      {/* Scroll indicator */}
+      <motion.div
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30"
+        animate={{ y: [0, 8, 0] }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <div className="w-[1px] h-12 bg-gradient-to-b from-transparent via-[#C9A84C]/50 to-[#C9A84C]" />
+      </motion.div>
     </section>
   );
 }

@@ -52,8 +52,8 @@ function StarRating({ rating }: { rating: number }) {
       {[1, 2, 3, 4, 5].map((star) => (
         <svg
           key={star}
-          className={`w-4 h-4 ${
-            star <= rating ? 'text-[#CC8A1C]' : 'text-[#7E7180]/30'
+          className={`w-3.5 h-3.5 ${
+            star <= rating ? 'text-[#C9A84C]' : 'text-white/10'
           }`}
           fill="currentColor"
           viewBox="0 0 24 24"
@@ -67,7 +67,7 @@ function StarRating({ rating }: { rating: number }) {
 
 const slideVariants = {
   enter: (dir: number) => ({
-    x: dir > 0 ? 600 : -600,
+    x: dir > 0 ? 400 : -400,
     opacity: 0,
   }),
   center: {
@@ -77,7 +77,7 @@ const slideVariants = {
   },
   exit: (dir: number) => ({
     zIndex: 0,
-    x: dir < 0 ? 600 : -600,
+    x: dir < 0 ? 400 : -400,
     opacity: 0,
   }),
 };
@@ -103,7 +103,10 @@ export function TestimonialsSection() {
   const current = TESTIMONIALS[currentIndex];
 
   return (
-    <section className="relative py-24 bg-[#FDF8F1] overflow-hidden">
+    <section className="relative py-24 bg-[#0A0A0A] overflow-hidden">
+      {/* Top accent line */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/15 to-transparent" />
+
       <div className="container-eu">
         {/* Section header */}
         <motion.div
@@ -113,12 +116,12 @@ export function TestimonialsSection() {
           transition={{ duration: 0.8, ease: [0.25, 1, 0.5, 1] }}
           viewport={{ once: true }}
         >
-          <h2 className="text-4xl md:text-5xl font-display font-bold text-[#062434] mb-4">
-            What People <span className="text-[#CC8A1C]">Say</span>
+          <span className="text-[#C9A84C] text-xs uppercase tracking-[0.25em] font-body font-semibold mb-4 block">
+            Testimonials
+          </span>
+          <h2 className="text-4xl md:text-5xl font-display font-bold text-white mb-4">
+            What People <span className="text-[#C9A84C]">Say</span>
           </h2>
-          <p className="text-[#7E7180] text-lg font-body">
-            Hear from guests who experienced the magic
-          </p>
         </motion.div>
 
         {/* Testimonials carousel */}
@@ -127,7 +130,7 @@ export function TestimonialsSection() {
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
         >
-          <div className="relative h-80 md:h-64 flex items-center">
+          <div className="relative h-72 md:h-56 flex items-center">
             <AnimatePresence initial={false} custom={direction} mode="wait">
               <motion.div
                 key={currentIndex}
@@ -142,21 +145,24 @@ export function TestimonialsSection() {
                 }}
                 className="absolute w-full"
               >
-                <div className="bg-[#0a3a52]/40 border border-[#CC8A1C]/10 p-8 md:p-10">
+                <div className="bg-white/[0.02] border border-[#C9A84C]/10 p-8 md:p-10">
+                  {/* Large quotation mark */}
+                  <div className="text-[#C9A84C]/15 text-6xl font-display leading-none mb-2">&ldquo;</div>
+
                   {/* Stars */}
                   <div className="mb-4">
                     <StarRating rating={current.rating} />
                   </div>
 
                   {/* Quote */}
-                  <p className="text-[#FDF8F1] text-lg font-body leading-relaxed italic mb-6">
-                    &ldquo;{current.quote}&rdquo;
+                  <p className="text-white/70 text-lg font-body leading-relaxed mb-6">
+                    {current.quote}
                   </p>
 
                   {/* Author */}
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 flex items-center justify-center bg-[#CC8A1C]/10 border border-[#CC8A1C]/30">
-                      <span className="text-[#CC8A1C] font-display font-bold text-sm">
+                    <div className="w-10 h-10 flex items-center justify-center bg-[#C9A84C]/10 border border-[#C9A84C]/20">
+                      <span className="text-[#C9A84C] font-display font-bold text-xs">
                         {current.name
                           .split(' ')
                           .map((n) => n[0])
@@ -164,10 +170,10 @@ export function TestimonialsSection() {
                       </span>
                     </div>
                     <div>
-                      <p className="text-[#062434] font-semibold font-body">
+                      <p className="text-white font-semibold font-body text-sm">
                         {current.name}
                       </p>
-                      <p className="text-[#7E7180] text-sm font-body">
+                      <p className="text-white/40 text-xs font-body">
                         {current.role}
                       </p>
                     </div>
@@ -179,20 +185,20 @@ export function TestimonialsSection() {
             {/* Prev / Next */}
             <button
               onClick={() => paginate(-1)}
-              className="absolute -left-4 md:-left-12 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center bg-[#CC8A1C] text-[#062434] hover:bg-[#e0a83a] transition-colors"
+              className="absolute -left-4 md:-left-14 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center border border-[#C9A84C]/20 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-black transition-all duration-300"
               aria-label="Previous testimonial"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
             <button
               onClick={() => paginate(1)}
-              className="absolute -right-4 md:-right-12 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center bg-[#CC8A1C] text-[#062434] hover:bg-[#e0a83a] transition-colors"
+              className="absolute -right-4 md:-right-14 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center border border-[#C9A84C]/20 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-black transition-all duration-300"
               aria-label="Next testimonial"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
               </svg>
             </button>
           </div>
@@ -206,10 +212,10 @@ export function TestimonialsSection() {
                   setDirection(index > currentIndex ? 1 : -1);
                   setCurrentIndex(index);
                 }}
-                className={`h-2 transition-all duration-300 ${
+                className={`h-[3px] transition-all duration-300 ${
                   index === currentIndex
-                    ? 'bg-[#CC8A1C] w-8'
-                    : 'bg-[#7E7180]/30 w-2 hover:bg-[#7E7180]/60'
+                    ? 'bg-[#C9A84C] w-8'
+                    : 'bg-white/15 w-3 hover:bg-white/30'
                 }`}
                 aria-label={`Go to testimonial ${index + 1}`}
                 aria-current={index === currentIndex}

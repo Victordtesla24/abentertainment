@@ -1,11 +1,11 @@
 /**
  * Site-wide configuration constants.
- * Color palette cloned from eventsunleashed.com visual architecture:
- *   Primary:   #062434 (deep navy)
- *   Secondary: #1BBFA1 (teal)
- *   Accent:    #CC8A1C (gold)
- *   Text:      #7E7180 (muted gray)
- *   Cream:     #FDF8F1
+ * AB Entertainment — Black & Gold brand palette:
+ *   Primary:   #0A0A0A (rich black)
+ *   Surface:   #111111
+ *   Gold:      #C9A84C (signature gold)
+ *   Gold Lt:   #D4B65C
+ *   Text:      rgba(255,255,255,0.5)
  */
 
 export const SITE_CONFIG = {
@@ -23,18 +23,17 @@ export const SITE_CONFIG = {
     },
   },
   social: {
-    instagram: 'https://instagram.com/abentertainment',
-    facebook: 'https://facebook.com/abentertainment',
+    instagram: 'https://instagram.com/abentertainment_events/',
+    facebook: 'https://facebook.com/ABEntertainmentAU',
   },
-  /** eventsunleashed.com color palette */
   colors: {
-    primary: '#062434',
-    secondary: '#1BBFA1',
-    accent: '#CC8A1C',
-    textMuted: '#7E7180',
-    cream: '#FDF8F1',
+    primary: '#0A0A0A',
+    surface: '#111111',
+    gold: '#C9A84C',
+    goldLight: '#D4B65C',
+    textMuted: 'rgba(255,255,255,0.4)',
     white: '#FFFFFF',
-    overlayDark: 'rgba(6, 36, 52, 0.75)',
+    overlayDark: 'rgba(0, 0, 0, 0.75)',
   },
 };
 
@@ -99,6 +98,21 @@ export const ABOUT_CONTENT = {
   ],
 };
 
+export const TEAM_MEMBERS = [
+  {
+    name: 'Abhijit Kadam',
+    role: 'President & CEO',
+    image: '/scraped-data/images/wp-content_uploads_2024_01_akv2_jpg_e8f44fe7.jpg',
+    bio: 'The visionary leader behind AB Entertainment, Abhijit brings strategic direction and business acumen to every production. His commitment to excellence and passion for Indian cultural arts drives the company\'s mission to deliver world-class entertainment experiences in Melbourne.',
+  },
+  {
+    name: 'Vrushali Deshpande',
+    role: 'Founder & Director',
+    image: '/scraped-data/images/wp-content_uploads_2024_03_vrushali-deshpande_jpeg_f5429bb1.jpeg',
+    bio: 'As the creative force and founder of AB Entertainment, Vrushali\'s artistic vision and deep understanding of Marathi and Indian performing arts has been instrumental in establishing the company as Melbourne\'s premier cultural entertainment brand.',
+  },
+];
+
 export const NAVIGATION = [
   { label: 'Home', href: '/' },
   { label: 'About', href: '/about' },
@@ -113,4 +127,20 @@ export const STATS = [
   { value: '25+', label: 'Team Members' },
   { value: '25,000+', label: 'Audience Reach' },
   { value: '2', label: 'Countries' },
+];
+
+export const PAST_EVENTS = [
+  'Punha Sahi re Sahi',
+  'Shyamachi Aai',
+  'Jar Tar chi Gosht',
+  'Sankarshan via Spruha',
+  'Tendlya',
+  'Niyam V Ati Lagu, Melbourne',
+];
+
+export const UPCOMING_EVENTS = [
+  'Shrimant Damodar Pant',
+  'Arya Ambekar Live in Concert',
+  'Shikayla Gelo Ek!',
+  'Varvarche Vadhu Var',
 ];

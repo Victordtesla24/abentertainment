@@ -111,10 +111,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
           }}
         />
       </head>
-      <body className="bg-[#062434] text-white font-body antialiased">
+      <body className="bg-[#0A0A0A] text-white font-body antialiased">
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only absolute top-4 left-4 z-50 bg-[#CC8A1C] text-[#062434] px-4 py-2 rounded"
+          className="sr-only focus:not-sr-only absolute top-4 left-4 z-50 bg-[#C9A84C] text-black px-4 py-2"
         >
           Skip to main content
         </a>
