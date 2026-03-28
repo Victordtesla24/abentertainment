@@ -420,42 +420,45 @@ export default function Preloader() {
           }}
         />
 
-        {/* Logo container — Disney/Pixar style letter animation */}
+        {/* Logo container — Disney/Pixar style animation using ACTUAL brand logo */}
         <div
           ref={logoContainerRef}
           className="relative flex items-center justify-center mb-4"
           style={{ perspective: '800px', transformStyle: 'preserve-3d' }}
         >
-          {/* Letter A — chases from left */}
+          {/* The actual AB brand logo — split into two halves for the chase animation */}
+          {/* Left half of logo (A side) — chases from left */}
           <span
             ref={letterARef}
-            className="inline-block text-[8rem] md:text-[12rem] font-display font-black leading-none"
+            className="inline-block relative w-[120px] h-[120px] md:w-[180px] md:h-[180px] overflow-hidden"
             style={{
-              color: 'transparent',
-              backgroundImage: 'linear-gradient(180deg, #FFD700 0%, #D4AF37 30%, #B8960C 70%, #8B6914 100%)',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              filter: 'drop-shadow(0 4px 20px rgba(212,175,55,0.5))',
               willChange: 'transform',
+              filter: 'drop-shadow(0 4px 20px rgba(212,175,55,0.5))',
             }}
           >
-            A
+            <img
+              src="/images/AB_Logo_transparent.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute top-0 left-0 w-[200%] h-full object-contain object-left"
+            />
           </span>
 
-          {/* Letter B — bounces in from right */}
+          {/* Right half of logo (B side) — bounces in from right */}
           <span
             ref={letterBRef}
-            className="inline-block text-[8rem] md:text-[12rem] font-display font-black leading-none"
+            className="inline-block relative w-[120px] h-[120px] md:w-[180px] md:h-[180px] overflow-hidden"
             style={{
-              color: 'transparent',
-              backgroundImage: 'linear-gradient(180deg, #FFD700 0%, #D4AF37 30%, #B8960C 70%, #8B6914 100%)',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              filter: 'drop-shadow(0 4px 20px rgba(212,175,55,0.5))',
               willChange: 'transform',
+              filter: 'drop-shadow(0 4px 20px rgba(212,175,55,0.5))',
             }}
           >
-            B
+            <img
+              src="/images/AB_Logo_transparent.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute top-0 right-0 w-[200%] h-full object-contain object-right"
+            />
           </span>
         </div>
 
