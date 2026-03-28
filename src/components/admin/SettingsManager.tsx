@@ -1,0 +1,151 @@
+'use client';
+
+import { useState, FormEvent } from 'react';
+import type { SiteSettings } from '@/lib/data';
+
+interface SettingsManagerProps {
+  initialSettings: SiteSettings;
+}
+
+const AVAILABLE_MODELS = [
+  { id: 'gpt-4o', label: 'GPT-4o (Default)' },
+  { id: 'gpt-4o-mini', label: 'GPT-4o Mini (Faster)' },
+  { id: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+];
+
+export default function SettingsManager({ initialSettings }: SettingsManagerProps) {
+  const [settings, setSettings] = useState<SiteSettings>(initialSettings);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setMessage('');
+
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+
+      if (!res.ok) throw new Error('Failed to save settings');
+
+      setMessage('Settings saved successfully');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      setMessage(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <h2 className="text-2xl font-display font-bold text-white mb-8">Settings</h2>
+
+      {message && (
+        <div className={`mb-4 px-4 py-2 rounded-sm text-sm ${message.startsWith('Error') ? 'bg-red-400/10 text-red-400' : 'bg-[#1BBFA1]/10 text-[#1BBFA1]'}`}>
+          {message}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="max-w-2xl">
+        {/* AI Model Selection */}
+        <div className="bg-[#062434] border border-[#CC8A1C]/20 rounded-sm p-6 mb-6">
+          <h3 className="text-lg font-display font-semibold text-[#CC8A1C] mb-4">
+            Customer Chatbot Model
+          </h3>
+          <p className="text-[#7E7180] text-sm mb-4">
+            Select which OpenAI model powers the customer-facing chatbot.
+          </p>
+          <div className="space-y-2">
+            {AVAILABLE_MODELS.map((model) => (
+              <label
+                key={model.id}
+                className={`flex items-center gap-3 p-3 rounded-sm border cursor-pointer transition-colors ${
+                  settings.chatModel === model.id
+                    ? 'border-[#CC8A1C] bg-[#CC8A1C]/10'
+                    : 'border-[#CC8A1C]/20 hover:border-[#CC8A1C]/40'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="chatModel"
+                  value={model.id}
+                  checked={settings.chatModel === model.id}
+                  onChange={(e) => setSettings({ ...settings, chatModel: e.target.value })}
+                  className="accent-[#CC8A1C]"
+                />
+                <span className="text-white text-sm">{model.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Hero Content */}
+        <div className="bg-[#062434] border border-[#CC8A1C]/20 rounded-sm p-6 mb-6">
+          <h3 className="text-lg font-display font-semibold text-[#CC8A1C] mb-4">
+            Hero Section
+          </h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs text-[#7E7180] mb-1">Hero Title</label>
+              <input
+                type="text"
+                value={settings.heroTitle}
+                onChange={(e) => setSettings({ ...settings, heroTitle: e.target.value })}
+                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-[#7E7180] mb-1">Hero Subtitle</label>
+              <textarea
+                value={settings.heroSubtitle}
+                onChange={(e) => setSettings({ ...settings, heroSubtitle: e.target.value })}
+                rows={2}
+                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C] resize-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Contact Info */}
+        <div className="bg-[#062434] border border-[#CC8A1C]/20 rounded-sm p-6 mb-6">
+          <h3 className="text-lg font-display font-semibold text-[#CC8A1C] mb-4">
+            Contact Information
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-[#7E7180] mb-1">Email</label>
+              <input
+                type="email"
+                value={settings.contactEmail}
+                onChange={(e) => setSettings({ ...settings, contactEmail: e.target.value })}
+                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-[#7E7180] mb-1">Phone</label>
+              <input
+                type="text"
+                value={settings.contactPhone}
+                onChange={(e) => setSettings({ ...settings, contactPhone: e.target.value })}
+                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]"
+              />
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-8 py-3 bg-[#CC8A1C] text-white font-semibold rounded-sm hover:bg-[#e0a83a] transition-colors disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Save Settings'}
+        </button>
+      </form>
+    </div>
+  );
+}

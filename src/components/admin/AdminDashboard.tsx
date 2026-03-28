@@ -1,0 +1,104 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { Event, Sponsor, GalleryImage, SiteSettings } from '@/lib/data';
+import EventsManager from './EventsManager';
+import SponsorsManager from './SponsorsManager';
+import GalleryManager from './GalleryManager';
+import SettingsManager from './SettingsManager';
+import AdminChatbot from './AdminChatbot';
+
+type Tab = 'events' | 'sponsors' | 'gallery' | 'settings' | 'ai';
+
+interface AdminDashboardProps {
+  initialEvents: Event[];
+  initialSponsors: Sponsor[];
+  initialGallery: GalleryImage[];
+  initialSettings: SiteSettings;
+}
+
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: 'events', label: 'Events', icon: '📅' },
+  { id: 'sponsors', label: 'Sponsors', icon: '🤝' },
+  { id: 'gallery', label: 'Gallery', icon: '🖼' },
+  { id: 'settings', label: 'Settings', icon: '⚙' },
+  { id: 'ai', label: 'AI Agent', icon: '🤖' },
+];
+
+export default function AdminDashboard({
+  initialEvents,
+  initialSponsors,
+  initialGallery,
+  initialSettings,
+}: AdminDashboardProps) {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<Tab>('events');
+
+  async function handleLogout() {
+    await fetch('/api/admin/auth', { method: 'DELETE' });
+    router.push('/admin/login');
+    router.refresh();
+  }
+
+  return (
+    <div className="flex min-h-screen">
+      {/* Sidebar */}
+      <aside className="w-64 bg-[#062434] border-r border-[#CC8A1C]/20 flex flex-col">
+        <div className="p-6 border-b border-[#CC8A1C]/20">
+          <h1 className="text-lg font-display font-bold text-[#CC8A1C]">
+            AB Entertainment
+          </h1>
+          <p className="text-xs text-[#7E7180] mt-1">Admin Portal</p>
+        </div>
+
+        <nav className="flex-1 py-4">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'text-[#CC8A1C] bg-[#CC8A1C]/10 border-r-2 border-[#CC8A1C]'
+                  : 'text-[#7E7180] hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-4 border-t border-[#CC8A1C]/20">
+          <button
+            onClick={handleLogout}
+            className="w-full py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-sm transition-colors"
+          >
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 bg-[#0a1628] overflow-auto">
+        <div className="p-8">
+          {activeTab === 'events' && (
+            <EventsManager initialEvents={initialEvents} />
+          )}
+          {activeTab === 'sponsors' && (
+            <SponsorsManager initialSponsors={initialSponsors} />
+          )}
+          {activeTab === 'gallery' && (
+            <GalleryManager initialGallery={initialGallery} />
+          )}
+          {activeTab === 'settings' && (
+            <SettingsManager initialSettings={initialSettings} />
+          )}
+          {activeTab === 'ai' && (
+            <AdminChatbot />
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

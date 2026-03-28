@@ -1,0 +1,239 @@
+@import 'tailwindcss';
+
+/**
+ * eventsunleashed.com color palette:
+ *   Primary:   #062434 (deep navy)
+ *   Secondary: #1BBFA1 (teal)
+ *   Accent:    #CC8A1C (gold)
+ *   Text:      #7E7180 (muted gray)
+ *   Cream:     #FDF8F1
+ */
+@theme {
+  --color-primary: #062434;
+  --color-primary-light: #0a3a52;
+  --color-secondary: #1BBFA1;
+  --color-secondary-dark: #15997f;
+  --color-accent: #CC8A1C;
+  --color-accent-light: #e0a83a;
+  --color-text-muted: #7E7180;
+  --color-cream: #FDF8F1;
+  --color-white: #FFFFFF;
+  --color-gray-light: #CFCFCF;
+  --color-gray: #A6A6A6;
+  --color-overlay: rgba(6, 36, 52, 0.75);
+
+  --font-display: var(--font-display), 'Georgia', serif;
+  --font-body: var(--font-body), 'Helvetica Neue', sans-serif;
+}
+
+/* Base styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Custom scrollbar — deep navy theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #062434;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(204, 138, 28, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(204, 138, 28, 0.5);
+}
+
+/* Selection — gold accent */
+::selection {
+  background: rgba(204, 138, 28, 0.3);
+  color: #FDF8F1;
+}
+
+/* Focus styles — gold accent */
+:focus-visible {
+  outline: 2px solid #CC8A1C;
+  outline-offset: 2px;
+}
+
+/* Skip to content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Prose overrides for dark navy theme */
+.prose-invert {
+  --tw-prose-body: #FDF8F1;
+  --tw-prose-headings: #CC8A1C;
+  --tw-prose-links: #1BBFA1;
+  --tw-prose-bold: #FDF8F1;
+}
+
+/* eventsunleashed-style gradient overlay — navy with gold transition */
+.cinematic-overlay {
+  background: linear-gradient(
+    180deg,
+    var(--color-primary) 86%,
+    var(--color-cream) 100%
+  );
+}
+
+/* Gold shimmer animation for premium elements */
+@keyframes goldShimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    #CC8A1C 0%,
+    #e0a83a 25%,
+    #CC8A1C 50%,
+    #a87015 75%,
+    #CC8A1C 100%
+  );
+  background-size: 200% auto;
+  animation: goldShimmer 4s linear infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Page transition background — matching eventsunleashed */
+.page-transition {
+  background-color: #FFBC7D;
+}
+
+/* Ember glow effect for particles */
+@keyframes emberGlow {
+  0%, 100% {
+    opacity: 0.3;
+    filter: blur(0px);
+  }
+  50% {
+    opacity: 1;
+    filter: blur(1px);
+  }
+}
+
+/* Cinematic letterbox bars */
+.letterbox::before,
+.letterbox::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 8vh;
+  background: #000;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.letterbox::before {
+  top: 0;
+}
+
+.letterbox::after {
+  bottom: 0;
+}
+
+/* Curtain reveal animation */
+@keyframes curtainRevealLeft {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes curtainRevealRight {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Vignette overlay */
+.vignette {
+  box-shadow: inset 0 0 150px rgba(6, 36, 52, 0.7);
+}
+
+/* eventsunleashed-style sharp button (no border-radius) */
+.btn-accent {
+  background-color: #CC8A1C;
+  color: #FFFFFF;
+  font-weight: 600;
+  letter-spacing: -0.01rem;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.btn-accent:hover {
+  background-color: #e0a83a;
+}
+
+/* Section container — matches eventsunleashed 85% max-width */
+.container-eu {
+  width: 85%;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 1024px) {
+  .container-eu {
+    width: 90%;
+  }
+}
+
+@media (max-width: 768px) {
+  .container-eu {
+    width: 95%;
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .gold-shimmer {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
