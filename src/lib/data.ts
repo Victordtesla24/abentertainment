@@ -177,7 +177,7 @@ const SEED_SPONSORS: Sponsor[] = [
   {
     id: 'sp-1',
     name: 'Melbourne Arts Council',
-    logo: '/images/sponsors/mac.svg',
+    logo: '/images/sponsors/mac.png',
     url: 'https://www.melbourne.vic.gov.au',
     tier: 'platinum',
     description: 'Supporting multicultural arts and community expression across Melbourne.',
@@ -186,7 +186,7 @@ const SEED_SPONSORS: Sponsor[] = [
   {
     id: 'sp-2',
     name: 'Victorian Multicultural Commission',
-    logo: '/images/sponsors/vmc.svg',
+    logo: '/images/sponsors/vmc.png',
     url: 'https://www.multiculturalcommission.vic.gov.au',
     tier: 'gold',
     description: 'Championing diversity and inclusion in the arts.',
@@ -195,7 +195,7 @@ const SEED_SPONSORS: Sponsor[] = [
   {
     id: 'sp-3',
     name: 'SBS Australia',
-    logo: '/images/sponsors/sbs.svg',
+    logo: '/images/sponsors/sbs.png',
     url: 'https://www.sbs.com.au',
     tier: 'gold',
     description: 'Australia\'s multicultural broadcaster.',
@@ -204,7 +204,7 @@ const SEED_SPONSORS: Sponsor[] = [
   {
     id: 'sp-4',
     name: 'Indian Association of Melbourne',
-    logo: '/images/sponsors/iam.svg',
+    logo: '/images/sponsors/iam.jpg',
     url: '#',
     tier: 'silver',
     description: 'Connecting and celebrating Indian communities in Melbourne.',

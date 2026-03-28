@@ -132,13 +132,19 @@ export function Navigation() {
             ))}
           </div>
 
-          {/* Right: Contact CTA */}
+          {/* Right: Contact CTA + Login */}
           <div className="flex items-center gap-3">
             <Link
               href="/contact"
               className="px-6 py-2.5 bg-[#C9A84C] text-black text-xs uppercase tracking-[0.12em] font-body font-semibold hover:bg-[#D4B65C] transition-all duration-300"
             >
               Contact Us
+            </Link>
+            <Link
+              href="/admin/login"
+              className="px-5 py-2.5 border border-white/20 text-white/70 text-xs uppercase tracking-[0.12em] font-body font-medium hover:border-[#C9A84C]/50 hover:text-[#C9A84C] transition-all duration-300"
+            >
+              Login
             </Link>
           </div>
         </div>
@@ -203,12 +209,18 @@ export function Navigation() {
                     </Link>
                   </motion.div>
                 ))}
-                <motion.div variants={mobileItemVariants} className="pt-4 mt-4 border-t border-[#C9A84C]/10">
+                <motion.div variants={mobileItemVariants} className="pt-4 mt-4 border-t border-[#C9A84C]/10 space-y-3">
                   <Link
                     href="/contact"
                     className="block w-full px-4 py-3 bg-[#C9A84C] text-black text-sm text-center uppercase tracking-wider font-body font-semibold"
                   >
                     Contact Us
+                  </Link>
+                  <Link
+                    href="/admin/login"
+                    className="block w-full px-4 py-3 border border-white/20 text-white/60 text-sm text-center uppercase tracking-wider font-body font-medium"
+                  >
+                    Login
                   </Link>
                 </motion.div>
               </div>

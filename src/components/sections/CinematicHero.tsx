@@ -40,7 +40,7 @@ const heroSlides = [
 ];
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
-const SLIDE_DURATION = 6000;
+const SLIDE_DURATION = 240000; // 4 minutes
 
 export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
