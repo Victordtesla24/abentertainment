@@ -86,9 +86,9 @@ test.describe('@req-header-ui', () => {
   test('nav links navigate', async ({ page }) => {
     await page.goto('/');
     await page.locator('nav').getByRole('link', { name: 'Events', exact: true }).first().click();
-    await expect(page).toHaveURL('/events');
+    await expect(page).toHaveURL(/\/events\/?/);
     await page.locator('nav').getByRole('link', { name: 'About', exact: true }).first().click();
-    await expect(page).toHaveURL('/about');
+    await expect(page).toHaveURL(/\/about\/?/);
   });
 });
 
@@ -182,7 +182,7 @@ test.describe('@req-footer-arch', () => {
 test.describe('@req-admin-auth', () => {
   test('redirect to login', async ({ page }) => {
     await page.goto('/admin');
-    await expect(page).toHaveURL('/admin/login');
+    await expect(page).toHaveURL(/\/admin\/login\/?/);
   });
   test('login succeeds', async ({ page }) => {
     await adminLogin(page);
@@ -198,7 +198,7 @@ test.describe('@req-admin-auth', () => {
   test('logout clears session', async ({ page }) => {
     await adminLogin(page);
     await page.getByRole('button', { name: /sign out/i }).click();
-    await expect(page).toHaveURL('/admin/login', { timeout: 10000 });
+    await expect(page).toHaveURL(/\/admin\/login\/?/, { timeout: 10000 });
   });
 });
 

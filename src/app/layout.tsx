@@ -68,6 +68,10 @@ export const metadata: Metadata = {
   },
 };
 
+import ThreeCanvas from '@/components/ui/ThreeCanvas';
+import Preloader from '@/components/ui/Preloader';
+import RouteTransition from '@/components/layout/RouteTransition';
+
 interface RootLayoutProps {
   children: ReactNode;
 }
@@ -111,7 +115,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
           }}
         />
       </head>
-      <body className="bg-[#0A0A0A] text-white font-body antialiased">
+      <body className="bg-transparent text-white font-body antialiased">
+        <Preloader />
+        <ThreeCanvas />
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only absolute top-4 left-4 z-50 bg-[#C9A84C] text-black px-4 py-2"
@@ -120,7 +126,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
         </a>
         <Navigation />
         <main id="main-content" className="flex flex-col min-h-screen">
-          {children}
+          <RouteTransition>
+            {children}
+          </RouteTransition>
         </main>
         <Footer />
       </body>

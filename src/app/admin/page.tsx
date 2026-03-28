@@ -7,7 +7,7 @@ export default function AdminPage() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    if (!document.cookie.includes('ab_admin_session')) { router.replace('/admin/login'); } else { setIsAuthed(true); }
+    if (!document.cookie.includes('ab-admin-session-v3')) { router.replace('/admin/login'); } else { setIsAuthed(true); }
     setLoading(false);
   }, [router]);
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0a1628]"><div className="text-white/50 text-sm">Loading...</div></div>;
