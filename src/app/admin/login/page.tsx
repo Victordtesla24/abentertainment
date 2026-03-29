@@ -27,9 +27,9 @@ export default function AdminLoginPage() {
 
       if (res.ok) {
         const data = await res.json();
-        // Store token for session management
+        // Set session cookie client-side for dev-mode cookie check
         if (data.token) {
-          document.cookie = 'ab-admin-session-v3=' + data.token + '; path=/; max-age=86400; SameSite=None; Secure';
+          document.cookie = `ab-admin-session-v3=${data.token}; path=/; max-age=86400; SameSite=Lax`;
         }
         await new Promise((r) => setTimeout(r, 300));
         router.push('/admin');

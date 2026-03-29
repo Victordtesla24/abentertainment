@@ -4,7 +4,6 @@ import {
   validateCredentials,
   createSessionToken,
   getSessionCookieName,
-  validateSessionToken,
 } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
@@ -19,13 +18,15 @@ export async function POST(request: NextRequest) {
     }
 
     const token = createSessionToken();
-    const response = NextResponse.json({ success: true });
+    const response = NextResponse.json({ success: true, token });
 
+    // httpOnly: false for dev-mode route handler.
+    // Production auth cookie is set by VPS server with httpOnly: true.
     response.cookies.set(getSessionCookieName(), token, {
-      httpOnly: true, // Cookie not readable by JS — admin page uses GET /api/admin/auth check
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60, // 24 hours
+      maxAge: 24 * 60 * 60,
       path: '/',
     });
 
@@ -42,14 +43,4 @@ export async function DELETE() {
   const response = NextResponse.json({ success: true });
   response.cookies.delete(getSessionCookieName());
   return response;
-}
-
-export async function GET(request: NextRequest) {
-  const sessionCookie = request.cookies.get(getSessionCookieName());
-
-  if (!sessionCookie || !validateSessionToken(sessionCookie.value)) {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
-  }
-
-  return NextResponse.json({ authenticated: true });
 }

@@ -172,7 +172,7 @@ The public-facing website delivers a cinematic, premium experience designed to c
 | **Video Preloader** | `Preloader.tsx` | Full-screen compressed video (889KB) on first homepage visit; session-aware (plays once) |
 | **Three.js Canvas** | `ThreeCanvas.tsx` | WebGL particle effects with graceful degradation; disabled on admin routes |
 | **Customer AI Concierge** | `ChatWidget.tsx` | Floating gold chat button on all public pages; streams responses via OpenAI; rate-limited (20 req/min) |
-| **Sponsor Carousel** | `SponsorBanner.tsx` | GSAP-powered infinite scroll banner; hidden on Home and About pages |
+| **Sponsor Carousel** | `SponsorBanner.tsx` | CSS animation infinite scroll banner; hidden on Home and About pages |
 | **Glassmorphism Navigation** | `Navigation.tsx` | Fixed header with scroll-reactive opacity, backdrop blur, responsive mobile menu |
 
 ---
@@ -351,7 +351,7 @@ The platform implements a premium black-and-gold design language inspired by the
 | System | Library | Use |
 | :--- | :--- | :--- |
 | Page transitions | Framer Motion 12 | Route transitions, section reveals, modal animations |
-| Scroll effects | GSAP 3.14 | Sponsor carousel infinite scroll, Three.js ticker |
+| Scroll effects | CSS @keyframes | Sponsor carousel infinite scroll via pure CSS animations |
 | 3D effects | Three.js 0.183 | WebGL particle canvas with graceful degradation |
 | Cinematic easing | — | `cubic-bezier(0.25, 1, 0.5, 1)` throughout |
 
@@ -367,7 +367,7 @@ The platform implements a premium black-and-gold design language inspired by the
 | **Styling** | Tailwind CSS | 4.0 |
 | **Animation** | Framer Motion | 12.0 |
 | **3D Graphics** | Three.js | 0.183 |
-| **Scroll Animation** | GSAP | 3.14 |
+| **Image Optimization** | sharp | 0.34 (build-time) |
 | **AI SDK** | Vercel AI SDK | 4.0 |
 | **Validation** | Zod | 3.23 |
 | **Testing** | Playwright | 1.50 |

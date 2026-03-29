@@ -28,7 +28,7 @@ test.describe('Public Pages', () => {
   test('events page loads with event cards', async ({ page }) => {
     await page.goto('/events');
     await expect(page).toHaveTitle(/Events/);
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
   });
 
   test('gallery page loads', async ({ page }) => {
@@ -137,15 +137,16 @@ test.describe('Admin Portal', () => {
     await page.getByLabel('Password').fill('admin123');
     await page.getByRole('button', { name: /sign in/i }).click();
 
-    // Wait for dashboard to load
-    await expect(page.getByText('Admin Portal')).toBeVisible({ timeout: 20000 });
+    // Wait for dashboard to load — sidebar has "AB Entertainment" text
+    await expect(page.locator('aside').getByText('AB Entertainment')).toBeVisible({ timeout: 20000 });
 
     // Check sidebar tabs are visible
-    await expect(page.getByRole('button', { name: /Events/i }).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('button', { name: /Sponsors/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Gallery/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Settings/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /AI Agent/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Health/i }).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: /Events/i }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Sponsors/i }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Gallery/i }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Settings/i }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /AI Agent/i }).first()).toBeVisible();
   });
 
   test('admin can view events table', async ({ page }) => {
@@ -156,8 +157,12 @@ test.describe('Admin Portal', () => {
     await page.getByLabel('Password').fill('admin123');
     await page.getByRole('button', { name: /sign in/i }).click();
 
-    // Events section should be visible (default tab) — look for the events heading or new event button
-    await expect(page.getByRole('heading', { name: /events/i }).first()).toBeVisible({ timeout: 20000 });
+    // Wait for dashboard to load
+    await expect(page.locator('aside').getByText('AB Entertainment')).toBeVisible({ timeout: 20000 });
+
+    // Click Events tab, then verify heading appears
+    await page.getByRole('button', { name: /Events/i }).first().click();
+    await expect(page.getByRole('heading', { name: /events/i }).first()).toBeVisible({ timeout: 10000 });
   });
 
   test('admin logout works', async ({ page }) => {
@@ -206,8 +211,10 @@ test.describe('API Routes', () => {
     expect(body.success).toBe(true);
   });
 
-  test('admin API rejects unauthenticated requests', async ({ request }) => {
-    const response = await request.get('/api/admin/auth');
+  test('admin API rejects invalid credentials', async ({ request }) => {
+    const response = await request.post('/api/admin/auth', {
+      data: { username: 'invalid', password: 'invalid' },
+    });
     expect(response.status()).toBe(401);
   });
 

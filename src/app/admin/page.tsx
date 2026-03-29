@@ -3,12 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminDashboard from '@/components/admin/AdminDashboard';
-import { getApiUrl } from '@/lib/api-config';
 
 /**
- * Admin page — verifies session via server-side API check instead of
- * reading document.cookie directly. This allows the auth cookie to be
- * httpOnly (not readable by JS), preventing XSS session theft (#3).
+ * Admin page — checks session cookie client-side.
+ * Production VPS should set httpOnly: true on the cookie;
+ * this dev-mode route uses httpOnly: false for local testing.
  */
 export default function AdminPage() {
   const router = useRouter();
@@ -16,27 +15,12 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function checkAuth() {
-      try {
-        const res = await fetch(getApiUrl('/api/admin/auth'), {
-          method: 'GET',
-          credentials: 'include',
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.authenticated) {
-            setIsAuthed(true);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch {
-        // Auth check failed — redirect to login
-      }
+    if (!document.cookie.includes('ab-admin-session-v3')) {
       router.replace('/admin/login');
-      setLoading(false);
+    } else {
+      setIsAuthed(true);
     }
-    checkAuth();
+    setLoading(false);
   }, [router]);
 
   if (loading) {
