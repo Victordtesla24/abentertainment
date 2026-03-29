@@ -45,7 +45,11 @@ export default function ChatWidget() {
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/chat', {
+      // Use external VPS chatbot API (Hostinger static hosting has no API routes)
+      const chatApiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? '/api/chat'
+        : 'http://187.77.12.13:3001/api/chat';
+      const res = await fetch(chatApiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
