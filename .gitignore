@@ -59,3 +59,7 @@ Thumbs.db
 
 # Large video files (served separately or from CDN)
 public/video/ab-curtain-opening.*
+
+# Large video assets (deployed via SCP, not through Git)
+public/video/*.mp4
+public/video/*.MP3
