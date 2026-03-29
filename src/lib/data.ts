@@ -1,7 +1,10 @@
 /**
  * Local data layer — replaces Sanity CMS.
- * All data is stored as JSON files in /data and managed via the admin portal.
- * For production, this would connect to the PostgreSQL database on the VPS.
+ *
+ * READ functions: Used at build time for static export (SSG).
+ * WRITE functions: Dev-only — admin CRUD in production goes through the VPS
+ *   agent server, not these local fs writers. They exist only to support
+ *   `next dev` admin panel workflows.
  */
 
 import { readFile, writeFile, mkdir } from 'fs/promises';
@@ -288,6 +291,7 @@ export async function getEventBySlug(slug: string): Promise<Event | null> {
   return events.find((e) => e.slug === slug) ?? null;
 }
 
+/** @dev Dev-only — production admin CRUD goes through VPS agent server */
 export async function saveEvents(events: Event[]): Promise<void> {
   await writeJsonFile('events.json', events);
 }
@@ -296,6 +300,7 @@ export async function getSponsors(): Promise<Sponsor[]> {
   return readJsonFile('sponsors.json', SEED_SPONSORS);
 }
 
+/** @dev Dev-only — production admin CRUD goes through VPS agent server */
 export async function saveSponsors(sponsors: Sponsor[]): Promise<void> {
   await writeJsonFile('sponsors.json', sponsors);
 }
@@ -304,6 +309,7 @@ export async function getGalleryImages(): Promise<GalleryImage[]> {
   return readJsonFile('gallery.json', []);
 }
 
+/** @dev Dev-only — production admin CRUD goes through VPS agent server */
 export async function saveGalleryImages(images: GalleryImage[]): Promise<void> {
   await writeJsonFile('gallery.json', images);
 }
@@ -316,6 +322,7 @@ export async function getSettings(): Promise<SiteSettings> {
   return readJsonFile('settings.json', SEED_SETTINGS);
 }
 
+/** @dev Dev-only — production admin CRUD goes through VPS agent server */
 export async function saveSettings(settings: SiteSettings): Promise<void> {
   await writeJsonFile('settings.json', settings);
 }

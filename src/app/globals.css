@@ -167,6 +167,22 @@ body {
   animation: grainShift 8s steps(10) infinite; pointer-events: none; z-index: 5;
 }
 
+/* Sponsor Banner Scroll Animations — replaces GSAP (#12) */
+@keyframes scrollUp {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-33.333%); }
+}
+@keyframes scrollDown {
+  0% { transform: translateY(-33.333%); }
+  100% { transform: translateY(0); }
+}
+.animate-scroll-up {
+  animation: scrollUp 25s linear infinite;
+}
+.animate-scroll-down {
+  animation: scrollDown 25s linear infinite;
+}
+
 .prose-invert { --tw-prose-body: #FDF8F1; --tw-prose-headings: #C9A84C; --tw-prose-links: #C9A84C; --tw-prose-bold: #FDF8F1; }
 
 @media (prefers-reduced-motion: reduce) {

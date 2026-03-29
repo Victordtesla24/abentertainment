@@ -1,56 +1,15 @@
-'use client';
-
-import { useState, type FormEvent } from 'react';
-import { motion } from 'framer-motion';
+import { Metadata } from 'next';
 import { SITE_CONFIG } from '@/lib/constants';
 import PageHero from '@/components/ui/PageHero';
-import { getApiUrl } from '@/lib/api-config';
+import ContactForm from '@/components/ui/ContactForm';
 
-type FormStatus = 'idle' | 'submitting' | 'success' | 'error';
-
-const CINEMATIC_EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
+export const metadata: Metadata = {
+  title: 'Contact',
+  description:
+    'Get in touch with AB Entertainment — event inquiries, sponsorship opportunities, and booking requests for premium Indian cultural events in Melbourne.',
+};
 
 export default function ContactPage() {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    subject: '',
-    message: '',
-  });
-  const [status, setStatus] = useState<FormStatus>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setStatus('submitting');
-    setErrorMessage('');
-
-    try {
-      const response = await fetch(getApiUrl('/api/contact'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setErrorMessage(
-          data.error || 'Failed to send message. Please try again.'
-        );
-        setStatus('error');
-        return;
-      }
-
-      setStatus('success');
-      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
-    } catch {
-      setErrorMessage('An unexpected error occurred. Please try again later.');
-      setStatus('error');
-    }
-  };
-
   return (
     <main className="bg-[#0A0A0A]">
       <PageHero
@@ -61,18 +20,12 @@ export default function ContactPage() {
         subtitle="Whether you're interested in attending an event, exploring sponsorship opportunities, or simply want to connect"
       />
 
-      {/* Form section */}
+      {/* Intro text — server-rendered for SEO */}
       <section className="py-16 md:py-20">
         <div className="container-eu">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: CINEMATIC_EASE }}
-          >
-            <p className="text-[rgba(255,255,255,0.4)] text-lg font-body max-w-2xl mb-8">
-              We&apos;d love to hear from you.
-            </p>
-          </motion.div>
+          <p className="text-white/40 text-lg font-body max-w-2xl mb-8">
+            We&apos;d love to hear from you.
+          </p>
         </div>
       </section>
 
@@ -80,197 +33,11 @@ export default function ContactPage() {
       <section className="pb-24">
         <div className="container-eu">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-12 lg:gap-16">
-            {/* Contact Form */}
-            <motion.div
-              className="lg:col-span-3"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.1, ease: CINEMATIC_EASE }}
-            >
-              {status === 'success' ? (
-                <div className="bg-[#C9A84C]/10 border border-[#C9A84C]/30 p-12 text-center">
-                  <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center border border-[#C9A84C]/30">
-                    <svg
-                      className="w-8 h-8 text-[#C9A84C]"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </div>
-                  <h2 className="text-2xl font-display text-[#C9A84C] mb-4">
-                    Message Sent
-                  </h2>
-                  <p className="text-[white] text-lg font-body mb-8">
-                    Thank you for reaching out. Our team will respond within 24
-                    hours.
-                  </p>
-                  <button
-                    onClick={() => setStatus('idle')}
-                    className="px-6 py-3 border border-[#C9A84C] text-[#C9A84C] font-semibold hover:bg-[#C9A84C] hover:text-white transition-all duration-300"
-                  >
-                    Send Another Message
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                      <label
-                        htmlFor="contact-name"
-                        className="block text-xs font-medium text-[#C9A84C] mb-2 uppercase tracking-wider font-body"
-                      >
-                        Full Name
-                      </label>
-                      <input
-                        id="contact-name"
-                        type="text"
-                        required
-                        value={formData.name}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            name: e.target.value,
-                          }))
-                        }
-                        disabled={status === 'submitting'}
-                        className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-[rgba(255,255,255,0.4)] focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
-                        placeholder="Your name"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="contact-email"
-                        className="block text-xs font-medium text-[#C9A84C] mb-2 uppercase tracking-wider font-body"
-                      >
-                        Email Address
-                      </label>
-                      <input
-                        id="contact-email"
-                        type="email"
-                        required
-                        value={formData.email}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            email: e.target.value,
-                          }))
-                        }
-                        disabled={status === 'submitting'}
-                        className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-[rgba(255,255,255,0.4)] focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
-                        placeholder="your@email.com"
-                      />
-                    </div>
-                  </div>
+            {/* Client-side contact form */}
+            <ContactForm />
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                      <label
-                        htmlFor="contact-phone"
-                        className="block text-xs font-medium text-[#C9A84C] mb-2 uppercase tracking-wider font-body"
-                      >
-                        Phone (optional)
-                      </label>
-                      <input
-                        id="contact-phone"
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            phone: e.target.value,
-                          }))
-                        }
-                        disabled={status === 'submitting'}
-                        className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-[rgba(255,255,255,0.4)] focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
-                        placeholder="Your phone number"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="contact-subject"
-                        className="block text-xs font-medium text-[#C9A84C] mb-2 uppercase tracking-wider font-body"
-                      >
-                        Subject
-                      </label>
-                      <select
-                        id="contact-subject"
-                        value={formData.subject}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            subject: e.target.value,
-                          }))
-                        }
-                        disabled={status === 'submitting'}
-                        className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
-                      >
-                        <option value="">Select a topic</option>
-                        <option value="event-inquiry">Event Inquiry</option>
-                        <option value="sponsorship">Sponsorship</option>
-                        <option value="booking">Booking / Tickets</option>
-                        <option value="press">Press & Media</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="contact-message"
-                      className="block text-xs font-medium text-[#C9A84C] mb-2 uppercase tracking-wider font-body"
-                    >
-                      Message
-                    </label>
-                    <textarea
-                      id="contact-message"
-                      required
-                      rows={6}
-                      value={formData.message}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          message: e.target.value,
-                        }))
-                      }
-                      disabled={status === 'submitting'}
-                      className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-[rgba(255,255,255,0.4)] focus:outline-none focus:border-[#C9A84C] transition-all duration-300 resize-vertical disabled:opacity-50"
-                      placeholder="Tell us about your inquiry..."
-                    />
-                  </div>
-
-                  {status === 'error' && (
-                    <div className="p-4 bg-red-900/20 border border-red-500/30">
-                      <p className="text-red-300 text-sm font-body">
-                        {errorMessage}
-                      </p>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={status === 'submitting'}
-                    className="btn-accent px-8 py-3 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {status === 'submitting' ? 'Sending...' : 'Send Message'}
-                  </button>
-                </form>
-              )}
-            </motion.div>
-
-            {/* Contact Info Sidebar */}
-            <motion.aside
-              className="lg:col-span-2 space-y-8"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2, ease: CINEMATIC_EASE }}
-            >
+            {/* Contact Info Sidebar — server-rendered for SEO */}
+            <aside className="lg:col-span-2 space-y-8">
               <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-8 space-y-6">
                 <h3 className="text-xl font-display text-[#C9A84C] mb-4">
                   Contact Details
@@ -282,7 +49,7 @@ export default function ContactPage() {
                   </p>
                   <a
                     href={`tel:${SITE_CONFIG.contact.phone}`}
-                    className="text-[white] hover:text-[#C9A84C] transition-colors font-body font-medium"
+                    className="text-white hover:text-[#C9A84C] transition-colors font-body font-medium"
                   >
                     {SITE_CONFIG.contact.phone}
                   </a>
@@ -294,7 +61,7 @@ export default function ContactPage() {
                   </p>
                   <a
                     href={`mailto:${SITE_CONFIG.contact.email}`}
-                    className="text-[white] hover:text-[#C9A84C] transition-colors font-body font-medium"
+                    className="text-white hover:text-[#C9A84C] transition-colors font-body font-medium"
                   >
                     {SITE_CONFIG.contact.email}
                   </a>
@@ -304,7 +71,7 @@ export default function ContactPage() {
                   <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">
                     Location
                   </p>
-                  <address className="not-italic text-[white] leading-relaxed font-body">
+                  <address className="not-italic text-white leading-relaxed font-body">
                     {SITE_CONFIG.contact.address.city},{' '}
                     {SITE_CONFIG.contact.address.state}
                     <br />
@@ -319,16 +86,16 @@ export default function ContactPage() {
                 </h3>
                 <div className="space-y-2 text-sm font-body">
                   <div className="flex justify-between">
-                    <span className="text-[rgba(255,255,255,0.4)]">Monday - Friday</span>
-                    <span className="text-[white]">9:00 AM - 6:00 PM</span>
+                    <span className="text-white/40">Monday - Friday</span>
+                    <span className="text-white">9:00 AM - 6:00 PM</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[rgba(255,255,255,0.4)]">Saturday</span>
-                    <span className="text-[white]">10:00 AM - 4:00 PM</span>
+                    <span className="text-white/40">Saturday</span>
+                    <span className="text-white">10:00 AM - 4:00 PM</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[rgba(255,255,255,0.4)]">Sunday</span>
-                    <span className="text-[white]">Closed</span>
+                    <span className="text-white/40">Sunday</span>
+                    <span className="text-white">Closed</span>
                   </div>
                 </div>
               </div>
@@ -362,7 +129,7 @@ export default function ContactPage() {
                   </a>
                 </div>
               </div>
-            </motion.aside>
+            </aside>
           </div>
         </div>
       </section>
