@@ -9,8 +9,9 @@ import SponsorsManager from './SponsorsManager';
 import GalleryManager from './GalleryManager';
 import SettingsManager from './SettingsManager';
 import AdminChatbot from './AdminChatbot';
+import HealthDashboard from './HealthDashboard';
 
-type Tab = 'events' | 'sponsors' | 'gallery' | 'settings' | 'ai';
+type Tab = 'health' | 'events' | 'sponsors' | 'gallery' | 'settings' | 'ai';
 
 interface AdminDashboardProps {
   initialEvents: Event[];
@@ -20,6 +21,7 @@ interface AdminDashboardProps {
 }
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: 'health', label: 'Health', icon: '📊' },
   { id: 'events', label: 'Events', icon: '📅' },
   { id: 'sponsors', label: 'Sponsors', icon: '🤝' },
   { id: 'gallery', label: 'Gallery', icon: '🖼' },
@@ -34,7 +36,7 @@ export default function AdminDashboard({
   initialSettings,
 }: AdminDashboardProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>('events');
+  const [activeTab, setActiveTab] = useState<Tab>('health');
 
   async function handleLogout() {
     await fetch(getApiUrl('/api/admin/auth'), { method: 'DELETE' });
@@ -83,6 +85,9 @@ export default function AdminDashboard({
       {/* Main content */}
       <main className="flex-1 bg-[#0A0A0A] overflow-auto">
         <div className="p-8">
+          {activeTab === 'health' && (
+            <HealthDashboard />
+          )}
           {activeTab === 'events' && (
             <EventsManager initialEvents={initialEvents} />
           )}

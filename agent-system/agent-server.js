@@ -694,14 +694,58 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Agent chat — handle both /api/agent/chat and /api/admin/chat
-  // This WAKES the agent from sleep — the only endpoint that triggers API calls
+  // ─── Health Dashboard Data (zero-cost — NO AI calls, does NOT wake agent) ───
   if (req.method === 'POST' && (url === '/api/agent/chat' || url === '/api/admin/chat')) {
-    // WAKE the agent — this is the only place that costs money
+    const body = await parseBody(req);
+
+    // Health dashboard data request — returns server telemetry without AI
+    if (body.type === 'health') {
+      const uptimeSeconds = Math.round(process.uptime());
+      const memUsage = process.memoryUsage();
+      const idleSeconds = Math.round((Date.now() - agentState.lastActivity) / 1000);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        type: 'health',
+        server: {
+          version: '3.1.0',
+          nodeVersion: process.version,
+          uptime: uptimeSeconds,
+          agentStatus: agentState.status,
+          idleSeconds,
+          sleepTimeoutSeconds: SLEEP_TIMEOUT_MS / 1000,
+          totalRequests: agentState.requestCount,
+          totalSleeps: agentState.sleepCount,
+          totalWakes: agentState.wakeCount,
+          productionApproved,
+          memoryMB: Math.round(memUsage.heapUsed / 1024 / 1024),
+          memoryTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024),
+        },
+        models: Object.keys(MODELS),
+        modelCount: Object.keys(MODELS).length,
+        tools: TOOLS.map(t => t.function.name),
+        toolCount: TOOLS.length,
+        workspace: {
+          loaded: Object.keys(workspaceContext).length === 4,
+          files: Object.keys(workspaceContext),
+          fileCount: Object.keys(workspaceContext).length,
+        },
+        apiKeys: {
+          openai: !!process.env.OPENAI_API_KEY,
+          openrouter: !!process.env.OPENROUTER_API_KEY,
+          gemini: !!process.env.GEMINI_API_KEY,
+          minimax: !!process.env.MINIMAX_API_KEY,
+        },
+        costLimit: COST_LIMIT,
+        developer: DEVELOPER_CONTACT,
+        timestamp: new Date().toISOString(),
+      }));
+      return;
+    }
+
+    // Agent chat — WAKES the agent from sleep (costs API tokens)
     wakeAgent();
 
     try {
-      const body = await parseBody(req);
       if (!body.messages?.length) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Messages required' }));
