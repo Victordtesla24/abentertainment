@@ -3,6 +3,7 @@
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { getApiUrl } from '@/lib/api-config';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -17,15 +18,20 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/admin/auth', {
+      const res = await fetch(getApiUrl('/api/admin/auth'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
+        credentials: 'include',
       });
 
       if (res.ok) {
-        // Small delay to let cookie propagate
-        await new Promise((r) => setTimeout(r, 200));
+        const data = await res.json();
+        // Store token for session management
+        if (data.token) {
+          document.cookie = 'ab-admin-session-v3=' + data.token + '; path=/; max-age=86400; SameSite=None; Secure';
+        }
+        await new Promise((r) => setTimeout(r, 300));
         router.push('/admin');
         router.refresh();
       } else {

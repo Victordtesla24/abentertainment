@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { SITE_CONFIG } from '@/lib/constants';
 import PageHero from '@/components/ui/PageHero';
+import { getApiUrl } from '@/lib/api-config';
 
 type FormStatus = 'idle' | 'submitting' | 'success' | 'error';
 
@@ -26,7 +27,7 @@ export default function ContactPage() {
     setErrorMessage('');
 
     try {
-      const response = await fetch('/api/contact', {
+      const response = await fetch(getApiUrl('/api/contact'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

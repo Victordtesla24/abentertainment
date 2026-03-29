@@ -102,13 +102,13 @@ export const TEAM_MEMBERS = [
   {
     name: 'Abhijit Kadam',
     role: 'President & CEO',
-    image: '/scraped-data/images/wp-content_uploads_2024_01_akv2_jpg_e8f44fe7.jpg',
+    image: '/images/team/abhijit-kadam.jpg',
     bio: 'The visionary leader behind AB Entertainment, Abhijit brings strategic direction and business acumen to every production. His commitment to excellence and passion for Indian cultural arts drives the company\'s mission to deliver world-class entertainment experiences in Melbourne.',
   },
   {
     name: 'Vrushali Deshpande',
     role: 'Founder & Director',
-    image: '/scraped-data/images/wp-content_uploads_2024_03_vrushali-deshpande_jpeg_f5429bb1.jpeg',
+    image: '/images/team/vrushali-deshpande.jpg',
     bio: 'As the creative force and founder of AB Entertainment, Vrushali\'s artistic vision and deep understanding of Marathi and Indian performing arts has been instrumental in establishing the company as Melbourne\'s premier cultural entertainment brand.',
   },
 ];

@@ -1,4 +1,5 @@
 'use client';
+import { getApiUrl } from '@/lib/api-config';
 
 import { useState, useRef, useEffect, FormEvent } from 'react';
 
@@ -39,7 +40,7 @@ export default function AdminChatbot() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/admin/chat', {
+      const res = await fetch(getApiUrl('/api/admin/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

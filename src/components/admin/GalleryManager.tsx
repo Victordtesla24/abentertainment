@@ -1,4 +1,5 @@
 'use client';
+import { getApiUrl } from '@/lib/api-config';
 
 import { useState, FormEvent } from 'react';
 import type { GalleryImage } from '@/lib/data';
@@ -22,7 +23,7 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
     setMessage('');
 
     try {
-      const res = await fetch('/api/admin/gallery', {
+      const res = await fetch(getApiUrl('/api/admin/gallery'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ src, alt, category, width: 1200, height: 800 }),
@@ -48,7 +49,7 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
     if (!confirm('Delete this image?')) return;
 
     try {
-      const res = await fetch('/api/admin/gallery', {
+      const res = await fetch(getApiUrl('/api/admin/gallery'), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),

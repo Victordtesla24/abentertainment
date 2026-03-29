@@ -1,4 +1,5 @@
 'use client';
+import { getApiUrl } from '@/lib/api-config';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -36,7 +37,7 @@ export default function AdminDashboard({
   const [activeTab, setActiveTab] = useState<Tab>('events');
 
   async function handleLogout() {
-    await fetch('/api/admin/auth', { method: 'DELETE' });
+    await fetch(getApiUrl('/api/admin/auth'), { method: 'DELETE' });
     router.push('/admin/login');
     router.refresh();
   }

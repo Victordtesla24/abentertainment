@@ -1,4 +1,5 @@
 'use client';
+import { getApiUrl } from '@/lib/api-config';
 
 import { useState, FormEvent } from 'react';
 import type { Event } from '@/lib/data';
@@ -74,7 +75,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
         ? form
         : { ...form, id: editing!.id };
 
-      const res = await fetch('/api/admin/events', {
+      const res = await fetch(getApiUrl('/api/admin/events'), {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -105,7 +106,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
     if (!confirm('Are you sure you want to delete this event?')) return;
 
     try {
-      const res = await fetch('/api/admin/events', {
+      const res = await fetch(getApiUrl('/api/admin/events'), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getApiUrl } from '@/lib/api-config';
 
 interface Message {
   id: string;
@@ -45,11 +46,7 @@ export default function ChatWidget() {
     setIsLoading(true);
 
     try {
-      // Use external VPS chatbot API over HTTPS (Hostinger static hosting has no API routes)
-      const chatApiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-        ? '/api/chat'
-        : 'https://187.77.12.13:8443/api/chat';
-      const res = await fetch(chatApiUrl, {
+      const res = await fetch(getApiUrl('/api/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
