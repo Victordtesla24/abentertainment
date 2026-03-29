@@ -1,21 +1,14 @@
 import type { NextConfig } from 'next';
 
-const TRUSTED_CDN_DOMAINS = [
-  'cdn.sanity.io',
-  'images.unsplash.com',
-] as const;
-
 const isStaticExport = process.env.NEXT_EXPORT === 'true';
 
 const nextConfig: NextConfig = {
+  // Static export for Firebase/Hostinger shared hosting
+  // Server mode (default) for Hostinger Node.js / VPS / Docker
   ...(isStaticExport ? { output: 'export' } : {}),
   trailingSlash: true,
   images: {
     unoptimized: true,
-    remotePatterns: TRUSTED_CDN_DOMAINS.map((hostname) => ({
-      protocol: 'https' as const,
-      hostname,
-    })),
   },
 };
 
