@@ -21,20 +21,27 @@ function throwMissingEnv(name: string): never {
   throw new Error(`Missing required env var: ${name}. See .env.example for setup instructions.`);
 }
 
+/** Constant-time string comparison to prevent timing oracle attacks. */
+function constantTimeEqual(a: string, b: string): boolean {
+  // Always compare full length to avoid leaking length info
+  const maxLen = Math.max(a.length, b.length);
+  let result = a.length ^ b.length; // Non-zero if lengths differ
+  for (let i = 0; i < maxLen; i++) {
+    result |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return result === 0;
+}
+
 /**
- * Validate credentials using constant-time comparison against SHA-256 hash.
+ * Validate credentials using constant-time comparison for both
+ * username and password hash (review fix #5 — prevents timing oracle).
  */
 export function validateCredentials(username: string, password: string): boolean {
-  const usernameMatch = username === ADMIN_USERNAME;
   const inputHash = createHash('sha256').update(password).digest('hex');
-  
-  // Constant-time comparison to prevent timing attacks
-  if (inputHash.length !== ADMIN_PASSWORD_HASH.length) return false;
-  let result = 0;
-  for (let i = 0; i < inputHash.length; i++) {
-    result |= inputHash.charCodeAt(i) ^ ADMIN_PASSWORD_HASH.charCodeAt(i);
-  }
-  return usernameMatch && result === 0;
+  // Always run BOTH comparisons to prevent timing leaks
+  const usernameMatch = constantTimeEqual(username, ADMIN_USERNAME);
+  const hashMatch = constantTimeEqual(inputHash, ADMIN_PASSWORD_HASH);
+  return usernameMatch && hashMatch;
 }
 
 export function getSessionCookieName(): string {

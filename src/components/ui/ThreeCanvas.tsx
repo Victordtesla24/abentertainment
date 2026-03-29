@@ -6,7 +6,8 @@ import { ThreeEngine } from '@/lib/three-engine/Engine';
 
 /**
  * Three.js WebGL canvas — site-wide fixed background.
- * Uses requestAnimationFrame instead of GSAP ticker (#12).
+ * Uses requestAnimationFrame for render loop.
+ * Handles cleanup to prevent RAF leaks on unmount (review fix #4).
  */
 export default function ThreeCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -20,14 +21,16 @@ export default function ThreeCanvas() {
 
     let engine: ThreeEngine | null = null;
     let animationId: number | null = null;
+    let isCancelled = false; // Prevent RAF start after unmount (review fix #4)
 
     ThreeEngine.getInstance(canvasRef.current).then((initializedEngine) => {
+      if (isCancelled) return; // Component unmounted before engine resolved
       engine = initializedEngine;
       tick();
     });
 
     const tick = () => {
-      if (!engine) return;
+      if (!engine || isCancelled) return;
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       const scrollProgress = docHeight > 0 ? window.scrollY / docHeight : 0;
       const clampedProgress = Math.max(0, Math.min(1, scrollProgress));
@@ -36,7 +39,9 @@ export default function ThreeCanvas() {
     };
 
     return () => {
+      isCancelled = true;
       if (animationId !== null) cancelAnimationFrame(animationId);
+      engine?.removeListeners(); // Prevent resize listener accumulation (review fix #3)
     };
   }, [pathname]);
 

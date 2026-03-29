@@ -18,6 +18,7 @@ export class ThreeEngine {
   public postProcessing?: PostProcessingPipeline;
   private monitor: FailsafeMonitor;
   private isInitialized = false;
+  private boundResizeHandler: (() => void) | null = null;
 
   private constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -90,7 +91,8 @@ export class ThreeEngine {
       return;
     }
     
-    window.addEventListener('resize', this.onWindowResize.bind(this));
+    this.boundResizeHandler = this.onWindowResize.bind(this);
+    window.addEventListener('resize', this.boundResizeHandler);
   }
 
   private setupLights() {
@@ -118,6 +120,13 @@ export class ThreeEngine {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     if (this.postProcessing) {
       this.postProcessing.resize(window.innerWidth, window.innerHeight);
+    }
+  }
+
+  /** Remove event listeners — call from component cleanup to prevent memory leaks */
+  public removeListeners() {
+    if (this.boundResizeHandler) {
+      window.removeEventListener('resize', this.boundResizeHandler);
     }
   }
 
