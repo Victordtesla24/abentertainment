@@ -1,5 +1,3 @@
-import * as Sentry from '@sentry/nextjs';
-
 export class FailsafeMonitor {
   private frameTimes: number[] = [];
   private readonly maxFramesToTrack = 60;
@@ -46,15 +44,7 @@ export class FailsafeMonitor {
     this.isDegraded = true;
 
     if (!this.reportedToSentry) {
-      // Send telemetry back to server-log dashboards regarding hardware limitations
-      Sentry.captureMessage('Hardware Performance Degraded: WebGL Post-Processing Disabled', {
-        level: 'warning',
-        tags: { performance: 'critical_fps_drop' },
-        extra: {
-          recordedFps: recordedFps.toFixed(1),
-          threshold: this.criticalFpsThreshold
-        }
-      });
+      // TODO: Add monitoring/telemetry when a provider is configured
       this.reportedToSentry = true;
     }
     
