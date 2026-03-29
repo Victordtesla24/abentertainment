@@ -1,0 +1,12 @@
+{
+  "name": "ab-agent-system",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node agent-server.js",
+    "dev": "node --watch agent-server.js"
+  },
+  "dependencies": {
+    "openai": "^4.70.0"
+  }
+}

@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  agent:
+    build: .
+    ports:
+      - "3002:3002"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY}
+      - PROJECT_ROOT=/app/project
+    volumes:
+      - ../src:/app/project/src:ro
+      - ../public:/app/project/public:ro
+      - agent-output:/app/output
+    restart: unless-stopped
+
+volumes:
+  agent-output:

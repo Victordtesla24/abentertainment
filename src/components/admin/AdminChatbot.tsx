@@ -51,11 +51,25 @@ export default function AdminChatbot() {
         }),
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to get response');
+      const contentType = res.headers.get('content-type') || '';
+
+      if (!res.ok || contentType.includes('text/html')) {
+        throw new Error('API not available');
       }
 
-      // Read streaming response
+      // Agent returns JSON with { response, productionApproved }
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        const assistantId = `assistant-${Date.now()}`;
+        setMessages((prev) => [
+          ...prev,
+          { id: assistantId, role: 'assistant', content: data.response || data.error || 'No response' },
+        ]);
+        setLoading(false);
+        return;
+      }
+
+      // Fallback: streaming response
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No response body');
 
