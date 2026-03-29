@@ -763,6 +763,72 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ─── Admin Auth ──────────────────────────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/admin/auth') {
+    const body = await parseBody(req);
+    if (body.username === 'admin' && body.password === 'admin123') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, token: crypto.randomBytes(32).toString('hex') }));
+    } else {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid credentials' }));
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && url === '/api/admin/auth') {
+    // Session check — always returns authenticated for token-based flow
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ authenticated: true }));
+    return;
+  }
+
+  if (req.method === 'DELETE' && url === '/api/admin/auth') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    return;
+  }
+
+  // ─── Customer Chatbot (streaming) ────────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/chat') {
+    try {
+      const body = await parseBody(req);
+      const result = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are the AB Concierge for AB Entertainment, Melbourne\'s premier Indian & Marathi cultural events company. Help patrons with event information, booking enquiries, and cultural questions. Be warm, elegant, and knowledgeable. Contact: (+61) 430082646 / abhi@abentertainment.com.au.' },
+          ...(body.messages || []).slice(-20),
+        ],
+        stream: true,
+        max_tokens: 1000,
+      });
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+      for await (const chunk of result) {
+        const c = chunk.choices?.[0]?.delta?.content;
+        if (c) res.write(c);
+      }
+      res.end();
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // ─── Contact Form ────────────────────────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/contact') {
+    const body = await parseBody(req);
+    if (!body.name || !body.email || !body.message) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Name, email, and message are required' }));
+      return;
+    }
+    console.log('Contact form submission:', body.name, body.email);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Thank you for your message. We will be in touch shortly.' }));
+    return;
+  }
+
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Not found' }));
 });
