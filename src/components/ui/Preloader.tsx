@@ -15,12 +15,9 @@ export default function Preloader() {
   useEffect(() => {
     // Only show preloader on homepage
     if (window.location.pathname !== '/' && window.location.pathname !== '') return;
-    // Skip if already played this session
-    if (sessionStorage.getItem('ab-preloader-played') === 'true') return;
-    if (localStorage.getItem('ab-preloader-played') === 'true') {
-      const lastPlayed = parseInt(localStorage.getItem('ab-preloader-time') || '0');
-      if (Date.now() - lastPlayed < 1800000) return;
-    }
+    // Show again only after 5 minutes since last play
+    const lastPlayed = parseInt(localStorage.getItem('ab-preloader-time') || '0');
+    if (lastPlayed && Date.now() - lastPlayed < 300000) return; // 5 min cooldown
     setShouldShow(true);
   }, []);
 
