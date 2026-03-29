@@ -3,77 +3,80 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import gsap from 'gsap';
 
 interface RouteTransitionProps {
   children: ReactNode;
 }
 
 /**
- * Cinematic Route Transition — Game of Thrones quality page changes.
- *
- * When navigating between pages:
- * 1. Current page fades with a golden wipe overlay sweeping across
- * 2. Brief interstitial: gold ember particles float across black
- * 3. New page materializes with content rising from below
- *
- * The overlay uses a diagonal gold-gradient wipe, not a simple opacity fade.
+ * Route Transition — plays ab-curtain-opening.mp4 as a fullscreen overlay
+ * between page navigations, with fade-in/fade-out for smooth blending.
  */
 export default function RouteTransition({ children }: RouteTransitionProps) {
   const pathname = usePathname();
-  const wipeRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const [displayChildren, setDisplayChildren] = useState(children);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const previousPathRef = useRef(pathname);
 
   useEffect(() => {
-    // Skip transition on initial load
+    // Skip on initial load
     if (previousPathRef.current === pathname) {
       setDisplayChildren(children);
       return;
     }
     previousPathRef.current = pathname;
 
-    const wipe = wipeRef.current;
-    if (!wipe) {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    const overlay = overlayRef.current;
+    if (!video || !overlay) {
       setDisplayChildren(children);
       return;
     }
 
     setIsTransitioning(true);
 
-    // The Grand Wipe — a gold-edged darkness sweeps across the screen
-    const tl = gsap.timeline({
-      onComplete: () => {
-        setDisplayChildren(children);
+    // Fade in the overlay with the curtain video
+    overlay.style.transition = 'opacity 0.4s ease-in';
+    overlay.style.opacity = '1';
+    overlay.style.pointerEvents = 'auto';
+
+    // Reset and play video
+    video.currentTime = 0;
+    video.play().catch(() => {});
+    if (audio) {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    }
+
+    // When video ends, fade out and show new content
+    const handleEnded = () => {
+      setDisplayChildren(children);
+
+      // Fade out the overlay
+      overlay.style.transition = 'opacity 0.6s ease-out';
+      overlay.style.opacity = '0';
+      overlay.style.pointerEvents = 'none';
+
+      setTimeout(() => {
         setIsTransitioning(false);
-      }
-    });
+      }, 700);
+    };
 
-    // Phase 1: Wipe IN — darkness + gold edge sweeps from left
-    gsap.set(wipe, { x: '-100%', opacity: 1 });
-    tl.to(wipe, {
-      x: '0%',
-      duration: 0.5,
-      ease: 'power3.inOut',
-    });
+    // Fallback: if video is too long or fails, auto-dismiss after 4s
+    const fallbackTimer = setTimeout(() => {
+      handleEnded();
+    }, 4000);
 
-    // Phase 2: Hold briefly — gold embers visible on black
-    tl.to({}, { duration: 0.15 });
+    video.addEventListener('ended', handleEnded, { once: true });
 
-    // Phase 3: Wipe OUT — darkness sweeps off to the right
-    tl.to(wipe, {
-      x: '100%',
-      duration: 0.5,
-      ease: 'power3.inOut',
-    });
-
-    // Dispatch camera sweep event for the 3D engine
-    window.dispatchEvent(new CustomEvent('cinematicRouteSweep', {
-      detail: { route: pathname }
-    }));
-
-    return () => { tl.kill(); };
+    return () => {
+      clearTimeout(fallbackTimer);
+      video.removeEventListener('ended', handleEnded);
+    };
   }, [pathname, children]);
 
   return (
@@ -82,52 +85,35 @@ export default function RouteTransition({ children }: RouteTransitionProps) {
       <AnimatePresence mode="wait">
         <motion.div
           key={isTransitioning ? 'transitioning' : pathname}
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{
-            duration: 0.4,
-            ease: [0.25, 1, 0.5, 1],
-          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3, ease: [0.25, 1, 0.5, 1] }}
           className="flex-1 w-full"
         >
           {displayChildren}
         </motion.div>
       </AnimatePresence>
 
-      {/* Cinematic wipe overlay — fixed above content, below preloader */}
+      {/* Curtain video overlay — hidden by default, shown during transitions */}
       <div
-        ref={wipeRef}
-        className="fixed inset-0 z-[999] pointer-events-none"
-        style={{
-          transform: 'translateX(-100%)',
-          opacity: 0,
-        }}
+        ref={overlayRef}
+        className="fixed inset-0 z-[998] pointer-events-none"
+        style={{ opacity: 0 }}
       >
-        {/* Main dark wipe body */}
-        <div className="absolute inset-0 bg-black" />
-
-        {/* Gold leading edge — the signature "blade" of the transition */}
-        <div
-          className="absolute top-0 right-0 w-2 h-full"
-          style={{
-            background: 'linear-gradient(180deg, transparent 5%, #B0923F 20%, #FFD700 50%, #B0923F 80%, transparent 95%)',
-            boxShadow: '0 0 30px rgba(201,168,76,0.6), 0 0 60px rgba(201,168,76,0.3), -5px 0 20px rgba(201,168,76,0.2)',
-          }}
+        <video
+          ref={videoRef}
+          className="w-full h-full object-cover"
+          src="/video/ab-curtain-opening.mp4"
+          muted
+          playsInline
+          preload="auto"
         />
-
-        {/* Subtle gold glow on the leading edge */}
-        <div
-          className="absolute top-0 right-0 w-20 h-full"
-          style={{
-            background: 'linear-gradient(to left, rgba(201,168,76,0.15), transparent)',
-          }}
+        <audio
+          ref={audioRef}
+          src="/video/ab-curtain-opening.MP3"
+          preload="auto"
         />
-
-        {/* Center emblem during transition (brief flash of the AB logo) */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-20">
-          <div className="w-16 h-16 border border-[#C9A84C]/30 rotate-45" />
-        </div>
       </div>
     </>
   );
