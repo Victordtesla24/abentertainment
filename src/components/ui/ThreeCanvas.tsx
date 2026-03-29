@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ThreeEngine } from '@/lib/three-engine/Engine';
@@ -12,6 +13,10 @@ if (typeof window !== 'undefined') {
 
 export default function ThreeCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pathname = usePathname();
+
+  // Hide Three.js canvas on admin routes
+  if (pathname.startsWith('/admin')) return null;
 
   useEffect(() => {
     if (!canvasRef.current) return;
