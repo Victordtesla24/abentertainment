@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   agent:
     build: .
@@ -11,9 +9,12 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - MINIMAX_API_KEY=${MINIMAX_API_KEY}
       - PROJECT_ROOT=/app/project
+      - WORKSPACE_DIR=/app/workspace
+      - OUTPUT_DIR=/app/output
     volumes:
       - ../src:/app/project/src:ro
       - ../public:/app/project/public:ro
+      - ./workspace:/app/workspace
       - agent-output:/app/output
     restart: unless-stopped
 
