@@ -115,7 +115,7 @@ export default async function SponsorsPage() {
               <h2 className="text-2xl font-display text-[#C9A84C] mb-4">
                 Become a Sponsor
               </h2>
-              <p className="text-[white] text-lg font-body mb-6">
+              <p className="text-white text-lg font-body mb-6">
                 We are currently welcoming sponsorship partnerships. Join us in
                 celebrating and preserving Indian cultural heritage in Melbourne.
               </p>

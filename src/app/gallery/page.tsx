@@ -142,7 +142,7 @@ export default async function GalleryPage() {
               <h2 className="text-2xl font-display text-[#C9A84C] mb-4">
                 Gallery Coming Soon
               </h2>
-              <p className="text-[white] text-lg font-body">
+              <p className="text-white text-lg font-body">
                 We are preparing a visual showcase of our finest cultural moments.
                 Check back soon to explore our event photography and performance
                 highlights.

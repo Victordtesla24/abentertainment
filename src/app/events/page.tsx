@@ -137,7 +137,7 @@ export default async function EventsPage() {
         <section className="pb-16">
           <div className="container-eu">
             <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-12 text-center">
-              <p className="text-[white] text-lg font-body">
+              <p className="text-white text-lg font-body">
                 No upcoming events currently scheduled. Please check back soon.
               </p>
               <p className="text-[rgba(255,255,255,0.4)] mt-4 font-body">

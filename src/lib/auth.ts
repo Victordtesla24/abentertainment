@@ -12,14 +12,21 @@ import { createHmac, randomBytes, createHash } from 'crypto';
 
 const SESSION_COOKIE_NAME = 'ab-admin-session-v3';
 
-// Env-based config — no hardcoded fallbacks. Set these in .env.local.
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? throwMissingEnv('ADMIN_USERNAME');
-const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH ?? throwMissingEnv('ADMIN_PASSWORD_HASH');
-const SESSION_SECRET = process.env.SESSION_SECRET ?? throwMissingEnv('SESSION_SECRET');
-
-function throwMissingEnv(name: string): never {
-  throw new Error(`Missing required env var: ${name}. See .env.example for setup instructions.`);
+/**
+ * Lazy env access — avoids throwing at module-import time, which breaks
+ * static export builds where admin routes are compiled but never executed.
+ */
+function getEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required env var: ${name}. See .env.example for setup instructions.`);
+  }
+  return value;
 }
+
+function getAdminUsername(): string { return getEnv('ADMIN_USERNAME'); }
+function getAdminPasswordHash(): string { return getEnv('ADMIN_PASSWORD_HASH'); }
+function getSessionSecret(): string { return getEnv('SESSION_SECRET'); }
 
 /** Constant-time string comparison to prevent timing oracle attacks. */
 function constantTimeEqual(a: string, b: string): boolean {
@@ -39,8 +46,8 @@ function constantTimeEqual(a: string, b: string): boolean {
 export function validateCredentials(username: string, password: string): boolean {
   const inputHash = createHash('sha256').update(password).digest('hex');
   // Always run BOTH comparisons to prevent timing leaks
-  const usernameMatch = constantTimeEqual(username, ADMIN_USERNAME);
-  const hashMatch = constantTimeEqual(inputHash, ADMIN_PASSWORD_HASH);
+  const usernameMatch = constantTimeEqual(username, getAdminUsername());
+  const hashMatch = constantTimeEqual(inputHash, getAdminPasswordHash());
   return usernameMatch && hashMatch;
 }
 
@@ -54,13 +61,13 @@ export function getSessionCookieName(): string {
  */
 export function createSessionToken(): string {
   const payload = JSON.stringify({
-    user: ADMIN_USERNAME,
+    user: getAdminUsername(),
     jti: randomBytes(16).toString('hex'), // unique token ID prevents replay
     iat: Date.now(),
     exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
   });
   const encodedPayload = Buffer.from(payload).toString('base64url');
-  const signature = createHmac('sha256', SESSION_SECRET)
+  const signature = createHmac('sha256', getSessionSecret())
     .update(encodedPayload)
     .digest('hex');
   return `${encodedPayload}.${signature}`;
@@ -80,7 +87,7 @@ export function validateSessionToken(token: string): boolean {
     const [encodedPayload, signature] = parts;
     
     // Verify HMAC signature
-    const expectedSignature = createHmac('sha256', SESSION_SECRET)
+    const expectedSignature = createHmac('sha256', getSessionSecret())
       .update(encodedPayload)
       .digest('hex');
     
@@ -94,7 +101,7 @@ export function validateSessionToken(token: string): boolean {
     
     // Parse and validate payload
     const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf-8'));
-    if (payload.user !== ADMIN_USERNAME) return false;
+    if (payload.user !== getAdminUsername()) return false;
     if (typeof payload.exp !== 'number' || payload.exp < Date.now()) return false;
     
     return true;
