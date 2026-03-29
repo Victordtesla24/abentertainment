@@ -92,7 +92,7 @@ function EventGalleryCard({ event, index }: { event: Event; index: number }) {
           <h3 className="text-white font-display text-lg font-bold mb-1">
             {event.title}
           </h3>
-          <p className="text-[white/40] text-sm font-body">{event.venue}</p>
+          <p className="text-white/40 text-sm font-body">{event.venue}</p>
         </div>
       </div>
     </div>

@@ -150,7 +150,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
           </h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-[white/40] mb-1">Title</label>
+              <label className="block text-xs text-white/40 mb-1">Title</label>
               <input
                 type="text"
                 value={form.title}
@@ -160,7 +160,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               />
             </div>
             <div>
-              <label className="block text-xs text-[white/40] mb-1">Slug</label>
+              <label className="block text-xs text-white/40 mb-1">Slug</label>
               <input
                 type="text"
                 value={form.slug}
@@ -170,7 +170,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               />
             </div>
             <div>
-              <label className="block text-xs text-[white/40] mb-1">Date</label>
+              <label className="block text-xs text-white/40 mb-1">Date</label>
               <input
                 type="date"
                 value={form.date}
@@ -180,7 +180,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               />
             </div>
             <div>
-              <label className="block text-xs text-[white/40] mb-1">Venue</label>
+              <label className="block text-xs text-white/40 mb-1">Venue</label>
               <input
                 type="text"
                 value={form.venue}
@@ -190,7 +190,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs text-[white/40] mb-1">Description</label>
+              <label className="block text-xs text-white/40 mb-1">Description</label>
               <textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -200,7 +200,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               />
             </div>
             <div>
-              <label className="block text-xs text-[white/40] mb-1">Price (AUD)</label>
+              <label className="block text-xs text-white/40 mb-1">Price (AUD)</label>
               <input
                 type="number"
                 value={form.price}
@@ -210,7 +210,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               />
             </div>
             <div>
-              <label className="block text-xs text-[white/40] mb-1">Category</label>
+              <label className="block text-xs text-white/40 mb-1">Category</label>
               <input
                 type="text"
                 value={form.category}
@@ -220,7 +220,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               />
             </div>
             <div>
-              <label className="block text-xs text-[white/40] mb-1">Status</label>
+              <label className="block text-xs text-white/40 mb-1">Status</label>
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value as Event['status'] })}
@@ -232,7 +232,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-[white/40] mb-1">Image URL</label>
+              <label className="block text-xs text-white/40 mb-1">Image URL</label>
               <input
                 type="text"
                 value={form.image}
@@ -251,7 +251,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               <button
                 type="button"
                 onClick={cancelForm}
-                className="px-6 py-2 border border-[white/40]/30 text-[white/40] text-sm rounded-sm hover:text-white hover:border-white/30 transition-colors"
+                className="px-6 py-2 border border-white/30/30 text-white/40 text-sm rounded-sm hover:text-white hover:border-white/30 transition-colors"
               >
                 Cancel
               </button>
@@ -276,17 +276,17 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
             {events.map((event) => (
               <tr key={event.id} className="border-b border-[#C9A84C]/10 hover:bg-white/5 transition-colors">
                 <td className="px-4 py-3 text-sm text-white font-medium">{event.title}</td>
-                <td className="px-4 py-3 text-sm text-[white/40]">{event.date}</td>
+                <td className="px-4 py-3 text-sm text-white/40">{event.date}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-sm ${
                     event.status === 'upcoming' ? 'bg-[#1BBFA1]/20 text-[#1BBFA1]' :
                     event.status === 'live' ? 'bg-[#C9A84C]/20 text-[#C9A84C]' :
-                    'bg-[white/40]/20 text-[white/40]'
+                    'bg-white/20/20 text-white/40'
                   }`}>
                     {event.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-[white/40]">{event.category}</td>
+                <td className="px-4 py-3 text-sm text-white/40">{event.category}</td>
                 <td className="px-4 py-3 text-right">
                   <button
                     onClick={() => startEdit(event)}
@@ -305,7 +305,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
             ))}
             {events.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[white/40] text-sm">
+                <td colSpan={5} className="px-4 py-8 text-center text-white/40 text-sm">
                   No events yet. Click &quot;+ New Event&quot; to create one.
                 </td>
               </tr>

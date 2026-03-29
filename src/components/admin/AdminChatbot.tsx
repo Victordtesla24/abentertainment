@@ -112,7 +112,7 @@ export default function AdminChatbot() {
   return (
     <div>
       <h2 className="text-2xl font-display font-bold text-white mb-2">AI Agent</h2>
-      <p className="text-[white/40] text-sm mb-6">
+      <p className="text-white/40 text-sm mb-6">
         Agentic assistant with access to events, market research, and content creation capabilities.
       </p>
 
@@ -158,7 +158,7 @@ export default function AdminChatbot() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask the agent to create events, research markets..."
               disabled={loading}
-              className="flex-1 px-4 py-3 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm placeholder-[white/40] focus:outline-none focus:border-[#C9A84C] disabled:opacity-50"
+              className="flex-1 px-4 py-3 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#C9A84C] disabled:opacity-50"
             />
             <button
               type="submit"

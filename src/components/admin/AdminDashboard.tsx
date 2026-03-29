@@ -52,7 +52,7 @@ export default function AdminDashboard({
           <h1 className="text-lg font-display font-bold text-[#C9A84C]">
             AB Entertainment
           </h1>
-          <p className="text-xs text-[white/40] mt-1">Admin Portal</p>
+          <p className="text-xs text-white/40 mt-1">Admin Portal</p>
         </div>
 
         <nav className="flex-1 py-4">
@@ -63,7 +63,7 @@ export default function AdminDashboard({
               className={`w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors ${
                 activeTab === tab.id
                   ? 'text-[#C9A84C] bg-[#C9A84C]/10 border-r-2 border-[#C9A84C]'
-                  : 'text-[white/40] hover:text-white hover:bg-white/5'
+                  : 'text-white/40 hover:text-white hover:bg-white/5'
               }`}
             >
               <span>{tab.icon}</span>
