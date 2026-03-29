@@ -53,11 +53,16 @@ export default function ChatWidget() {
         }),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Something went wrong' }));
+      // Check if response is HTML (static hosting — no API routes)
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || contentType.includes('text/html')) {
         setMessages((prev) => [
           ...prev,
-          { id: `e-${Date.now()}`, role: 'assistant', content: err.error || 'Sorry, I encountered an issue. Please try again.' },
+          {
+            id: `e-${Date.now()}`,
+            role: 'assistant',
+            content: 'I\'m currently available when the site is running on a server with the OpenAI API configured. For now, please contact us directly at abhi@abentertainment.com.au or call (+61) 430082646 for any inquiries about events, tickets, or sponsorship.',
+          },
         ]);
         return;
       }
@@ -74,9 +79,22 @@ export default function ChatWidget() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        assistantContent += decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        // Skip SSE data prefixes if present
+        assistantContent += chunk;
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: assistantContent } : m))
+        );
+      }
+
+      // If response was empty, show fallback
+      if (!assistantContent.trim()) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: 'I received your message but couldn\'t generate a response. Please try again or contact us at abhi@abentertainment.com.au.' }
+              : m
+          )
         );
       }
     } catch {
