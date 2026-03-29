@@ -22,7 +22,7 @@ const SPONSORS: SponsorItem[] = [
   { name: 'Indian Association of Melbourne', logo: '/images/sponsors/iam.jpg', url: '#', tier: 'silver' },
 ];
 
-function SponsorCard({ sponsor, prefix }: { sponsor: SponsorItem; prefix: string }) {
+function SponsorCard({ sponsor }: { sponsor: SponsorItem }) {
   return (
     <a
       href={sponsor.url}
@@ -68,7 +68,7 @@ export default function SponsorBanner() {
         <div className="absolute inset-y-0 left-0 w-full overflow-hidden">
           <div className="flex flex-col gap-4 p-2 animate-scroll-up">
             {sponsorCards.map((sponsor, i) => (
-              <SponsorCard key={`l-${i}`} sponsor={sponsor} prefix="l" />
+              <SponsorCard key={`l-${i}`} sponsor={sponsor} />
             ))}
           </div>
         </div>
@@ -80,7 +80,7 @@ export default function SponsorBanner() {
         <div className="absolute inset-y-0 right-0 w-full overflow-hidden">
           <div className="flex flex-col gap-4 p-2 animate-scroll-down">
             {sponsorCards.map((sponsor, i) => (
-              <SponsorCard key={`r-${i}`} sponsor={sponsor} prefix="r" />
+              <SponsorCard key={`r-${i}`} sponsor={sponsor} />
             ))}
           </div>
         </div>
