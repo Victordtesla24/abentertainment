@@ -1,6 +1,7 @@
 'use client';
 
 import { motion, useScroll, useTransform } from 'framer-motion';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
 
 interface PageHeroProps {
   image: string;
@@ -49,6 +50,8 @@ export default function PageHero({ image, badge, title, highlight, subtitle }: P
         style={{ opacity }}
       >
         <div className="container-eu">
+          <Breadcrumbs />
+
           <motion.span
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}

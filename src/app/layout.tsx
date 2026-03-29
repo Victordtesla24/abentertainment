@@ -82,6 +82,8 @@ import Preloader from '@/components/ui/Preloader';
 import RouteTransition from '@/components/layout/RouteTransition';
 import ChatWidget from '@/components/ui/ChatWidget';
 import SponsorBanner from '@/components/ui/SponsorBanner';
+import BackToTop from '@/components/ui/BackToTop';
+import CookieConsent from '@/components/ui/CookieConsent';
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -144,6 +146,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <Footer />
         <SponsorBanner />
         <ChatWidget />
+        <BackToTop />
+        <CookieConsent />
       </body>
     </html>
   );

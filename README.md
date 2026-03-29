@@ -43,7 +43,9 @@ This platform represents a comprehensive technology investment: a cinematic web 
 12. [Testing & Quality Assurance](#12-testing--quality-assurance)
 13. [Content & Data](#13-content--data)
 14. [Troubleshooting](#14-troubleshooting)
-15. [License](#15-license)
+15. [SEO & Compliance](#15-seo--compliance)
+16. [Changelog](#16-changelog)
+17. [License](#17-license)
 
 ---
 
@@ -67,7 +69,7 @@ AB Entertainment is not a conventional website. It is a three-tier digital platf
 | AI models available | 15 (OpenAI, Anthropic, Google, DeepSeek, and more) |
 | Agent tools | 8 (research, image generation, event management, code analysis, memory persistence) |
 | Cost limit per request | $5.00 (with automatic escalation) |
-| Public pages | 10 (Home, About, Events, Gallery, Sponsors, Contact, Privacy, Terms, Admin Login, Admin Dashboard) |
+| Public pages | 11 (Home, About, Events, Gallery, Sponsors, Contact, Privacy, Terms, 404, Admin Login, Admin Dashboard) |
 | API endpoints | 8 production routes |
 
 ---
@@ -162,8 +164,9 @@ The public-facing website delivers a cinematic, premium experience designed to c
 | **Gallery** | `/gallery` | AI-generated hero image, masonry photo grid from past productions |
 | **Sponsors** | `/sponsors` | AI-generated hero image, tiered sponsor cards (Platinum, Gold, Silver, Bronze) |
 | **Contact** | `/contact` | AI-generated hero image, validated contact form with VPS backend |
-| **Privacy** | `/privacy` | Privacy policy |
+| **Privacy** | `/privacy` | Privacy policy (Australian Privacy Principles compliant) |
 | **Terms** | `/terms` | Terms of service |
+| **404** | `/*` | Custom not-found page with brand-consistent design and navigation CTAs |
 
 ### Interactive Features
 
@@ -174,6 +177,9 @@ The public-facing website delivers a cinematic, premium experience designed to c
 | **Customer AI Concierge** | `ChatWidget.tsx` | Floating gold chat button on all public pages; streams responses via OpenAI; rate-limited (20 req/min) |
 | **Sponsor Carousel** | `SponsorBanner.tsx` | CSS animation infinite scroll banner; hidden on Home and About pages |
 | **Glassmorphism Navigation** | `Navigation.tsx` | Fixed header with scroll-reactive opacity, backdrop blur, responsive mobile menu |
+| **Back to Top** | `BackToTop.tsx` | Scroll-triggered button appearing after 600px scroll, smooth scroll to top with Framer Motion animation |
+| **Cookie Consent** | `CookieConsent.tsx` | GDPR/APP-compliant consent banner with Accept/Decline, persists preference via document.cookie |
+| **Breadcrumbs** | `Breadcrumbs.tsx` | Dynamic breadcrumb navigation on interior pages using `usePathname()`, ARIA-labelled for accessibility |
 
 ---
 
@@ -501,6 +507,9 @@ ab-entertainment/
 │   │   │   ├── chat/route.ts        # Customer chatbot
 │   │   │   ├── contact/route.ts     # Contact form handler
 │   │   │   └── admin/               # Auth, events, sponsors, gallery, settings, chat
+│   │   ├── not-found.tsx             # Custom 404 page (black & gold branded)
+│   │   ├── sitemap.ts               # Dynamic sitemap generation (MetadataRoute API)
+│   │   ├── robots.ts                # Dynamic robots.txt generation (MetadataRoute API)
 │   │   ├── globals.css              # Tailwind + custom animations
 │   │   └── layout.tsx               # Root layout (preloader, nav, footer, Three.js)
 │   │
@@ -508,7 +517,7 @@ ab-entertainment/
 │   │   ├── sections/                # CinematicHero, IntroSection, VisionSection
 │   │   ├── layout/                  # Navigation, Footer, RouteTransition
 │   │   ├── admin/                   # Dashboard, EventsManager, SponsorsManager, etc.
-│   │   └── ui/                      # ChatWidget, PageHero, Preloader, SponsorBanner, ThreeCanvas
+│   │   └── ui/                      # ChatWidget, PageHero, Preloader, SponsorBanner, ThreeCanvas, BackToTop, Breadcrumbs, CookieConsent
 │   │
 │   └── lib/
 │       ├── api-config.ts            # API URL routing (local vs PHP proxy)
@@ -519,9 +528,7 @@ ab-entertainment/
 │
 ├── public/
 │   ├── images/                      # Logos, heroes, events, gallery, sponsors, team
-│   ├── videos/                      # Preloader video (gitignored, deployed via SCP)
-│   ├── robots.txt                   # SEO configuration
-│   └── sitemap.xml                  # Search engine sitemap
+│   └── videos/                      # Preloader video (gitignored, deployed via SCP)
 │
 ├── e2e/                             # Playwright E2E tests
 ├── data/                            # Runtime JSON data store
@@ -629,7 +636,66 @@ sudo journalctl -u ab-chatbot -f    # Stream logs
 
 ---
 
-## 15. License
+## 15. SEO & Compliance
+
+### Search Engine Optimisation
+
+| Feature | Implementation |
+| :--- | :--- |
+| **Dynamic Sitemap** | `src/app/sitemap.ts` — MetadataRoute API generates `sitemap.xml` at build time with 8 routes, priorities, and change frequencies |
+| **Dynamic Robots.txt** | `src/app/robots.ts` — MetadataRoute API generates `robots.txt` allowing `/`, disallowing `/admin/` and `/api/` |
+| **Schema.org (Organization)** | JSON-LD in root `layout.tsx` — Organization type with name, URL, logo, founders, contact info |
+| **Schema.org (Events)** | JSON-LD in `events/page.tsx` — ItemList of Event types with name, dates, venue, pricing |
+| **Open Graph Metadata** | Per-page `metadata` exports with title templates, descriptions, and OG image configuration |
+
+### Legal & Privacy Compliance
+
+| Feature | Implementation |
+| :--- | :--- |
+| **Privacy Policy** | Australian Privacy Principles (APP) compliant; references Privacy Act 1988 (Cth) and NDB scheme |
+| **Terms of Service** | Standard terms covering liability, IP, dispute resolution under Victorian law |
+| **Cookie Consent** | Banner with Accept/Decline; no third-party ad trackers; preference persisted via cookie |
+| **Footer Legal Links** | Privacy Policy and Terms of Service accessible from every page via footer |
+
+---
+
+## 16. Changelog
+
+### March 2026 — Production Audit & Competitive Gap Closure
+
+Comprehensive audit benchmarking against Fortune 500-tier event management platforms (Live Nation, Eventbrite, Cvent, Informa Connect). All identified gaps addressed:
+
+**New Components**
+
+- `BackToTop.tsx` — Scroll-triggered back-to-top button with Framer Motion animation
+- `CookieConsent.tsx` — Cookie consent banner with Accept/Decline (APP/GDPR compliant)
+- `Breadcrumbs.tsx` — Dynamic breadcrumb navigation with ARIA accessibility attributes
+- `not-found.tsx` — Custom 404 page with brand-consistent black & gold design
+
+**SEO Improvements**
+
+- Dynamic `sitemap.xml` generation via Next.js MetadataRoute API (8 routes with priorities)
+- Dynamic `robots.txt` generation via MetadataRoute API (allow `/`, disallow `/admin/`, `/api/`)
+- Schema.org Event structured data (JSON-LD ItemList) on events page
+
+**Brand Consistency Fixes**
+
+- Privacy and Terms pages updated from off-brand colour palette (`#062434`, `#CC8A1C`, `#7E7180`) to design system tokens (`#0A0A0A`, `#C9A84C`, `white/40`)
+
+**Legal Compliance**
+
+- Footer updated with Privacy Policy and Terms of Service links in the copyright bar
+
+**Codebase Cleanup**
+
+- Removed orphaned `EventCard.tsx` component (events page uses inline definition)
+- Removed stale test artifacts (`.playwright-mcp/`, `test-results/`)
+- Removed TypeScript build cache (`tsconfig.tsbuildinfo`)
+- Installed `lightningcss-linux-arm64-gnu` for ARM64 build compatibility
+
+---
+
+## 17. License
 
 Copyright 2024–2026 AB Entertainment. All rights reserved.
 

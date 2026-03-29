@@ -94,6 +94,50 @@ export default async function EventsPage() {
 
   return (
     <main className="bg-[#0A0A0A]">
+      {/* Structured Data for Events */}
+      {events.length > 0 && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'ItemList',
+              itemListElement: events.map((event, index) => ({
+                '@type': 'ListItem',
+                position: index + 1,
+                item: {
+                  '@type': 'Event',
+                  name: event.title,
+                  description: event.description,
+                  startDate: event.date,
+                  location: {
+                    '@type': 'Place',
+                    name: event.venue,
+                    address: {
+                      '@type': 'PostalAddress',
+                      addressLocality: 'Melbourne',
+                      addressRegion: 'VIC',
+                      addressCountry: 'AU',
+                    },
+                  },
+                  organizer: {
+                    '@type': 'Organization',
+                    name: 'AB Entertainment',
+                    url: 'https://abentertainment.com.au',
+                  },
+                  image: event.image ? `https://abentertainment.com.au${event.image}` : undefined,
+                  offers: {
+                    '@type': 'Offer',
+                    price: event.price,
+                    priceCurrency: event.currency || 'AUD',
+                    availability: new Date(event.date) > new Date() ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
+                  },
+                },
+              })),
+            }),
+          }}
+        />
+      )}
       <PageHero
         image="/images/heroes/events-hero.png"
         badge="Our Events"

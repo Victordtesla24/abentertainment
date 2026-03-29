@@ -130,8 +130,13 @@ export default function Footer() {
 
       {/* Copyright */}
       <div className="border-t border-[#C9A84C]/6">
-        <div className="container-eu py-7 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="container-eu py-7 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-white/20 text-xs font-body">&copy; {currentYear} {SITE_CONFIG.name}. All rights reserved.</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="text-white/20 text-xs font-body hover:text-[#C9A84C] transition-colors duration-300">Privacy Policy</Link>
+            <span className="text-white/10">|</span>
+            <Link href="/terms" className="text-white/20 text-xs font-body hover:text-[#C9A84C] transition-colors duration-300">Terms of Service</Link>
+          </div>
           <p className="text-white/12 text-xs font-body">Crafted with passion in Melbourne, Australia</p>
         </div>
       </div>
