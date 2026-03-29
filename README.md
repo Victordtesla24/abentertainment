@@ -21,7 +21,9 @@ The codebase is validated by a 75-test Playwright E2E automation suite covering 
 
 | Environment | URL | Status |
 | :--- | :--- | :--- |
-| **Production** | [abentertainment-mel.web.app](https://abentertainment-mel.web.app) | ✅ Live |
+| **Production (Hostinger)** | [abentertainment.com.au](https://abentertainment.com.au) | ✅ Live |
+| **Mirror (Firebase)** | [abentertainment-mel.web.app](https://abentertainment-mel.web.app) | ✅ Live |
+| **VPS API** | `187.77.12.13:3001` | ✅ Active (15 AI models) |
 | **Repository** | [github.com/Victordtesla24/abentertainment](https://github.com/Victordtesla24/abentertainment) | ✅ Active |
 
 ---
@@ -37,32 +39,135 @@ flowchart TD
     classDef server fill:#111111,stroke:#C9A84C,stroke-width:1px,color:#D4B65C;
     classDef data fill:#1A1A1A,stroke:#C9A84C,stroke-width:1px,color:#FDF8F1;
     classDef external fill:#0A0A0A,stroke:#D4B65C,stroke-width:2px,color:#D4B65C;
+    classDef vps fill:#0A0A0A,stroke:#1BBFA1,stroke-width:2px,color:#1BBFA1;
 
-    BROWSER["Browser Client"]:::client --> NEXT["Next.js 16 App Router"]:::server
+    BROWSER["🌐 Browser Client"]:::client --> HOSTINGER["Hostinger Static Hosting<br/>abentertainment.com.au"]:::server
 
-    subgraph Presentation Layer
-        NEXT --> HERO["CinematicHero<br/>Parallax + Ken Burns"]:::server
-        NEXT --> NAV["Navigation<br/>Glassmorphism + Framer Motion"]:::server
-        NEXT --> PAGES["Public Pages<br/>Events · Gallery · About · Contact"]:::server
+    subgraph Presentation["Presentation Layer (Static HTML/JS)"]
+        HOSTINGER --> PRELOADER["🎬 Video Preloader<br/>ab-animation-2.mp4"]:::server
+        HOSTINGER --> HERO["🎭 CinematicHero<br/>Parallax + Ken Burns + Canvas Particles"]:::server
+        HOSTINGER --> NAV["📱 Navigation<br/>Glassmorphism + Framer Motion"]:::server
+        HOSTINGER --> PAGES["📄 Public Pages<br/>Home · About · Events · Gallery<br/>Sponsors · Contact · Privacy · Terms"]:::server
+        HOSTINGER --> CHAT_UI["💬 ChatWidget<br/>Floating Gold Button"]:::server
+        HOSTINGER --> SPONSOR_BAR["📢 Sponsor Banners<br/>GSAP Infinite Scroll"]:::server
     end
 
-    subgraph Business Logic
-        NEXT --> API_CHAT["API: /api/chat<br/>OpenAI SDK + Rate Limiting"]:::server
-        NEXT --> API_CONTACT["API: /api/contact<br/>Zod Validation"]:::server
-        NEXT --> API_ADMIN["API: /api/admin/*<br/>Auth + CRUD"]:::server
+    subgraph VPS_API["VPS API Server (187.77.12.13:3001)"]
+        PHP_PROXY["PHP Proxy<br/>/api/*.php"] --> NODE["Node.js Agent Server"]:::vps
+        NODE --> CHAT_EP["Customer Chat<br/>/api/chat"]:::vps
+        NODE --> AUTH_EP["Admin Auth<br/>/api/admin/auth"]:::vps
+        NODE --> AGENT_EP["🤖 AI Agent<br/>/api/agent/chat<br/>15 Models · 7 Tools"]:::vps
+        NODE --> CONTACT_EP["Contact Form<br/>/api/contact"]:::vps
     end
 
-    subgraph Data Layer
-        API_ADMIN --> DATA["Local JSON Data Store<br/>(events, sponsors, gallery, settings)"]:::data
-        API_CHAT --> OPENAI["OpenAI API<br/>GPT-4o / GPT-4o-mini"]:::external
+    subgraph AI_Models["AI Model Pool (15 Models)"]
+        AGENT_EP --> ORCHESTRATOR["🧠 GPT-4o-mini<br/>Orchestrator"]:::external
+        ORCHESTRATOR --> SUB_GPT["GPT-5.4 / 5.4-Pro<br/>GPT-5.3-Codex"]:::external
+        ORCHESTRATOR --> SUB_CLAUDE["Claude Opus 4.6<br/>Claude Sonnet 4.6"]:::external
+        ORCHESTRATOR --> SUB_GEMINI["Gemini 3.1 Pro<br/>Gemini 2.0 Flash"]:::external
+        ORCHESTRATOR --> SUB_RESEARCH["Perplexity Sonar<br/>Deep Research"]:::external
+        ORCHESTRATOR --> SUB_OTHER["Kimi K2.5 · MiniMax M2.5<br/>GLM 5 · DeepSeek V3.2 · Qwen 3.5"]:::external
+        ORCHESTRATOR --> IMG_GEN["GPT Image 1.5<br/>Image Generation"]:::external
     end
 
-    subgraph Admin Portal
-        NEXT --> ADMIN["Admin Dashboard<br/>Events · Sponsors · Gallery · Settings · AI Agent"]:::server
-        ADMIN --> API_ADMIN
-    end
+    HOSTINGER --> PHP_PROXY
+    HOSTINGER --> FIREBASE["Firebase Mirror<br/>abentertainment-mel.web.app"]:::external
+```
 
-    NEXT --> FIREBASE["Firebase Hosting<br/>abentertainment-mel.web.app"]:::external
+### 3.1 Deployment Architecture
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0A0A0A', 'primaryTextColor': '#C9A84C', 'primaryBorderColor': '#C9A84C', 'lineColor': '#C9A84C'}}}%%
+flowchart LR
+    classDef hosting fill:#111111,stroke:#C9A84C,stroke-width:2px,color:#C9A84C;
+    classDef vps fill:#0A0A0A,stroke:#1BBFA1,stroke-width:2px,color:#1BBFA1;
+    classDef git fill:#0A0A0A,stroke:#D4B65C,stroke-width:2px,color:#D4B65C;
+
+    DEV["💻 Developer<br/>Local Machine"]:::git -->|git push| GITHUB["GitHub<br/>main branch"]:::git
+    GITHUB -->|SSH Deploy Key| HOSTINGER["🌐 Hostinger<br/>82.180.172.143<br/>Static HTML/CSS/JS"]:::hosting
+    DEV -->|SCP/rsync| HOSTINGER
+    DEV -->|SCP| VPS["🖥 VPS<br/>187.77.12.13<br/>Node.js Agent API"]:::vps
+    HOSTINGER -->|PHP Proxy| VPS
+    DEV -->|firebase deploy| FIREBASE["☁️ Firebase<br/>Static Mirror"]:::hosting
+```
+
+### 3.2 User Interaction Flow
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0A0A0A', 'primaryTextColor': '#C9A84C', 'primaryBorderColor': '#C9A84C', 'lineColor': '#C9A84C'}}}%%
+sequenceDiagram
+    participant U as 👤 User
+    participant H as 🌐 Hostinger
+    participant V as 🖥 VPS API
+    participant AI as 🤖 AI Models
+
+    Note over U,AI: Public User Flow
+    U->>H: Visit abentertainment.com.au
+    H->>U: Preloader Video → Hero → Full Page
+    U->>H: Click Chat Button
+    U->>H: Type message
+    H->>V: PHP Proxy → /api/chat
+    V->>AI: GPT-4o-mini (streaming)
+    AI-->>V: Stream tokens
+    V-->>H: Stream response
+    H-->>U: Display AI response
+
+    Note over U,AI: Admin Flow
+    U->>H: /admin/login → admin/admin123
+    H->>V: PHP Proxy → /api/admin/auth
+    V-->>H: Token + Cookie
+    H-->>U: Dashboard (Events/Sponsors/Gallery/Settings/AI)
+    U->>H: AI Agent → "Research competitors"
+    H->>V: /api/agent/chat
+    V->>AI: Tool calling (search_web → Perplexity)
+    AI-->>V: Research results
+    V->>AI: Generate response with tool results
+    AI-->>V: Structured response
+    V-->>H: JSON {response, productionApproved}
+    H-->>U: Display agent response
+```
+
+### 3.3 AI Agent Orchestrator Workflow
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0A0A0A', 'primaryTextColor': '#C9A84C', 'primaryBorderColor': '#C9A84C', 'lineColor': '#C9A84C'}}}%%
+flowchart TD
+    classDef step fill:#111111,stroke:#C9A84C,stroke-width:2px,color:#C9A84C;
+    classDef decision fill:#0A0A0A,stroke:#D4B65C,stroke-width:2px,color:#D4B65C;
+    classDef gate fill:#0A0A0A,stroke:#ff4444,stroke-width:2px,color:#ff4444;
+    classDef done fill:#0A0A0A,stroke:#1BBFA1,stroke-width:2px,color:#1BBFA1;
+
+    S0["Step 0: ORCHESTRATOR OWNS<br/>Evaluate request → Estimate cost"]:::step
+    COST{"Cost > $5?"}:::gate
+    S0 --> COST
+    COST -->|Yes| STOP["❌ Contact Developer Team<br/>(Vikram)"]:::gate
+    COST -->|No| S1["Step 1: Analysis & Research<br/>Sub-agents: Perplexity Sonar, Gemini"]:::step
+    S1 --> S2["Step 2: Map Requirements → SC<br/>SC-1, SC-2, SC-3..."]:::step
+    S2 --> S3["Step 3: Implement/Build<br/>Sub-agents: GPT-5.3-Codex, Claude Sonnet"]:::step
+    S3 --> S4["Step 4: Test & Verify Each SC"]:::step
+    S4 --> D1{"All SC = PASS?"}:::decision
+    D1 -->|No| S1
+    D1 -->|Yes| S5["Step 5: Commit & Deploy"]:::step
+    S5 --> S6["Step 6: Post-Production Test"]:::step
+    S6 --> S7["Step 7: Verify vs Each SC"]:::step
+    S7 --> D2{"All SC = PASS?"}:::decision
+    D2 -->|No| S1
+    D2 -->|Yes| S8["Step 8: ORCHESTRATOR OWNS<br/>Present output + SC evidence to Admin"]:::done
+```
+
+### 3.4 Production Safety Gate
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0A0A0A', 'primaryTextColor': '#C9A84C', 'primaryBorderColor': '#C9A84C', 'lineColor': '#C9A84C'}}}%%
+flowchart LR
+    classDef blocked fill:#1a0500,stroke:#ff4444,stroke-width:2px,color:#ff4444;
+    classDef approved fill:#050f05,stroke:#1BBFA1,stroke-width:2px,color:#1BBFA1;
+    classDef check fill:#111111,stroke:#C9A84C,stroke-width:2px,color:#C9A84C;
+
+    REQ["Agent requests<br/>code modification"]:::check
+    REQ --> CHECK{"Admin typed exact phrase?<br/>'I have reviewed your work and<br/>I am happy for you to change<br/>the production website'"}:::check
+    CHECK -->|No| BLOCK["🔒 BLOCKED<br/>No code changes allowed"]:::blocked
+    CHECK -->|Yes| ALLOW["✅ APPROVED<br/>Code modification permitted"]:::approved
 ```
 
 ---
@@ -265,59 +370,67 @@ Navigate to `/admin/login` and use the hardcoded credentials:
 
 ```
 ab-entertainment/
+├── agent-system/               # Docker-based AI Agent (VPS deployment)
+│   ├── Dockerfile              # Node.js 22 Alpine container
+│   ├── docker-compose.yml      # Docker Compose with env vars
+│   ├── agent-server.js         # Full agent server (15 models, 7 tools)
+│   └── package.json            # Agent dependencies
 ├── src/
 │   ├── app/                    # Next.js App Router pages
 │   │   ├── page.tsx            # Homepage (Hero + Intro + Events + Vision + CTA)
-│   │   ├── about/              # About page
-│   │   ├── events/             # Events listing
-│   │   ├── gallery/            # Photo gallery
-│   │   ├── sponsors/           # Sponsor showcase
-│   │   ├── contact/            # Contact form
-│   │   ├── admin/              # Admin portal (login + dashboard)
-│   │   │   ├── login/page.tsx  # Admin login
-│   │   │   └── page.tsx        # Admin dashboard (server-side auth)
-│   │   ├── api/                # API routes
+│   │   ├── about/              # About page (AI hero + team + pillars)
+│   │   ├── events/             # Events listing (AI hero + 6 events)
+│   │   ├── gallery/            # Photo gallery (AI hero + masonry grid)
+│   │   ├── sponsors/           # Sponsor showcase (AI hero + tier cards)
+│   │   ├── contact/            # Contact form (AI hero + validation)
+│   │   ├── admin/              # Admin portal
+│   │   │   ├── layout.tsx      # Admin layout (hides public nav/footer)
+│   │   │   ├── login/page.tsx  # Login (black & gold themed)
+│   │   │   └── page.tsx        # Dashboard (client-side auth check)
+│   │   ├── api/                # API routes (local dev only)
 │   │   │   ├── chat/           # Customer chatbot
 │   │   │   ├── contact/        # Contact form handler
-│   │   │   └── admin/          # Admin CRUD + auth + settings
+│   │   │   └── admin/          # Admin CRUD + auth + settings + chat
 │   │   ├── privacy/            # Privacy policy
 │   │   ├── terms/              # Terms of service
-│   │   ├── globals.css         # Tailwind + custom styles
-│   │   └── layout.tsx          # Root layout (fonts, meta, nav, footer)
+│   │   ├── globals.css         # Tailwind + gold shimmer + particles + grain
+│   │   └── layout.tsx          # Root layout (preloader, Three.js, nav, footer)
 │   ├── components/
-│   │   ├── sections/           # Page sections (Hero, Intro, Vision, etc.)
-│   │   ├── layout/             # Navigation + Footer
-│   │   ├── admin/              # Admin dashboard components
-│   │   └── ui/                 # Shared UI components
+│   │   ├── sections/           # CinematicHero, IntroSection, VisionSection
+│   │   ├── layout/             # Navigation, Footer, RouteTransition
+│   │   ├── admin/              # AdminDashboard, EventsManager, SettingsManager, etc.
+│   │   └── ui/                 # ChatWidget, PageHero, Preloader, SponsorBanner, ThreeCanvas
 │   ├── lib/
-│   │   ├── constants.ts        # Site config, navigation, content data
-│   │   ├── data.ts             # Data access layer (JSON file store)
-│   │   ├── auth.ts             # Admin authentication logic
-│   │   └── env.ts              # Environment variable validation
-│   ├── config/
-│   │   └── site.ts             # Site configuration
-│   └── types/
-│       └── index.ts            # Shared TypeScript types
+│   │   ├── api-config.ts       # API URL routing (local vs PHP proxy)
+│   │   ├── auth.ts             # Admin auth (admin/admin123)
+│   │   ├── constants.ts        # Site config, navigation, team, events
+│   │   ├── data.ts             # JSON data access layer
+│   │   ├── redis.ts            # In-memory rate limiter
+│   │   └── three-engine/       # Three.js singleton + camera + post-processing
+│   ├── config/site.ts
+│   └── types/index.ts
 ├── public/
-│   ├── images/                 # Logo variants, hero backgrounds, event images
-│   │   ├── AB_Logo_transparent.png  # Primary logo (transparent, gold)
-│   │   ├── hero-bg.jpg         # Hero background image 1
-│   │   ├── hero-bg-2.jpg       # Hero background image 2
-│   │   └── sponsors/           # Sponsor logo images
-│   └── scraped-data/images/    # Original AB Entertainment event photos
-├── e2e/
-│   └── comprehensive.spec.ts   # 75-test Playwright E2E suite
-├── docs/
-│   ├── Success-Criteria-Checklist.md   # Binary pass/fail for all 75 tests
-│   └── reports/
-│       └── Final-Audit-Report.md       # Traceability matrix + telemetry ledger
+│   ├── images/
+│   │   ├── AB_Logo_transparent.png
+│   │   ├── hero-bg.jpg, hero-bg-2.jpg
+│   │   ├── events/             # 6 event promotional images
+│   │   ├── gallery/            # 19 event photographs
+│   │   ├── heroes/             # 5 AI-generated page hero images
+│   │   ├── sponsors/           # 4 sponsor logos
+│   │   └── team/               # 2 team member photos
+│   ├── video/                  # Preloader + transition videos (gitignored)
+│   ├── robots.txt
+│   └── sitemap.xml
+├── e2e/                        # Playwright E2E tests
+├── docs/                       # Documentation + reports
 ├── data/                       # Runtime JSON data store
+├── Dockerfile                  # Next.js production container
+├── docker-compose.yml          # Next.js + PostgreSQL
 ├── firebase.json               # Firebase Hosting config
-├── .firebaserc                 # Firebase project binding
-├── playwright.config.ts        # Playwright configuration
-├── next.config.ts              # Next.js configuration
-├── tailwind.config.ts          # Tailwind CSS configuration
-└── package.json                # Dependencies and scripts
+├── next.config.ts              # Next.js config (static export support)
+├── tailwind.config.ts
+├── tsconfig.json
+└── package.json
 ```
 
 ---
