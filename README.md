@@ -77,7 +77,7 @@ AB Entertainment is not a conventional website. It is a three-tier digital platf
 | Environment | URL | Status |
 | :--- | :--- | :--- |
 | **Production** | [abentertainment.com.au](https://abentertainment.com.au) | Live |
-| **VPS API** | `187.77.12.13:3001` (Agent v3.1.0) | Active |
+| **VPS API** | Private VPS (Agent v3.1.0) | Active |
 | **Repository** | [github.com/Victordtesla24/abentertainment](https://github.com/Victordtesla24/abentertainment) | Active |
 
 ---
@@ -104,7 +104,7 @@ flowchart TD
         HOSTINGER --> SPONSORS["Sponsor Banner Carousel"]:::server
     end
 
-    subgraph Backend["VPS Agent Server (187.77.12.13:3001)"]
+    subgraph Backend["VPS Agent Server"]
         PHP["PHP Proxy Layer"] --> NODE["Node.js v3.1.0"]:::vps
         NODE --> CHAT["Customer Chat API"]:::vps
         NODE --> AUTH["Admin Auth API"]:::vps
@@ -141,8 +141,8 @@ flowchart LR
     classDef git fill:#0A0A0A,stroke:#D4B65C,stroke-width:2px,color:#D4B65C;
 
     DEV["Developer"]:::git -->|git push| GITHUB["GitHub main"]:::git
-    DEV -->|SCP static export| HOSTINGER["Hostinger 82.180.172.143"]:::hosting
-    DEV -->|SCP agent + workspace| VPS["VPS 187.77.12.13"]:::vps
+    DEV -->|SCP static export| HOSTINGER["Hostinger Web Server"]:::hosting
+    DEV -->|SCP agent + workspace| VPS["VPS Agent Server"]:::vps
     HOSTINGER -->|PHP Proxy| VPS
 ```
 
@@ -186,9 +186,8 @@ The admin portal provides the AB Entertainment operations team with complete sel
 | | |
 | :--- | :--- |
 | **URL** | `https://abentertainment.com.au/admin/login` |
-| **Username** | `admin` |
-| **Password** | `admin123` |
-| **Session** | 24-hour cookie (`ab-admin-session-v3`) |
+| **Credentials** | Provided to authorised personnel only |
+| **Session** | 24-hour secure cookie |
 
 ### Dashboard Tabs
 
@@ -383,25 +382,20 @@ The platform implements a premium black-and-gold design language inspired by the
 
 | | |
 | :--- | :--- |
-| **Server** | 82.180.172.143 |
 | **Type** | Shared hosting (PHP/LiteSpeed) |
 | **Domain** | abentertainment.com.au |
-| **Document root** | `~/domains/abentertainment.com.au/public_html/` |
 | **Deployment** | Static HTML export via `NEXT_EXPORT=true npm run build` |
-| **SSH** | `ssh u123456789@82.180.172.143 -p 65002` |
+| **Access** | SSH credentials provided to authorised developers only |
 
 ### VPS (API & AI Agent)
 
 | | |
 | :--- | :--- |
-| **Server** | 187.77.12.13 |
 | **OS** | Ubuntu 22.04 LTS |
 | **Runtime** | Node.js 22.x |
-| **Application** | `/opt/ab-chatbot/` |
-| **Workspace** | `/opt/ab-chatbot/workspace/` |
 | **Service** | `ab-chatbot.service` (systemd, enabled) |
 | **Port** | 3001 |
-| **SSH** | `ssh root@187.77.12.13` |
+| **Access** | SSH credentials provided to authorised developers only |
 
 ### PHP Proxy Layer
 
@@ -471,8 +465,7 @@ NEXT_EXPORT=true npm run build
 | | |
 | :--- | :--- |
 | **URL** | `/admin/login` |
-| **Username** | `admin` |
-| **Password** | `admin123` |
+| **Credentials** | Contact the administrator for access |
 
 ---
 
@@ -618,13 +611,13 @@ All content is sourced from the authentic AB Entertainment brand. There is no pl
 
 | Issue | Resolution |
 | :--- | :--- |
-| Agent not responding | SSH to VPS: `ssh root@187.77.12.13` → `sudo systemctl restart ab-chatbot` |
+| Agent not responding | SSH to VPS → `sudo systemctl restart ab-chatbot` |
 | PHP proxy returning HTML | Verify PHP files in Hostinger `public_html/api/` directory |
 | Website pages 404 | Rebuild: `NEXT_EXPORT=true npm run build` → SCP `out/` to Hostinger |
-| API key error | Update keys in `/opt/ab-chatbot/.env` → restart service |
-| Context not loading | Check workspace files at `/opt/ab-chatbot/workspace/` |
+| API key error | Update keys in VPS `.env` → restart service |
+| Context not loading | Check workspace files on VPS |
 | Dev server won't start | Verify port 3000 is available: `lsof -i :3000` |
-| Admin login fails | Use credentials: `admin` / `admin123` |
+| Admin login fails | Contact the administrator for credentials |
 
 ### VPS Service Commands
 
@@ -632,7 +625,6 @@ All content is sourced from the authentic AB Entertainment brand. There is no pl
 sudo systemctl status ab-chatbot    # Check status
 sudo systemctl restart ab-chatbot   # Restart
 sudo journalctl -u ab-chatbot -f    # Stream logs
-curl http://187.77.12.13:3001/health # Health check
 ```
 
 ---
