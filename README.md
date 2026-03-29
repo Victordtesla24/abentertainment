@@ -1,19 +1,74 @@
 # AB Entertainment
 
-![Stars](https://img.shields.io/github/stars/Victordtesla24/abentertainment?style=for-the-badge&color=C9A84C)
-![License](https://img.shields.io/github/license/Victordtesla24/abentertainment?style=for-the-badge&color=2ea043)
-![Next.js](https://img.shields.io/badge/Next.js-16.2-black?style=for-the-badge&logo=next.js)
+<div align="center">
+
+![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?style=for-the-badge&logo=typescript)
-![Playwright](https://img.shields.io/badge/Playwright-75%2F75-brightgreen?style=for-the-badge)
-![Firebase](https://img.shields.io/badge/Firebase-Hosting-orange?style=for-the-badge&logo=firebase)
+![React](https://img.shields.io/badge/React-19-61dafb?style=for-the-badge&logo=react)
+![Tailwind](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?style=for-the-badge&logo=tailwindcss)
+![AI Models](https://img.shields.io/badge/AI_Models-15-C9A84C?style=for-the-badge)
+![License](https://img.shields.io/badge/License-Proprietary-2ea043?style=for-the-badge)
 
-## 1. Executive Summary
+**Melbourne's Premier Indian & Marathi Cultural Events Platform**
 
-AB Entertainment is a production-grade, full-stack cultural events platform built for Melbourne's Indian and Marathi community. The application delivers a cinematic, premium web experience with a complete admin portal, AI-powered chatbot, and an automated end-to-end testing pipeline — deployed to Firebase Hosting at [abentertainment-mel.web.app](https://abentertainment-mel.web.app).
+[Live Website](https://abentertainment.com.au) · [Repository](https://github.com/Victordtesla24/abentertainment)
 
-The architecture follows an eventsunleashed.com-inspired design system adapted to AB Entertainment's black-and-gold brand identity (`#0A0A0A` / `#C9A84C`), featuring Framer Motion cinematic animations, parallax scrolling, a Ken Burns hero carousel, and a responsive glassmorphism navigation system. The admin portal provides full CRUD operations for events, sponsors, and gallery management, plus AI model switching and an agentic admin chatbot.
+</div>
 
-The codebase is validated by a 75-test Playwright E2E automation suite covering 21 requirement groups — achieving a **100% pass rate** with zero console errors across all routes.
+---
+
+## Executive Summary
+
+AB Entertainment is a production-grade digital platform purpose-built for one of Melbourne's most distinguished Indian and Marathi cultural entertainment organisations. Founded in 2007, AB Entertainment has produced over six landmark events, engaged more than 25,000 audience members, and cultivated a digital presence that spans Australia and New Zealand.
+
+This platform represents a comprehensive technology investment: a cinematic web experience, a full-featured administrative portal, and a proprietary AI Agent system that places the power of fifteen frontier AI models directly in the hands of the operations team. The architecture is designed for resilience, cost efficiency, and operational independence — enabling the AB Entertainment team to manage events, create content, conduct market research, and maintain their digital presence without ongoing developer intervention.
+
+**Developer**: Vikram Deshpande ([sarkar.vikram@gmail.com](mailto:sarkar.vikram@gmail.com))
+
+---
+
+## Table of Contents
+
+1. [Platform Overview](#1-platform-overview)
+2. [Live Deployment](#2-live-deployment)
+3. [Architecture](#3-architecture)
+4. [Public Website](#4-public-website)
+5. [Administrative Portal](#5-administrative-portal)
+6. [AI Agent System](#6-ai-agent-system)
+7. [Design System](#7-design-system)
+8. [Technology Stack](#8-technology-stack)
+9. [Infrastructure](#9-infrastructure)
+10. [Installation & Development](#10-installation--development)
+11. [Project Structure](#11-project-structure)
+12. [Testing & Quality Assurance](#12-testing--quality-assurance)
+13. [Content & Data](#13-content--data)
+14. [Troubleshooting](#14-troubleshooting)
+15. [License](#15-license)
+
+---
+
+## 1. Platform Overview
+
+AB Entertainment is not a conventional website. It is a three-tier digital platform comprising:
+
+| Tier | Capability | Value |
+| :--- | :--- | :--- |
+| **Public Website** | Cinematic, premium web experience with video preloader, 3D canvas, parallax hero, and floating AI concierge chatbot | Audience engagement and ticket conversion |
+| **Administrative Portal** | Full CRUD operations for events, sponsors, gallery, and site settings with a secure login system | Operational independence for the AB team |
+| **AI Agent System** | Fifteen frontier AI models, eight intelligent tools, and an orchestrated workflow with production safety gates, sleep/wake cost management, and persistent memory | Strategic automation at a fraction of the cost |
+
+### Key Metrics
+
+| Metric | Value |
+| :--- | :--- |
+| Events produced | 6+ major cultural events |
+| Audience reach | 25,000+ across Australia and New Zealand |
+| Team members | 25+ |
+| AI models available | 15 (OpenAI, Anthropic, Google, DeepSeek, and more) |
+| Agent tools | 8 (research, image generation, event management, code analysis, memory persistence) |
+| Cost limit per request | $5.00 (with automatic escalation) |
+| Public pages | 10 (Home, About, Events, Gallery, Sponsors, Contact, Privacy, Terms, Admin Login, Admin Dashboard) |
+| API endpoints | 8 production routes |
 
 ---
 
@@ -21,60 +76,62 @@ The codebase is validated by a 75-test Playwright E2E automation suite covering 
 
 | Environment | URL | Status |
 | :--- | :--- | :--- |
-| **Production (Hostinger)** | [abentertainment.com.au](https://abentertainment.com.au) | ✅ Live |
-| **Mirror (Firebase)** | [abentertainment-mel.web.app](https://abentertainment-mel.web.app) | ✅ Live |
-| **VPS API** | `187.77.12.13:3001` | ✅ Active (15 AI models) |
-| **Repository** | [github.com/Victordtesla24/abentertainment](https://github.com/Victordtesla24/abentertainment) | ✅ Active |
+| **Production** | [abentertainment.com.au](https://abentertainment.com.au) | Live |
+| **VPS API** | `187.77.12.13:3001` (Agent v3.1.0) | Active |
+| **Repository** | [github.com/Victordtesla24/abentertainment](https://github.com/Victordtesla24/abentertainment) | Active |
 
 ---
 
-## 3. High-Level Architecture Overview
+## 3. Architecture
 
-The system operates as a Next.js 16 full-stack application with a layered architecture separating presentation, business logic, data access, and administration concerns.
+The system operates as a decoupled architecture: a statically exported Next.js 16 frontend hosted on Hostinger shared hosting, connected via PHP proxy to a Node.js AI Agent server running on a dedicated VPS.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0A0A0A', 'primaryTextColor': '#C9A84C', 'primaryBorderColor': '#C9A84C', 'lineColor': '#C9A84C', 'secondaryColor': '#111111', 'tertiaryColor': '#1A1A1A'}}}%%
 flowchart TD
     classDef client fill:#0A0A0A,stroke:#C9A84C,stroke-width:2px,color:#C9A84C;
     classDef server fill:#111111,stroke:#C9A84C,stroke-width:1px,color:#D4B65C;
-    classDef data fill:#1A1A1A,stroke:#C9A84C,stroke-width:1px,color:#FDF8F1;
-    classDef external fill:#0A0A0A,stroke:#D4B65C,stroke-width:2px,color:#D4B65C;
     classDef vps fill:#0A0A0A,stroke:#1BBFA1,stroke-width:2px,color:#1BBFA1;
+    classDef external fill:#0A0A0A,stroke:#D4B65C,stroke-width:2px,color:#D4B65C;
 
-    BROWSER["🌐 Browser Client"]:::client --> HOSTINGER["Hostinger Static Hosting<br/>abentertainment.com.au"]:::server
+    BROWSER["Browser Client"]:::client --> HOSTINGER["Hostinger Static Hosting"]:::server
 
-    subgraph Presentation["Presentation Layer (Static HTML/JS)"]
-        HOSTINGER --> PRELOADER["🎬 Video Preloader<br/>ab-animation-2.mp4"]:::server
-        HOSTINGER --> HERO["🎭 CinematicHero<br/>Parallax + Ken Burns + Canvas Particles"]:::server
-        HOSTINGER --> NAV["📱 Navigation<br/>Glassmorphism + Framer Motion"]:::server
-        HOSTINGER --> PAGES["📄 Public Pages<br/>Home · About · Events · Gallery<br/>Sponsors · Contact · Privacy · Terms"]:::server
-        HOSTINGER --> CHAT_UI["💬 ChatWidget<br/>Floating Gold Button"]:::server
-        HOSTINGER --> SPONSOR_BAR["📢 Sponsor Banners<br/>GSAP Infinite Scroll"]:::server
+    subgraph Frontend["Frontend (Static HTML/JS/CSS)"]
+        HOSTINGER --> PRELOADER["Video Preloader"]:::server
+        HOSTINGER --> HERO["CinematicHero + 3D Canvas"]:::server
+        HOSTINGER --> PAGES["10 Public Pages"]:::server
+        HOSTINGER --> CHATWIDGET["Customer AI Concierge"]:::server
+        HOSTINGER --> SPONSORS["Sponsor Banner Carousel"]:::server
     end
 
-    subgraph VPS_API["VPS API Server (187.77.12.13:3001)"]
-        PHP_PROXY["PHP Proxy<br/>/api/*.php"] --> NODE["Node.js Agent Server"]:::vps
-        NODE --> CHAT_EP["Customer Chat<br/>/api/chat"]:::vps
-        NODE --> AUTH_EP["Admin Auth<br/>/api/admin/auth"]:::vps
-        NODE --> AGENT_EP["🤖 AI Agent<br/>/api/agent/chat<br/>15 Models · 7 Tools"]:::vps
-        NODE --> CONTACT_EP["Contact Form<br/>/api/contact"]:::vps
+    subgraph Backend["VPS Agent Server (187.77.12.13:3001)"]
+        PHP["PHP Proxy Layer"] --> NODE["Node.js v3.1.0"]:::vps
+        NODE --> CHAT["Customer Chat API"]:::vps
+        NODE --> AUTH["Admin Auth API"]:::vps
+        NODE --> AGENT["AI Agent API"]:::vps
+        NODE --> CONTACT["Contact Form API"]:::vps
     end
 
-    subgraph AI_Models["AI Model Pool (15 Models)"]
-        AGENT_EP --> ORCHESTRATOR["🧠 GPT-4o-mini<br/>Orchestrator"]:::external
-        ORCHESTRATOR --> SUB_GPT["GPT-5.4 / 5.4-Pro<br/>GPT-5.3-Codex"]:::external
-        ORCHESTRATOR --> SUB_CLAUDE["Claude Opus 4.6<br/>Claude Sonnet 4.6"]:::external
-        ORCHESTRATOR --> SUB_GEMINI["Gemini 3.1 Pro<br/>Gemini 2.0 Flash"]:::external
-        ORCHESTRATOR --> SUB_RESEARCH["Perplexity Sonar<br/>Deep Research"]:::external
-        ORCHESTRATOR --> SUB_OTHER["Kimi K2.5 · MiniMax M2.5<br/>GLM 5 · DeepSeek V3.2 · Qwen 3.5"]:::external
-        ORCHESTRATOR --> IMG_GEN["GPT Image 1.5<br/>Image Generation"]:::external
+    subgraph AI["AI Model Pool (15 Models)"]
+        AGENT --> ORCHESTRATOR["GPT-4o-mini Orchestrator"]:::external
+        ORCHESTRATOR --> PREMIUM["Claude Opus 4.6 / GPT-5.4"]:::external
+        ORCHESTRATOR --> RESEARCH["Perplexity Sonar"]:::external
+        ORCHESTRATOR --> IMAGE["GPT Image 1.5"]:::external
+        ORCHESTRATOR --> OTHER["Gemini / DeepSeek / Qwen / Kimi"]:::external
     end
 
-    HOSTINGER --> PHP_PROXY
-    HOSTINGER --> FIREBASE["Firebase Mirror<br/>abentertainment-mel.web.app"]:::external
+    HOSTINGER --> PHP
 ```
 
-### 3.1 Deployment Architecture
+### Request Flow
+
+```
+Browser → Hostinger (static HTML) → PHP proxy (/api/*.php) → VPS:3001 (Node.js) → AI Model APIs → Response
+```
+
+This architecture eliminates CORS issues, avoids SSL certificate problems with the self-signed VPS cert, and keeps all API traffic on the same domain.
+
+### Deployment Architecture
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0A0A0A', 'primaryTextColor': '#C9A84C', 'primaryBorderColor': '#C9A84C', 'lineColor': '#C9A84C'}}}%%
@@ -83,423 +140,505 @@ flowchart LR
     classDef vps fill:#0A0A0A,stroke:#1BBFA1,stroke-width:2px,color:#1BBFA1;
     classDef git fill:#0A0A0A,stroke:#D4B65C,stroke-width:2px,color:#D4B65C;
 
-    DEV["💻 Developer<br/>Local Machine"]:::git -->|git push| GITHUB["GitHub<br/>main branch"]:::git
-    GITHUB -->|SSH Deploy Key| HOSTINGER["🌐 Hostinger<br/>82.180.172.143<br/>Static HTML/CSS/JS"]:::hosting
-    DEV -->|SCP/rsync| HOSTINGER
-    DEV -->|SCP| VPS["🖥 VPS<br/>187.77.12.13<br/>Node.js Agent API"]:::vps
+    DEV["Developer"]:::git -->|git push| GITHUB["GitHub main"]:::git
+    DEV -->|SCP static export| HOSTINGER["Hostinger 82.180.172.143"]:::hosting
+    DEV -->|SCP agent + workspace| VPS["VPS 187.77.12.13"]:::vps
     HOSTINGER -->|PHP Proxy| VPS
-    DEV -->|firebase deploy| FIREBASE["☁️ Firebase<br/>Static Mirror"]:::hosting
 ```
 
-### 3.2 User Interaction Flow
+---
 
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0A0A0A', 'primaryTextColor': '#C9A84C', 'primaryBorderColor': '#C9A84C', 'lineColor': '#C9A84C'}}}%%
-sequenceDiagram
-    participant U as 👤 User
-    participant H as 🌐 Hostinger
-    participant V as 🖥 VPS API
-    participant AI as 🤖 AI Models
+## 4. Public Website
 
-    Note over U,AI: Public User Flow
-    U->>H: Visit abentertainment.com.au
-    H->>U: Preloader Video → Hero → Full Page
-    U->>H: Click Chat Button
-    U->>H: Type message
-    H->>V: PHP Proxy → /api/chat
-    V->>AI: GPT-4o-mini (streaming)
-    AI-->>V: Stream tokens
-    V-->>H: Stream response
-    H-->>U: Display AI response
+The public-facing website delivers a cinematic, premium experience designed to convey the calibre and cultural significance of AB Entertainment's productions.
 
-    Note over U,AI: Admin Flow
-    U->>H: /admin/login → admin/admin123
-    H->>V: PHP Proxy → /api/admin/auth
-    V-->>H: Token + Cookie
-    H-->>U: Dashboard (Events/Sponsors/Gallery/Settings/AI)
-    U->>H: AI Agent → "Research competitors"
-    H->>V: /api/agent/chat
-    V->>AI: Tool calling (search_web → Perplexity)
-    AI-->>V: Research results
-    V->>AI: Generate response with tool results
-    AI-->>V: Structured response
-    V-->>H: JSON {response, productionApproved}
-    H-->>U: Display agent response
-```
+### Pages
 
-### 3.3 AI Agent Orchestrator Workflow
+| Page | Route | Key Features |
+| :--- | :--- | :--- |
+| **Home** | `/` | Video preloader, Three.js 3D canvas, dual-image Ken Burns hero with parallax, event showcase, vision pillars, testimonials, CTA |
+| **About** | `/about` | AI-generated hero image, company story, team profiles, four pillars, past events |
+| **Events** | `/events` | AI-generated hero image, event cards with category filtering, venue and pricing details |
+| **Gallery** | `/gallery` | AI-generated hero image, masonry photo grid from past productions |
+| **Sponsors** | `/sponsors` | AI-generated hero image, tiered sponsor cards (Platinum, Gold, Silver, Bronze) |
+| **Contact** | `/contact` | AI-generated hero image, validated contact form with VPS backend |
+| **Privacy** | `/privacy` | Privacy policy |
+| **Terms** | `/terms` | Terms of service |
+
+### Interactive Features
+
+| Feature | Component | Description |
+| :--- | :--- | :--- |
+| **Video Preloader** | `Preloader.tsx` | Full-screen compressed video (889KB) on first homepage visit; session-aware (plays once) |
+| **Three.js Canvas** | `ThreeCanvas.tsx` | WebGL particle effects with graceful degradation; disabled on admin routes |
+| **Customer AI Concierge** | `ChatWidget.tsx` | Floating gold chat button on all public pages; streams responses via OpenAI; rate-limited (20 req/min) |
+| **Sponsor Carousel** | `SponsorBanner.tsx` | GSAP-powered infinite scroll banner; hidden on Home and About pages |
+| **Glassmorphism Navigation** | `Navigation.tsx` | Fixed header with scroll-reactive opacity, backdrop blur, responsive mobile menu |
+
+---
+
+## 5. Administrative Portal
+
+The admin portal provides the AB Entertainment operations team with complete self-service management capabilities.
+
+### Access
+
+| | |
+| :--- | :--- |
+| **URL** | `https://abentertainment.com.au/admin/login` |
+| **Username** | `admin` |
+| **Password** | `admin123` |
+| **Session** | 24-hour cookie (`ab-admin-session-v3`) |
+
+### Dashboard Tabs
+
+| Tab | Manager | Operations |
+| :--- | :--- | :--- |
+| **Events** | `EventsManager.tsx` | Create, edit, delete events; manage title, date, venue, price, category, description, image |
+| **Sponsors** | `SponsorsManager.tsx` | Add, remove sponsors; assign tier (Platinum/Gold/Silver/Bronze); upload logo |
+| **Gallery** | `GalleryManager.tsx` | Add, delete gallery images; assign category and event association |
+| **Settings** | `SettingsManager.tsx` | Configure AI chat model, edit hero title/subtitle, update contact email/phone |
+| **AI Agent** | `AdminChatbot.tsx` | Full AI Agent interface (see Section 6) |
+
+### API Endpoints
+
+| Endpoint | Methods | Purpose |
+| :--- | :--- | :--- |
+| `/api/admin/auth` | POST, GET, DELETE | Login, session verification, logout |
+| `/api/admin/events` | GET, POST, PUT, DELETE | Event CRUD |
+| `/api/admin/sponsors` | GET, POST, PUT, DELETE | Sponsor CRUD |
+| `/api/admin/gallery` | GET, POST, DELETE | Gallery management |
+| `/api/admin/settings` | GET, PUT | Site settings |
+| `/api/admin/chat` | POST | AI Agent communication |
+| `/api/chat` | POST | Customer chatbot |
+| `/api/contact` | POST | Contact form submission |
+
+---
+
+## 6. AI Agent System
+
+The centrepiece of this platform is a proprietary AI Agent system that gives the AB Entertainment team access to fifteen frontier AI models through a single conversational interface.
+
+### Agent Version: 3.1.0
+
+### Available Models (15)
+
+| Model | Provider | Strength |
+| :--- | :--- | :--- |
+| GPT-4o-mini | OpenAI | Default orchestrator (fast, cost-effective) |
+| Claude Opus 4.6 | Anthropic (via OpenRouter) | Complex reasoning and analysis |
+| Claude Sonnet 4.6 | Anthropic (via OpenRouter) | Balanced reasoning |
+| GPT-5.4 | OpenAI (via OpenRouter) | High-level thinking |
+| GPT-5.4-Pro | OpenAI (via OpenRouter) | Premium reasoning |
+| GPT-5.3-Codex | OpenAI (via OpenRouter) | Code generation |
+| Gemini 3.1 Pro | Google | High-level thinking |
+| Gemini 2.0 Flash | Google | Fast alternative |
+| Kimi K2.5 | Moonshot (via OpenRouter) | High-level thinking |
+| MiniMax M2.5 | MiniMax (via OpenRouter) | High-level thinking |
+| GLM 5 | Zhipu (via OpenRouter) | High-level thinking |
+| DeepSeek V3.2 | DeepSeek (via OpenRouter) | Reasoning and analysis |
+| Qwen 3.5 | Alibaba (via OpenRouter) | Multilingual capability |
+| Perplexity Sonar | Perplexity (via OpenRouter) | Deep web research |
+| GPT Image 1.5 | OpenAI | AI image generation |
+
+### Available Tools (8)
+
+| Tool | Description |
+| :--- | :--- |
+| `search_web` | Deep web research via Perplexity Sonar AI |
+| `generate_image` | Create promotional images via GPT Image 1.5 |
+| `create_event` | Add events to the system |
+| `list_events` | View all events |
+| `analyze_code` | Read production source code (read-only) |
+| `modify_code` | Modify production files (requires approval) |
+| `spawn_sub_agent` | Delegate tasks to any of the 15 models |
+| `update_memory` | Persist learnings to workspace files |
+
+### Orchestrator Workflow
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0A0A0A', 'primaryTextColor': '#C9A84C', 'primaryBorderColor': '#C9A84C', 'lineColor': '#C9A84C'}}}%%
 flowchart TD
     classDef step fill:#111111,stroke:#C9A84C,stroke-width:2px,color:#C9A84C;
-    classDef decision fill:#0A0A0A,stroke:#D4B65C,stroke-width:2px,color:#D4B65C;
     classDef gate fill:#0A0A0A,stroke:#ff4444,stroke-width:2px,color:#ff4444;
     classDef done fill:#0A0A0A,stroke:#1BBFA1,stroke-width:2px,color:#1BBFA1;
+    classDef decision fill:#0A0A0A,stroke:#D4B65C,stroke-width:2px,color:#D4B65C;
 
-    S0["Step 0: ORCHESTRATOR OWNS<br/>Evaluate request → Estimate cost"]:::step
-    COST{"Cost > $5?"}:::gate
-    S0 --> COST
-    COST -->|Yes| STOP["❌ Contact Developer Team<br/>(Vikram)"]:::gate
-    COST -->|No| S1["Step 1: Analysis & Research<br/>Sub-agents: Perplexity Sonar, Gemini"]:::step
-    S1 --> S2["Step 2: Map Requirements → SC<br/>SC-1, SC-2, SC-3..."]:::step
-    S2 --> S3["Step 3: Implement/Build<br/>Sub-agents: GPT-5.3-Codex, Claude Sonnet"]:::step
-    S3 --> S4["Step 4: Test & Verify Each SC"]:::step
-    S4 --> D1{"All SC = PASS?"}:::decision
-    D1 -->|No| S1
-    D1 -->|Yes| S5["Step 5: Commit & Deploy"]:::step
-    S5 --> S6["Step 6: Post-Production Test"]:::step
-    S6 --> S7["Step 7: Verify vs Each SC"]:::step
-    S7 --> D2{"All SC = PASS?"}:::decision
-    D2 -->|No| S1
-    D2 -->|Yes| S8["Step 8: ORCHESTRATOR OWNS<br/>Present output + SC evidence to Admin"]:::done
+    CTX["CONTEXT: Load SOUL + MEMORY + HEARTBEAT + SKILLS<br/>(MANDATORY — Cannot Be Skipped)"]:::step
+    CTX --> S0
+    S0["Step 0: Cost Evaluation<br/>Estimate after reading context"]:::step
+    S0 --> COST{"Cost > $5?"}:::gate
+    COST -->|Yes| STOP["STOP: Contact Vikram<br/>sarkar.vikram@gmail.com"]:::gate
+    COST -->|No| S1["Step 1: Research & Understand"]:::step
+    S1 --> S2["Step 2: Map Success Criteria"]:::step
+    S2 --> S3["Step 3: Build / Execute"]:::step
+    S3 --> S4["Step 4: Test & Validate"]:::step
+    S4 --> D1{"All SC Pass?"}:::decision
+    D1 -->|No| S3
+    D1 -->|Yes| S5["Step 5–7: Deploy & Verify"]:::step
+    S5 --> S8["Step 8: Update Memory → Present Output"]:::done
 ```
 
-### 3.4 Production Safety Gate
+### Sleep/Wake Cost Management
 
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0A0A0A', 'primaryTextColor': '#C9A84C', 'primaryBorderColor': '#C9A84C', 'lineColor': '#C9A84C'}}}%%
-flowchart LR
-    classDef blocked fill:#1a0500,stroke:#ff4444,stroke-width:2px,color:#ff4444;
-    classDef approved fill:#050f05,stroke:#1BBFA1,stroke-width:2px,color:#1BBFA1;
-    classDef check fill:#111111,stroke:#C9A84C,stroke-width:2px,color:#C9A84C;
+The agent implements an intelligent sleep/wake system to eliminate unnecessary API costs during periods of inactivity.
 
-    REQ["Agent requests<br/>code modification"]:::check
-    REQ --> CHECK{"Admin typed exact phrase?<br/>'I have reviewed your work and<br/>I am happy for you to change<br/>the production website'"}:::check
-    CHECK -->|No| BLOCK["🔒 BLOCKED<br/>No code changes allowed"]:::blocked
-    CHECK -->|Yes| ALLOW["✅ APPROVED<br/>Code modification permitted"]:::approved
-```
+| State | Behaviour |
+| :--- | :--- |
+| **Awake** | Agent processes requests normally; sleep timer starts after each response |
+| **Sleeping** | Agent enters sleep after 60 seconds of inactivity; zero API calls, zero token consumption |
+| **Wake** | Agent wakes instantly when an admin sends a new chat message; no context loss |
 
----
+Health checks and status queries do **not** wake the agent, ensuring monitoring remains cost-free.
 
-## 4. Design System & Brand Identity
+### Production Safety Gate
 
-The application implements a premium black-and-gold design system inspired by eventsunleashed.com, adapted to AB Entertainment's brand.
+All production code modifications are **blocked** unless the admin explicitly types the approval phrase (case-insensitive):
 
-### 4.1 Color Palette
+> "I have reviewed your changes to production website and I approve for you to make changes now"
 
-| Token | Hex | RGB | Usage |
-| :--- | :--- | :--- | :--- |
-| Primary | `#0A0A0A` | `rgb(10, 10, 10)` | Body background, surfaces |
-| Surface | `#111111` | `rgb(17, 17, 17)` | Card backgrounds, elevated surfaces |
-| Gold | `#C9A84C` | `rgb(201, 168, 76)` | CTAs, badges, accents, borders |
-| Gold Light | `#D4B65C` | `rgb(212, 182, 92)` | Hover states |
-| Text Muted | `rgba(255,255,255,0.4)` | — | Body text, descriptions |
-| White | `#FFFFFF` | — | Headings, primary text |
+Without this phrase, the `modify_code` tool returns a blocked status. No exceptions.
 
-### 4.2 Typography
+### Persistent Workspace Memory
 
-| Role | Font | Weights | CSS Variable |
-| :--- | :--- | :--- | :--- |
-| Display | Playfair Display | 400–900 | `--font-display` |
-| Body | DM Sans | 300–700 | `--font-body` |
+The agent maintains four workspace files that serve as its persistent memory:
 
-### 4.3 Layout Patterns
-
-- **Container**: `.container-eu` — 85% width, max 1400px (eventsunleashed pattern)
-- **Buttons**: `.btn-accent` — Gold background, black text, `border-radius: 0px` (sharp edges)
-- **Animations**: Framer Motion with cinematic easing `cubic-bezier(0.25, 1, 0.5, 1)`
-- **Scrollbar**: Custom dark scrollbar with gold accent thumb
-
----
-
-## 5. Component Architecture
-
-### 5.1 Public Pages & Sections
-
-| Component | File | Description |
+| File | Purpose | Writeable |
 | :--- | :--- | :--- |
-| CinematicHero | `src/components/sections/CinematicHero.tsx` | Full-viewport hero with dual-image Ken Burns carousel, parallax scrolling, gold badge, slide dots |
-| Navigation | `src/components/layout/Navigation.tsx` | Fixed glassmorphism nav with scroll-reactive opacity, desktop + mobile variants, Login button |
-| Footer | `src/components/layout/Footer.tsx` | 4-column footer with newsletter signup, social links, copyright |
-| EventsShowcase | `src/components/EventsShowcase.tsx` | 3-column event grid with category filter tabs, animated cards |
-| VisionSection | `src/components/sections/VisionSection.tsx` | Four pillars: Networking, Heritage, Culture, Community |
-| IntroSection | `src/components/sections/IntroSection.tsx` | Below-hero intro with AB logo and company description |
-| TestimonialsSection | `src/components/sections/TestimonialsSection.tsx` | Rotating testimonial carousel |
-| CTASection | `src/components/sections/CTASection.tsx` | Full-width gold call-to-action banner |
+| `SOUL.md` | Agent identity, personality, values, escalation protocol | Read-only |
+| `MEMORY.md` | Company profile, events, infrastructure, file locations, session history | Yes |
+| `HEARTBEAT.md` | System status, server configs, health checks, model/tool inventory | Yes |
+| `SKILLS.md` | Capabilities, admin user guide, strengths/weaknesses, workflow | Yes |
 
-### 5.2 Admin Portal
+These files are loaded **mandatorily** at every request and updated in Step 8 after task completion.
 
-| Component | File | Description |
-| :--- | :--- | :--- |
-| AdminDashboard | `src/components/admin/AdminDashboard.tsx` | Tab-based dashboard shell (Events, Sponsors, Gallery, Settings, AI Agent) |
-| EventsManager | `src/components/admin/EventsManager.tsx` | Full CRUD for events with table view and create/edit forms |
-| SponsorsManager | `src/components/admin/SponsorsManager.tsx` | Sponsor management with tier selection (Platinum/Gold/Silver/Bronze) |
-| GalleryManager | `src/components/admin/GalleryManager.tsx` | Image gallery management with add/delete |
-| SettingsManager | `src/components/admin/SettingsManager.tsx` | AI model switching, hero editor, contact info, **logo upload** |
-| AdminChatbot | `src/components/admin/AdminChatbot.tsx` | Agentic AI admin assistant with chat interface |
+### Escalation Protocol
 
-### 5.3 API Routes
+When the agent encounters a problem it cannot resolve:
 
-| Endpoint | Method | Auth | Description |
-| :--- | :--- | :--- | :--- |
-| `/api/chat` | POST | No | Customer chatbot (OpenAI SDK, rate-limited) |
-| `/api/contact` | POST | No | Contact form submission (Zod validation) |
-| `/api/admin/auth` | POST/GET | — | Admin login (hardcoded `admin`/`admin123`) |
-| `/api/admin/events` | GET/POST/PUT/DELETE | Yes | Event CRUD operations |
-| `/api/admin/sponsors` | GET/POST/PUT/DELETE | Yes | Sponsor CRUD operations |
-| `/api/admin/gallery` | GET/POST/DELETE | Yes | Gallery image management |
-| `/api/admin/settings` | GET/PUT/PATCH | Yes | Site settings + logo upload |
-| `/api/admin/chat` | POST | Yes | Admin AI agent chat |
+1. Informs the admin immediately with a clear explanation
+2. Provides an email template for the admin to send to the developer
+3. Includes SSH access details and log commands for the developer
+4. Continues working on unblocked tasks while awaiting resolution
+
+**Developer Contact**: Vikram Deshpande — [sarkar.vikram@gmail.com](mailto:sarkar.vikram@gmail.com)
 
 ---
 
-## 6. E2E Testing & Quality Assurance
+## 7. Design System
 
-The codebase is validated by a comprehensive Playwright automation suite: **75 tests, 21 requirement groups, 100% pass rate**.
+The platform implements a premium black-and-gold design language inspired by the elegance of Melbourne's theatre culture.
 
-```
-Running 75 tests using 1 worker
+### Colour Palette
 
-  ✓  75 passed (36.4s)
-```
-
-### 6.1 Requirement Coverage Matrix
-
-| Requirement ID | Tests | Description |
+| Token | Hex | Usage |
 | :--- | :--- | :--- |
-| `@req-color-palette` | 2 | Body bg `#0A0A0A`, gold `#C9A84C` in CTAs |
-| `@req-typography` | 2 | Playfair Display + DM Sans loaded |
-| `@req-header-ui` | 5 | Fixed nav, logo, links, CTA, navigation routing |
-| `@req-hero-section` | 5 | 90vh height, gold badge, h1, carousel dots, CTAs |
-| `@req-four-pillars` | 1 | Networking, Heritage, Culture, Community |
-| `@req-events-grid` | 2 | Homepage showcase + /events page |
-| `@req-footer-arch` | 4 | Newsletter, social, copyright, columns |
-| `@req-admin-auth` | 4 | Login/logout, redirect, error handling |
-| `@req-admin-crud` | 4 | Event/Sponsor/Gallery CRUD UI |
-| `@req-admin-settings` | 3 | Model switching, hero editor, contact info |
-| `@req-admin-ai` | 2 | AI Agent chat interface + welcome message |
-| `@req-chat-api` | 2 | OpenAI API key validation, format check |
-| `@req-contact-api` | 3 | Empty/invalid/valid submission |
-| `@req-zero-errors` | 9 | Zero console errors on 9 routes |
-| `@req-no-banned-deps` | 3 | No Clerk/Sanity/Stripe in runtime |
-| `@req-scraped-content` | 3 | Real AB content, no Lorem Ipsum |
-| `@req-container-85` | 1 | 85% width, max 1400px |
-| `@req-sharp-buttons` | 1 | `border-radius: 0px` on CTAs |
-| `@req-admin-crud-api` | 5 | All admin APIs reject 401 unauthenticated |
-| `@req-all-pages` | 9 | All public routes return HTTP 200 |
-| `@req-accessibility` | 5 | lang, skip link, main, nav, footer landmarks |
+| Primary | `#0A0A0A` | Body background, surfaces |
+| Surface | `#111111` | Card backgrounds, elevated elements |
+| Gold | `#C9A84C` | Buttons, badges, accents, borders |
+| Gold Light | `#D4B65C` | Hover states |
+| Text | `rgba(255,255,255,0.4)` | Body text, descriptions |
+| White | `#FFFFFF` | Headings, primary text |
 
-### 6.2 Running Tests
+### Typography
 
-```bash
-# Run full E2E suite
-npx playwright test e2e/comprehensive.spec.ts
+| Role | Font | Usage |
+| :--- | :--- | :--- |
+| Display | Playfair Display | Headings, hero text, section titles |
+| Body | DM Sans | Body copy, buttons, form inputs, navigation |
 
-# Run with verbose output
-npx playwright test --reporter=list --retries=0
+### Motion & Animation
 
-# Run specific requirement group
-npx playwright test --grep "@req-admin-auth"
-```
+| System | Library | Use |
+| :--- | :--- | :--- |
+| Page transitions | Framer Motion 12 | Route transitions, section reveals, modal animations |
+| Scroll effects | GSAP 3.14 | Sponsor carousel infinite scroll, Three.js ticker |
+| 3D effects | Three.js 0.183 | WebGL particle canvas with graceful degradation |
+| Cinematic easing | — | `cubic-bezier(0.25, 1, 0.5, 1)` throughout |
 
 ---
 
-## 7. Technology Stack
+## 8. Technology Stack
 
 | Layer | Technology | Version |
 | :--- | :--- | :--- |
-| Framework | Next.js (App Router, Turbopack) | 16.2.1 |
-| Language | TypeScript | 5.9 |
-| UI | React | 19.2 |
-| Animation | Framer Motion | 12.x |
-| Styling | Tailwind CSS v4 | 4.x |
-| AI SDK | Vercel AI SDK + OpenAI | 4.x |
-| Validation | Zod | 3.23 |
-| Testing | Playwright | 1.58 |
-| Hosting | Firebase Hosting | — |
-| Font Loading | next/font/google | — |
+| **Framework** | Next.js (App Router) | 16.1.6 |
+| **Language** | TypeScript | 5.9.3 |
+| **UI Library** | React | 19.2.3 |
+| **Styling** | Tailwind CSS | 4.0 |
+| **Animation** | Framer Motion | 12.0 |
+| **3D Graphics** | Three.js | 0.183 |
+| **Scroll Animation** | GSAP | 3.14 |
+| **AI SDK** | Vercel AI SDK | 4.0 |
+| **Validation** | Zod | 3.23 |
+| **Testing** | Playwright | 1.50 |
+| **Agent Runtime** | Node.js | 22.x |
+| **Containerisation** | Docker | Alpine |
 
 ---
 
-## 8. Installation & Development
+## 9. Infrastructure
 
-### 8.1 Prerequisites
+### Hostinger Website Hosting
 
-- Node.js 20+
-- npm 10+
+| | |
+| :--- | :--- |
+| **Server** | 82.180.172.143 |
+| **Type** | Shared hosting (PHP/LiteSpeed) |
+| **Domain** | abentertainment.com.au |
+| **Document root** | `~/domains/abentertainment.com.au/public_html/` |
+| **Deployment** | Static HTML export via `NEXT_EXPORT=true npm run build` |
+| **SSH** | `ssh u123456789@82.180.172.143 -p 65002` |
+
+### VPS (API & AI Agent)
+
+| | |
+| :--- | :--- |
+| **Server** | 187.77.12.13 |
+| **OS** | Ubuntu 22.04 LTS |
+| **Runtime** | Node.js 22.x |
+| **Application** | `/opt/ab-chatbot/` |
+| **Workspace** | `/opt/ab-chatbot/workspace/` |
+| **Service** | `ab-chatbot.service` (systemd, enabled) |
+| **Port** | 3001 |
+| **SSH** | `ssh root@187.77.12.13` |
+
+### PHP Proxy Layer
+
+| Proxy File | VPS Endpoint | Purpose |
+| :--- | :--- | :--- |
+| `/api/chat.php` | `VPS:3001/api/chat` | Customer chatbot |
+| `/api/admin/auth.php` | `VPS:3001/api/admin/auth` | Admin authentication |
+| `/api/admin/chat.php` | `VPS:3001/api/admin/chat` | Admin AI Agent |
+| `/api/contact.php` | `VPS:3001/api/contact` | Contact form |
+
+---
+
+## 10. Installation & Development
+
+### Prerequisites
+
+- Node.js 20+ and npm 10+
+- Docker (for local agent testing)
 - Playwright browsers (`npx playwright install`)
 
-### 8.2 Quick Start
+### Quick Start
 
 ```bash
-# 1. Clone the repository
+# Clone the repository
 git clone https://github.com/Victordtesla24/abentertainment.git
 cd abentertainment/ab-entertainment
 
-# 2. Install dependencies
+# Install dependencies
 npm install
 
-# 3. Configure environment
-cp .env.example .env.production
-# Edit .env.production with your OpenAI API key
-
-# 4. Start development server
+# Start development server
 npm run dev
 # → http://localhost:3000
-
-# 5. Run E2E tests (with dev server running)
-npx playwright test
 ```
 
-### 8.3 Firebase Deployment
+### AI Agent (Local Docker)
 
 ```bash
-# Build static export
-# (requires temporarily setting output:'export' in next.config.ts
-#  and moving API routes out of src/app/)
-npm run build
+cd agent-system
 
-# Deploy to Firebase
-firebase deploy --only hosting
-# → https://abentertainment-mel.web.app
+# Configure API keys
+cp .env.example .env
+# Edit .env with your OpenAI, OpenRouter, Gemini, and MiniMax API keys
+
+# Build and run
+docker compose up -d
+
+# Verify
+curl http://localhost:3002/health
+
+# View logs
+docker compose logs -f agent
+
+# Stop
+docker compose down
 ```
 
-### 8.4 Admin Access
+### Production Build (Static Export)
 
-Navigate to `/admin/login` and use the hardcoded credentials:
+```bash
+NEXT_EXPORT=true npm run build
+# Output: out/ directory → SCP to Hostinger
+```
 
-| Field | Value |
+### Admin Access
+
+| | |
 | :--- | :--- |
-| Username | `admin` |
-| Password | `admin123` |
+| **URL** | `/admin/login` |
+| **Username** | `admin` |
+| **Password** | `admin123` |
 
 ---
 
-## 9. Project Structure
+## 11. Project Structure
 
 ```
 ab-entertainment/
-├── agent-system/               # Docker-based AI Agent (VPS deployment)
-│   ├── Dockerfile              # Node.js 22 Alpine container
-│   ├── docker-compose.yml      # Docker Compose with env vars
-│   ├── agent-server.js         # Full agent server (15 models, 7 tools)
-│   └── package.json            # Agent dependencies
+├── agent-system/                    # AI Agent system (Docker + VPS)
+│   ├── agent-server.js              # Agent server v3.1.0 (15 models, 8 tools, sleep/wake)
+│   ├── workspace/                   # Persistent agent memory
+│   │   ├── SOUL.md                  # Identity, personality, values (read-only)
+│   │   ├── MEMORY.md                # Company, infrastructure, file locations
+│   │   ├── HEARTBEAT.md             # System status, health checks, models
+│   │   └── SKILLS.md                # Capabilities, admin guide, workflow
+│   ├── Dockerfile                   # Node.js 22 Alpine container
+│   ├── docker-compose.yml           # Docker Compose with workspace mount
+│   └── package.json                 # Agent dependencies (openai)
+│
 ├── src/
-│   ├── app/                    # Next.js App Router pages
-│   │   ├── page.tsx            # Homepage (Hero + Intro + Events + Vision + CTA)
-│   │   ├── about/              # About page (AI hero + team + pillars)
-│   │   ├── events/             # Events listing (AI hero + 6 events)
-│   │   ├── gallery/            # Photo gallery (AI hero + masonry grid)
-│   │   ├── sponsors/           # Sponsor showcase (AI hero + tier cards)
-│   │   ├── contact/            # Contact form (AI hero + validation)
-│   │   ├── admin/              # Admin portal
-│   │   │   ├── layout.tsx      # Admin layout (hides public nav/footer)
-│   │   │   ├── login/page.tsx  # Login (black & gold themed)
-│   │   │   └── page.tsx        # Dashboard (client-side auth check)
-│   │   ├── api/                # API routes (local dev only)
-│   │   │   ├── chat/           # Customer chatbot
-│   │   │   ├── contact/        # Contact form handler
-│   │   │   └── admin/          # Admin CRUD + auth + settings + chat
-│   │   ├── privacy/            # Privacy policy
-│   │   ├── terms/              # Terms of service
-│   │   ├── globals.css         # Tailwind + gold shimmer + particles + grain
-│   │   └── layout.tsx          # Root layout (preloader, Three.js, nav, footer)
+│   ├── app/                         # Next.js App Router pages
+│   │   ├── page.tsx                 # Home (Hero + Intro + Events + Vision + CTA)
+│   │   ├── about/page.tsx           # About (AI hero + team + pillars)
+│   │   ├── events/page.tsx          # Events listing
+│   │   ├── gallery/page.tsx         # Photo gallery
+│   │   ├── sponsors/page.tsx        # Sponsor showcase
+│   │   ├── contact/page.tsx         # Contact form
+│   │   ├── privacy/page.tsx         # Privacy policy
+│   │   ├── terms/page.tsx           # Terms of service
+│   │   ├── admin/
+│   │   │   ├── login/page.tsx       # Admin login (black & gold themed)
+│   │   │   └── page.tsx             # Admin dashboard
+│   │   ├── api/                     # API routes (8 endpoints)
+│   │   │   ├── chat/route.ts        # Customer chatbot
+│   │   │   ├── contact/route.ts     # Contact form handler
+│   │   │   └── admin/               # Auth, events, sponsors, gallery, settings, chat
+│   │   ├── globals.css              # Tailwind + custom animations
+│   │   └── layout.tsx               # Root layout (preloader, nav, footer, Three.js)
+│   │
 │   ├── components/
-│   │   ├── sections/           # CinematicHero, IntroSection, VisionSection
-│   │   ├── layout/             # Navigation, Footer, RouteTransition
-│   │   ├── admin/              # AdminDashboard, EventsManager, SettingsManager, etc.
-│   │   └── ui/                 # ChatWidget, PageHero, Preloader, SponsorBanner, ThreeCanvas
-│   ├── lib/
-│   │   ├── api-config.ts       # API URL routing (local vs PHP proxy)
-│   │   ├── auth.ts             # Admin auth (admin/admin123)
-│   │   ├── constants.ts        # Site config, navigation, team, events
-│   │   ├── data.ts             # JSON data access layer
-│   │   ├── redis.ts            # In-memory rate limiter
-│   │   └── three-engine/       # Three.js singleton + camera + post-processing
-│   ├── config/site.ts
-│   └── types/index.ts
+│   │   ├── sections/                # CinematicHero, IntroSection, VisionSection
+│   │   ├── layout/                  # Navigation, Footer, RouteTransition
+│   │   ├── admin/                   # Dashboard, EventsManager, SponsorsManager, etc.
+│   │   └── ui/                      # ChatWidget, PageHero, Preloader, SponsorBanner, ThreeCanvas
+│   │
+│   └── lib/
+│       ├── api-config.ts            # API URL routing (local vs PHP proxy)
+│       ├── auth.ts                  # Admin authentication
+│       ├── constants.ts             # Site config, colours, content
+│       ├── data.ts                  # JSON data access layer
+│       └── redis.ts                 # In-memory rate limiter
+│
 ├── public/
-│   ├── images/
-│   │   ├── AB_Logo_transparent.png
-│   │   ├── hero-bg.jpg, hero-bg-2.jpg
-│   │   ├── events/             # 6 event promotional images
-│   │   ├── gallery/            # 19 event photographs
-│   │   ├── heroes/             # 5 AI-generated page hero images
-│   │   ├── sponsors/           # 4 sponsor logos
-│   │   └── team/               # 2 team member photos
-│   ├── video/                  # Preloader + transition videos (gitignored)
-│   ├── robots.txt
-│   └── sitemap.xml
-├── e2e/                        # Playwright E2E tests
-├── docs/                       # Documentation + reports
-├── data/                       # Runtime JSON data store
-├── Dockerfile                  # Next.js production container
-├── docker-compose.yml          # Next.js + PostgreSQL
-├── firebase.json               # Firebase Hosting config
-├── next.config.ts              # Next.js config (static export support)
-├── tailwind.config.ts
-├── tsconfig.json
-└── package.json
+│   ├── images/                      # Logos, heroes, events, gallery, sponsors, team
+│   ├── videos/                      # Preloader video (gitignored, deployed via SCP)
+│   ├── robots.txt                   # SEO configuration
+│   └── sitemap.xml                  # Search engine sitemap
+│
+├── e2e/                             # Playwright E2E tests
+├── data/                            # Runtime JSON data store
+├── next.config.ts                   # Next.js configuration
+├── tailwind.config.ts               # Tailwind CSS configuration
+├── tsconfig.json                    # TypeScript configuration
+└── package.json                     # Dependencies and scripts
 ```
 
 ---
 
-## 10. Content & Data
+## 12. Testing & Quality Assurance
 
-All content is sourced from the real AB Entertainment brand — zero placeholder or Lorem Ipsum text.
+The codebase is validated by a Playwright E2E automation suite covering twenty-one requirement groups.
 
-### 10.1 Events
+### Running Tests
 
-Six seed events covering Theatre, Concert, Comedy, Drama, Classical Music, and Festival categories — including past productions (Shrimant Damodar Pant, Arya Ambekar Live) and upcoming shows.
+```bash
+# Full E2E suite
+npx playwright test
 
-### 10.2 Team
+# Specific requirement group
+npx playwright test --grep "@req-admin-auth"
+
+# Verbose output
+npx playwright test --reporter=list
+```
+
+### Requirement Coverage
+
+| Group | Tests | Validates |
+| :--- | :--- | :--- |
+| Colour palette | 2 | Brand colours `#0A0A0A` and `#C9A84C` |
+| Typography | 2 | Playfair Display + DM Sans loaded |
+| Header UI | 5 | Fixed nav, logo, links, CTA |
+| Hero section | 5 | Viewport height, gold badge, carousel |
+| Four pillars | 1 | Networking, Heritage, Culture, Community |
+| Events grid | 2 | Homepage showcase + events page |
+| Footer | 4 | Newsletter, social links, copyright |
+| Admin auth | 4 | Login, logout, redirect, error handling |
+| Admin CRUD | 4 | Events, sponsors, gallery management UI |
+| Admin settings | 3 | Model switching, hero editor, contact |
+| Admin AI | 2 | Agent chat interface + welcome message |
+| Chat API | 2 | API key validation, format check |
+| Contact API | 3 | Empty, invalid, valid submission |
+| Zero errors | 9 | Zero console errors on all routes |
+| No banned deps | 3 | No Clerk/Sanity/Stripe in runtime |
+| Real content | 3 | Authentic AB content, no Lorem Ipsum |
+| Container width | 1 | 85% width, max 1400px |
+| Sharp buttons | 1 | `border-radius: 0px` on CTAs |
+| Admin API auth | 5 | All admin APIs reject unauthenticated requests |
+| All pages | 9 | All public routes return HTTP 200 |
+| Accessibility | 5 | Language attribute, landmarks, skip link |
+
+---
+
+## 13. Content & Data
+
+All content is sourced from the authentic AB Entertainment brand. There is no placeholder or generated filler text anywhere on the platform.
+
+### Leadership
 
 - **Abhijit Kadam** — President & CEO
 - **Vrushali Deshpande** — Founder & Director
 
-### 10.3 Four Pillars
+### Four Pillars
 
-- **Networking** — Promoting community members through business meets
-- **Heritage Bequest** — Transferring the rich heritage to the next generation
-- **Cultural Kaleidoscope** — Platform for diversity, literature, drama, movies & events
-- **Community Building** — Bringing together the Indian diaspora in Melbourne
+1. **Networking** — Promoting community members through business meets
+2. **Heritage Bequest** — Transferring the rich heritage to the next generation
+3. **Cultural Kaleidoscope** — Platform for diversity, literature, drama, movies & events
+4. **Community Building** — Bringing together the Indian diaspora in Melbourne
+
+### Events Portfolio
+
+| Event | Category | Venue |
+| :--- | :--- | :--- |
+| Shrimant Damodar Pant | Theatre | Robert Blackwood Hall, Monash |
+| Arya Ambekar Live | Concert | Hamer Hall, Arts Centre |
+| Shikayla Gelo Ek! | Comedy | The Athenaeum, Collins St |
+| Varvarche Vadhu Var | Drama | Southbank Theatre |
+| Swaranirmiti 2026 | Classical Music | Hamer Hall, Arts Centre |
+| Diwali Spectacular 2026 | Festival | Southbank Centre |
 
 ---
 
-## 11. Troubleshooting
+## 14. Troubleshooting
 
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#333333', 'primaryBorderColor': '#cccccc', 'lineColor': '#0056b3'}}}%%
-graph TD
-    classDef query fill:#ffffff,stroke:#0056b3,stroke-width:2px,color:#333333;
-    classDef action fill:#f8f9fa,stroke:#dee2e6,stroke-width:2px,color:#333333;
-    classDef success fill:#e8f4fd,stroke:#0056b3,stroke-width:2px,color:#333333;
+| Issue | Resolution |
+| :--- | :--- |
+| Agent not responding | SSH to VPS: `ssh root@187.77.12.13` → `sudo systemctl restart ab-chatbot` |
+| PHP proxy returning HTML | Verify PHP files in Hostinger `public_html/api/` directory |
+| Website pages 404 | Rebuild: `NEXT_EXPORT=true npm run build` → SCP `out/` to Hostinger |
+| API key error | Update keys in `/opt/ab-chatbot/.env` → restart service |
+| Context not loading | Check workspace files at `/opt/ab-chatbot/workspace/` |
+| Dev server won't start | Verify port 3000 is available: `lsof -i :3000` |
+| Admin login fails | Use credentials: `admin` / `admin123` |
 
-    Q1{Dev server won't start?}:::query
-    Q1 -->|Yes| A1["Check port 3000 is free: lsof -i :3000"]:::action
-    Q1 -->|No| Q2{Chatbot returns 503?}:::query
-    Q2 -->|Yes| A2["Set OPENAI_API_KEY in .env.production"]:::action
-    Q2 -->|No| Q3{Admin login fails?}:::query
-    Q3 -->|Yes| A3["Use admin / admin123"]:::action
-    Q3 -->|No| Q4{Playwright tests fail?}:::query
-    Q4 -->|Yes| A4["Ensure dev server is running on :3000"]:::action
-    Q4 -->|No| Q5{Firebase deploy fails?}:::query
-    Q5 -->|Yes| A5["Run: firebase login && check .firebaserc project"]:::action
-    Q5 -->|No| OK["System operational"]:::success
+### VPS Service Commands
+
+```bash
+sudo systemctl status ab-chatbot    # Check status
+sudo systemctl restart ab-chatbot   # Restart
+sudo journalctl -u ab-chatbot -f    # Stream logs
+curl http://187.77.12.13:3001/health # Health check
 ```
 
-### Common Issues
-
-- **Sponsor images not loading**: Verify files in `public/images/sponsors/` are actual PNG/JPG (not SVGs renamed from binary).
-- **Logo has white background artifacts**: Use the admin Settings → Site Logo upload to replace with a proper transparent PNG.
-- **Firebase deploy errors**: API routes must be excluded for static export — temporarily move `src/app/api/` out before `npm run build`.
-- **Tailwind v4 color format**: Computed styles may render as `oklch()` or `lab()` — tests use `rgb()` string matching.
-
 ---
 
-## 12. Documentation
+## 15. License
 
-| Document | Path | Description |
-| :--- | :--- | :--- |
-| Success Criteria Checklist | `docs/Success-Criteria-Checklist.md` | Binary pass/fail for all 75 E2E tests |
-| Final Audit Report | `docs/reports/Final-Audit-Report.md` | Traceability matrix, telemetry ledger, validation loop history |
-| Executive Report | `AB-Entertainment-Executive-Report.md` | High-level project overview |
+Copyright 2024–2026 AB Entertainment. All rights reserved.
 
----
-
-## 13. License
-
-© 2024–2026 AB Entertainment. All rights reserved.
-
-Built with passion in Melbourne, Australia.
+**Developer**: Vikram Deshpande — [sarkar.vikram@gmail.com](mailto:sarkar.vikram@gmail.com)
