@@ -1,7 +1,6 @@
 'use client';
 
 import { motion, useInView } from 'framer-motion';
-import Image from 'next/image';
 import { STATS } from '@/lib/constants';
 import { useRef, useState, useEffect } from 'react';
 
@@ -110,7 +109,7 @@ export function IntroSection() {
             </p>
           </motion.div>
 
-          {/* Image column — cinematic logo showcase */}
+          {/* Brand Promotion Showcase — animated event highlights */}
           <motion.div
             initial={{ opacity: 0, x: 40 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -118,31 +117,77 @@ export function IntroSection() {
             viewport={{ once: true }}
             className="relative"
           >
-            <div className="relative aspect-square max-w-md mx-auto">
-              {/* Animated outer glow ring */}
+            <div className="relative max-w-md mx-auto space-y-5">
+              {/* Featured event promo card */}
               <motion.div
-                className="absolute inset-0 border border-[#C9A84C]/10 rounded-none"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 60, repeat: Infinity, ease: 'linear' }}
-                style={{ background: 'conic-gradient(from 0deg, transparent, rgba(201,168,76,0.08), transparent, rgba(201,168,76,0.08), transparent)' }}
-              />
-              {/* Inner border frame */}
-              <div className="absolute inset-6 border border-[#C9A84C]/15" />
-              {/* Decorative corner brackets */}
-              <div className="absolute top-0 left-0 w-12 h-12 border-t-2 border-l-2 border-[#C9A84C]/40" />
-              <div className="absolute top-0 right-0 w-12 h-12 border-t-2 border-r-2 border-[#C9A84C]/40" />
-              <div className="absolute bottom-0 left-0 w-12 h-12 border-b-2 border-l-2 border-[#C9A84C]/40" />
-              <div className="absolute bottom-0 right-0 w-12 h-12 border-b-2 border-r-2 border-[#C9A84C]/40" />
-              {/* Center logo with glow */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative w-52 h-52 md:w-72 md:h-72">
-                  <div className="absolute inset-0 bg-[#C9A84C]/5 blur-3xl rounded-full" />
-                  <Image
-                    src="/images/AB_Logo_transparent.png"
-                    alt="AB Entertainment"
-                    fill
-                    className="object-contain drop-shadow-[0_0_60px_rgba(201,168,76,0.3)]"
+                className="glass-card hover-shine overflow-hidden"
+                whileHover={{ scale: 1.02 }}
+                transition={{ duration: 0.5 }}
+              >
+                <div className="relative h-52 overflow-hidden">
+                  <img
+                    src="/images/events/shrimant-damodar-pant.jpg"
+                    alt="Shrimant Damodar Pant"
+                    className="w-full h-full object-cover"
                   />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent" />
+                  <div className="absolute top-3 left-3 px-3 py-1 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-[9px] font-body font-bold uppercase tracking-wider">
+                    Featured
+                  </div>
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <h3 className="text-white font-display font-bold text-lg">Shrimant Damodar Pant</h3>
+                    <p className="text-white/40 text-xs font-body">Alexander Theatre, Monash</p>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Two smaller promo cards */}
+              <div className="grid grid-cols-2 gap-4">
+                <motion.div
+                  className="glass-card hover-shine overflow-hidden"
+                  whileHover={{ scale: 1.03 }}
+                  transition={{ duration: 0.4 }}
+                >
+                  <div className="relative h-32 overflow-hidden">
+                    <img src="/images/events/arya-ambekar.jpg" alt="Arya Ambekar" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent" />
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <p className="text-white font-display font-bold text-xs">Arya Ambekar</p>
+                      <p className="text-[#C9A84C]/60 text-[9px] font-body">Live Concert</p>
+                    </div>
+                  </div>
+                </motion.div>
+                <motion.div
+                  className="glass-card hover-shine overflow-hidden"
+                  whileHover={{ scale: 1.03 }}
+                  transition={{ duration: 0.4 }}
+                >
+                  <div className="relative h-32 overflow-hidden">
+                    <img src="/images/events/shikayla-gelo-ek.jpg" alt="Shikayla Gelo Ek" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent" />
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <p className="text-white font-display font-bold text-xs">Shikayla Gelo Ek!</p>
+                      <p className="text-[#C9A84C]/60 text-[9px] font-body">Comedy Drama</p>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Stats badge */}
+              <div className="flex items-center justify-center gap-6 py-3 border-t border-b border-[#C9A84C]/8">
+                <div className="text-center">
+                  <p className="text-[#C9A84C] font-display font-bold text-xl">6+</p>
+                  <p className="text-white/25 text-[8px] uppercase tracking-widest font-body">Events</p>
+                </div>
+                <div className="w-px h-8 bg-[#C9A84C]/15" />
+                <div className="text-center">
+                  <p className="text-[#C9A84C] font-display font-bold text-xl">25K+</p>
+                  <p className="text-white/25 text-[8px] uppercase tracking-widest font-body">Reach</p>
+                </div>
+                <div className="w-px h-8 bg-[#C9A84C]/15" />
+                <div className="text-center">
+                  <p className="text-[#C9A84C] font-display font-bold text-xl">2</p>
+                  <p className="text-white/25 text-[8px] uppercase tracking-widest font-body">Countries</p>
                 </div>
               </div>
             </div>

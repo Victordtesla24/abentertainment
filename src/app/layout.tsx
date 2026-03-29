@@ -72,6 +72,7 @@ import ThreeCanvas from '@/components/ui/ThreeCanvas';
 import Preloader from '@/components/ui/Preloader';
 import RouteTransition from '@/components/layout/RouteTransition';
 import ChatWidget from '@/components/ui/ChatWidget';
+import SponsorBanner from '@/components/ui/SponsorBanner';
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -132,6 +133,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
           </RouteTransition>
         </main>
         <Footer />
+        <SponsorBanner />
         <ChatWidget />
       </body>
     </html>
