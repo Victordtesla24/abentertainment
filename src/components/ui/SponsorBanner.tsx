@@ -19,19 +19,15 @@ const SPONSORS: SponsorItem[] = [
   { name: 'Indian Association of Melbourne', logo: '/images/sponsors/iam.jpg', url: '#', tier: 'silver' },
 ];
 
-/**
- * Sponsor banner carousel — Fortune 500 event management style.
- * Shows on every page EXCEPT landing page (/) and about (/about).
- * Left and right side banners with smooth GSAP infinite scroll.
- */
 export default function SponsorBanner() {
   const pathname = usePathname();
   const trackLeftRef = useRef<HTMLDivElement>(null);
   const trackRightRef = useRef<HTMLDivElement>(null);
 
-  // Hide on homepage, about page, and admin pages
+  // Fix #15: Normalize trailing slashes for consistent matching
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
   const hiddenPages = ['/', '/about'];
-  const isHidden = hiddenPages.includes(pathname) || pathname.startsWith('/admin');
+  const isHidden = hiddenPages.includes(normalizedPath) || normalizedPath.startsWith('/admin');
 
   useEffect(() => {
     if (isHidden) return;
@@ -39,7 +35,6 @@ export default function SponsorBanner() {
     const rightTrack = trackRightRef.current;
     if (!leftTrack || !rightTrack) return;
 
-    // Vertical infinite scroll — left side goes UP, right side goes DOWN
     const leftTween = gsap.to(leftTrack, {
       y: '-50%',
       duration: 25,
@@ -54,7 +49,6 @@ export default function SponsorBanner() {
       repeat: -1,
     });
 
-    // Set initial position for right track
     gsap.set(rightTrack, { y: '-50%' });
 
     return () => {
@@ -63,17 +57,17 @@ export default function SponsorBanner() {
     };
   }, [isHidden]);
 
-  const sponsorCards = [...SPONSORS, ...SPONSORS, ...SPONSORS]; // Triple for seamless loop
+  const sponsorCards = [...SPONSORS, ...SPONSORS, ...SPONSORS];
 
   if (isHidden) return null;
 
   return (
     <>
-      {/* LEFT BANNER */}
-      <div className="fixed left-0 top-0 w-[160px] h-screen z-[30] pointer-events-none hidden xl:block">
+      {/* LEFT BANNER — Fix #17: Reduced from 160px to 120px */}
+      <div className="fixed left-0 top-0 w-[120px] h-screen z-[30] pointer-events-none hidden xl:block">
         <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0A] to-transparent z-10" />
         <div className="absolute inset-y-0 left-0 w-full overflow-hidden">
-          <div ref={trackLeftRef} className="flex flex-col gap-4 p-3">
+          <div ref={trackLeftRef} className="flex flex-col gap-4 p-2">
             {sponsorCards.map((sponsor, i) => (
               <a
                 key={`l-${i}`}
@@ -82,18 +76,18 @@ export default function SponsorBanner() {
                 rel="noopener noreferrer"
                 className="pointer-events-auto group block"
               >
-                <div className="w-[140px] bg-white/[0.02] border border-[#C9A84C]/8 p-4 hover:bg-white/[0.05] hover:border-[#C9A84C]/25 transition-all duration-500 hover:shadow-[0_0_20px_rgba(201,168,76,0.1)]">
-                  <div className="w-full h-16 flex items-center justify-center mb-2 opacity-40 group-hover:opacity-80 transition-opacity duration-500">
+                <div className="w-[110px] bg-white/[0.02] border border-[#C9A84C]/8 p-3 hover:bg-white/[0.05] hover:border-[#C9A84C]/25 transition-all duration-500 hover:shadow-[0_0_20px_rgba(201,168,76,0.1)]">
+                  <div className="w-full h-14 flex items-center justify-center mb-2 opacity-40 group-hover:opacity-80 transition-opacity duration-500">
                     <img
                       src={sponsor.logo}
                       alt={sponsor.name}
                       className="max-w-full max-h-full object-contain filter grayscale group-hover:grayscale-0 transition-all duration-500"
                     />
                   </div>
-                  <p className="text-white/25 text-[9px] text-center font-body uppercase tracking-wider group-hover:text-[#C9A84C]/60 transition-colors duration-500">
+                  <p className="text-white/25 text-[8px] text-center font-body uppercase tracking-wider group-hover:text-[#C9A84C]/60 transition-colors duration-500">
                     {sponsor.name}
                   </p>
-                  <div className="mt-1.5 mx-auto w-8 h-[1px] bg-[#C9A84C]/10 group-hover:bg-[#C9A84C]/30 group-hover:w-12 transition-all duration-500" />
+                  <div className="mt-1.5 mx-auto w-6 h-[1px] bg-[#C9A84C]/10 group-hover:bg-[#C9A84C]/30 group-hover:w-10 transition-all duration-500" />
                 </div>
               </a>
             ))}
@@ -102,10 +96,10 @@ export default function SponsorBanner() {
       </div>
 
       {/* RIGHT BANNER */}
-      <div className="fixed right-0 top-0 w-[160px] h-screen z-[30] pointer-events-none hidden xl:block">
+      <div className="fixed right-0 top-0 w-[120px] h-screen z-[30] pointer-events-none hidden xl:block">
         <div className="absolute inset-0 bg-gradient-to-l from-[#0A0A0A] to-transparent z-10" />
         <div className="absolute inset-y-0 right-0 w-full overflow-hidden">
-          <div ref={trackRightRef} className="flex flex-col gap-4 p-3">
+          <div ref={trackRightRef} className="flex flex-col gap-4 p-2">
             {sponsorCards.map((sponsor, i) => (
               <a
                 key={`r-${i}`}
@@ -114,18 +108,18 @@ export default function SponsorBanner() {
                 rel="noopener noreferrer"
                 className="pointer-events-auto group block"
               >
-                <div className="w-[140px] bg-white/[0.02] border border-[#C9A84C]/8 p-4 hover:bg-white/[0.05] hover:border-[#C9A84C]/25 transition-all duration-500 hover:shadow-[0_0_20px_rgba(201,168,76,0.1)]">
-                  <div className="w-full h-16 flex items-center justify-center mb-2 opacity-40 group-hover:opacity-80 transition-opacity duration-500">
+                <div className="w-[110px] bg-white/[0.02] border border-[#C9A84C]/8 p-3 hover:bg-white/[0.05] hover:border-[#C9A84C]/25 transition-all duration-500 hover:shadow-[0_0_20px_rgba(201,168,76,0.1)]">
+                  <div className="w-full h-14 flex items-center justify-center mb-2 opacity-40 group-hover:opacity-80 transition-opacity duration-500">
                     <img
                       src={sponsor.logo}
                       alt={sponsor.name}
                       className="max-w-full max-h-full object-contain filter grayscale group-hover:grayscale-0 transition-all duration-500"
                     />
                   </div>
-                  <p className="text-white/25 text-[9px] text-center font-body uppercase tracking-wider group-hover:text-[#C9A84C]/60 transition-colors duration-500">
+                  <p className="text-white/25 text-[8px] text-center font-body uppercase tracking-wider group-hover:text-[#C9A84C]/60 transition-colors duration-500">
                     {sponsor.name}
                   </p>
-                  <div className="mt-1.5 mx-auto w-8 h-[1px] bg-[#C9A84C]/10 group-hover:bg-[#C9A84C]/30 group-hover:w-12 transition-all duration-500" />
+                  <div className="mt-1.5 mx-auto w-6 h-[1px] bg-[#C9A84C]/10 group-hover:bg-[#C9A84C]/30 group-hover:w-10 transition-all duration-500" />
                 </div>
               </a>
             ))}
@@ -133,7 +127,7 @@ export default function SponsorBanner() {
         </div>
       </div>
 
-      {/* MOBILE BOTTOM BANNER — horizontal scroll */}
+      {/* MOBILE BOTTOM BANNER */}
       <div className="fixed bottom-0 left-0 right-0 z-[30] xl:hidden bg-[#0A0A0A]/95 backdrop-blur-md border-t border-[#C9A84C]/8">
         <div className="flex items-center gap-6 px-4 py-2 overflow-x-auto scrollbar-none">
           <span className="text-[#C9A84C]/40 text-[8px] uppercase tracking-widest font-body whitespace-nowrap flex-shrink-0">

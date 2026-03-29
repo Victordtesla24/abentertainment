@@ -9,12 +9,6 @@ import {
 } from 'framer-motion';
 import Image from 'next/image';
 
-import type { Event } from '@/lib/data';
-
-interface CinematicHeroProps {
-  upcomingEvents?: Event[];
-}
-
 const heroSlides = [
   {
     id: 'slide-1',
@@ -40,20 +34,11 @@ const heroSlides = [
 ];
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
-const SLIDE_DURATION = 240000;
+// Fix #14: Reduced from 240000ms (4min) to 8000ms (8sec) — standard carousel timing
+const SLIDE_DURATION = 8000;
 
-// Generate deterministic particle positions (SSR-safe)
-const PARTICLES = Array.from({ length: 30 }, (_, i) => ({
-  id: i,
-  left: `${(i * 3.7 + 5) % 100}%`,
-  bottom: `${(i * 7.3) % 30}%`,
-  size: 1.5 + (i % 4) * 0.8,
-  duration: `${8 + (i % 7) * 2}s`,
-  delay: `${(i * 0.8) % 12}s`,
-  type: i % 3 === 0 ? 'ember' : 'gold',
-}));
-
-export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
+// Fix #6: Removed unused upcomingEvents prop entirely
+export function CinematicHero() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -99,7 +84,6 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
-      // Spawn
       if (sparks.length < maxSparks && Math.random() < 0.15) {
         sparks.push({
           x: Math.random() * (canvas.width / dpr),
@@ -111,7 +95,6 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
           size: 0.5 + Math.random() * 1.5,
         });
       }
-      // Update & draw
       for (let i = sparks.length - 1; i >= 0; i--) {
         const s = sparks[i];
         s.x += s.vx;
@@ -127,7 +110,6 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
         ctx.arc(s.x, s.y, s.size * 3, 0, Math.PI * 2);
         ctx.fillStyle = grd;
         ctx.fill();
-        // Core
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.size * 0.5, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255, 248, 220, ${alpha})`;
@@ -139,8 +121,6 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
     animate();
     return () => { window.removeEventListener('resize', resize); cancelAnimationFrame(animationId); };
   }, []);
-
-  void upcomingEvents;
 
   return (
     <section className="relative w-full h-screen overflow-hidden bg-black">
@@ -169,43 +149,24 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
         </AnimatePresence>
       </motion.div>
 
-      {/* Cinematic overlays stack */}
+      {/* Cinematic overlays */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/90 z-[1]" />
       <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-black/50 z-[1]" />
       <div className="absolute inset-0 z-[2]" style={{
         background: 'radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,0.7) 100%)',
       }} />
-      {/* Film grain overlay */}
       <div className="film-grain" />
-      {/* Gold atmospheric haze */}
       <div className="absolute inset-0 z-[3] opacity-[0.04]" style={{
         background: 'radial-gradient(ellipse at 50% 80%, rgba(201,168,76,0.3), transparent 60%)',
       }} />
 
-      {/* CSS Floating particles (fallback for canvas) */}
-      <div className="absolute inset-0 z-[4] pointer-events-none overflow-hidden">
-        {PARTICLES.map((p) => (
-          <div
-            key={p.id}
-            className={`particle particle-${p.type}`}
-            style={{
-              left: p.left,
-              bottom: p.bottom,
-              width: p.size,
-              height: p.size,
-              '--duration': p.duration,
-              '--delay': p.delay,
-            } as React.CSSProperties}
-          />
-        ))}
-      </div>
+      {/* Fix #11: Removed CSS PARTICLES div — ThreeCanvas + canvas sparks already handle particles */}
 
       {/* Hero Content */}
       <motion.div
         className="relative z-10 w-full h-full flex flex-col items-center justify-center text-center"
         style={{ y: parallaxContent, opacity: heroOpacity }}
       >
-        {/* AB Logo with glow */}
         <motion.div
           initial={{ opacity: 0, scale: 0.7, filter: 'blur(10px)' }}
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
@@ -224,7 +185,6 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
           </div>
         </motion.div>
 
-        {/* Slide text content with cinematic reveal */}
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlide}
@@ -234,7 +194,6 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
             transition={{ duration: 0.5 }}
             className="max-w-5xl px-6"
           >
-            {/* Badge */}
             <motion.div
               initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
@@ -246,7 +205,6 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
               </span>
             </motion.div>
 
-            {/* Main Headline with staggered letter reveal feel */}
             <motion.h1
               initial={{ opacity: 0, y: 40, filter: 'blur(8px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
@@ -257,7 +215,6 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
               <span className="gold-shimmer">{heroSlides[currentSlide].title}</span>
             </motion.h1>
 
-            {/* Ornamental divider */}
             <motion.div
               initial={{ scaleX: 0 }}
               animate={{ scaleX: 1 }}
@@ -269,7 +226,6 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
               <div className="w-16 h-[1px] bg-gradient-to-l from-transparent to-[#C9A84C]/50" />
             </motion.div>
 
-            {/* Subtitle */}
             <motion.p
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
@@ -303,7 +259,7 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
           </a>
         </motion.div>
 
-        {/* Carousel dots with progress bar */}
+        {/* Carousel dots */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -339,7 +295,7 @@ export function CinematicHero({ upcomingEvents = [] }: CinematicHeroProps) {
       {/* Bottom cinematic fade */}
       <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/60 to-transparent z-20 pointer-events-none" />
 
-      {/* Scroll indicator with pulse */}
+      {/* Scroll indicator */}
       <motion.div
         className="absolute bottom-10 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-3"
         animate={{ y: [0, 8, 0] }}

@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 
 /**
  * Preloader — plays ab-animation-2.mp4 on homepage only, once per session.
- * Renders nothing during SSR to prevent blocking static pages.
+ * Video deployed via SCP (not in git repo due to size).
+ * Falls back gracefully if video is unavailable (404).
  */
 export default function Preloader() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -13,11 +14,9 @@ export default function Preloader() {
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    // Only show preloader on homepage
     if (window.location.pathname !== '/' && window.location.pathname !== '') return;
-    // Show again only after 5 minutes since last play
     const lastPlayed = parseInt(localStorage.getItem('ab-preloader-time') || '0');
-    if (lastPlayed && Date.now() - lastPlayed < 300000) return; // 5 min cooldown
+    if (lastPlayed && Date.now() - lastPlayed < 300000) return;
     setShouldShow(true);
   }, []);
 
@@ -27,9 +26,7 @@ export default function Preloader() {
     const container = containerRef.current;
     if (!video || !container) return;
 
-    video.play().catch(() => {});
-
-    const handleEnded = () => {
+    const dismiss = () => {
       if (!container) return;
       container.style.transition = 'opacity 0.8s ease-out';
       container.style.opacity = '0';
@@ -40,18 +37,31 @@ export default function Preloader() {
       setTimeout(() => setIsDismissed(true), 900);
     };
 
+    video.play().catch(() => {
+      // Video unavailable or autoplay blocked — dismiss immediately
+      dismiss();
+    });
+
+    // Dismiss on video error (e.g., 404)
+    const handleError = () => dismiss();
+
+    // Dismiss when video finishes
+    const handleEnded = () => dismiss();
+
+    // Fallback: dismiss after 2 seconds if video hasn't started
     const fallbackTimer = setTimeout(() => {
-      if (video.paused && video.currentTime === 0) handleEnded();
+      if (video.paused && video.currentTime === 0) dismiss();
     }, 2000);
 
     video.addEventListener('ended', handleEnded);
+    video.addEventListener('error', handleError);
     return () => {
       clearTimeout(fallbackTimer);
       video.removeEventListener('ended', handleEnded);
+      video.removeEventListener('error', handleError);
     };
   }, [shouldShow]);
 
-  // Render NOTHING during SSR or when not on homepage
   if (!shouldShow || isDismissed) return null;
 
   return (
@@ -59,7 +69,7 @@ export default function Preloader() {
       <video
         ref={videoRef}
         className="w-full h-full object-contain"
-        src="/video/ab-animation-2.mp4"
+        src="/videos/ab-animation-2.mp4"
         muted
         playsInline
         preload="auto"

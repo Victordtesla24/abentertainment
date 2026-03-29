@@ -24,18 +24,9 @@ export default async function Home() {
     console.error('Error loading events:', error);
   }
 
-  const now = new Date();
-  const upcomingEvents = allEvents
-    .filter((event) => new Date(event.date) > now)
-    .sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    )
-    .slice(0, 6);
-
   return (
     <>
-      <CinematicHero upcomingEvents={upcomingEvents} />
-      {/* Cream intro section — matching EU's below-hero text area */}
+      <CinematicHero />
       <IntroSection />
       <VisionSection />
       <EventsShowcase events={allEvents} />
