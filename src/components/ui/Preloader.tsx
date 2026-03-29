@@ -10,10 +10,19 @@ export default function Preloader() {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  // Only show preloader once per session
+  // Only show preloader on homepage, and only once per session
   const [isDismissed, setIsDismissed] = useState(() => {
     if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('ab-preloader-played') === 'true';
+      // Skip preloader on non-homepage routes (admin, about, events, etc.)
+      if (window.location.pathname !== '/' && window.location.pathname !== '') return true;
+      // Skip if already played this session
+      if (sessionStorage.getItem('ab-preloader-played') === 'true') return true;
+      // Skip if already played (localStorage persists across page loads on static hosting)
+      if (localStorage.getItem('ab-preloader-played') === 'true') {
+        const lastPlayed = parseInt(localStorage.getItem('ab-preloader-time') || '0');
+        // Only skip if played within last 30 minutes
+        if (Date.now() - lastPlayed < 1800000) return true;
+      }
     }
     return false;
   });
@@ -37,6 +46,8 @@ export default function Preloader() {
       container.style.opacity = '0';
       container.style.pointerEvents = 'none';
       sessionStorage.setItem('ab-preloader-played', 'true');
+        localStorage.setItem('ab-preloader-played', 'true');
+        localStorage.setItem('ab-preloader-time', String(Date.now()));
       setTimeout(() => setIsDismissed(true), 900);
     };
 
