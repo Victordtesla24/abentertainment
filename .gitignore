@@ -28,18 +28,34 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.production
 
 # vercel
 .vercel
 
-# typescript
+# typescript build cache
 *.tsbuildinfo
 next-env.d.ts
 
-# clerk (removed)
-/.clerk/
+# firebase
+/.firebase/
+.firebaserc
 
 # docker volumes
 /docker-data/
 /pgdata/
-.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+Thumbs.db
+
+# Source data (not tracked)
+/scraped-data/
+
+# Large video files (served separately or from CDN)
+public/video/ab-curtain-opening.*

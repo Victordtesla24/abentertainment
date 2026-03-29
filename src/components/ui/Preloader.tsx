@@ -10,7 +10,13 @@ export default function Preloader() {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [isDismissed, setIsDismissed] = useState(false);
+  // Only show preloader once per session
+  const [isDismissed, setIsDismissed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('ab-preloader-played') === 'true';
+    }
+    return false;
+  });
 
   useEffect(() => {
     const video = videoRef.current;
@@ -30,6 +36,7 @@ export default function Preloader() {
       container.style.transition = 'opacity 0.8s ease-out';
       container.style.opacity = '0';
       container.style.pointerEvents = 'none';
+      sessionStorage.setItem('ab-preloader-played', 'true');
       setTimeout(() => setIsDismissed(true), 900);
     };
 
