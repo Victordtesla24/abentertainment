@@ -1,0 +1,1 @@
+[   70035ms] [ERROR] Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID @ https://187.77.12.13:8443/api/admin/auth:0
