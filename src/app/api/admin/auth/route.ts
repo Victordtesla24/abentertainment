@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({ success: true });
 
     response.cookies.set(getSessionCookieName(), token, {
-      httpOnly: false, // Client-side admin page needs to read this cookie
+      httpOnly: true, // Cookie not readable by JS — admin page uses GET /api/admin/auth check
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 24 * 60 * 60, // 24 hours

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   motion,
   AnimatePresence,
@@ -40,7 +40,6 @@ const SLIDE_DURATION = 8000;
 // Fix #6: Removed unused upcomingEvents prop entirely
 export function CinematicHero() {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const { scrollY } = useScroll();
   const parallaxBg = useTransform(scrollY, [0, 800], [0, -150]);
@@ -59,73 +58,10 @@ export function CinematicHero() {
     return () => clearInterval(interval);
   }, []);
 
-  // Canvas particle animation
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    let animationId: number;
-    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-
-    const resize = () => {
-      canvas.width = window.innerWidth * dpr;
-      canvas.height = window.innerHeight * dpr;
-      canvas.style.width = window.innerWidth + 'px';
-      canvas.style.height = window.innerHeight + 'px';
-      ctx.scale(dpr, dpr);
-    };
-    resize();
-    window.addEventListener('resize', resize);
-
-    interface Spark { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number; }
-    const sparks: Spark[] = [];
-    const maxSparks = 60;
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
-      if (sparks.length < maxSparks && Math.random() < 0.15) {
-        sparks.push({
-          x: Math.random() * (canvas.width / dpr),
-          y: (canvas.height / dpr) + 10,
-          vx: (Math.random() - 0.5) * 0.4,
-          vy: -(0.3 + Math.random() * 0.8),
-          life: 0,
-          maxLife: 200 + Math.random() * 300,
-          size: 0.5 + Math.random() * 1.5,
-        });
-      }
-      for (let i = sparks.length - 1; i >= 0; i--) {
-        const s = sparks[i];
-        s.x += s.vx;
-        s.y += s.vy;
-        s.life++;
-        const progress = s.life / s.maxLife;
-        const alpha = progress < 0.1 ? progress * 10 : progress > 0.8 ? (1 - progress) * 5 : 1;
-        const grd = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.size * 3);
-        grd.addColorStop(0, `rgba(255, 215, 0, ${alpha * 0.8})`);
-        grd.addColorStop(0.4, `rgba(201, 168, 76, ${alpha * 0.4})`);
-        grd.addColorStop(1, `rgba(201, 168, 76, 0)`);
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size * 3, 0, Math.PI * 2);
-        ctx.fillStyle = grd;
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size * 0.5, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 248, 220, ${alpha})`;
-        ctx.fill();
-        if (s.life >= s.maxLife) sparks.splice(i, 1);
-      }
-      animationId = requestAnimationFrame(animate);
-    };
-    animate();
-    return () => { window.removeEventListener('resize', resize); cancelAnimationFrame(animationId); };
-  }, []);
+  // Particle effects handled by ThreeCanvas (site-wide WebGL) — single particle system (#11)
 
   return (
     <section className="relative w-full h-screen overflow-hidden bg-black">
-      {/* Canvas particle layer */}
-      <canvas ref={canvasRef} className="absolute inset-0 z-[6] pointer-events-none" />
 
       {/* Animated Background Images with Ken Burns */}
       <motion.div className="absolute inset-0" style={{ y: parallaxBg, scale: heroScale }}>
@@ -160,7 +96,7 @@ export function CinematicHero() {
         background: 'radial-gradient(ellipse at 50% 80%, rgba(201,168,76,0.3), transparent 60%)',
       }} />
 
-      {/* Fix #11: Removed CSS PARTICLES div — ThreeCanvas + canvas sparks already handle particles */}
+      {/* All particles handled by ThreeCanvas WebGL (#11) */}
 
       {/* Hero Content */}
       <motion.div

@@ -12,10 +12,14 @@ import { createHmac, randomBytes, createHash } from 'crypto';
 
 const SESSION_COOKIE_NAME = 'ab-admin-session-v3';
 
-// Env-based config with fallbacks for backward compatibility during migration
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || createHash('sha256').update('admin123').digest('hex');
-const SESSION_SECRET = process.env.SESSION_SECRET || process.env.ADMIN_SESSION_SECRET || randomBytes(32).toString('hex');
+// Env-based config — no hardcoded fallbacks. Set these in .env.local.
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? throwMissingEnv('ADMIN_USERNAME');
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH ?? throwMissingEnv('ADMIN_PASSWORD_HASH');
+const SESSION_SECRET = process.env.SESSION_SECRET ?? throwMissingEnv('SESSION_SECRET');
+
+function throwMissingEnv(name: string): never {
+  throw new Error(`Missing required env var: ${name}. See .env.example for setup instructions.`);
+}
 
 /**
  * Validate credentials using constant-time comparison against SHA-256 hash.
@@ -63,8 +67,7 @@ export function validateSessionToken(token: string): boolean {
   try {
     const parts = token.split('.');
     if (parts.length !== 2) {
-      // Backward compatibility: try legacy base64-only tokens during migration
-      return validateLegacyToken(token);
+      return false; // Invalid token format — legacy unsigned tokens no longer accepted
     }
     
     const [encodedPayload, signature] = parts;
@@ -93,17 +96,3 @@ export function validateSessionToken(token: string): boolean {
   }
 }
 
-/**
- * Backward compatibility for unsigned base64 tokens during migration.
- * Remove this function after all active sessions expire (24h after deployment).
- */
-function validateLegacyToken(token: string): boolean {
-  try {
-    const payload = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'));
-    if (payload.user !== ADMIN_USERNAME) return false;
-    if (typeof payload.exp !== 'number' || payload.exp < Date.now()) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}

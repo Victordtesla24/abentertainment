@@ -63,34 +63,7 @@ body {
 }
 
 
-/* Floating Particles */
-@keyframes floatParticle {
-  0%, 100% { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 0.6; }
-  50% { transform: translateY(-40vh) translateX(20px) scale(1.5); }
-}
-@keyframes driftParticle {
-  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0; }
-  15% { opacity: 0.8; }
-  85% { opacity: 0.4; }
-  100% { transform: translateY(-60vh) rotate(360deg); opacity: 0; }
-}
-@keyframes emberGlow {
-  0%, 100% { box-shadow: 0 0 2px rgba(201,168,76,0.3); }
-  50% { box-shadow: 0 0 8px rgba(201,168,76,0.8), 0 0 20px rgba(201,168,76,0.3); }
-}
-.particle { position: absolute; border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
-.particle-gold {
-  background: radial-gradient(circle, #FFD700, #C9A84C);
-  animation: floatParticle var(--duration, 8s) ease-in-out infinite;
-  animation-delay: var(--delay, 0s);
-}
-.particle-ember {
-  background: radial-gradient(circle, #E8D5A3, #B0923F);
-  animation: driftParticle var(--duration, 12s) ease-in-out infinite, emberGlow 2s ease-in-out infinite;
-  animation-delay: var(--delay, 0s);
-}
+/* Particle CSS removed — ThreeCanvas WebGL handles all particle effects (#11) */
 
 /* Ambient Glow */
 @keyframes ambientPulse {
