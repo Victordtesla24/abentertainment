@@ -10,7 +10,7 @@ export default function AdminPage() {
     if (!document.cookie.includes('ab-admin-session-v3')) { router.replace('/admin/login'); } else { setIsAuthed(true); }
     setLoading(false);
   }, [router]);
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0a1628]"><div className="text-white/50 text-sm">Loading...</div></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A]"><div className="text-white/50 text-sm">Loading...</div></div>;
   if (!isAuthed) return null;
-  return <AdminDashboard initialEvents={[]} initialSponsors={[]} initialGallery={[]} initialSettings={{ chatModel: 'gpt-4o', heroTitle: '', heroSubtitle: '', contactEmail: 'abhi@abentertainment.com.au', contactPhone: '(+61) 430082646' }} />;
+  return <AdminDashboard initialEvents={[]} initialSponsors={[]} initialGallery={[]} initialSettings={{ chatModel: 'gpt-4o-mini', heroTitle: 'AB ENTERTAINMENT', heroSubtitle: 'Experience Events Like No Other', contactEmail: 'abhi@abentertainment.com.au', contactPhone: '(+61) 430082646' }} />;
 }

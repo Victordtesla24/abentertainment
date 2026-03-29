@@ -129,7 +129,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
         <h2 className="text-2xl font-display font-bold text-white">Events</h2>
         <button
           onClick={startCreate}
-          className="px-4 py-2 bg-[#CC8A1C] text-white text-sm font-semibold rounded-sm hover:bg-[#e0a83a] transition-colors"
+          className="px-4 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors"
         >
           + New Event
         </button>
@@ -144,87 +144,87 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
       )}
 
       {showForm && (
-        <div className="mb-8 bg-[#062434] border border-[#CC8A1C]/20 rounded-sm p-6">
-          <h3 className="text-lg font-display font-semibold text-[#CC8A1C] mb-4">
+        <div className="mb-8 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-6">
+          <h3 className="text-lg font-display font-semibold text-[#C9A84C] mb-4">
             {creating ? 'Create Event' : `Edit: ${editing!.title}`}
           </h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Title</label>
+              <label className="block text-xs text-[white/40] mb-1">Title</label>
               <input
                 type="text"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 required
-                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               />
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Slug</label>
+              <label className="block text-xs text-[white/40] mb-1">Slug</label>
               <input
                 type="text"
                 value={form.slug}
                 onChange={(e) => setForm({ ...form, slug: e.target.value })}
                 required
-                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               />
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Date</label>
+              <label className="block text-xs text-[white/40] mb-1">Date</label>
               <input
                 type="date"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
                 required
-                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               />
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Venue</label>
+              <label className="block text-xs text-[white/40] mb-1">Venue</label>
               <input
                 type="text"
                 value={form.venue}
                 onChange={(e) => setForm({ ...form, venue: e.target.value })}
                 required
-                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs text-[#7E7180] mb-1">Description</label>
+              <label className="block text-xs text-[white/40] mb-1">Description</label>
               <textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 required
                 rows={3}
-                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C] resize-none"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none"
               />
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Price (AUD)</label>
+              <label className="block text-xs text-[white/40] mb-1">Price (AUD)</label>
               <input
                 type="number"
                 value={form.price}
                 onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
                 min={0}
-                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               />
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Category</label>
+              <label className="block text-xs text-[white/40] mb-1">Category</label>
               <input
                 type="text"
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 required
-                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               />
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Status</label>
+              <label className="block text-xs text-[white/40] mb-1">Status</label>
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value as Event['status'] })}
-                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               >
                 <option value="upcoming">Upcoming</option>
                 <option value="live">Live</option>
@@ -232,26 +232,26 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Image URL</label>
+              <label className="block text-xs text-[white/40] mb-1">Image URL</label>
               <input
                 type="text"
                 value={form.image}
                 onChange={(e) => setForm({ ...form, image: e.target.value })}
-                className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               />
             </div>
             <div className="md:col-span-2 flex gap-3 pt-2">
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2 bg-[#CC8A1C] text-white text-sm font-semibold rounded-sm hover:bg-[#e0a83a] transition-colors disabled:opacity-50"
+                className="px-6 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors disabled:opacity-50"
               >
                 {saving ? 'Saving...' : creating ? 'Create Event' : 'Update Event'}
               </button>
               <button
                 type="button"
                 onClick={cancelForm}
-                className="px-6 py-2 border border-[#7E7180]/30 text-[#7E7180] text-sm rounded-sm hover:text-white hover:border-white/30 transition-colors"
+                className="px-6 py-2 border border-[white/40]/30 text-[white/40] text-sm rounded-sm hover:text-white hover:border-white/30 transition-colors"
               >
                 Cancel
               </button>
@@ -261,32 +261,32 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
       )}
 
       {/* Events Table */}
-      <div className="bg-[#062434] border border-[#CC8A1C]/20 rounded-sm overflow-hidden">
+      <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-[#CC8A1C]/20">
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[#CC8A1C] uppercase tracking-wider">Title</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[#CC8A1C] uppercase tracking-wider">Date</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[#CC8A1C] uppercase tracking-wider">Status</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[#CC8A1C] uppercase tracking-wider">Category</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-[#CC8A1C] uppercase tracking-wider">Actions</th>
+            <tr className="border-b border-[#C9A84C]/20">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[#C9A84C] uppercase tracking-wider">Title</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[#C9A84C] uppercase tracking-wider">Date</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[#C9A84C] uppercase tracking-wider">Status</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[#C9A84C] uppercase tracking-wider">Category</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-[#C9A84C] uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody>
             {events.map((event) => (
-              <tr key={event.id} className="border-b border-[#CC8A1C]/10 hover:bg-white/5 transition-colors">
+              <tr key={event.id} className="border-b border-[#C9A84C]/10 hover:bg-white/5 transition-colors">
                 <td className="px-4 py-3 text-sm text-white font-medium">{event.title}</td>
-                <td className="px-4 py-3 text-sm text-[#7E7180]">{event.date}</td>
+                <td className="px-4 py-3 text-sm text-[white/40]">{event.date}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-sm ${
                     event.status === 'upcoming' ? 'bg-[#1BBFA1]/20 text-[#1BBFA1]' :
-                    event.status === 'live' ? 'bg-[#CC8A1C]/20 text-[#CC8A1C]' :
-                    'bg-[#7E7180]/20 text-[#7E7180]'
+                    event.status === 'live' ? 'bg-[#C9A84C]/20 text-[#C9A84C]' :
+                    'bg-[white/40]/20 text-[white/40]'
                   }`}>
                     {event.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-[#7E7180]">{event.category}</td>
+                <td className="px-4 py-3 text-sm text-[white/40]">{event.category}</td>
                 <td className="px-4 py-3 text-right">
                   <button
                     onClick={() => startEdit(event)}
@@ -305,7 +305,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
             ))}
             {events.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[#7E7180] text-sm">
+                <td colSpan={5} className="px-4 py-8 text-center text-[white/40] text-sm">
                   No events yet. Click &quot;+ New Event&quot; to create one.
                 </td>
               </tr>

@@ -10,7 +10,7 @@ interface AdminLayoutProps {
  */
 export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
-    <div data-admin-layout="true" className="min-h-screen bg-[#0a1628] admin-layout">
+    <div data-admin-layout="true" className="min-h-screen bg-[#0A0A0A] admin-layout">
       {children}
     </div>
   );

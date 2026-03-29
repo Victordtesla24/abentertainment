@@ -45,12 +45,12 @@ export default function AdminDashboard({
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#062434] border-r border-[#CC8A1C]/20 flex flex-col">
-        <div className="p-6 border-b border-[#CC8A1C]/20">
-          <h1 className="text-lg font-display font-bold text-[#CC8A1C]">
+      <aside className="w-64 bg-[#0A0A0A] border-r border-[#C9A84C]/20 flex flex-col">
+        <div className="p-6 border-b border-[#C9A84C]/20">
+          <h1 className="text-lg font-display font-bold text-[#C9A84C]">
             AB Entertainment
           </h1>
-          <p className="text-xs text-[#7E7180] mt-1">Admin Portal</p>
+          <p className="text-xs text-[white/40] mt-1">Admin Portal</p>
         </div>
 
         <nav className="flex-1 py-4">
@@ -60,8 +60,8 @@ export default function AdminDashboard({
               onClick={() => setActiveTab(tab.id)}
               className={`w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors ${
                 activeTab === tab.id
-                  ? 'text-[#CC8A1C] bg-[#CC8A1C]/10 border-r-2 border-[#CC8A1C]'
-                  : 'text-[#7E7180] hover:text-white hover:bg-white/5'
+                  ? 'text-[#C9A84C] bg-[#C9A84C]/10 border-r-2 border-[#C9A84C]'
+                  : 'text-[white/40] hover:text-white hover:bg-white/5'
               }`}
             >
               <span>{tab.icon}</span>
@@ -70,7 +70,7 @@ export default function AdminDashboard({
           ))}
         </nav>
 
-        <div className="p-4 border-t border-[#CC8A1C]/20">
+        <div className="p-4 border-t border-[#C9A84C]/20">
           <button
             onClick={handleLogout}
             className="w-full py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-sm transition-colors"
@@ -81,7 +81,7 @@ export default function AdminDashboard({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 bg-[#0a1628] overflow-auto">
+      <main className="flex-1 bg-[#0A0A0A] overflow-auto">
         <div className="p-8">
           {activeTab === 'events' && (
             <EventsManager initialEvents={initialEvents} />

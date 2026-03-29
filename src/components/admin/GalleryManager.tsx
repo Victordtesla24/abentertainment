@@ -68,7 +68,7 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
     <div>
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-2xl font-display font-bold text-white">Gallery</h2>
-        <button onClick={() => setCreating(!creating)} className="px-4 py-2 bg-[#CC8A1C] text-white text-sm font-semibold rounded-sm hover:bg-[#e0a83a] transition-colors">
+        <button onClick={() => setCreating(!creating)} className="px-4 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors">
           + Add Image
         </button>
       </div>
@@ -80,20 +80,20 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
       )}
 
       {creating && (
-        <div className="mb-8 bg-[#062434] border border-[#CC8A1C]/20 rounded-sm p-6">
-          <h3 className="text-lg font-display font-semibold text-[#CC8A1C] mb-4">Add Image</h3>
+        <div className="mb-8 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-6">
+          <h3 className="text-lg font-display font-semibold text-[#C9A84C] mb-4">Add Image</h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-xs text-[#7E7180] mb-1">Image URL</label>
-              <input type="text" value={src} onChange={(e) => setSrc(e.target.value)} required className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]" />
+              <label className="block text-xs text-[white/40] mb-1">Image URL</label>
+              <input type="text" value={src} onChange={(e) => setSrc(e.target.value)} required className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]" />
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Alt Text</label>
-              <input type="text" value={alt} onChange={(e) => setAlt(e.target.value)} required className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]" />
+              <label className="block text-xs text-[white/40] mb-1">Alt Text</label>
+              <input type="text" value={alt} onChange={(e) => setAlt(e.target.value)} required className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]" />
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Category</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]">
+              <label className="block text-xs text-[white/40] mb-1">Category</label>
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]">
                 <option value="event">Event</option>
                 <option value="behind-the-scenes">Behind the Scenes</option>
                 <option value="venue">Venue</option>
@@ -101,10 +101,10 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
               </select>
             </div>
             <div className="md:col-span-2 flex gap-3 pt-2">
-              <button type="submit" disabled={saving} className="px-6 py-2 bg-[#CC8A1C] text-white text-sm font-semibold rounded-sm hover:bg-[#e0a83a] disabled:opacity-50">
+              <button type="submit" disabled={saving} className="px-6 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] disabled:opacity-50">
                 {saving ? 'Adding...' : 'Add Image'}
               </button>
-              <button type="button" onClick={() => setCreating(false)} className="px-6 py-2 border border-[#7E7180]/30 text-[#7E7180] text-sm rounded-sm hover:text-white">
+              <button type="button" onClick={() => setCreating(false)} className="px-6 py-2 border border-[white/40]/30 text-[white/40] text-sm rounded-sm hover:text-white">
                 Cancel
               </button>
             </div>
@@ -114,17 +114,17 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {images.map((image) => (
-          <div key={image.id} className="relative group bg-[#062434] border border-[#CC8A1C]/20 rounded-sm overflow-hidden">
-            <div className="aspect-[4/3] bg-[#0a1628] flex items-center justify-center">
+          <div key={image.id} className="relative group bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm overflow-hidden">
+            <div className="aspect-[4/3] bg-[#0A0A0A] flex items-center justify-center">
               {image.src ? (
                 <img src={image.src} alt={image.alt} className="w-full h-full object-cover" />
               ) : (
-                <span className="text-[#7E7180] text-xs">No image</span>
+                <span className="text-[white/40] text-xs">No image</span>
               )}
             </div>
             <div className="p-2">
               <p className="text-white text-xs truncate">{image.alt}</p>
-              <p className="text-[#7E7180] text-xs">{image.category}</p>
+              <p className="text-[white/40] text-xs">{image.category}</p>
             </div>
             <button
               onClick={() => handleDelete(image.id)}
@@ -135,7 +135,7 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
           </div>
         ))}
         {images.length === 0 && (
-          <p className="text-[#7E7180] text-sm col-span-full text-center py-8">No gallery images yet.</p>
+          <p className="text-[white/40] text-sm col-span-full text-center py-8">No gallery images yet.</p>
         )}
       </div>
     </div>

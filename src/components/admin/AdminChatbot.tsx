@@ -98,11 +98,11 @@ export default function AdminChatbot() {
   return (
     <div>
       <h2 className="text-2xl font-display font-bold text-white mb-2">AI Agent</h2>
-      <p className="text-[#7E7180] text-sm mb-6">
+      <p className="text-[white/40] text-sm mb-6">
         Agentic assistant with access to events, market research, and content creation capabilities.
       </p>
 
-      <div className="bg-[#062434] border border-[#CC8A1C]/20 rounded-sm flex flex-col h-[600px]">
+      <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm flex flex-col h-[600px]">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((message) => (
@@ -113,8 +113,8 @@ export default function AdminChatbot() {
               <div
                 className={`max-w-[80%] px-4 py-3 rounded-sm text-sm leading-relaxed ${
                   message.role === 'user'
-                    ? 'bg-[#CC8A1C]/20 text-white'
-                    : 'bg-[#0a1628] text-[#FDF8F1] border border-[#CC8A1C]/10'
+                    ? 'bg-[#C9A84C]/20 text-white'
+                    : 'bg-[#0A0A0A] text-[#FDF8F1] border border-[#C9A84C]/10'
                 }`}
               >
                 <pre className="whitespace-pre-wrap font-body">{message.content}</pre>
@@ -123,11 +123,11 @@ export default function AdminChatbot() {
           ))}
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-[#0a1628] border border-[#CC8A1C]/10 px-4 py-3 rounded-sm">
+              <div className="bg-[#0A0A0A] border border-[#C9A84C]/10 px-4 py-3 rounded-sm">
                 <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-[#CC8A1C] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-[#CC8A1C] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-[#CC8A1C] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <span className="w-2 h-2 bg-[#C9A84C] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-[#C9A84C] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-[#C9A84C] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             </div>
@@ -136,7 +136,7 @@ export default function AdminChatbot() {
         </div>
 
         {/* Input */}
-        <div className="border-t border-[#CC8A1C]/20 p-4">
+        <div className="border-t border-[#C9A84C]/20 p-4">
           <form onSubmit={handleSubmit} className="flex gap-3">
             <input
               type="text"
@@ -144,12 +144,12 @@ export default function AdminChatbot() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask the agent to create events, research markets..."
               disabled={loading}
-              className="flex-1 px-4 py-3 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm placeholder-[#7E7180] focus:outline-none focus:border-[#CC8A1C] disabled:opacity-50"
+              className="flex-1 px-4 py-3 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm placeholder-[white/40] focus:outline-none focus:border-[#C9A84C] disabled:opacity-50"
             />
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="px-6 py-3 bg-[#CC8A1C] text-white text-sm font-semibold rounded-sm hover:bg-[#e0a83a] transition-colors disabled:opacity-50"
+              className="px-6 py-3 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors disabled:opacity-50"
             >
               Send
             </button>

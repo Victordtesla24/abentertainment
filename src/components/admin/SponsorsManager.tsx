@@ -105,7 +105,7 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
   const showForm = creating || editing;
   const tierColors: Record<Sponsor['tier'], string> = {
     platinum: 'bg-purple-400/20 text-purple-300',
-    gold: 'bg-[#CC8A1C]/20 text-[#CC8A1C]',
+    gold: 'bg-[#C9A84C]/20 text-[#C9A84C]',
     silver: 'bg-gray-400/20 text-gray-300',
     bronze: 'bg-orange-400/20 text-orange-300',
   };
@@ -114,7 +114,7 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
     <div>
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-2xl font-display font-bold text-white">Sponsors</h2>
-        <button onClick={startCreate} className="px-4 py-2 bg-[#CC8A1C] text-white text-sm font-semibold rounded-sm hover:bg-[#e0a83a] transition-colors">
+        <button onClick={startCreate} className="px-4 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors">
           + New Sponsor
         </button>
       </div>
@@ -126,26 +126,26 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
       )}
 
       {showForm && (
-        <div className="mb-8 bg-[#062434] border border-[#CC8A1C]/20 rounded-sm p-6">
-          <h3 className="text-lg font-display font-semibold text-[#CC8A1C] mb-4">
+        <div className="mb-8 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-6">
+          <h3 className="text-lg font-display font-semibold text-[#C9A84C] mb-4">
             {creating ? 'Add Sponsor' : `Edit: ${editing!.name}`}
           </h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Name</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]" />
+              <label className="block text-xs text-[white/40] mb-1">Name</label>
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]" />
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Logo URL</label>
-              <input type="text" value={logo} onChange={(e) => setLogo(e.target.value)} className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]" />
+              <label className="block text-xs text-[white/40] mb-1">Logo URL</label>
+              <input type="text" value={logo} onChange={(e) => setLogo(e.target.value)} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]" />
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Website URL</label>
-              <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]" />
+              <label className="block text-xs text-[white/40] mb-1">Website URL</label>
+              <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]" />
             </div>
             <div>
-              <label className="block text-xs text-[#7E7180] mb-1">Tier</label>
-              <select value={tier} onChange={(e) => setTier(e.target.value as Sponsor['tier'])} className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C]">
+              <label className="block text-xs text-[white/40] mb-1">Tier</label>
+              <select value={tier} onChange={(e) => setTier(e.target.value as Sponsor['tier'])} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]">
                 <option value="platinum">Platinum</option>
                 <option value="gold">Gold</option>
                 <option value="silver">Silver</option>
@@ -153,14 +153,14 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs text-[#7E7180] mb-1">Description</label>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="w-full px-3 py-2 bg-[#0a1628] border border-[#CC8A1C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#CC8A1C] resize-none" />
+              <label className="block text-xs text-[white/40] mb-1">Description</label>
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none" />
             </div>
             <div className="md:col-span-2 flex gap-3 pt-2">
-              <button type="submit" disabled={saving} className="px-6 py-2 bg-[#CC8A1C] text-white text-sm font-semibold rounded-sm hover:bg-[#e0a83a] disabled:opacity-50">
+              <button type="submit" disabled={saving} className="px-6 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] disabled:opacity-50">
                 {saving ? 'Saving...' : creating ? 'Add Sponsor' : 'Update'}
               </button>
-              <button type="button" onClick={resetForm} className="px-6 py-2 border border-[#7E7180]/30 text-[#7E7180] text-sm rounded-sm hover:text-white">
+              <button type="button" onClick={resetForm} className="px-6 py-2 border border-[white/40]/30 text-[white/40] text-sm rounded-sm hover:text-white">
                 Cancel
               </button>
             </div>
@@ -170,7 +170,7 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {sponsors.map((sponsor) => (
-          <div key={sponsor.id} className="bg-[#062434] border border-[#CC8A1C]/20 rounded-sm p-4">
+          <div key={sponsor.id} className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h3 className="text-white font-semibold text-sm">{sponsor.name}</h3>
@@ -184,12 +184,12 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
               </div>
             </div>
             {sponsor.description && (
-              <p className="text-[#7E7180] text-xs">{sponsor.description}</p>
+              <p className="text-[white/40] text-xs">{sponsor.description}</p>
             )}
           </div>
         ))}
         {sponsors.length === 0 && (
-          <p className="text-[#7E7180] text-sm col-span-full text-center py-8">No sponsors yet.</p>
+          <p className="text-[white/40] text-sm col-span-full text-center py-8">No sponsors yet.</p>
         )}
       </div>
     </div>
