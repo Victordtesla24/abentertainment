@@ -440,9 +440,20 @@ export default function HealthDashboard() {
     return () => { if (refreshInterval.current) clearInterval(refreshInterval.current); };
   }, [autoRefresh, refreshAll]);
 
-  // ─── Copy to clipboard ───
+  // ─── Copy to clipboard (with fallback for non-HTTPS) ───
   const copyPrompt = (prompt: string) => {
-    navigator.clipboard.writeText(prompt);
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = prompt;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    } catch {
+      // Silently fail if copy not supported
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
