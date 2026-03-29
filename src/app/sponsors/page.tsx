@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { getSponsors } from '@/lib/data';
+import PageHero from '@/components/ui/PageHero';
 
 import type { Sponsor } from '@/lib/data';
 
@@ -92,21 +93,13 @@ export default async function SponsorsPage() {
 
   return (
     <main className="bg-[#0A0A0A]">
-      {/* Header */}
-      <section className="py-24 md:py-32">
-        <div className="container-eu text-center">
-          <span className="inline-block px-4 py-2 bg-[#C9A84C] text-white text-xs font-semibold font-body uppercase tracking-[0.2em] mb-6">
-            Our Partners
-          </span>
-          <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4">
-            Sponsors & <span className="text-[#C9A84C]">Partners</span>
-          </h1>
-          <p className="text-[rgba(255,255,255,0.4)] text-lg font-body max-w-2xl mx-auto">
-            We are grateful to the organizations that support and make our cultural
-            events possible.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        image="/images/heroes/sponsors-hero.png"
+        badge="Our Partners"
+        title="Sponsors &"
+        highlight="Partners"
+        subtitle="We are grateful to the organizations that support and make our cultural events possible"
+      />
 
       {/* Sponsors grid */}
       <section className="pb-24">

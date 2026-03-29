@@ -71,6 +71,7 @@ export const metadata: Metadata = {
 import ThreeCanvas from '@/components/ui/ThreeCanvas';
 import Preloader from '@/components/ui/Preloader';
 import RouteTransition from '@/components/layout/RouteTransition';
+import ChatWidget from '@/components/ui/ChatWidget';
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -131,6 +132,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
           </RouteTransition>
         </main>
         <Footer />
+        <ChatWidget />
       </body>
     </html>
   );

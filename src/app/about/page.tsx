@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { ABOUT_CONTENT, SITE_CONFIG, FOUR_PILLARS, TEAM_MEMBERS } from '@/lib/constants';
+import PageHero from '@/components/ui/PageHero';
 
 export const metadata: Metadata = {
   title: 'About',
@@ -10,16 +11,21 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <main className="bg-[#0A0A0A]">
-      {/* Hero banner */}
-      <section className="relative pt-32 pb-20 md:pt-40 md:pb-28">
+      <PageHero
+        image="/images/heroes/about-hero.png"
+        badge="About Us"
+        title="About"
+        highlight="AB Entertainment"
+        subtitle="Where every detail is meticulously crafted to create unforgettable experiences"
+      />
+
+      {/* Legacy content below hero - keeping existing sections */}
+      <section className="relative py-20 md:py-28">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(201,168,76,0.05)_0%,transparent_60%)]" />
-        <div className="container-eu text-center relative z-10">
-          <span className="inline-block px-5 py-2 bg-[#C9A84C]/10 border border-[#C9A84C]/20 text-[#C9A84C] text-xs font-semibold font-body uppercase tracking-[0.25em] mb-6">
-            About Us
-          </span>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white mb-6">
+        <div className="container-eu relative z-10">
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white mb-6">
             {ABOUT_CONTENT.title}
-          </h1>
+          </h2>
           <p className="text-white/40 font-body text-lg max-w-2xl mx-auto leading-relaxed">
             {ABOUT_CONTENT.tagline}
           </p>

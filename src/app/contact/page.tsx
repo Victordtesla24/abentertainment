@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { SITE_CONFIG } from '@/lib/constants';
+import PageHero from '@/components/ui/PageHero';
 
 type FormStatus = 'idle' | 'submitting' | 'success' | 'error';
 
@@ -51,24 +52,24 @@ export default function ContactPage() {
 
   return (
     <main className="bg-[#0A0A0A]">
-      {/* Header */}
-      <section className="py-24 md:py-32">
+      <PageHero
+        image="/images/heroes/contact-hero.png"
+        badge="Contact"
+        title="Get in"
+        highlight="Touch"
+        subtitle="Whether you're interested in attending an event, exploring sponsorship opportunities, or simply want to connect"
+      />
+
+      {/* Form section */}
+      <section className="py-16 md:py-20">
         <div className="container-eu">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: CINEMATIC_EASE }}
           >
-            <span className="inline-block px-4 py-2 bg-[#C9A84C] text-white text-xs font-semibold font-body uppercase tracking-[0.2em] mb-6">
-              Contact
-            </span>
-            <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4">
-              Get in <span className="text-[#C9A84C]">Touch</span>
-            </h1>
-            <p className="text-[rgba(255,255,255,0.4)] text-lg font-body max-w-2xl">
-              Whether you&apos;re interested in attending an event, exploring
-              sponsorship opportunities, or simply want to connect -- we&apos;d love
-              to hear from you.
+            <p className="text-[rgba(255,255,255,0.4)] text-lg font-body max-w-2xl mb-8">
+              We&apos;d love to hear from you.
             </p>
           </motion.div>
         </div>

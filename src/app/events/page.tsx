@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { getEvents } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
+import PageHero from '@/components/ui/PageHero';
 
 import type { Event } from '@/lib/data';
 
@@ -93,10 +94,18 @@ export default async function EventsPage() {
 
   return (
     <main className="bg-[#0A0A0A]">
-      {/* Header */}
-      <section className="py-24 md:py-32">
+      <PageHero
+        image="/images/heroes/events-hero.png"
+        badge="Our Events"
+        title="Upcoming & Past"
+        highlight="Events"
+        subtitle="Discover authentic Indian and Marathi cultural experiences in Melbourne"
+      />
+
+      {/* Content */}
+      <section className="py-16 md:py-20">
         <div className="container-eu">
-          <span className="inline-block px-4 py-2 bg-[#C9A84C] text-white text-xs font-semibold font-body uppercase tracking-[0.2em] mb-6">
+          <span className="sr-only">
             Our Events
           </span>
           <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4">

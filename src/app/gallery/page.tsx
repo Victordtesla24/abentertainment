@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { getGalleryImages, getEvents } from '@/lib/data';
+import PageHero from '@/components/ui/PageHero';
 
 import type { GalleryImage, Event } from '@/lib/data';
 
@@ -113,21 +114,13 @@ export default async function GalleryPage() {
 
   return (
     <main className="bg-[#0A0A0A]">
-      {/* Header */}
-      <section className="pt-32 pb-20 md:pt-40 md:pb-28">
-        <div className="container-eu text-center">
-          <span className="inline-block px-5 py-2 bg-[#C9A84C]/10 border border-[#C9A84C]/20 text-[#C9A84C] text-xs font-semibold font-body uppercase tracking-[0.25em] mb-6">
-            Gallery
-          </span>
-          <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4">
-            Moments of <span className="text-[#C9A84C]">Magic</span>
-          </h1>
-          <p className="text-white/40 text-lg font-body max-w-2xl mx-auto">
-            A visual archive of cultural moments -- from classical performances to
-            vibrant celebrations across Melbourne.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        image="/images/heroes/gallery-hero.png"
+        badge="Gallery"
+        title="Moments of"
+        highlight="Magic"
+        subtitle="A visual archive of cultural moments — from classical performances to vibrant celebrations across Melbourne"
+      />
 
       {/* Gallery grid */}
       <section className="pb-24">
