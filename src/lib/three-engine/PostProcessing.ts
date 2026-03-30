@@ -55,4 +55,15 @@ export class PostProcessingPipeline {
     // We could dynamically animate focus distance for Bokeh here based on raycasting
     this.composer.render(delta);
   }
+
+  /** Dispose all post-processing passes and render targets */
+  public dispose() {
+    this.composer.renderTarget1?.dispose();
+    this.composer.renderTarget2?.dispose();
+    for (const pass of this.composer.passes) {
+      if ('dispose' in pass && typeof pass.dispose === 'function') {
+        pass.dispose();
+      }
+    }
+  }
 }

@@ -10,6 +10,8 @@ interface Message {
   content: string;
 }
 
+const MAX_MESSAGES = 100;
+
 /**
  * Floating chatbot widget — black & gold theme matching the site.
  * Connects to /api/chat which uses the OpenAI API with in-memory rate limiting.
@@ -27,6 +29,7 @@ export default function ChatWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -35,6 +38,12 @@ export default function ChatWidget() {
   useEffect(() => {
     if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -46,7 +55,11 @@ export default function ChatWidget() {
     setIsLoading(true);
 
     try {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
       const res = await fetch(getApiUrl('/api/chat'), {
+        signal: controller.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -83,9 +96,10 @@ export default function ChatWidget() {
         const chunk = decoder.decode(value, { stream: true });
         // Skip SSE data prefixes if present
         assistantContent += chunk;
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content: assistantContent } : m))
-        );
+        setMessages((prev) => {
+          const updated = prev.map((m) => (m.id === assistantId ? { ...m, content: assistantContent } : m));
+          return updated.length > MAX_MESSAGES ? updated.slice(-MAX_MESSAGES) : updated;
+        });
       }
 
       // If response was empty, show fallback
@@ -98,7 +112,8 @@ export default function ChatWidget() {
           )
         );
       }
-    } catch {
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       setMessages((prev) => [
         ...prev,
         { id: `e-${Date.now()}`, role: 'assistant', content: 'I\'m having trouble connecting. Please try again shortly.' },

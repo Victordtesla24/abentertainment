@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getApiUrl } from '@/lib/api-config';
+import { TelemetryGaugeGrid } from './telemetry/TelemetryGaugeGrid';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -130,6 +131,7 @@ function copyToClipboard(text: string): void {
 function AnimatedNumber({ value, suffix = '' }: { value: number; suffix?: string }) {
   const [display, setDisplay] = useState(0);
   const prevRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
   useEffect(() => {
     const start = prevRef.current;
     const startTime = Date.now();
@@ -137,10 +139,19 @@ function AnimatedNumber({ value, suffix = '' }: { value: number; suffix?: string
       const progress = Math.min((Date.now() - startTime) / 1200, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       setDisplay(Math.round(start + (value - start) * eased));
-      if (progress < 1) requestAnimationFrame(animate);
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(animate);
+      } else {
+        rafRef.current = null;
+      }
     };
-    requestAnimationFrame(animate);
+    rafRef.current = requestAnimationFrame(animate);
     prevRef.current = value;
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
   }, [value]);
   return <>{display}{suffix}</>;
 }
@@ -266,30 +277,41 @@ export default function HealthDashboard() {
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
   const [showAgentDetail, setShowAgentDetail] = useState(false);
   const refreshInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchHealthData = useCallback(async () => {
     try {
+      abortControllerRef.current = new AbortController();
       const res = await fetch(getApiUrl('/api/admin/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'health' }),
+        signal: abortControllerRef.current.signal,
       });
       if (res.ok) {
         const data = await res.json();
         if (data.type === 'health') setHealthData(data);
       }
-    } catch { /* VPS may be unreachable from localhost — not a production issue */ }
+    } catch (error) {
+      if (error instanceof Error && error.name !== 'AbortError') {
+        /* VPS may be unreachable from localhost — not a production issue */
+      }
+    }
   }, []);
 
   const checkPages = useCallback(async () => {
     const results: PageCheck[] = [];
+    abortControllerRef.current = new AbortController();
     for (const page of PAGES) {
       const start = performance.now();
       try {
-        const res = await fetch(page.path, { method: 'HEAD', cache: 'no-store' });
+        const res = await fetch(page.path, { method: 'HEAD', cache: 'no-store', signal: abortControllerRef.current.signal });
         results.push({ ...page, status: res.ok ? 'pass' : 'fail', responseTime: Math.round(performance.now() - start), statusCode: res.status });
-      } catch {
-        results.push({ ...page, status: 'fail', responseTime: 0, statusCode: 0 });
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          results.push({ ...page, status: 'fail', responseTime: 0, statusCode: 0 });
+        }
       }
     }
     setPages(results);
@@ -367,10 +389,13 @@ export default function HealthDashboard() {
   }, []);
 
   const refreshAll = useCallback(async () => {
-    setLoading(true);
-    await Promise.all([fetchHealthData(), checkPages()]);
-    setLastRefresh(new Date());
-    setLoading(false);
+    try {
+      setLoading(true);
+      await Promise.all([fetchHealthData(), checkPages()]);
+      setLastRefresh(new Date());
+    } finally {
+      setLoading(false);
+    }
   }, [fetchHealthData, checkPages]);
 
   useEffect(() => { if (!loading) detectIssues(healthData, pages); }, [healthData, pages, loading, detectIssues]);
@@ -380,10 +405,30 @@ export default function HealthDashboard() {
     return () => { if (refreshInterval.current) clearInterval(refreshInterval.current); };
   }, [autoRefresh, refreshAll]);
 
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (refreshInterval.current) {
+        clearInterval(refreshInterval.current);
+      }
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleCopy = (prompt: string) => {
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+    }
     copyToClipboard(prompt);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    copyTimeoutRef.current = setTimeout(() => {
+      setCopied(false);
+      copyTimeoutRef.current = null;
+    }, 2000);
   };
 
   const score = healthScore(healthData, pages);
@@ -413,6 +458,18 @@ export default function HealthDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Telemetry Gauges */}
+      <TelemetryGaugeGrid
+        healthScore={score}
+        memoryMB={healthData?.server.memoryMB ?? 0}
+        memoryTotalMB={healthData?.server.memoryTotalMB ?? 1}
+        avgResponseMs={avgResponse}
+        totalRequests={healthData?.server.totalRequests ?? 0}
+        uptimeSeconds={healthData?.server.uptime ?? 0}
+        totalSleeps={healthData?.server.totalSleeps ?? 0}
+        errorRate={pages.length > 0 ? (pages.filter(p => p.status === 'fail').length / pages.length) * 100 : 0}
+      />
 
       {/* Top Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

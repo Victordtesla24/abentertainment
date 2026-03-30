@@ -661,42 +661,35 @@ sudo journalctl -u ab-chatbot -f    # Stream logs
 
 ## 16. Changelog
 
-### March 2026 — Production Audit & Competitive Gap Closure
+### March 2026 — Memory Optimization & Health Dashboard Telemetry (v3.1.0)
 
-Comprehensive audit benchmarking against Fortune 500-tier event management platforms (Live Nation, Eventbrite, Cvent, Informa Connect). All identified gaps addressed:
+Production memory investigation and surgical fixes across the codebase, plus a telemetry gauge upgrade for the Admin Health Dashboard.
 
-**New Components**
+**Memory Fixes**
 
-- `BackToTop.tsx` — Scroll-triggered back-to-top button with Framer Motion animation
-- `CookieConsent.tsx` — Cookie consent banner with Accept/Decline (APP/GDPR compliant)
-- `Breadcrumbs.tsx` — Dynamic breadcrumb navigation with ARIA accessibility attributes
-- `not-found.tsx` — Custom 404 page with brand-consistent black & gold design
+- Fixed `AnimatedNumber` RAF leak in HealthDashboard — cancel previous animation on value change, use `performance.now()` via RAF callback
+- Added `AbortController` to all fetch operations in HealthDashboard (`fetchHealthData`, `checkPages`, `refreshAll`)
+- Added `finally` block to `refreshAll` to prevent stuck loading state on abort
+- Fixed `setTimeout` cleanup for clipboard toast in HealthDashboard
+- Added full `dispose()` method to Three.js `Engine.ts` — disposes post-processing, scene geometries/materials/textures, and renderer in correct order
+- Changed `ThreeCanvas.tsx` cleanup from `removeListeners()` to `dispose()` for complete GPU memory release
+- Added message cap (100) to `ChatWidget.tsx` to prevent unbounded array growth
+- Added `AbortController` to ChatWidget streaming fetch
 
-**SEO Improvements**
+**Configuration Fixes**
 
-- Dynamic `sitemap.xml` generation via Next.js MetadataRoute API (8 routes with priorities)
-- Dynamic `robots.txt` generation via MetadataRoute API (allow `/`, disallow `/admin/`, `/api/`)
-- Schema.org Event structured data (JSON-LD ItemList) on events page
+- Added `--max-old-space-size=1024` to Dockerfile CMD for explicit V8 heap limit
+- Added `deploy.resources.limits.memory: 1536m` to docker-compose.yml
+- Added `serverExternalPackages: ['three']` to next.config.ts to prevent server-side bundling
 
-**Brand Consistency Fixes**
+**Health Dashboard Telemetry Upgrade**
 
-- Privacy and Terms pages updated from off-brand colour palette (`#062434`, `#CC8A1C`, `#7E7180`) to design system tokens (`#0A0A0A`, `#C9A84C`, `white/40`)
+- New `TelemetryGauge` component (`src/components/admin/telemetry/TelemetryGauge.tsx`) — reusable SVG radial gauge with Framer Motion animation, wrapped in `React.memo()`
+- New `TelemetryGaugeGrid` component (`src/components/admin/telemetry/TelemetryGaugeGrid.tsx`) — responsive 3×2 grid with 6 telemetry dials
+- Six gauge widgets: System Health Score, Memory Usage, Response Speed, Traffic Counter, Agent Uptime, Error Rate
+- All gauges use `role="meter"` with aria attributes for accessibility
+- Responsive layout: 3×2 desktop, 2×3 tablet, 1×6 mobile
 
-**Legal Compliance**
-
-- Footer updated with Privacy Policy and Terms of Service links in the copyright bar
-
-**Codebase Cleanup**
-
-- Removed orphaned `EventCard.tsx` component (events page uses inline definition)
-- Removed stale test artifacts (`.playwright-mcp/`, `test-results/`)
-- Removed TypeScript build cache (`tsconfig.tsbuildinfo`)
-- Installed `lightningcss-linux-arm64-gnu` for ARM64 build compatibility
 
 ---
 
-## 17. License
-
-Copyright 2024–2026 AB Entertainment. All rights reserved.
-
-**Developer**: Vikram Deshpande — [sarkar.vikram@gmail.com](mailto:sarkar.vikram@gmail.com)

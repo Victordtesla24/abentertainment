@@ -9,6 +9,10 @@ services:
     volumes:
       - app-data:/app/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
 
 volumes:
   app-data:

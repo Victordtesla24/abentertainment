@@ -8,7 +8,8 @@ import { FailsafeMonitor } from './FailsafeMonitor';
 
 export class ThreeEngine {
   private static instance: ThreeEngine;
-  
+  private static isDisposing = false;
+
   public scene: THREE.Scene;
   public camera: THREE.PerspectiveCamera;
   public renderer!: THREE.WebGLRenderer; // Fallback to WebGL for absolute stability if WebGPURenderer import fails in this env
@@ -34,6 +35,9 @@ export class ThreeEngine {
   }
 
   public static async getInstance(canvas: HTMLCanvasElement): Promise<ThreeEngine> {
+    if (ThreeEngine.isDisposing) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
     if (!ThreeEngine.instance) {
       ThreeEngine.instance = new ThreeEngine(canvas);
       await ThreeEngine.instance.initRenderer();
@@ -128,6 +132,49 @@ export class ThreeEngine {
     if (this.boundResizeHandler) {
       window.removeEventListener('resize', this.boundResizeHandler);
     }
+  }
+
+  /** Full cleanup — call from component unmount to free GPU memory */
+  public dispose() {
+    if (ThreeEngine.isDisposing) return;
+    ThreeEngine.isDisposing = true;
+
+    this.removeListeners();
+
+    // 1. Dispose post-processing FIRST (before renderer — needs GL context)
+    if (this.postProcessing) {
+      this.postProcessing.dispose?.();
+      this.postProcessing = undefined;
+    }
+
+    // 2. Traverse scene and dispose all geometries, materials, and textures
+    this.scene.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        object.geometry?.dispose();
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const mat of materials) {
+          mat.map?.dispose();
+          mat.normalMap?.dispose();
+          mat.roughnessMap?.dispose();
+          mat.metalnessMap?.dispose();
+          mat.aoMap?.dispose();
+          mat.emissiveMap?.dispose();
+          mat.dispose();
+        }
+      }
+    });
+
+    // 3. Clear scene children
+    while (this.scene.children.length > 0) {
+      this.scene.remove(this.scene.children[0]);
+    }
+
+    // 4. Dispose renderer LAST (releases WebGL context)
+    this.renderer?.dispose();
+
+    // 5. Clear singleton so next mount creates fresh instance
+    ThreeEngine.instance = null as unknown as ThreeEngine;
+    ThreeEngine.isDisposing = false;
   }
 
   // The main 60FPS render loop

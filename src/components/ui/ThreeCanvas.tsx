@@ -41,7 +41,7 @@ export default function ThreeCanvas() {
     return () => {
       isCancelled = true;
       if (animationId !== null) cancelAnimationFrame(animationId);
-      engine?.removeListeners(); // Prevent resize listener accumulation (review fix #3)
+      engine?.dispose(); // Full GPU memory cleanup on unmount
     };
   }, [pathname]);
 
