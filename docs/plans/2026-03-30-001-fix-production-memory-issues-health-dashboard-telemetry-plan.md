@@ -1,7 +1,7 @@
 ---
 title: "fix: Resolve Production Memory Issues & Upgrade Admin Health Dashboard Telemetry"
 type: fix
-status: active
+status: completed
 date: 2026-03-30
 ---
 
