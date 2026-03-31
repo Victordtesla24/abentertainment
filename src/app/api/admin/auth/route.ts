@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!validateCredentials(username, password)) {
+    if (!(await validateCredentials(username, password))) {
       recordFailedAttempt(ip, username ?? '');
       return NextResponse.json(
         { error: 'Invalid username or password' },

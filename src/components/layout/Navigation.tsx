@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { NAVIGATION } from '@/lib/constants';
+import SearchModal from '@/components/SearchModal';
 
 const mobileMenuVariants = {
   hidden: { opacity: 0, height: 0 },
@@ -22,6 +23,7 @@ const mobileItemVariants = {
 
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { scrollY } = useScroll();
   const pathname = usePathname();
 
@@ -73,14 +75,19 @@ export function Navigation() {
 
           {/* Right CTA */}
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsSearchOpen(true)}
+              className="p-2.5 text-white/50 hover:text-[#C9A84C] transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2"
+              aria-label="Search events"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+            </button>
             <Link href="/contact"
               className="group relative px-7 py-2.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-xs uppercase tracking-[0.12em] font-body font-bold overflow-hidden transition-all duration-400 hover:shadow-[0_0_25px_rgba(201,168,76,0.35)] focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-4">
               <span className="relative z-10">Contact Us</span>
               <div className="absolute inset-0 bg-gradient-to-r from-[#D4B65C] to-[#E8D5A3] opacity-0 group-hover:opacity-100 transition-opacity duration-400" />
-            </Link>
-            <Link href="/admin/login"
-              className="px-5 py-2.5 border border-white/15 text-white/50 text-xs uppercase tracking-[0.12em] font-body font-medium hover:border-[#C9A84C]/40 hover:text-[#C9A84C] transition-all duration-400 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-4">
-              Login
             </Link>
           </div>
         </div>
@@ -95,12 +102,23 @@ export function Navigation() {
             </div>
             <span className="text-white font-body text-[10px] uppercase tracking-[0.2em] font-semibold">AB Entertainment</span>
           </Link>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsSearchOpen(true)}
+              className="p-2 text-white/50 hover:text-[#C9A84C] transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2"
+              aria-label="Search events"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+            </button>
           <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-[#C9A84C] focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2" aria-label="Toggle menu" aria-expanded={isOpen}>
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                 d={isOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'} />
             </svg>
           </button>
+          </div>
         </div>
         <AnimatePresence>
           {isOpen && (
@@ -120,15 +138,15 @@ export function Navigation() {
                   <Link href="/contact" className="block w-full px-4 py-3 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-sm text-center uppercase tracking-wider font-body font-bold focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-4">
                     Contact Us
                   </Link>
-                  <Link href="/admin/login" className="block w-full px-4 py-3 border border-white/15 text-white/50 text-sm text-center uppercase tracking-wider font-body font-medium focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-4">
-                    Login
-                  </Link>
                 </motion.div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </nav>
+
+      {/* Search Modal */}
+      <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </>
   );
 }
