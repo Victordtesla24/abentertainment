@@ -1,5 +1,42 @@
 # AB Entertainment
 
+## v3.3.0 — Cinematic Curtain Transition & Preloader Upgrade (2026-03-31)
+
+### Summary of Changes
+
+**Curtain-Opening Preloader (All Pages, 5-Minute Re-trigger)**
+- Replaced `ab-animation-2.mp4` preloader with curtain-opening video across ALL pages (previously homepage only)
+- Created trimmed preloader clip (2s, 739KB MP4 / 541KB WebM) from 8s source at 1080p
+- Maintained existing 5-minute re-trigger logic via localStorage with sessionStorage fallback
+- Added WebM + MP4 dual-source with `<source>` elements for cross-browser optimization
+
+**Page Transition Curtain Animation**
+- Route changes now play a 1-second curtain video overlay (366KB MP4 / 159KB WebM)
+- Curtain overlay sits at z-[998] above content, below preloader
+- Video plays automatically on route change with graceful fallback if video fails
+- Gold blade wipe and dissolve effects preserved underneath the curtain transition
+
+**ScrollReveal Component (NEW)**
+- Created reusable `ScrollReveal` component with directional reveals (up/down/left/right/fade)
+- Added `StaggerContainer` for cascading reveal animations with configurable delays
+- Added `CountUp` component for animated number counters triggered on scroll
+- All animations use IntersectionObserver via Framer Motion's `useInView` for 60fps performance
+- Configurable duration, delay, distance, and blur parameters
+
+**Video Asset Pipeline**
+- `public/video/ab-curtain-preloader.mp4` — 2s, 1080p, H.264, 739KB
+- `public/video/ab-curtain-preloader.webm` — 2s, 1080p, VP9, 541KB
+- `public/video/ab-curtain-transition.mp4` — 1s, 1080p, H.264, 366KB
+- `public/video/ab-curtain-transition.webm` — 1s, 1080p, VP9, 159KB
+
+### Deployment Notes
+- Video files must be deployed via SCP to the Hostinger server (not in git due to size of source file)
+- Trimmed clips ARE committed to git (total ~1.8MB)
+- No new runtime dependencies added
+- Existing `.env.local` variables unchanged
+
+---
+
 ## v3.2.0 — Comprehensive Website Audit, Upgrade & Deployment (2026-03-31)
 
 ### Summary of Changes

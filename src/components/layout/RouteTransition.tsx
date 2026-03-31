@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
-import { ReactNode } from 'react';
+import { ReactNode, useRef, useEffect, useState, useCallback } from 'react';
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
 
@@ -35,61 +35,117 @@ interface RouteTransitionProps {
 }
 
 /**
- * Route Transition — cinematic dissolve with blur, scale, and gold wipe.
+ * Route Transition — cinematic curtain video overlay + dissolve with blur, scale, and gold wipe.
+ * On route change: curtain video plays as full-viewport overlay during transition.
  * Exit: content blurs out + fades + contracts slightly
- * Enter: content unblurs + fades in + gold blade sweeps across top
+ * Enter: curtain lifts, content unblurs + fades in + gold blade sweeps across top
  */
 export default function RouteTransition({ children }: RouteTransitionProps) {
   const pathname = usePathname();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [showCurtain, setShowCurtain] = useState(false);
+  const prevPathRef = useRef(pathname);
+  const hasInitializedRef = useRef(false);
+
+  const playCurtain = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    setShowCurtain(true);
+    video.currentTime = 0;
+    video.play().catch(() => {
+      // If video fails, just skip the curtain
+      setShowCurtain(false);
+    });
+  }, []);
+
+  const handleVideoEnded = useCallback(() => {
+    setShowCurtain(false);
+  }, []);
+
+  // Play curtain on route change (not on initial load — that's handled by Preloader)
+  useEffect(() => {
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      prevPathRef.current = pathname;
+      return;
+    }
+
+    if (prevPathRef.current !== pathname) {
+      prevPathRef.current = pathname;
+      playCurtain();
+    }
+  }, [pathname, playCurtain]);
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={pathname}
-        className="flex-1 w-full"
-        variants={pageVariants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        transition={pageTransition}
+    <>
+      {/* Curtain video overlay — plays during route transitions */}
+      <div
+        className={`fixed inset-0 z-[998] pointer-events-none transition-opacity duration-300 ${
+          showCurtain ? 'opacity-100' : 'opacity-0'
+        }`}
+        aria-hidden="true"
       >
-        {/* Gold blade wipe — sweeps left-to-right on page enter */}
-        <motion.div
-          className="fixed inset-0 z-[997] pointer-events-none"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: [0, 0.7, 0] }}
-          transition={{ duration: 0.7, ease: EASE }}
+        <video
+          ref={videoRef}
+          className="w-full h-full object-cover"
+          muted
+          playsInline
+          preload="auto"
+          onEnded={handleVideoEnded}
         >
-          {/* Top edge */}
-          <motion.div
-            className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#C9A84C] to-transparent"
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            transition={{ duration: 0.5, ease: EASE }}
-            style={{ transformOrigin: 'left' }}
-          />
-          {/* Bottom edge */}
-          <motion.div
-            className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#C9A84C]/40 to-transparent"
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            transition={{ duration: 0.6, ease: EASE, delay: 0.05 }}
-            style={{ transformOrigin: 'right' }}
-          />
-          {/* Ambient gold glow */}
-          <motion.div
-            className="absolute inset-0"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.03, 0] }}
-            transition={{ duration: 0.8 }}
-            style={{
-              background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.15), transparent 60%)',
-            }}
-          />
-        </motion.div>
+          <source src="/video/ab-curtain-transition.webm" type="video/webm" />
+          <source src="/video/ab-curtain-transition.mp4" type="video/mp4" />
+        </video>
+      </div>
 
-        {children}
-      </motion.div>
-    </AnimatePresence>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={pathname}
+          className="flex-1 w-full"
+          variants={pageVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={pageTransition}
+        >
+          {/* Gold blade wipe — sweeps left-to-right on page enter */}
+          <motion.div
+            className="fixed inset-0 z-[997] pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0.7, 0] }}
+            transition={{ duration: 0.7, ease: EASE }}
+          >
+            {/* Top edge */}
+            <motion.div
+              className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#C9A84C] to-transparent"
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.5, ease: EASE }}
+              style={{ transformOrigin: 'left' }}
+            />
+            {/* Bottom edge */}
+            <motion.div
+              className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#C9A84C]/40 to-transparent"
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.6, ease: EASE, delay: 0.05 }}
+              style={{ transformOrigin: 'right' }}
+            />
+            {/* Ambient gold glow */}
+            <motion.div
+              className="absolute inset-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 0.03, 0] }}
+              transition={{ duration: 0.8 }}
+              style={{
+                background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.15), transparent 60%)',
+              }}
+            />
+          </motion.div>
+
+          {children}
+        </motion.div>
+      </AnimatePresence>
+    </>
   );
 }

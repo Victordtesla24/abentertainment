@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * Preloader — plays ab-animation-2.mp4 on homepage only, once per session.
- * Video deployed via SCP (not in git repo due to size).
- * Falls back gracefully if video is unavailable (404).
+ * Preloader — plays curtain-opening animation on ALL pages.
+ * Re-triggers every 5 minutes (300000ms) of active session.
+ * Uses trimmed curtain-opening video (2s preloader clip).
+ * Falls back gracefully if video is unavailable (404) or autoplay blocked.
  */
 export default function Preloader() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -14,9 +15,9 @@ export default function Preloader() {
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    if (window.location.pathname !== '/' && window.location.pathname !== '') return;
+    // Show on ALL pages (not just homepage)
     const lastPlayed = parseInt(localStorage.getItem('ab-preloader-time') || '0');
-    if (lastPlayed && Date.now() - lastPlayed < 300000) return;
+    if (lastPlayed && Date.now() - lastPlayed < 300000) return; // 5-minute cooldown
     setShouldShow(true);
   }, []);
 
@@ -48,10 +49,10 @@ export default function Preloader() {
     // Dismiss when video finishes
     const handleEnded = () => dismiss();
 
-    // Fallback: dismiss after 2 seconds if video hasn't started
+    // Fallback: dismiss after 4 seconds if video hasn't started
     const fallbackTimer = setTimeout(() => {
       if (video.paused && video.currentTime === 0) dismiss();
-    }, 2000);
+    }, 4000);
 
     video.addEventListener('ended', handleEnded);
     video.addEventListener('error', handleError);
@@ -65,15 +66,21 @@ export default function Preloader() {
   if (!shouldShow || isDismissed) return null;
 
   return (
-    <div ref={containerRef} className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
+    <div
+      ref={containerRef}
+      className="fixed inset-0 z-[9999] bg-black flex items-center justify-center"
+      aria-hidden="true"
+    >
       <video
         ref={videoRef}
-        className="w-full h-full object-contain"
-        src={shouldShow ? '/videos/ab-animation-2.mp4' : undefined}
+        className="w-full h-full object-cover"
         muted
         playsInline
-        preload="none"
-      />
+        preload="auto"
+      >
+        <source src="/video/ab-curtain-preloader.webm" type="video/webm" />
+        <source src="/video/ab-curtain-preloader.mp4" type="video/mp4" />
+      </video>
     </div>
   );
 }
