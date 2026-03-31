@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import GoldenTicket from '@/components/GoldenTicket';
 
 import type { Event } from '@/lib/data';
 
@@ -32,6 +33,14 @@ function formatDate(dateString: string): string {
 
 export default function EventsShowcase({ events }: { events: Event[] }) {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  // Featured event: next upcoming event for the Golden Ticket
+  const featuredEvent = useMemo(() => {
+    const now = new Date();
+    return events
+      .filter((e) => new Date(e.date) > now && e.status === 'upcoming')
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] || null;
+  }, [events]);
 
   const allCategories = Array.from(new Set(events.map((e) => e.category)));
   const categories = [
@@ -95,6 +104,24 @@ export default function EventsShowcase({ events }: { events: Event[] }) {
             </button>
           ))}
         </motion.div>
+
+        {/* Featured Golden Ticket */}
+        {featuredEvent && selectedCategory === 'all' && (
+          <motion.div
+            className="mb-16"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: EASE }}
+            viewport={{ once: true, amount: 0.3 }}
+          >
+            <div className="text-center mb-6">
+              <span className="text-[#C9A84C]/60 text-xs uppercase tracking-[0.3em] font-body font-semibold">
+                Featured Event
+              </span>
+            </div>
+            <GoldenTicket event={featuredEvent} />
+          </motion.div>
+        )}
 
         {/* Event cards grid */}
         <AnimatePresence mode="wait">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   motion,
   AnimatePresence,
@@ -9,7 +9,9 @@ import {
 } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
+import * as THREE from 'three';
 
+// ─── Hero Slide Data ────────────────────────────────────────────────────────
 const heroSlides = [
   {
     id: 'slide-1',
@@ -35,10 +37,222 @@ const heroSlides = [
 ];
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
-// Fix #14: Reduced from 240000ms (4min) to 8000ms (8sec) — standard carousel timing
 const SLIDE_DURATION = 8000;
 
-// Fix #6: Removed unused upcomingEvents prop entirely
+// ─── Volumetric Spotlight WebGL Layer ───────────────────────────────────────
+function VolumetricSpotlight({ className }: { className?: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const frameRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Detect low-power devices
+    const isLowPower = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (isLowPower) return;
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: false,
+      alpha: true,
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(
+      60,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      50
+    );
+    camera.position.set(0, 0, 5);
+
+    // ─── Volumetric Cone (Spotlight beam) ──────────────────────────────
+    const coneGeo = new THREE.ConeGeometry(3, 8, 32, 1, true);
+    const coneMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      uniforms: {
+        uTime: { value: 0 },
+        uColor: { value: new THREE.Color('#C9A84C') },
+        uOpacity: { value: 0.08 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying float vY;
+        void main() {
+          vUv = uv;
+          vY = position.y;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        varying vec2 vUv;
+        varying float vY;
+
+        void main() {
+          // Gradient from tip (bright) to base (transparent)
+          float gradient = smoothstep(-4.0, 4.0, vY);
+          float alpha = gradient * uOpacity;
+
+          // Edge falloff
+          float dist = distance(vUv, vec2(0.5, vUv.y));
+          alpha *= smoothstep(0.5, 0.2, dist);
+
+          // Animated shimmer
+          float shimmer = sin(vUv.y * 20.0 + uTime * 2.0) * 0.15 + 0.85;
+          alpha *= shimmer;
+
+          // Dust particles effect
+          float dust = sin(vUv.x * 40.0 + uTime) * sin(vUv.y * 30.0 - uTime * 0.5);
+          dust = smoothstep(0.7, 1.0, dust) * 0.3;
+          alpha += dust * gradient;
+
+          gl_FragColor = vec4(uColor, alpha);
+        }
+      `,
+    });
+
+    const cone = new THREE.Mesh(coneGeo, coneMat);
+    cone.position.set(0, 2, -2);
+    cone.rotation.z = Math.PI;
+    scene.add(cone);
+
+    // Secondary spotlight beam (dimmer, offset)
+    const cone2 = cone.clone();
+    const mat2 = coneMat.clone();
+    mat2.uniforms.uOpacity.value = 0.04;
+    cone2.material = mat2;
+    cone2.position.set(-1.5, 2.5, -3);
+    cone2.rotation.z = Math.PI;
+    cone2.rotation.x = 0.15;
+    cone2.scale.setScalar(0.7);
+    scene.add(cone2);
+
+    // Third beam from right
+    const cone3 = cone.clone();
+    const mat3 = coneMat.clone();
+    mat3.uniforms.uOpacity.value = 0.04;
+    cone3.material = mat3;
+    cone3.position.set(1.5, 2.5, -3);
+    cone3.rotation.z = Math.PI;
+    cone3.rotation.x = -0.15;
+    cone3.scale.setScalar(0.7);
+    scene.add(cone3);
+
+    // ─── Floating gold dust particles ──────────────────────────────────
+    const dustCount = 120;
+    const dustGeo = new THREE.BufferGeometry();
+    const dustPositions = new Float32Array(dustCount * 3);
+    const dustVelocities = new Float32Array(dustCount * 3);
+
+    for (let i = 0; i < dustCount; i++) {
+      dustPositions[i * 3] = (Math.random() - 0.5) * 8;
+      dustPositions[i * 3 + 1] = (Math.random() - 0.5) * 6;
+      dustPositions[i * 3 + 2] = (Math.random() - 0.5) * 4 - 1;
+      dustVelocities[i * 3] = (Math.random() - 0.5) * 0.003;
+      dustVelocities[i * 3 + 1] = Math.random() * 0.004 + 0.001;
+      dustVelocities[i * 3 + 2] = (Math.random() - 0.5) * 0.002;
+    }
+
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+
+    const dustMat = new THREE.PointsMaterial({
+      color: 0xC9A84C,
+      size: 0.025,
+      transparent: true,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const dustParticles = new THREE.Points(dustGeo, dustMat);
+    scene.add(dustParticles);
+
+    // ─── Animation Loop ────────────────────────────────────────────────
+    let time = 0;
+
+    function animate() {
+      frameRef.current = requestAnimationFrame(animate);
+      time += 0.01;
+
+      // Update shader uniforms
+      coneMat.uniforms.uTime.value = time;
+      mat2.uniforms.uTime.value = time + 1.0;
+      mat3.uniforms.uTime.value = time + 2.0;
+
+      // Slow spotlight sway
+      cone.rotation.x = Math.sin(time * 0.3) * 0.08;
+      cone.position.x = Math.sin(time * 0.2) * 0.3;
+
+      cone2.rotation.x = Math.sin(time * 0.25 + 1) * 0.1 + 0.15;
+      cone3.rotation.x = Math.sin(time * 0.25 + 2) * 0.1 - 0.15;
+
+      // Update dust particles
+      const positions = dustGeo.getAttribute('position') as THREE.BufferAttribute;
+      for (let i = 0; i < dustCount; i++) {
+        let x = positions.getX(i) + dustVelocities[i * 3];
+        let y = positions.getY(i) + dustVelocities[i * 3 + 1];
+        const z = positions.getZ(i) + dustVelocities[i * 3 + 2];
+
+        // Wrap around
+        if (y > 4) y = -3;
+        if (x > 5) x = -5;
+        if (x < -5) x = 5;
+
+        positions.setXYZ(i, x, y, z);
+      }
+      positions.needsUpdate = true;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // Resize handler
+    const handleResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      cancelAnimationFrame(frameRef.current);
+      window.removeEventListener('resize', handleResize);
+      renderer.dispose();
+      coneGeo.dispose();
+      coneMat.dispose();
+      mat2.dispose();
+      mat3.dispose();
+      dustGeo.dispose();
+      dustMat.dispose();
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className={className}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+      }}
+    />
+  );
+}
+
+// ─── Main CinematicHero ─────────────────────────────────────────────────────
 export function CinematicHero() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -53,7 +267,6 @@ export function CinematicHero() {
     setCurrentSlide(index);
   }, []);
 
-  // Keyboard navigation for carousel dots
   const handleDotKeyDown = useCallback((e: React.KeyboardEvent, index: number) => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       e.preventDefault();
@@ -68,7 +281,6 @@ export function CinematicHero() {
     }
   }, [goToSlide]);
 
-  // Autoplay with pause on hover/focus (WCAG 2.2.2)
   useEffect(() => {
     if (isPaused) return;
     const interval = setInterval(() => {
@@ -76,8 +288,6 @@ export function CinematicHero() {
     }, SLIDE_DURATION);
     return () => clearInterval(interval);
   }, [isPaused]);
-
-  // Particle effects handled by ThreeCanvas (site-wide WebGL) — single particle system (#11)
 
   return (
     <section
@@ -92,7 +302,6 @@ export function CinematicHero() {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsPaused(false);
       }}
     >
-
       {/* Animated Background Images with Ken Burns */}
       <motion.div className="absolute inset-0" style={{ y: parallaxBg, scale: heroScale }}>
         <AnimatePresence mode="sync">
@@ -130,7 +339,8 @@ export function CinematicHero() {
         background: 'radial-gradient(ellipse at 50% 80%, rgba(201,168,76,0.3), transparent 60%)',
       }} />
 
-      {/* All particles handled by ThreeCanvas WebGL (#11) */}
+      {/* Volumetric Spotlight WebGL Layer */}
+      <VolumetricSpotlight className="z-[4]" />
 
       {/* Hero Content */}
       <motion.div

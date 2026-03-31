@@ -5,6 +5,7 @@ import EventsShowcase from '@/components/EventsShowcase';
 import { VisionSection } from '@/components/VisionSection';
 import { TestimonialsSection } from '@/components/TestimonialsSection';
 import CTASection from '@/components/CTASection';
+import ScrollNarrative from '@/components/ScrollNarrative';
 import { getEvents } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
 
@@ -28,6 +29,7 @@ export default async function Home() {
     <>
       <CinematicHero />
       <IntroSection />
+      <ScrollNarrative />
       <VisionSection />
       <EventsShowcase events={allEvents} />
       <TestimonialsSection />
