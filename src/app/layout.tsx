@@ -125,6 +125,26 @@ export default function RootLayout({ children }: RootLayoutProps) {
         />
       </head>
       <body className="bg-transparent text-white font-body antialiased">
+        {/* Static preloader overlay — in HTML from first paint so it covers content immediately.
+            Inline script checks localStorage cooldown synchronously (before React hydrates). */}
+        <div
+          id="ab-preloader"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: '#000',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          aria-hidden="true"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=parseInt(localStorage.getItem('ab-preloader-time')||'0');if(t&&Date.now()-t<300000){var el=document.getElementById('ab-preloader');if(el)el.style.display='none';}}catch(e){}})();`,
+          }}
+        />
         <ClientProviders>
           <a
             href="#main-content"
