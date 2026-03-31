@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import Fuse, { type IFuseOptions, type FuseResult } from 'fuse.js';
+import eventsData from '../../data/events.json';
 
 interface SearchableEvent {
   id: string;
@@ -51,27 +52,11 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [events, setEvents] = useState<SearchableEvent[]>([]);
   const [results, setResults] = useState<FuseResult<SearchableEvent>[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [loading, setLoading] = useState(false);
 
-  // Fetch events data on mount
+  // Load events data from bundled JSON (works in static export)
   useEffect(() => {
     if (!isOpen || events.length > 0) return;
-
-    setLoading(true);
-    fetch('/data/events.json')
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch');
-        return res.json();
-      })
-      .then((data: SearchableEvent[]) => setEvents(data))
-      .catch(() => {
-        // Fallback: try fetching from API route (server mode)
-        fetch('/api/events')
-          .then((res) => (res.ok ? res.json() : []))
-          .then((data: SearchableEvent[]) => setEvents(data))
-          .catch(() => setEvents([]));
-      })
-      .finally(() => setLoading(false));
+    setEvents(eventsData as unknown as SearchableEvent[]);
   }, [isOpen, events.length]);
 
   // Search with Fuse.js
@@ -230,13 +215,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
             {/* Results */}
             <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
-              {loading && (
-                <div className="px-5 py-8 text-center text-white/40 font-body text-sm">
-                  Loading events...
-                </div>
-              )}
-
-              {!loading && query.length > 0 && results.length === 0 && (
+              {query.length > 0 && results.length === 0 && (
                 <div className="px-5 py-8 text-center">
                   <p className="text-white/40 font-body text-sm">
                     No events found for &ldquo;{query}&rdquo;
@@ -247,7 +226,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 </div>
               )}
 
-              {!loading && query.length === 0 && (
+              {query.length === 0 && (
                 <div className="px-5 py-8 text-center text-white/30 font-body text-sm">
                   Start typing to search events...
                 </div>
