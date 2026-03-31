@@ -69,10 +69,10 @@ export default function Preloader() {
       <video
         ref={videoRef}
         className="w-full h-full object-contain"
-        src="/videos/ab-animation-2.mp4"
+        src={shouldShow ? '/videos/ab-animation-2.mp4' : undefined}
         muted
         playsInline
-        preload="auto"
+        preload="none"
       />
     </div>
   );

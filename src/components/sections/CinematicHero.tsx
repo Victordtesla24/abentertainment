@@ -8,6 +8,7 @@ import {
   useTransform,
 } from 'framer-motion';
 import Image from 'next/image';
+import Link from 'next/link';
 
 const heroSlides = [
   {
@@ -40,6 +41,7 @@ const SLIDE_DURATION = 8000;
 // Fix #6: Removed unused upcomingEvents prop entirely
 export function CinematicHero() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
   const { scrollY } = useScroll();
   const parallaxBg = useTransform(scrollY, [0, 800], [0, -150]);
@@ -51,17 +53,45 @@ export function CinematicHero() {
     setCurrentSlide(index);
   }, []);
 
+  // Keyboard navigation for carousel dots
+  const handleDotKeyDown = useCallback((e: React.KeyboardEvent, index: number) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = (index + 1) % heroSlides.length;
+      goToSlide(next);
+      (e.currentTarget.parentElement?.children[next] as HTMLElement)?.focus();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = (index - 1 + heroSlides.length) % heroSlides.length;
+      goToSlide(prev);
+      (e.currentTarget.parentElement?.children[prev] as HTMLElement)?.focus();
+    }
+  }, [goToSlide]);
+
+  // Autoplay with pause on hover/focus (WCAG 2.2.2)
   useEffect(() => {
+    if (isPaused) return;
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
     }, SLIDE_DURATION);
     return () => clearInterval(interval);
-  }, []);
+  }, [isPaused]);
 
   // Particle effects handled by ThreeCanvas (site-wide WebGL) — single particle system (#11)
 
   return (
-    <section className="relative w-full h-screen overflow-hidden bg-black">
+    <section
+      className="relative w-full h-screen overflow-hidden bg-black"
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="Hero slideshow"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocus={() => setIsPaused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsPaused(false);
+      }}
+    >
 
       {/* Animated Background Images with Ken Burns */}
       <motion.div className="absolute inset-0" style={{ y: parallaxBg, scale: heroScale }}>
@@ -78,8 +108,12 @@ export function CinematicHero() {
               src={heroSlides[currentSlide].bg}
               alt=""
               aria-hidden="true"
+              width={1920}
+              height={1080}
               className="w-full h-[130%] object-cover"
               style={{ filter: 'saturate(0.85) contrast(1.1)' }}
+              loading={currentSlide === 0 ? 'eager' : 'lazy'}
+              fetchPriority={currentSlide === 0 ? 'high' : 'auto'}
             />
           </motion.div>
         </AnimatePresence>
@@ -166,7 +200,7 @@ export function CinematicHero() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.8, ease: EASE }}
-              className="text-lg md:text-xl lg:text-2xl text-white/60 font-body font-light tracking-wide max-w-2xl mx-auto"
+              className="text-lg md:text-xl lg:text-2xl text-white/70 font-body font-light tracking-wide max-w-2xl mx-auto"
             >
               {heroSlides[currentSlide].subtitle}
             </motion.p>
@@ -180,19 +214,19 @@ export function CinematicHero() {
           transition={{ duration: 0.8, delay: 1.0, ease: EASE }}
           className="mt-12 flex flex-col sm:flex-row gap-5"
         >
-          <a
+          <Link
             href="/events"
-            className="group relative px-10 py-4 bg-gradient-to-r from-[#C9A84C] via-[#D4B65C] to-[#C9A84C] text-black text-sm uppercase tracking-[0.15em] font-body font-bold overflow-hidden transition-all duration-500 hover:shadow-[0_0_40px_rgba(201,168,76,0.4)]"
+            className="group relative px-10 py-4 bg-gradient-to-r from-[#C9A84C] via-[#D4B65C] to-[#C9A84C] text-black text-sm uppercase tracking-[0.15em] font-body font-bold overflow-hidden transition-all duration-500 hover:shadow-[0_0_40px_rgba(201,168,76,0.4)] hover:scale-[1.02]"
           >
             <span className="relative z-10">Explore Events</span>
             <div className="absolute inset-0 bg-gradient-to-r from-[#D4B65C] via-[#E8D5A3] to-[#D4B65C] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          </a>
-          <a
+          </Link>
+          <Link
             href="/contact"
             className="group px-10 py-4 border border-white/20 text-white text-sm uppercase tracking-[0.15em] font-body font-medium hover:border-[#C9A84C]/50 hover:text-[#C9A84C] transition-all duration-500 backdrop-blur-sm hover:shadow-[0_0_30px_rgba(201,168,76,0.15)]"
           >
             Get In Touch
-          </a>
+          </Link>
         </motion.div>
 
         {/* Carousel dots */}
@@ -206,10 +240,11 @@ export function CinematicHero() {
             <button
               key={index}
               onClick={() => goToSlide(index)}
-              className={`relative h-[2px] transition-all duration-700 ease-out overflow-hidden ${
+              onKeyDown={(e) => handleDotKeyDown(e, index)}
+              className={`relative h-[2px] transition-all duration-700 ease-out overflow-hidden focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-4 ${
                 currentSlide === index
                   ? 'bg-[#C9A84C]/30 w-12'
-                  : 'bg-white/15 w-3 hover:bg-white/40'
+                  : 'bg-white/50 w-3 hover:bg-white/60'
               }`}
               aria-current={currentSlide === index ? 'true' : 'false'}
               aria-label={`Go to slide ${index + 1}`}
@@ -237,7 +272,7 @@ export function CinematicHero() {
         animate={{ y: [0, 8, 0] }}
         transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <span className="text-[#C9A84C]/40 text-[9px] uppercase tracking-[0.3em] font-body">Scroll</span>
+        <span className="text-[#C9A84C]/70 text-[9px] uppercase tracking-[0.3em] font-body">Scroll</span>
         <div className="w-[1px] h-10 bg-gradient-to-b from-[#C9A84C]/40 to-[#C9A84C]" />
       </motion.div>
     </section>

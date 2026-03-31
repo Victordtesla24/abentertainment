@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -9,23 +8,6 @@ import { SITE_CONFIG, NAVIGATION } from '@/lib/constants';
 export default function Footer() {
   const pathname = usePathname();
   if (pathname.startsWith('/admin')) return null;
-  const [email, setEmail] = useState('');
-  const [subscribeStatus, setSubscribeStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-
-  const handleNewsletterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
-    setSubscribeStatus('loading');
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setSubscribeStatus('success');
-      setEmail('');
-      setTimeout(() => setSubscribeStatus('idle'), 3000);
-    } catch {
-      setSubscribeStatus('error');
-      setTimeout(() => setSubscribeStatus('idle'), 3000);
-    }
-  };
 
   const currentYear = new Date().getFullYear();
 
@@ -49,33 +31,32 @@ export default function Footer() {
       {/* Ambient glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-[radial-gradient(ellipse,rgba(201,168,76,0.03),transparent_70%)] pointer-events-none" />
 
-      {/* Newsletter */}
+      {/* Contact CTA — replaces fake newsletter form */}
       <div className="border-b border-[#C9A84C]/8">
         <div className="container-eu py-16">
           <div className="flex flex-col md:flex-row items-center justify-between gap-10">
             <div className="text-center md:text-left">
               <h3 className="text-2xl md:text-3xl font-display text-white mb-2">
-                Stay <span className="gold-shimmer">Updated</span>
+                Get in <span className="gold-shimmer">Touch</span>
               </h3>
-              <p className="text-white/30 font-body text-sm">Subscribe for exclusive event updates and cultural insights.</p>
+              <p className="text-white/60 font-body text-sm">Have a question or want to collaborate? We would love to hear from you.</p>
             </div>
-            <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email"
-                disabled={subscribeStatus === 'loading'}
-                className="flex-1 md:w-80 px-5 py-3.5 bg-white/[0.03] border border-[#C9A84C]/12 text-white font-body text-sm placeholder-white/20 focus:outline-none focus:border-[#C9A84C]/40 focus:bg-white/[0.05] transition-all duration-400 disabled:opacity-50"
-                required />
-              <button type="submit" disabled={subscribeStatus === 'loading'}
-                className="group relative px-8 py-3.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-sm font-bold font-body uppercase tracking-wider overflow-hidden transition-all duration-400 disabled:opacity-50 hover:shadow-[0_0_25px_rgba(201,168,76,0.3)]">
-                <span className="relative z-10">
-                  {subscribeStatus === 'loading' ? 'Subscribing...' : subscribeStatus === 'success' ? 'Subscribed!' : 'Subscribe'}
-                </span>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <a
+                href={`mailto:${SITE_CONFIG.contact.email}`}
+                className="group relative px-8 py-3.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-sm font-bold font-body uppercase tracking-wider overflow-hidden transition-all duration-400 hover:shadow-[0_0_25px_rgba(201,168,76,0.3)] text-center"
+              >
+                <span className="relative z-10">Contact Us</span>
                 <div className="absolute inset-0 bg-gradient-to-r from-[#D4B65C] to-[#E8D5A3] opacity-0 group-hover:opacity-100 transition-opacity duration-400" />
-              </button>
-            </form>
+              </a>
+              <a
+                href={`tel:${SITE_CONFIG.contact.phone}`}
+                className="px-8 py-3.5 border border-[#C9A84C]/20 text-[#C9A84C]/70 text-sm font-body uppercase tracking-wider hover:border-[#C9A84C]/50 hover:text-[#C9A84C] transition-all duration-400 text-center"
+              >
+                Call Us
+              </a>
+            </div>
           </div>
-          {subscribeStatus === 'success' && (
-            <p className="text-center md:text-right text-[#C9A84C] text-sm mt-3 font-body">Thank you for subscribing!</p>
-          )}
         </div>
       </div>
 
@@ -94,7 +75,7 @@ export default function Footer() {
                 <p className="text-[#C9A84C]/40 text-[10px] uppercase tracking-[0.15em] font-body">Experience events like no other</p>
               </div>
             </div>
-            <p className="text-white/25 font-body text-sm mb-7 leading-[1.8]">
+            <p className="text-white/60 font-body text-sm mb-7 leading-[1.8]">
               AB Entertainment where every detail is meticulously crafted to create unforgettable experiences. With a passion for perfection and a commitment to excellence, we specialize in bringing your visions to life.
             </p>
             {/* Social icons */}
@@ -112,32 +93,58 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Link columns */}
-          {Object.entries(footerColumns).map(([heading, links]) => (
-            <div key={heading}>
-              <h3 className="text-xs font-semibold text-[#C9A84C]/80 uppercase tracking-[0.25em] font-body mb-6 pb-3 border-b border-[#C9A84C]/8">{heading}</h3>
-              <ul className="space-y-3.5">
-                {links.map((link) => (
-                  <li key={link.label}>
-                    <Link href={link.href} className="text-white/25 hover:text-[#C9A84C] transition-colors duration-400 text-sm font-body">{link.label}</Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {/* Link columns with footer navigation aria-label */}
+          <nav aria-label="Footer navigation" className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-8">
+            {Object.entries(footerColumns).map(([heading, links]) => (
+              <div key={heading}>
+                <h3 className="text-xs font-semibold text-[#C9A84C]/80 uppercase tracking-[0.25em] font-body mb-6 pb-3 border-b border-[#C9A84C]/8">{heading}</h3>
+                <ul className="space-y-3.5">
+                  {links.map((link) => (
+                    <li key={link.label}>
+                      {link.href.startsWith('mailto:') || link.href.startsWith('tel:') ? (
+                        <a href={link.href} className="text-white/60 hover:text-[#C9A84C] transition-colors duration-400 text-sm font-body">
+                          {link.label}
+                        </a>
+                      ) : (
+                        <Link href={link.href} className="text-white/60 hover:text-[#C9A84C] transition-colors duration-400 text-sm font-body">{link.label}</Link>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </nav>
+
+          {/* Sitemap — links to all main pages */}
+          <div>
+            <h3 className="text-xs font-semibold text-[#C9A84C]/80 uppercase tracking-[0.25em] font-body mb-6 pb-3 border-b border-[#C9A84C]/8">Sitemap</h3>
+            <ul className="space-y-3.5">
+              {NAVIGATION.map((nav) => (
+                <li key={nav.href}>
+                  <Link href={nav.href} className="text-white/60 hover:text-[#C9A84C] transition-colors duration-400 text-sm font-body">{nav.label}</Link>
+                </li>
+              ))}
+              <li>
+                <Link href="/privacy" className="text-white/60 hover:text-[#C9A84C] transition-colors duration-400 text-sm font-body">Privacy Policy</Link>
+              </li>
+              <li>
+                <Link href="/terms" className="text-white/60 hover:text-[#C9A84C] transition-colors duration-400 text-sm font-body">Terms of Service</Link>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
 
       {/* Copyright */}
       <div className="border-t border-[#C9A84C]/6">
         <div className="container-eu py-7 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-white/20 text-xs font-body">&copy; {currentYear} {SITE_CONFIG.name}. All rights reserved.</p>
+          <p className="text-white/50 text-xs font-body">&copy; {currentYear} {SITE_CONFIG.name}. All rights reserved.</p>
           <div className="flex items-center gap-4">
-            <Link href="/privacy" className="text-white/20 text-xs font-body hover:text-[#C9A84C] transition-colors duration-300">Privacy Policy</Link>
-            <span className="text-white/10">|</span>
-            <Link href="/terms" className="text-white/20 text-xs font-body hover:text-[#C9A84C] transition-colors duration-300">Terms of Service</Link>
+            <Link href="/privacy" className="text-white/50 text-xs font-body hover:text-[#C9A84C] transition-colors duration-300">Privacy Policy</Link>
+            <span className="text-white/50">|</span>
+            <Link href="/terms" className="text-white/50 text-xs font-body hover:text-[#C9A84C] transition-colors duration-300">Terms of Service</Link>
           </div>
-          <p className="text-white/12 text-xs font-body">Crafted with passion in Melbourne, Australia</p>
+          <p className="text-white/40 text-xs font-body">Crafted with passion in Melbourne, Australia</p>
         </div>
       </div>
     </footer>

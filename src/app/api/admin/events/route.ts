@@ -1,33 +1,15 @@
 export const dynamic = "force-static";
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
+import { withAuth } from '@/lib/with-auth';
 import { getEvents, saveEvents } from '@/lib/data';
 import type { Event } from '@/lib/data';
 
-async function requireAuth() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get(getSessionCookieName());
-  if (!session || !validateSessionToken(session.value)) {
-    return false;
-  }
-  return true;
-}
-
-export async function GET() {
-  if (!(await requireAuth())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const GET = withAuth(async () => {
   const events = await getEvents();
   return NextResponse.json({ events });
-}
+});
 
-export async function POST(request: NextRequest) {
-  if (!(await requireAuth())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
     const events = await getEvents();
@@ -58,13 +40,9 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
-}
+});
 
-export async function PUT(request: NextRequest) {
-  if (!(await requireAuth())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const PUT = withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
     const events = await getEvents();
@@ -99,13 +77,9 @@ export async function PUT(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
-}
+});
 
-export async function DELETE(request: NextRequest) {
-  if (!(await requireAuth())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const DELETE = withAuth(async (request: NextRequest) => {
   try {
     const { id } = await request.json();
     const events = await getEvents();
@@ -120,4 +94,4 @@ export async function DELETE(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
-}
+});

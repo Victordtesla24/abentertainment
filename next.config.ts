@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   serverExternalPackages: ['three'],
+  experimental: {
+    // Inline all CSS to eliminate render-blocking stylesheets
+    inlineCss: true,
+  },
 };
 
 export default nextConfig;

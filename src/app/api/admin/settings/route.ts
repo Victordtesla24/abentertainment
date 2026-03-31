@@ -1,29 +1,14 @@
 export const dynamic = "force-static";
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
+import { withAuth } from '@/lib/with-auth';
 import { getSettings, saveSettings } from '@/lib/data';
 
-async function requireAuth() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get(getSessionCookieName());
-  return session ? validateSessionToken(session.value) : false;
-}
-
-export async function GET() {
-  if (!(await requireAuth())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const GET = withAuth(async () => {
   const settings = await getSettings();
   return NextResponse.json({ settings });
-}
+});
 
-export async function PUT(request: NextRequest) {
-  if (!(await requireAuth())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const PUT = withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
     await saveSettings({
@@ -38,4 +23,4 @@ export async function PUT(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
-}
+});

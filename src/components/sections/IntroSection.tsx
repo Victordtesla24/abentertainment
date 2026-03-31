@@ -56,7 +56,7 @@ export function IntroSection() {
                 <div className="text-4xl md:text-5xl font-display font-bold text-[#C9A84C] mb-2 drop-shadow-[0_0_20px_rgba(201,168,76,0.2)]">
                   <AnimatedCounter value={stat.value} />
                 </div>
-                <div className="text-white/30 text-[10px] uppercase tracking-[0.25em] font-body group-hover:text-white/50 transition-colors duration-500">
+                <div className="text-white/50 text-[10px] uppercase tracking-[0.25em] font-body group-hover:text-white/70 transition-colors duration-500">
                   {stat.label}
                 </div>
                 <motion.div
@@ -177,17 +177,17 @@ export function IntroSection() {
               <div className="flex items-center justify-center gap-6 py-3 border-t border-b border-[#C9A84C]/8">
                 <div className="text-center">
                   <p className="text-[#C9A84C] font-display font-bold text-xl">6+</p>
-                  <p className="text-white/25 text-[8px] uppercase tracking-widest font-body">Events</p>
+                  <p className="text-white/50 text-[8px] uppercase tracking-widest font-body">Events</p>
                 </div>
                 <div className="w-px h-8 bg-[#C9A84C]/15" />
                 <div className="text-center">
                   <p className="text-[#C9A84C] font-display font-bold text-xl">25K+</p>
-                  <p className="text-white/25 text-[8px] uppercase tracking-widest font-body">Reach</p>
+                  <p className="text-white/50 text-[8px] uppercase tracking-widest font-body">Reach</p>
                 </div>
                 <div className="w-px h-8 bg-[#C9A84C]/15" />
                 <div className="text-center">
                   <p className="text-[#C9A84C] font-display font-bold text-xl">2</p>
-                  <p className="text-white/25 text-[8px] uppercase tracking-widest font-body">Countries</p>
+                  <p className="text-white/50 text-[8px] uppercase tracking-widest font-body">Countries</p>
                 </div>
               </div>
             </div>

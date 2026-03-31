@@ -85,7 +85,7 @@ export function VisionSection() {
                 <h3 className="text-lg font-semibold text-white mb-3 font-body group-hover:text-[#C9A84C] transition-colors duration-500">
                   {pillar.title}
                 </h3>
-                <p className="text-white/35 font-body text-sm leading-relaxed group-hover:text-white/50 transition-colors duration-500">
+                <p className="text-white/50 font-body text-sm leading-relaxed group-hover:text-white/70 transition-colors duration-500">
                   {pillar.description}
                 </p>
               </div>

@@ -4,6 +4,14 @@ import { SITE_CONFIG } from '@/lib/constants';
 export const metadata: Metadata = {
   title: 'Terms of Service',
   description: 'Terms and conditions for using AB Entertainment services and website.',
+  alternates: {
+    canonical: 'https://abentertainment.com.au/terms/',
+  },
+  openGraph: {
+    title: 'Terms of Service | AB Entertainment',
+    description: 'Terms and conditions for using AB Entertainment services and website.',
+    url: 'https://abentertainment.com.au/terms/',
+  },
 };
 
 export default function TermsPage() {

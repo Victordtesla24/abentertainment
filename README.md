@@ -1,5 +1,63 @@
 # AB Entertainment
 
+## v3.2.0 — Comprehensive Website Audit, Upgrade & Deployment (2026-03-31)
+
+### Summary of Changes
+
+**Security Hardening**
+- Centralized auth via `withAuth` HOF — replaces duplicated auth checks across 4 admin API routes
+- Brute-force protection on login endpoint (progressive delay, lockout at 10 attempts)
+- Fixed login page httpOnly cookie bypass (`document.cookie` removed, uses `credentials: 'include'`)
+- Contact form spam protection (honeypot fields, rate limiting, URL spam detection)
+
+**Performance Optimization**
+- Dynamic imports for heavy client components (Three.js, ChatWidget, etc.) — saves ~680KB initial JS
+- Font weight reduction (Playfair Display 3 weights, DM Sans 3 weights) — saves ~100KB
+- Hero image LCP optimization with `fetchpriority="high"` and explicit dimensions
+- `experimental.inlineCss` enabled — eliminates render-blocking CSS
+- Preloader video `preload="none"` — avoids 2MB+ download on repeat visits
+
+**Accessibility (WCAG AA)**
+- Fixed all color contrast failures (Footer, CinematicHero, PageHero, global audit)
+- ARIA carousel attributes on hero (`aria-roledescription`, keyboard navigation, pause on focus/hover)
+- Refined `prefers-reduced-motion` CSS — preserves focus indicator transitions
+- Navigation ARIA labels for screen readers
+
+**Image Pipeline**
+- Created `OptimizedImage` component with AVIF/WebP/srcSet format negotiation
+- Added AVIF generation to build-time optimization script (quality 50, effort 5)
+- Responsive images at 640w/1024w breakpoints for all hero, event, and gallery images
+
+**New Features**
+- Event detail pages (`/events/[slug]`) with full metadata, JSON-LD, and static generation
+- Both past and future events supported with appropriate CTAs
+
+**Three.js Hardening**
+- WebGL context loss/restore handlers with `preventDefault()` for recovery
+- FPS monitoring with hysteresis and quality tier recovery (not just degradation)
+- ErrorBoundary with CSS gradient fallback for WebGL failures
+- `forceContextLoss()` on cleanup to eagerly release GPU context
+
+**SEO**
+- Canonical URLs on all pages
+- Event detail pages in sitemap
+- Complete OpenGraph and Twitter Card meta on all pages
+- JSON-LD XSS protection (escaped `<` characters)
+
+**Code Quality**
+- Deleted 3 unused components (HeroicGrid, PrestigeShowcase, CinematicTextReveal)
+- Consolidated barrel re-exports in components/sections/
+- Improved sponsor carousel with CSS-only infinite scroll
+- Footer restructured with real links (removed fake newsletter)
+- ESLint zero errors, TypeScript zero errors
+
+### Deployment Notes
+- Static export build: `NEXT_EXPORT=true npm run build`
+- No new runtime dependencies added
+- Existing `.env.local` variables unchanged
+
+---
+
 <div align="center">
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)

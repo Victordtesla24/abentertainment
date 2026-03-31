@@ -62,7 +62,7 @@ export default function EventsShowcase({ events }: { events: Event[] }) {
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white mb-5">
             Signature <span className="gold-shimmer">Events</span>
           </h2>
-          <p className="text-white/35 text-lg font-body max-w-xl mx-auto mb-6">
+          <p className="text-white/50 text-lg font-body max-w-xl mx-auto mb-6">
             From classical Marathi theatre to spectacular live concerts
           </p>
           {/* Ornamental divider */}
@@ -88,7 +88,7 @@ export default function EventsShowcase({ events }: { events: Event[] }) {
               className={`px-6 py-2.5 text-xs uppercase tracking-[0.12em] font-body font-semibold transition-all duration-500 ${
                 selectedCategory === category.id
                   ? 'bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black shadow-[0_0_20px_rgba(201,168,76,0.3)]'
-                  : 'border border-[#C9A84C]/15 text-white/35 hover:border-[#C9A84C]/40 hover:text-[#C9A84C] hover:bg-[#C9A84C]/[0.03]'
+                  : 'border border-[#C9A84C]/15 text-white/50 hover:border-[#C9A84C]/40 hover:text-[#C9A84C] hover:bg-[#C9A84C]/[0.03]'
               }`}
             >
               {category.label}
@@ -136,15 +136,15 @@ export default function EventsShowcase({ events }: { events: Event[] }) {
                       <h3 className="text-lg font-display font-bold text-white group-hover:text-[#C9A84C] transition-colors duration-400 line-clamp-2">
                         {event.title}
                       </h3>
-                      <p className="text-white/30 text-sm font-body line-clamp-2 leading-relaxed">{event.description}</p>
+                      <p className="text-white/50 text-sm font-body line-clamp-2 leading-relaxed">{event.description}</p>
                       <div className="space-y-2.5 border-t border-[#C9A84C]/8 pt-5">
-                        <div className="flex items-center gap-2.5 text-white/30 text-sm">
+                        <div className="flex items-center gap-2.5 text-white/50 text-sm">
                           <svg className="w-3.5 h-3.5 text-[#C9A84C]/50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
                           <span>{formatDate(event.date)}</span>
                         </div>
-                        <div className="flex items-center gap-2.5 text-white/30 text-sm">
+                        <div className="flex items-center gap-2.5 text-white/50 text-sm">
                           <svg className="w-3.5 h-3.5 text-[#C9A84C]/50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />

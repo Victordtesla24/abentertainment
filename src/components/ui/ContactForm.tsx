@@ -15,6 +15,8 @@ export default function ContactForm() {
     phone: '',
     subject: '',
     message: '',
+    company: '',
+    website: '',
   });
   const [status, setStatus] = useState<FormStatus>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -42,7 +44,7 @@ export default function ContactForm() {
       }
 
       setStatus('success');
-      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+      setFormData({ name: '', email: '', phone: '', subject: '', message: '', company: '', website: '' });
     } catch {
       setErrorMessage('An unexpected error occurred. Please try again later.');
       setStatus('error');
@@ -89,6 +91,34 @@ export default function ContactForm() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Honeypot fields — hidden from real users, filled by bots */}
+          <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+            <label htmlFor="contact-company">Company</label>
+            <input
+              id="contact-company"
+              type="text"
+              name="company"
+              tabIndex={-1}
+              autoComplete="off"
+              value={formData.company}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, company: e.target.value }))
+              }
+            />
+            <label htmlFor="contact-website">Website</label>
+            <input
+              id="contact-website"
+              type="text"
+              name="website"
+              tabIndex={-1}
+              autoComplete="off"
+              value={formData.website}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, website: e.target.value }))
+              }
+            />
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
               <label

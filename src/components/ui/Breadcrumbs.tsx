@@ -23,7 +23,7 @@ export default function Breadcrumbs() {
     <nav aria-label="Breadcrumb" className="mb-6">
       <ol className="flex items-center gap-2 text-sm font-body">
         <li>
-          <Link href="/" className="text-white/30 hover:text-[#C9A84C] transition-colors duration-300">
+          <Link href="/" className="text-white/50 hover:text-[#C9A84C] transition-colors duration-300">
             Home
           </Link>
         </li>
@@ -38,7 +38,7 @@ export default function Breadcrumbs() {
               {isLast ? (
                 <span className="text-[#C9A84C]" aria-current="page">{label}</span>
               ) : (
-                <Link href={href} className="text-white/30 hover:text-[#C9A84C] transition-colors duration-300">
+                <Link href={href} className="text-white/50 hover:text-[#C9A84C] transition-colors duration-300">
                   {label}
                 </Link>
               )}

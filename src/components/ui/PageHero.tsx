@@ -2,6 +2,7 @@
 
 import { motion, useScroll, useTransform } from 'framer-motion';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import OptimizedImage from '@/components/ui/OptimizedImage';
 
 interface PageHeroProps {
   image: string;
@@ -25,12 +26,14 @@ export default function PageHero({ image, badge, title, highlight, subtitle }: P
     <section className="relative w-full h-[60vh] md:h-[70vh] overflow-hidden">
       {/* Background image with parallax */}
       <motion.div className="absolute inset-0" style={{ y: bgY, scale }}>
-        <img
+        <OptimizedImage
           src={image}
           alt=""
-          aria-hidden="true"
+          width={1920}
+          height={1080}
+          priority={true}
+          sizes="100vw"
           className="w-full h-[120%] object-cover"
-          style={{ filter: 'saturate(0.85) contrast(1.05)' }}
         />
       </motion.div>
 
@@ -76,7 +79,7 @@ export default function PageHero({ image, badge, title, highlight, subtitle }: P
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.5, ease: [0.25, 1, 0.5, 1] }}
-              className="text-white/40 text-lg md:text-xl font-body max-w-2xl"
+              className="text-white/60 text-lg md:text-xl font-body max-w-2xl"
             >
               {subtitle}
             </motion.p>

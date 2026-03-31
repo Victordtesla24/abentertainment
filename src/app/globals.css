@@ -149,12 +149,26 @@ body {
   0% { transform: translateY(-33.333%); }
   100% { transform: translateY(0); }
 }
+@keyframes scrollLeft {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
 .animate-scroll-up {
   animation: scrollUp 25s linear infinite;
+  will-change: transform;
 }
 .animate-scroll-down {
   animation: scrollDown 25s linear infinite;
+  will-change: transform;
 }
+.animate-scroll-left {
+  animation: scrollLeft 25s linear infinite;
+  will-change: transform;
+}
+
+/* Hide scrollbar utility */
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 
 .prose-invert { --tw-prose-body: #FDF8F1; --tw-prose-headings: #C9A84C; --tw-prose-links: #C9A84C; --tw-prose-bold: #FDF8F1; }
 
@@ -163,6 +177,7 @@ body {
   .gold-shimmer, .film-grain { animation: none; }
   *, *::before, *::after {
     animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+    scroll-behavior: auto !important;
   }
+  /* Preserve essential transitions for focus indicators and color changes */
 }

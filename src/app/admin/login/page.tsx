@@ -26,14 +26,7 @@ export default function AdminLoginPage() {
       });
 
       if (res.ok) {
-        const data = await res.json();
-        // Set session cookie client-side for dev-mode cookie check
-        if (data.token) {
-          document.cookie = `ab-admin-session-v3=${data.token}; path=/; max-age=86400; SameSite=Lax`;
-        }
-        await new Promise((r) => setTimeout(r, 300));
         router.push('/admin');
-        router.refresh();
       } else {
         const data = await res.json();
         setError(data.error || 'Invalid credentials');
@@ -123,7 +116,7 @@ export default function AdminLoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-white/20 text-xs font-body mt-8">
+        <p className="text-center text-white/50 text-xs font-body mt-8">
           &copy; {new Date().getFullYear()} AB Entertainment. Admin access only.
         </p>
       </div>

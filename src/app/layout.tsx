@@ -4,24 +4,24 @@ import { ReactNode } from 'react';
 import { SITE_CONFIG } from '@/lib/constants';
 import { Navigation } from '@/components/layout/Navigation';
 import Footer from '@/components/layout/Footer';
+import ClientProviders from '@/components/layout/ClientProviders';
 import './globals.css';
 
 /**
- * Typography: eventsunleashed uses Marghote (display) + Mosvita (body).
- * We substitute with Playfair Display (display/serif) + DM Sans (body/ui)
- * to achieve a similar premium feel with Google Fonts.
+ * Typography: Playfair Display (display/serif) + DM Sans (body/ui).
+ * Reduced font weights to only those actually used — saves ~100KB.
  */
 const displayFont = Playfair_Display({
   subsets: ['latin'],
   variable: '--font-display',
-  weight: ['400', '500', '600', '700', '800', '900'],
+  weight: ['400', '700', '900'],
   display: 'swap',
 });
 
 const bodyFont = DM_Sans({
   subsets: ['latin'],
   variable: '--font-body',
-  weight: ['300', '400', '500', '600', '700'],
+  weight: ['400', '500', '700'],
   display: 'swap',
 });
 
@@ -77,13 +77,8 @@ export const metadata: Metadata = {
   },
 };
 
-import ThreeCanvas from '@/components/ui/ThreeCanvas';
-import Preloader from '@/components/ui/Preloader';
 import RouteTransition from '@/components/layout/RouteTransition';
-import ChatWidget from '@/components/ui/ChatWidget';
 import SponsorBanner from '@/components/ui/SponsorBanner';
-import BackToTop from '@/components/ui/BackToTop';
-import CookieConsent from '@/components/ui/CookieConsent';
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -97,6 +92,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
       className={`${displayFont.variable} ${bodyFont.variable}`}
     >
       <head>
+        <link rel="preload" as="image" href="/images/hero-bg.webp" type="image/webp" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -124,30 +120,27 @@ export default function RootLayout({ children }: RootLayoutProps) {
                 SITE_CONFIG.social.facebook,
                 SITE_CONFIG.social.instagram,
               ],
-            }),
+            }).replace(/</g, '\\u003c'),
           }}
         />
       </head>
       <body className="bg-transparent text-white font-body antialiased">
-        <Preloader />
-        <ThreeCanvas />
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only absolute top-4 left-4 z-50 bg-[#C9A84C] text-black px-4 py-2"
-        >
-          Skip to main content
-        </a>
-        <Navigation />
-        <main id="main-content" className="flex flex-col min-h-screen">
-          <RouteTransition>
-            {children}
-          </RouteTransition>
-        </main>
-        <Footer />
-        <SponsorBanner />
-        <ChatWidget />
-        <BackToTop />
-        <CookieConsent />
+        <ClientProviders>
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only absolute top-4 left-4 z-50 bg-[#C9A84C] text-black px-4 py-2"
+          >
+            Skip to main content
+          </a>
+          <Navigation />
+          <main id="main-content" className="flex flex-col min-h-screen">
+            <RouteTransition>
+              {children}
+            </RouteTransition>
+          </main>
+          <Footer />
+          <SponsorBanner />
+        </ClientProviders>
       </body>
     </html>
   );

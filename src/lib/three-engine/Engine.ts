@@ -6,6 +6,13 @@ import { PostProcessingPipeline } from './PostProcessing';
 import { setupCinematicCamera, updateCameraPath } from './CinematicCamera';
 import { FailsafeMonitor } from './FailsafeMonitor';
 
+/** Options for context loss/restore callbacks */
+export interface ThreeEngineCallbacks {
+  onContextLost?: () => void;
+  onContextRestored?: () => void;
+  onFallback?: () => void;
+}
+
 export class ThreeEngine {
   private static instance: ThreeEngine;
   private static isDisposing = false;
@@ -15,16 +22,30 @@ export class ThreeEngine {
   public renderer!: THREE.WebGLRenderer; // Fallback to WebGL for absolute stability if WebGPURenderer import fails in this env
   public clock: THREE.Clock;
   private canvas: HTMLCanvasElement;
-  
+
   public postProcessing?: PostProcessingPipeline;
   private monitor: FailsafeMonitor;
   private isInitialized = false;
   private boundResizeHandler: (() => void) | null = null;
 
+  // Context loss/restore state
+  private isContextLost = false;
+  private contextLossCount = 0;
+  private static readonly MAX_CONTEXT_RECOVERIES = 3;
+  private callbacks: ThreeEngineCallbacks = {};
+
+  // Bound event handlers for cleanup
+  private boundContextLostHandler: ((e: Event) => void) | null = null;
+  private boundContextRestoredHandler: ((e: Event) => void) | null = null;
+  private boundVisibilityChangeHandler: (() => void) | null = null;
+
+  // Visibility state
+  private wasRenderingBeforeHidden = false;
+
   private constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
-    
+
     // Core Game of Thrones aesthetic colors (slate/obsidian dark base)
     this.scene.background = new THREE.Color(0x0a0a0c);
     this.scene.fog = new THREE.FogExp2(0x0a0a0c, 0.015);
@@ -34,31 +55,173 @@ export class ThreeEngine {
     this.monitor = new FailsafeMonitor();
   }
 
-  public static async getInstance(canvas: HTMLCanvasElement): Promise<ThreeEngine> {
+  public static async getInstance(
+    canvas: HTMLCanvasElement,
+    callbacks?: ThreeEngineCallbacks
+  ): Promise<ThreeEngine> {
     if (ThreeEngine.isDisposing) {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     if (!ThreeEngine.instance) {
       ThreeEngine.instance = new ThreeEngine(canvas);
+      if (callbacks) {
+        ThreeEngine.instance.callbacks = callbacks;
+      }
       await ThreeEngine.instance.initRenderer();
       // Only setup lights and post-processing if renderer initialized successfully
       if (ThreeEngine.instance.isInitialized && ThreeEngine.instance.renderer) {
-        ThreeEngine.instance.setupLights();
-        ThreeEngine.instance.postProcessing = new PostProcessingPipeline(
-          ThreeEngine.instance.renderer,
-          ThreeEngine.instance.scene,
-          ThreeEngine.instance.camera
-        );
+        // Break up heavy initialization using requestIdleCallback to avoid >50ms long tasks
+        await ThreeEngine.instance.scheduleIdleWork(() => {
+          ThreeEngine.instance.setupLights();
+        });
+        await ThreeEngine.instance.scheduleIdleWork(() => {
+          ThreeEngine.instance.postProcessing = new PostProcessingPipeline(
+            ThreeEngine.instance.renderer,
+            ThreeEngine.instance.scene,
+            ThreeEngine.instance.camera
+          );
+        });
+        // Attach context loss/restore and visibility listeners
+        ThreeEngine.instance.attachContextHandlers();
+        ThreeEngine.instance.attachVisibilityHandler();
       }
     } else {
       ThreeEngine.instance.bindCanvas(canvas);
+      if (callbacks) {
+        ThreeEngine.instance.callbacks = callbacks;
+      }
     }
     return ThreeEngine.instance;
   }
 
+  /** Schedule a unit of work via requestIdleCallback (with setTimeout fallback) */
+  private scheduleIdleWork(work: () => void): Promise<void> {
+    return new Promise((resolve) => {
+      const callback = () => {
+        work();
+        resolve();
+      };
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(callback, { timeout: 3000 });
+      } else {
+        setTimeout(callback, 0);
+      }
+    });
+  }
+
+  /** Attach WebGL context lost/restored handlers to the canvas */
+  private attachContextHandlers() {
+    this.boundContextLostHandler = (event: Event) => {
+      event.preventDefault(); // REQUIRED — tells the browser we intend to restore
+      this.isContextLost = true;
+      this.clock.stop();
+      console.warn('[ThreeEngine] WebGL context lost.');
+      this.callbacks.onContextLost?.();
+    };
+
+    this.boundContextRestoredHandler = (_event: Event) => {
+      this.contextLossCount++;
+      console.warn(
+        `[ThreeEngine] WebGL context restored (recovery #${this.contextLossCount}).`
+      );
+
+      if (this.contextLossCount >= ThreeEngine.MAX_CONTEXT_RECOVERIES) {
+        // Too many recoveries — switch to CSS/video fallback permanently
+        console.warn(
+          '[ThreeEngine] Max context recoveries exceeded, switching to fallback.'
+        );
+        this.isContextLost = true;
+        this.isInitialized = false;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('webgl-context-failed', {
+            detail: new Error('WebGL context lost too many times'),
+          }));
+        }
+        this.callbacks.onFallback?.();
+        return;
+      }
+
+      // Rebuild the renderer on the same canvas
+      this.rebuildRenderer();
+      this.isContextLost = false;
+      this.clock.start();
+      this.callbacks.onContextRestored?.();
+    };
+
+    this.canvas.addEventListener('webglcontextlost', this.boundContextLostHandler);
+    this.canvas.addEventListener('webglcontextrestored', this.boundContextRestoredHandler);
+  }
+
+  /** Rebuild the WebGL renderer after context restore */
+  private rebuildRenderer() {
+    // Dispose old renderer (context is already gone, but clean up internal state)
+    this.renderer?.dispose();
+
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: this.canvas,
+      powerPreference: 'high-performance',
+      antialias: false,
+      stencil: false,
+      depth: true,
+    });
+
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+
+    // Mark all materials and textures as needing re-upload to GPU
+    this.scene.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        const materials = Array.isArray(object.material)
+          ? object.material
+          : [object.material];
+        for (const mat of materials) {
+          mat.needsUpdate = true;
+          if (mat.map) mat.map.needsUpdate = true;
+          if (mat.normalMap) mat.normalMap.needsUpdate = true;
+          if (mat.roughnessMap) mat.roughnessMap.needsUpdate = true;
+          if (mat.metalnessMap) mat.metalnessMap.needsUpdate = true;
+          if (mat.aoMap) mat.aoMap.needsUpdate = true;
+          if (mat.emissiveMap) mat.emissiveMap.needsUpdate = true;
+        }
+      }
+    });
+
+    // Rebuild post-processing pipeline with the new renderer
+    if (this.postProcessing) {
+      this.postProcessing.dispose?.();
+      this.postProcessing = new PostProcessingPipeline(
+        this.renderer,
+        this.scene,
+        this.camera
+      );
+    }
+  }
+
+  /** Pause rendering when the tab is hidden, resume when visible */
+  private attachVisibilityHandler() {
+    this.boundVisibilityChangeHandler = () => {
+      if (document.hidden) {
+        // Tab hidden — pause to save GPU/battery
+        this.wasRenderingBeforeHidden = this.isInitialized && !this.isContextLost;
+        this.clock.stop();
+      } else {
+        // Tab visible — resume if we were rendering before and context is OK
+        if (this.wasRenderingBeforeHidden && !this.isContextLost) {
+          this.clock.start();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', this.boundVisibilityChangeHandler);
+  }
+
   private bindCanvas(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
-    // Handle re-binding if React completely destroys the DOM node 
+    // Handle re-binding if React completely destroys the DOM node
     // although our layout architecture tries to prevent this
   }
 
@@ -127,10 +290,23 @@ export class ThreeEngine {
     }
   }
 
-  /** Remove event listeners — call from component cleanup to prevent memory leaks */
+  /** Remove all event listeners — call from component cleanup to prevent memory leaks */
   public removeListeners() {
     if (this.boundResizeHandler) {
       window.removeEventListener('resize', this.boundResizeHandler);
+      this.boundResizeHandler = null;
+    }
+    if (this.boundContextLostHandler) {
+      this.canvas.removeEventListener('webglcontextlost', this.boundContextLostHandler);
+      this.boundContextLostHandler = null;
+    }
+    if (this.boundContextRestoredHandler) {
+      this.canvas.removeEventListener('webglcontextrestored', this.boundContextRestoredHandler);
+      this.boundContextRestoredHandler = null;
+    }
+    if (this.boundVisibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', this.boundVisibilityChangeHandler);
+      this.boundVisibilityChangeHandler = null;
     }
   }
 
@@ -171,15 +347,27 @@ export class ThreeEngine {
 
     // 4. Dispose renderer LAST (releases WebGL context)
     this.renderer?.dispose();
+    // Eagerly release the WebGL context so the GPU slot is freed immediately
+    this.renderer?.forceContextLoss();
 
     // 5. Clear singleton so next mount creates fresh instance
     ThreeEngine.instance = null as unknown as ThreeEngine;
     ThreeEngine.isDisposing = false;
   }
 
+  /** Whether the WebGL context is currently lost */
+  public get contextLost(): boolean {
+    return this.isContextLost;
+  }
+
+  /** Whether the tab is currently hidden */
+  public get tabHidden(): boolean {
+    return typeof document !== 'undefined' && document.hidden;
+  }
+
   // The main 60FPS render loop
   public render(scrollProgress: number) {
-    if (!this.isInitialized) return;
+    if (!this.isInitialized || this.isContextLost) return;
 
     const delta = this.clock.getDelta();
     

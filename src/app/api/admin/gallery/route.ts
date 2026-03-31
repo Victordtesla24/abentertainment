@@ -1,21 +1,10 @@
 export const dynamic = "force-static";
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
+import { withAuth } from '@/lib/with-auth';
 import { getGalleryImages, saveGalleryImages } from '@/lib/data';
 import type { GalleryImage } from '@/lib/data';
 
-async function requireAuth() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get(getSessionCookieName());
-  return session ? validateSessionToken(session.value) : false;
-}
-
-export async function POST(request: NextRequest) {
-  if (!(await requireAuth())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
     const images = await getGalleryImages();
@@ -38,13 +27,9 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
-}
+});
 
-export async function DELETE(request: NextRequest) {
-  if (!(await requireAuth())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const DELETE = withAuth(async (request: NextRequest) => {
   try {
     const { id } = await request.json();
     const images = await getGalleryImages();
@@ -59,4 +44,4 @@ export async function DELETE(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
-}
+});

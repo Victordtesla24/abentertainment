@@ -8,6 +8,15 @@ export const metadata: Metadata = {
   title: 'Gallery',
   description:
     'Explore moments from AB Entertainment events -- Hindustani classical music, Marathi theatre, and cultural celebrations in Melbourne.',
+  alternates: {
+    canonical: 'https://abentertainment.com.au/gallery/',
+  },
+  openGraph: {
+    title: 'Gallery | AB Entertainment',
+    description:
+      'Explore moments from AB Entertainment events -- Hindustani classical music, Marathi theatre, and cultural celebrations in Melbourne.',
+    url: 'https://abentertainment.com.au/gallery/',
+  },
 };
 
 function GalleryCard({

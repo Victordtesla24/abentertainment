@@ -10,6 +10,15 @@ export const metadata: Metadata = {
   title: 'Events',
   description:
     'Explore upcoming and past Indian and Marathi cultural events in Melbourne by AB Entertainment.',
+  alternates: {
+    canonical: 'https://abentertainment.com.au/events/',
+  },
+  openGraph: {
+    title: 'Events | AB Entertainment',
+    description:
+      'Explore upcoming and past Indian and Marathi cultural events in Melbourne by AB Entertainment.',
+    url: 'https://abentertainment.com.au/events/',
+  },
 };
 
 function formatDate(dateString: string): string {

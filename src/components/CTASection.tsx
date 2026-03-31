@@ -68,7 +68,7 @@ export default function CTASection() {
           <div className="w-16 h-[1px] bg-gradient-to-l from-transparent to-[#C9A84C]/40" />
         </motion.div>
 
-        <motion.p variants={itemVariants} className="text-white/35 text-lg md:text-xl font-body max-w-2xl mx-auto mb-12 leading-relaxed">
+        <motion.p variants={itemVariants} className="text-white/50 text-lg md:text-xl font-body max-w-2xl mx-auto mb-12 leading-relaxed">
           From intimate celebrations to grand theatrical productions, AB Entertainment transforms your vision into an unforgettable cultural experience.
         </motion.p>
 

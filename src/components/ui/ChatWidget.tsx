@@ -94,8 +94,32 @@ export default function ChatWidget() {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
-        // Skip SSE data prefixes if present
-        assistantContent += chunk;
+        // Parse AI SDK text stream — strip protocol prefixes before display
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let text = line;
+          // Handle SSE "data: " prefix (e.g. "data: hello")
+          if (text.startsWith('data: ')) {
+            text = text.slice(6);
+            if (text === '[DONE]') continue;
+          }
+          // Handle AI SDK numbered prefix (e.g. "0:\"hello\"")
+          const numberedMatch = text.match(/^\d+:(.*)$/);
+          if (numberedMatch) {
+            text = numberedMatch[1];
+            // AI SDK wraps text tokens in JSON strings — unwrap them
+            try {
+              const parsed = JSON.parse(text);
+              if (typeof parsed === 'string') {
+                text = parsed;
+              }
+            } catch {
+              // Not valid JSON — use the raw text after the prefix
+            }
+          }
+          assistantContent += text;
+        }
         setMessages((prev) => {
           const updated = prev.map((m) => (m.id === assistantId ? { ...m, content: assistantContent } : m));
           return updated.length > MAX_MESSAGES ? updated.slice(-MAX_MESSAGES) : updated;

@@ -23,7 +23,9 @@ import sharp from 'sharp';
 const PUBLIC_DIR = join(process.cwd(), 'public', 'images');
 const RESPONSIVE_WIDTHS = [640, 1024];
 const QUALITY_WEBP = 80;
+const QUALITY_AVIF = 50;
 const QUALITY_JPEG = 85;
+const MAX_FILE_SIZE_KB = 200;
 
 // Directories that benefit from responsive sizes
 const RESPONSIVE_DIRS = ['heroes', 'events', 'gallery'];
@@ -62,11 +64,24 @@ async function optimizeImage(filePath) {
   if (!(await fileExists(webpPath))) {
     try {
       await sharp(filePath)
-        .webp({ quality: QUALITY_WEBP })
+        .webp({ quality: QUALITY_WEBP, effort: 6 })
         .toFile(webpPath);
       console.log(`  ✓ WebP: ${relDir}/${name}.webp`);
     } catch (err) {
       console.warn(`  ✗ Failed WebP for ${name}: ${err.message}`);
+    }
+  }
+
+  // 1b. Generate AVIF version of original (best compression)
+  const avifPath = join(dir, `${name}.avif`);
+  if (!(await fileExists(avifPath))) {
+    try {
+      await sharp(filePath)
+        .avif({ quality: QUALITY_AVIF, effort: 5 })
+        .toFile(avifPath);
+      console.log(`  ✓ AVIF: ${relDir}/${name}.avif`);
+    } catch (err) {
+      console.warn(`  ✗ Failed AVIF for ${name}: ${err.message}`);
     }
   }
 
@@ -82,13 +97,27 @@ async function optimizeImage(filePath) {
 
     const resizedName = `${name}-${width}w`;
 
+    // Resized AVIF (best compression)
+    const resizedAvif = join(dir, `${resizedName}.avif`);
+    if (!(await fileExists(resizedAvif))) {
+      try {
+        await sharp(filePath)
+          .resize(width)
+          .avif({ quality: QUALITY_AVIF, effort: 5 })
+          .toFile(resizedAvif);
+        console.log(`  ✓ ${width}w AVIF: ${relDir}/${resizedName}.avif`);
+      } catch (err) {
+        console.warn(`  ✗ Failed ${width}w AVIF for ${name}: ${err.message}`);
+      }
+    }
+
     // Resized WebP
     const resizedWebp = join(dir, `${resizedName}.webp`);
     if (!(await fileExists(resizedWebp))) {
       try {
         await sharp(filePath)
           .resize(width)
-          .webp({ quality: QUALITY_WEBP })
+          .webp({ quality: QUALITY_WEBP, effort: 6 })
           .toFile(resizedWebp);
         console.log(`  ✓ ${width}w WebP: ${relDir}/${resizedName}.webp`);
       } catch (err) {
@@ -96,7 +125,7 @@ async function optimizeImage(filePath) {
       }
     }
 
-    // Resized JPEG (fallback)
+    // Resized JPEG/PNG (fallback)
     const resizedJpeg = join(dir, `${resizedName}${ext}`);
     if (!(await fileExists(resizedJpeg))) {
       try {
@@ -121,7 +150,9 @@ async function main() {
       const ext = extname(filePath).toLowerCase();
       if (['.jpg', '.jpeg', '.png'].includes(ext)) {
         // Skip already-generated responsive variants
-        if (/-\d+w\.(jpg|jpeg|png|webp)$/.test(filePath)) continue;
+        if (/-\d+w\.(jpg|jpeg|png|webp|avif)$/.test(filePath)) continue;
+        // Skip AVIF files (they are generated, not source)
+        if (extname(filePath).toLowerCase() === '.avif') continue;
         await optimizeImage(filePath);
         count++;
       }

@@ -7,6 +7,15 @@ export const metadata: Metadata = {
   title: 'Contact',
   description:
     'Get in touch with AB Entertainment — event inquiries, sponsorship opportunities, and booking requests for premium Indian cultural events in Melbourne.',
+  alternates: {
+    canonical: 'https://abentertainment.com.au/contact/',
+  },
+  openGraph: {
+    title: 'Contact | AB Entertainment',
+    description:
+      'Get in touch with AB Entertainment — event inquiries, sponsorship opportunities, and booking requests for premium Indian cultural events in Melbourne.',
+    url: 'https://abentertainment.com.au/contact/',
+  },
 };
 
 export default function ContactPage() {

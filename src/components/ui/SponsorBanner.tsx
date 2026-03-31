@@ -1,7 +1,6 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import Link from 'next/link';
 
 /**
  * Sponsor data — single source of truth.
@@ -31,14 +30,14 @@ function SponsorCard({ sponsor }: { sponsor: SponsorItem }) {
       className="pointer-events-auto group block"
     >
       <div className="w-[110px] bg-white/[0.02] border border-[#C9A84C]/8 p-3 hover:bg-white/[0.05] hover:border-[#C9A84C]/25 transition-all duration-500 hover:shadow-[0_0_20px_rgba(201,168,76,0.1)]">
-        <div className="w-full h-14 flex items-center justify-center mb-2 opacity-40 group-hover:opacity-80 transition-opacity duration-500">
+        <div className="w-full h-14 flex items-center justify-center mb-2 opacity-50 grayscale group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-300">
           <img
             src={sponsor.logo}
             alt={sponsor.name}
-            className="max-w-full max-h-full object-contain filter grayscale group-hover:grayscale-0 transition-all duration-500"
+            className="max-w-full max-h-full object-contain"
           />
         </div>
-        <p className="text-white/25 text-[8px] text-center font-body uppercase tracking-wider group-hover:text-[#C9A84C]/60 transition-colors duration-500">
+        <p className="text-white/50 text-[8px] text-center font-body uppercase tracking-wider group-hover:text-[#C9A84C]/60 transition-colors duration-500">
           {sponsor.name}
         </p>
         <div className="mt-1.5 mx-auto w-6 h-[1px] bg-[#C9A84C]/10 group-hover:bg-[#C9A84C]/30 group-hover:w-10 transition-all duration-500" />
@@ -55,16 +54,21 @@ export default function SponsorBanner() {
   const hiddenPages = ['/', '/about'];
   const isHidden = hiddenPages.includes(normalizedPath) || normalizedPath.startsWith('/admin');
 
-  // Triple for seamless CSS animation loop
+  // Triple for seamless CSS animation loop (vertical banners)
   const sponsorCards = [...SPONSORS, ...SPONSORS, ...SPONSORS];
+  // Double for seamless CSS animation loop (horizontal mobile banner)
+  const mobileSponsorCards = [...SPONSORS, ...SPONSORS];
 
   if (isHidden) return null;
 
   return (
-    <>
+    <div aria-label="Our sponsors">
       {/* LEFT BANNER — CSS animation replaces GSAP (#12) */}
       <div className="fixed left-0 top-0 w-[120px] h-screen z-[30] pointer-events-none hidden xl:block">
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0A] to-transparent z-10" />
+        {/* Gradient fade edges top/bottom */}
+        <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0A] to-transparent z-[5]" />
         <div className="absolute inset-y-0 left-0 w-full overflow-hidden">
           <div className="flex flex-col gap-4 p-2 animate-scroll-up">
             {sponsorCards.map((sponsor, i) => (
@@ -76,7 +80,10 @@ export default function SponsorBanner() {
 
       {/* RIGHT BANNER */}
       <div className="fixed right-0 top-0 w-[120px] h-screen z-[30] pointer-events-none hidden xl:block">
-        <div className="absolute inset-0 bg-gradient-to-l from-[#0A0A0A] to-transparent z-10" />
+        {/* Gradient fade edges top/bottom */}
+        <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-l from-[#0A0A0A] to-transparent z-[5]" />
         <div className="absolute inset-y-0 right-0 w-full overflow-hidden">
           <div className="flex flex-col gap-4 p-2 animate-scroll-down">
             {sponsorCards.map((sponsor, i) => (
@@ -86,33 +93,33 @@ export default function SponsorBanner() {
         </div>
       </div>
 
-      {/* MOBILE BOTTOM BANNER */}
+      {/* MOBILE BOTTOM BANNER — CSS-only infinite horizontal scroll */}
       <div className="fixed bottom-0 left-0 right-0 z-[30] xl:hidden bg-[#0A0A0A]/95 backdrop-blur-md border-t border-[#C9A84C]/8">
-        <div className="flex items-center gap-6 px-4 py-2 overflow-x-auto scrollbar-none">
-          <span className="text-[#C9A84C]/40 text-[8px] uppercase tracking-widest font-body whitespace-nowrap flex-shrink-0">
-            Sponsors
-          </span>
-          {SPONSORS.map((sponsor, i) => (
-            <a
-              key={`m-${i}`}
-              href={sponsor.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 flex-shrink-0 group"
-            >
-              <div className="w-8 h-8 flex items-center justify-center opacity-40 group-hover:opacity-80 transition-opacity">
-                <img src={sponsor.logo} alt={sponsor.name} className="max-w-full max-h-full object-contain" />
-              </div>
-              <span className="text-white/30 text-[9px] font-body whitespace-nowrap group-hover:text-[#C9A84C]/60 transition-colors">
-                {sponsor.name}
-              </span>
-            </a>
-          ))}
-          <Link href="/sponsors" className="text-[#C9A84C]/50 text-[8px] uppercase tracking-wider font-body whitespace-nowrap flex-shrink-0 hover:text-[#C9A84C]">
-            View All &rarr;
-          </Link>
+        {/* Gradient fade edges left/right */}
+        <div className="absolute top-0 bottom-0 left-0 w-12 bg-gradient-to-r from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
+        <div className="absolute top-0 bottom-0 right-0 w-12 bg-gradient-to-l from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
+
+        <div className="overflow-hidden">
+          <div className="flex items-center gap-6 px-4 py-2 animate-scroll-left w-max">
+            {mobileSponsorCards.map((sponsor, i) => (
+              <a
+                key={`m-${i}`}
+                href={sponsor.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 flex-shrink-0 group"
+              >
+                <div className="w-8 h-8 flex items-center justify-center grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-300">
+                  <img src={sponsor.logo} alt={sponsor.name} className="max-w-full max-h-full object-contain" />
+                </div>
+                <span className="text-white/50 text-[9px] font-body whitespace-nowrap group-hover:text-[#C9A84C]/60 transition-colors">
+                  {sponsor.name}
+                </span>
+              </a>
+            ))}
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

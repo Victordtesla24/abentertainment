@@ -9,6 +9,15 @@ export const metadata: Metadata = {
   title: 'Sponsors',
   description:
     'Our valued sponsors and partners who make AB Entertainment events possible.',
+  alternates: {
+    canonical: 'https://abentertainment.com.au/sponsors/',
+  },
+  openGraph: {
+    title: 'Sponsors | AB Entertainment',
+    description:
+      'Our valued sponsors and partners who make AB Entertainment events possible.',
+    url: 'https://abentertainment.com.au/sponsors/',
+  },
 };
 
 const tierOrder: Record<string, number> = {

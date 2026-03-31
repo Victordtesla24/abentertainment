@@ -4,6 +4,14 @@ import { SITE_CONFIG } from '@/lib/constants';
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description: 'Privacy policy for AB Entertainment — how we collect, use, and protect your personal information.',
+  alternates: {
+    canonical: 'https://abentertainment.com.au/privacy/',
+  },
+  openGraph: {
+    title: 'Privacy Policy | AB Entertainment',
+    description: 'Privacy policy for AB Entertainment — how we collect, use, and protect your personal information.',
+    url: 'https://abentertainment.com.au/privacy/',
+  },
 };
 
 export default function PrivacyPage() {

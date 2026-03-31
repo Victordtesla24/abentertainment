@@ -1,13 +1,38 @@
-export const dynamic = "force-static";
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/redis';
 
 interface ContactRequest {
   name: string;
   email: string;
   phone?: string;
+  subject?: string;
   message: string;
   eventInterest?: string;
+  company?: string;
+  website?: string;
 }
+
+/** Extract the client IP from standard proxy headers. */
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) {
+    // x-forwarded-for may contain a comma-separated list; first is the client
+    return forwarded.split(',')[0].trim();
+  }
+  const realIp = request.headers.get('x-real-ip');
+  if (realIp) {
+    return realIp.trim();
+  }
+  return '127.0.0.1';
+}
+
+/** Count the number of URLs (http:// or https://) in a string. */
+function countUrls(text: string): number {
+  const matches = text.match(/https?:\/\//gi);
+  return matches ? matches.length : 0;
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /**
  * Contact form handler.
@@ -17,32 +42,78 @@ interface ContactRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: ContactRequest = await request.json();
-    const { name, email, message } = body;
+    const { name, email, message, company, website } = body;
 
-    if (!name?.trim()) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    // ── Honeypot check ──────────────────────────────────────────────
+    // If hidden honeypot fields are filled, a bot submitted the form.
+    // Return 200 silently so the bot thinks it succeeded.
+    if (company?.trim() || website?.trim()) {
+      return NextResponse.json(
+        {
+          success: true,
+          message: 'Your message has been sent successfully. We will contact you shortly.',
+        },
+        { status: 200 }
+      );
     }
 
-    if (!email?.trim()) {
-      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    // ── Rate limiting ───────────────────────────────────────────────
+    const ip = getClientIp(request);
+    const { allowed, resetIn } = await checkRateLimit(`contact:${ip}`, 3, 60);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Too many submissions. Please try again in ${resetIn} seconds.` },
+        { status: 429 }
+      );
     }
 
-    if (!message?.trim()) {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    // ── Validation ──────────────────────────────────────────────────
+    const trimmedName = name?.trim() ?? '';
+    const trimmedEmail = email?.trim() ?? '';
+    const trimmedMessage = message?.trim() ?? '';
+
+    if (!trimmedName || trimmedName.length < 2 || trimmedName.length > 200) {
+      return NextResponse.json(
+        { error: 'Name must be between 2 and 200 characters.' },
+        { status: 400 }
+      );
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+    if (!trimmedEmail || !EMAIL_REGEX.test(trimmedEmail)) {
+      return NextResponse.json(
+        { error: 'Please provide a valid email address.' },
+        { status: 400 }
+      );
+    }
+
+    if (!trimmedMessage || trimmedMessage.length < 10 || trimmedMessage.length > 5000) {
+      return NextResponse.json(
+        { error: 'Message must be between 10 and 5,000 characters.' },
+        { status: 400 }
+      );
+    }
+
+    // ── URL spam detection ──────────────────────────────────────────
+    // If the message contains more than 3 URLs, silently reject.
+    if (countUrls(trimmedMessage) > 3) {
+      return NextResponse.json(
+        {
+          success: true,
+          message: 'Your message has been sent successfully. We will contact you shortly.',
+        },
+        { status: 200 }
+      );
     }
 
     // Log contact submission (replace with DB write in production)
     console.log('Contact form submission:', {
-      name: name.trim(),
-      email: email.trim(),
+      name: trimmedName,
+      email: trimmedEmail,
       phone: body.phone?.trim() || '',
-      message: message.trim(),
+      subject: body.subject?.trim() || '',
+      message: trimmedMessage,
       eventInterest: body.eventInterest?.trim() || '',
+      ip,
       timestamp: new Date().toISOString(),
     });
 
