@@ -272,6 +272,8 @@ export default function HealthDashboard() {
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [dataFresh, setDataFresh] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedPage, setSelectedPage] = useState<string | null>(null);
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
@@ -291,11 +293,19 @@ export default function HealthDashboard() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.type === 'health') setHealthData(data);
+        if (data.type === 'health') {
+          setHealthData(data);
+          setDataFresh(true);
+          setFetchError(false);
+        }
+      } else {
+        setDataFresh(false);
+        setFetchError(true);
       }
     } catch (error) {
       if (error instanceof Error && error.name !== 'AbortError') {
-        /* VPS may be unreachable from localhost — not a production issue */
+        setDataFresh(false);
+        setFetchError(true);
       }
     }
   }, []);
@@ -441,11 +451,31 @@ export default function HealthDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-display font-bold text-white">System Health</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-display font-bold text-white">System Health</h2>
+            {/* Freshness indicator */}
+            <span className="relative inline-flex" style={{ width: 10, height: 10 }}>
+              {dataFresh && !fetchError && (
+                <span className="absolute inline-flex h-full w-full rounded-full opacity-40 animate-ping" style={{ backgroundColor: GREEN }} />
+              )}
+              <span className="relative inline-flex rounded-full" style={{
+                backgroundColor: fetchError ? AMBER : dataFresh ? GREEN : AMBER,
+                width: 10, height: 10
+              }} />
+            </span>
+            <span className="text-[10px] font-body text-white/30">
+              {fetchError ? 'Stale' : dataFresh ? 'Live' : 'Stale'}
+            </span>
+          </div>
           <p className="text-[11px] font-body text-white/30 mt-0.5">
             Last refresh: {lastRefresh.toLocaleTimeString()} · {autoRefresh ? 'Auto-refresh: 30s' : 'Auto-refresh: off'}
             {isLocalhost() && <span className="text-[#f59e0b] ml-2">Local Dev Mode</span>}
           </p>
+          {fetchError && (
+            <p className="text-[11px] font-body text-[#f59e0b] mt-1">
+              Data may be stale — last successful fetch was at {lastRefresh.toLocaleTimeString()}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setAutoRefresh(!autoRefresh)}

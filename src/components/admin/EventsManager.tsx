@@ -262,7 +262,8 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
 
       {/* Events Table */}
       <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto -mx-0 px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <table className="w-full min-w-[640px]">
           <thead>
             <tr className="border-b border-[#C9A84C]/20">
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#C9A84C] uppercase tracking-wider">Title</th>
@@ -312,6 +313,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
