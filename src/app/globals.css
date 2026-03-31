@@ -23,6 +23,32 @@
 }
 
 html { scroll-behavior: smooth; }
+
+/* ─── Preloader overlay ───
+   CSS pseudo-element that React hydration cannot remove.
+   Visible from first paint as a full-viewport black screen.
+   Dismissed by JS adding .preloader-done to <html>.
+   Skipped entirely by JS adding .preloader-skip to <html> (cooldown). */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  background: #000;
+  pointer-events: all;
+  transition: opacity 0.8s ease-out;
+}
+html.preloader-done body::before {
+  opacity: 0;
+  pointer-events: none;
+}
+html.preloader-skip body::before {
+  display: none;
+}
+
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

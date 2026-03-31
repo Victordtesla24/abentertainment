@@ -65,7 +65,7 @@ export default function SponsorBanner() {
   return (
     <div aria-label="Our sponsors">
       {/* LEFT BANNER — CSS animation replaces GSAP (#12) */}
-      <div className="fixed left-0 top-0 w-[120px] h-screen z-[30] pointer-events-none hidden xl:block">
+      <div className="fixed left-0 top-0 w-[120px] h-screen z-[30] pointer-events-none hidden lg:block">
         {/* Gradient fade edges top/bottom */}
         <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
         <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
@@ -80,7 +80,7 @@ export default function SponsorBanner() {
       </div>
 
       {/* RIGHT BANNER */}
-      <div className="fixed right-0 top-0 w-[120px] h-screen z-[30] pointer-events-none hidden xl:block">
+      <div className="fixed right-0 top-0 w-[120px] h-screen z-[30] pointer-events-none hidden lg:block">
         {/* Gradient fade edges top/bottom */}
         <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
         <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
@@ -95,7 +95,7 @@ export default function SponsorBanner() {
       </div>
 
       {/* MOBILE BOTTOM BANNER — CSS-only infinite horizontal scroll */}
-      <div className="fixed bottom-0 left-0 right-0 z-[30] xl:hidden bg-[#0A0A0A]/95 backdrop-blur-md border-t border-[#C9A84C]/10">
+      <div className="fixed bottom-0 left-0 right-0 z-[960] lg:hidden bg-[#0A0A0A]/95 backdrop-blur-md border-t border-[#C9A84C]/10">
         {/* Gradient fade edges left/right */}
         <div className="absolute top-0 bottom-0 left-0 w-16 bg-gradient-to-r from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
         <div className="absolute top-0 bottom-0 right-0 w-16 bg-gradient-to-l from-[#0A0A0A] to-transparent z-10 pointer-events-none" />

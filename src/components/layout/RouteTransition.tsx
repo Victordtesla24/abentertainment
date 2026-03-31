@@ -93,8 +93,8 @@ export default function RouteTransition({ children }: RouteTransitionProps) {
           preload="auto"
           onEnded={handleVideoEnded}
         >
-          <source src="/video/ab-curtain-transition.webm" type="video/webm" />
-          <source src="/video/ab-curtain-transition.mp4" type="video/mp4" />
+          <source src="/video/ab-transition.webm" type="video/webm" />
+          <source src="/video/ab-transition.mp4" type="video/mp4" />
         </video>
       </div>
 
