@@ -29,18 +29,18 @@ function SponsorCard({ sponsor }: { sponsor: SponsorItem }) {
       rel="noopener noreferrer"
       className="pointer-events-auto group block"
     >
-      <div className="w-[110px] bg-white/[0.02] border border-[#C9A84C]/8 p-3 hover:bg-white/[0.05] hover:border-[#C9A84C]/25 transition-all duration-500 hover:shadow-[0_0_20px_rgba(201,168,76,0.1)]">
-        <div className="w-full h-14 flex items-center justify-center mb-2 opacity-50 grayscale group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-300">
+      <div className="w-[110px] bg-white/[0.02] border border-[#C9A84C]/8 p-3 hover:bg-white/[0.06] hover:border-[#C9A84C]/30 transition-all duration-500 hover:shadow-[0_0_24px_rgba(201,168,76,0.12)] hover:-translate-y-0.5">
+        <div className="w-full h-14 flex items-center justify-center mb-2 opacity-40 grayscale group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-500">
           <img
             src={sponsor.logo}
             alt={sponsor.name}
             className="max-w-full max-h-full object-contain"
           />
         </div>
-        <p className="text-white/50 text-[8px] text-center font-body uppercase tracking-wider group-hover:text-[#C9A84C]/60 transition-colors duration-500">
+        <p className="text-white/50 text-[8px] text-center font-body uppercase tracking-wider group-hover:text-[#C9A84C] transition-colors duration-500">
           {sponsor.name}
         </p>
-        <div className="mt-1.5 mx-auto w-6 h-[1px] bg-[#C9A84C]/10 group-hover:bg-[#C9A84C]/30 group-hover:w-10 transition-all duration-500" />
+        <div className="mt-1.5 mx-auto w-6 h-[1px] bg-[#C9A84C]/10 group-hover:bg-[#C9A84C]/40 group-hover:w-10 transition-all duration-500" />
       </div>
     </a>
   );
@@ -50,9 +50,10 @@ export default function SponsorBanner() {
   const pathname = usePathname();
 
   // Normalize trailing slashes for consistent matching (#15)
+  // Visible on ALL pages except Home and About — including admin, events, gallery, etc.
   const normalizedPath = pathname.replace(/\/+$/, '') || '/';
   const hiddenPages = ['/', '/about'];
-  const isHidden = hiddenPages.includes(normalizedPath) || normalizedPath.startsWith('/admin');
+  const isHidden = hiddenPages.includes(normalizedPath);
 
   // Triple for seamless CSS animation loop (vertical banners)
   const sponsorCards = [...SPONSORS, ...SPONSORS, ...SPONSORS];
@@ -94,25 +95,32 @@ export default function SponsorBanner() {
       </div>
 
       {/* MOBILE BOTTOM BANNER — CSS-only infinite horizontal scroll */}
-      <div className="fixed bottom-0 left-0 right-0 z-[30] xl:hidden bg-[#0A0A0A]/95 backdrop-blur-md border-t border-[#C9A84C]/8">
+      <div className="fixed bottom-0 left-0 right-0 z-[30] xl:hidden bg-[#0A0A0A]/95 backdrop-blur-md border-t border-[#C9A84C]/10">
         {/* Gradient fade edges left/right */}
-        <div className="absolute top-0 bottom-0 left-0 w-12 bg-gradient-to-r from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
-        <div className="absolute top-0 bottom-0 right-0 w-12 bg-gradient-to-l from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
+        <div className="absolute top-0 bottom-0 left-0 w-16 bg-gradient-to-r from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
+        <div className="absolute top-0 bottom-0 right-0 w-16 bg-gradient-to-l from-[#0A0A0A] to-transparent z-10 pointer-events-none" />
 
-        <div className="overflow-hidden">
-          <div className="flex items-center gap-6 px-4 py-2 animate-scroll-left w-max">
+        {/* Sponsored by label */}
+        <div className="absolute top-0 left-0 right-0 flex justify-center -translate-y-full pointer-events-none">
+          <span className="text-[7px] text-[#C9A84C]/40 uppercase tracking-[0.3em] font-body bg-[#0A0A0A]/90 px-3 py-0.5 border border-[#C9A84C]/10 border-b-0 rounded-t-sm">
+            Our Sponsors
+          </span>
+        </div>
+
+        <div className="overflow-hidden group">
+          <div className="flex items-center gap-8 px-4 py-2.5 animate-scroll-left w-max group-hover:[animation-play-state:paused]">
             {mobileSponsorCards.map((sponsor, i) => (
               <a
                 key={`m-${i}`}
                 href={sponsor.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 flex-shrink-0 group"
+                className="flex items-center gap-2.5 flex-shrink-0 group/item"
               >
-                <div className="w-8 h-8 flex items-center justify-center grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-300">
+                <div className="w-8 h-8 flex items-center justify-center grayscale opacity-40 group-hover/item:grayscale-0 group-hover/item:opacity-100 transition-all duration-500">
                   <img src={sponsor.logo} alt={sponsor.name} className="max-w-full max-h-full object-contain" />
                 </div>
-                <span className="text-white/50 text-[9px] font-body whitespace-nowrap group-hover:text-[#C9A84C]/60 transition-colors">
+                <span className="text-white/50 text-[9px] font-body whitespace-nowrap group-hover/item:text-[#C9A84C] transition-colors duration-500">
                   {sponsor.name}
                 </span>
               </a>
