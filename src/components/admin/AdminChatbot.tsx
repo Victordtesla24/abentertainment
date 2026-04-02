@@ -127,12 +127,19 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const suggestedPrompts = SUGGESTED_PROMPTS[activeTab] || SUGGESTED_PROMPTS.default;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   function submitPrompt(text: string) {
     setInput(text);
@@ -161,6 +168,12 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
     setInput('');
     setLoading(true);
 
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    let streamedContent = '';
+    let assistantStreamId: string | null = null;
+
     try {
       const res = await fetch(getApiUrl('/api/admin/chat'), {
         method: 'POST',
@@ -171,6 +184,7 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
             content: m.content,
           })),
         }),
+        signal: abortController.signal,
       });
 
       const contentType = res.headers.get('content-type') || '';
@@ -202,6 +216,7 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
       const decoder = new TextDecoder();
       let assistantContent = '';
       const assistantId = `assistant-${Date.now()}`;
+      assistantStreamId = assistantId;
 
       setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
 
@@ -211,6 +226,7 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
 
         const chunk = decoder.decode(value, { stream: true });
         assistantContent += chunk;
+        streamedContent = assistantContent;
 
         setMessages((prev) =>
           prev.map((m) =>
@@ -218,16 +234,31 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
           )
         );
       }
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `error-${Date.now()}`,
-          role: 'assistant',
-          content:
-            'Sorry, I encountered an error. Please ensure the OpenAI API key is configured in .env and try again.',
-        },
-      ]);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        if (streamedContent) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `stopped-${Date.now()}`,
+              role: 'assistant',
+              content: 'Generation stopped.',
+            },
+          ]);
+        } else if (assistantStreamId) {
+          setMessages((prev) => prev.filter((m) => m.id !== assistantStreamId));
+        }
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `error-${Date.now()}`,
+            role: 'assistant',
+            content:
+              'Sorry, I encountered an error. Please ensure the OpenAI API key is configured in .env and try again.',
+          },
+        ]);
+      }
     } finally {
       setLoading(false);
     }
@@ -328,6 +359,15 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
             >
               Send
             </button>
+            {loading && (
+              <button
+                type="button"
+                onClick={() => abortControllerRef.current?.abort()}
+                className="px-4 py-3 border border-red-500/30 text-red-400 text-sm hover:bg-red-500/10 transition-colors"
+              >
+                Stop
+              </button>
+            )}
           </form>
         </div>
       </div>

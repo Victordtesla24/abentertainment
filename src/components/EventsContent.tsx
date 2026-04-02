@@ -180,6 +180,20 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
           aria-hidden="true"
         />
 
+        {/* Foil shimmer — champagne/gold streak slides across on hover */}
+        <div
+          className="pointer-events-none absolute inset-0 z-10 overflow-hidden"
+          aria-hidden="true"
+        >
+          <div
+            className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out"
+            style={{
+              background:
+                'linear-gradient(105deg, transparent 40%, rgba(201,168,76,0.10) 50%, rgba(232,213,163,0.18) 55%, rgba(201,168,76,0.10) 60%, transparent 70%)',
+            }}
+          />
+        </div>
+
         {/* Image */}
         <div className="relative h-52 overflow-hidden bg-gradient-to-br from-[#111111] to-[#0A0A0A]">
           {event.image && useNextImage && (

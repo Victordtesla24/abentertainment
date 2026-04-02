@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
+import { motion, useMotionValue, useTransform, useSpring, useMotionTemplate } from 'framer-motion';
 import Link from 'next/link';
 import type { Event } from '@/lib/data';
 
@@ -58,6 +58,17 @@ export default function GoldenTicket({ event }: GoldenTicketProps) {
   const gradientX = useTransform(mouseX, [-0.5, 0.5], [0, 100]);
   const gradientY = useTransform(mouseY, [-0.5, 0.5], [0, 100]);
 
+  // Holographic background — built at hook level (not inside JSX)
+  const holoBackground = useMotionTemplate`radial-gradient(circle at ${gradientX}% ${gradientY}%, rgba(201,168,76,0.15) 0%, rgba(212,182,92,0.05) 30%, transparent 60%)`;
+
+  // Foil shimmer: champagne/gold linear sweep following cursor X position
+  const foilShimmerPos = useTransform(mouseX, [-0.5, 0.5], [15, 85]);
+  const foilGradient = useTransform(
+    foilShimmerPos,
+    (pos: number) =>
+      `linear-gradient(105deg, transparent 0%, transparent ${pos - 18}%, rgba(232,213,163,0.12) ${pos - 4}%, rgba(255,240,180,0.22) ${pos + 2}%, rgba(232,213,163,0.12) ${pos + 8}%, transparent ${pos + 26}%, transparent 100%)`
+  );
+
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const card = cardRef.current;
     if (!card) return;
@@ -88,6 +99,7 @@ export default function GoldenTicket({ event }: GoldenTicketProps) {
           rotateY,
           transformStyle: 'preserve-3d',
         }}
+        whileTap={{ scale: 0.975, rotateX: 3, transition: { duration: 0.12 } }}
         className="relative cursor-pointer"
       >
         {/* Main Ticket Body */}
@@ -100,16 +112,23 @@ export default function GoldenTicket({ event }: GoldenTicketProps) {
             transition: 'box-shadow 0.5s ease',
           }}
         >
-          {/* Holographic foil overlay */}
+          {/* Holographic foil overlay — radial glow following cursor */}
           <motion.div
             className="absolute inset-0 pointer-events-none z-10"
             style={{
-              background: useTransform(
-                [gradientX, gradientY],
-                ([x, y]) =>
-                  `radial-gradient(circle at ${x}% ${y}%, rgba(201,168,76,0.15) 0%, rgba(212,182,92,0.05) 30%, transparent 60%)`
-              ),
+              background: holoBackground,
               mixBlendMode: 'screen',
+            }}
+          />
+
+          {/* Linear foil shimmer — champagne/gold sweep following cursor X */}
+          <motion.div
+            className="absolute inset-0 pointer-events-none z-[11]"
+            animate={{ opacity: isHovered ? 1 : 0 }}
+            transition={{ duration: 0.25 }}
+            style={{
+              background: foilGradient,
+              mixBlendMode: 'overlay',
             }}
           />
 

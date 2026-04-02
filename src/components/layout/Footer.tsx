@@ -2,14 +2,25 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { useState, FormEvent } from 'react';
 import { usePathname } from 'next/navigation';
 import { SITE_CONFIG, NAVIGATION } from '@/lib/constants';
 
 export default function Footer() {
   const pathname = usePathname();
+  const [email, setEmail] = useState('');
+  const [subscribed, setSubscribed] = useState(false);
+
   if (pathname.startsWith('/admin')) return null;
 
   const currentYear = new Date().getFullYear();
+
+  function handleNewsletterSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setSubscribed(true);
+    setEmail('');
+  }
 
   const footerColumns = {
     'Quick Links': NAVIGATION.map((nav) => ({ label: nav.label, href: nav.href })),
@@ -31,7 +42,39 @@ export default function Footer() {
       {/* Ambient glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-[radial-gradient(ellipse,rgba(201,168,76,0.03),transparent_70%)] pointer-events-none" />
 
-      {/* Contact CTA — replaces fake newsletter form */}
+      {/* Newsletter signup */}
+      <div className="border-b border-[#C9A84C]/8">
+        <div className="container-eu py-12">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+            <div>
+              <h3 className="text-xl font-display font-bold text-white mb-1">Stay Updated</h3>
+              <p className="text-white/50 font-body text-sm">Get notified about upcoming events and exclusive offers.</p>
+            </div>
+            {subscribed ? (
+              <p className="text-[#C9A84C] font-body text-sm font-medium">Thank you for subscribing!</p>
+            ) : (
+              <form onSubmit={handleNewsletterSubmit} className="flex gap-3 w-full md:w-auto">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  required
+                  className="flex-1 md:w-72 px-4 py-3 bg-white/5 border border-[#C9A84C]/20 text-white text-sm font-body placeholder-white/30 focus:outline-none focus:border-[#C9A84C]/50"
+                />
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-sm font-bold font-body uppercase tracking-wider hover:shadow-[0_0_15px_rgba(201,168,76,0.3)] transition-all duration-300 whitespace-nowrap"
+                >
+                  Subscribe
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Contact CTA */}
       <div className="border-b border-[#C9A84C]/8">
         <div className="container-eu py-16">
           <div className="flex flex-col md:flex-row items-center justify-between gap-10">

@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/redis';
 
@@ -59,7 +60,8 @@ export async function POST(request: NextRequest) {
 
     // ── Rate limiting ───────────────────────────────────────────────
     const ip = getClientIp(request);
-    const { allowed, resetIn } = await checkRateLimit(`contact:${ip}`, 3, 60);
+    const contactRateMax = parseInt(process.env.CONTACT_RATE_LIMIT_MAX ?? '3', 10);
+    const { allowed, resetIn } = await checkRateLimit(`contact:${ip}`, contactRateMax, 60);
     if (!allowed) {
       return NextResponse.json(
         { error: `Too many submissions. Please try again in ${resetIn} seconds.` },

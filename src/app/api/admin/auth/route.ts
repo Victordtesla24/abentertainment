@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   validateCredentials,
@@ -65,6 +65,10 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+}
+
+export async function GET() {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }
 
 export async function DELETE() {

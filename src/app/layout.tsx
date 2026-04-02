@@ -124,7 +124,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
           }}
         />
       </head>
-      <body className="bg-transparent text-white font-body antialiased">
+      <body className="bg-[#0A0A0A] text-white font-body antialiased">
         {/* Preloader cooldown check — runs before React hydrates.
             Adds 'preloader-skip' class to body if within 5-min cooldown.
             The overlay itself is a body::before pseudo-element defined in globals.css. */}
