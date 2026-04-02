@@ -32,6 +32,7 @@ next-env.d.ts
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 
@@ -55,3 +56,15 @@ public/video/*.MP3
 # Agent system Docker volumes
 agent-system/.env
 agent-system/node_modules/
+
+# Local caches, logs, and temporary artifacts
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+/.next_old/
+/tmp/
+/temp/
+/.cache/
