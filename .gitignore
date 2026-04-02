@@ -19,7 +19,7 @@
 
 # TypeScript cache
 *.tsbuildinfo
-next-env.d.ts
+.eslintcache
 
 # Firebase
 /.firebase/
@@ -46,8 +46,14 @@ Thumbs.db
 prod-*.jpeg
 evidence-*.jpeg
 
-# Large files
-public/video/*.mp4
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Ignore local audio scratch files, but allow deployable video assets
+public/video/*.mp3
 public/video/*.MP3
 
 # Source data

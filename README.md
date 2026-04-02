@@ -4,14 +4,12 @@
 
 ### Summary of Changes
 
-**Curtain-Opening Preloader (All Pages, 5-Minute Re-trigger)**
-- Replaced `ab-animation-2.mp4` preloader with curtain-opening video across ALL pages (previously homepage only)
-- Created trimmed preloader clip (2s, 739KB MP4 / 541KB WebM) from 8s source at 1080p
-- Maintained existing 5-minute re-trigger logic via localStorage with sessionStorage fallback
-- Added WebM + MP4 dual-source with `<source>` elements for cross-browser optimization
+**Cinematic Preloader (All Pages, 5-Minute Re-trigger)**
+- Preloader logic uses local/session storage re-trigger controls and graceful fallback behavior
+- Current implementation is canvas/WebGL-based and no longer depends on legacy preloader video files
 
 **Page Transition Curtain Animation**
-- Route changes now play a 1-second curtain video overlay (366KB MP4 / 159KB WebM)
+- Route changes play a 1-second curtain video overlay with dual-source playback
 - Curtain overlay sits at z-[998] above content, below preloader
 - Video plays automatically on route change with graceful fallback if video fails
 - Gold blade wipe and dissolve effects preserved underneath the curtain transition
@@ -24,14 +22,11 @@
 - Configurable duration, delay, distance, and blur parameters
 
 **Video Asset Pipeline**
-- `public/video/ab-curtain-preloader.mp4` — 2s, 1080p, H.264, 739KB
-- `public/video/ab-curtain-preloader.webm` — 2s, 1080p, VP9, 541KB
-- `public/video/ab-curtain-transition.mp4` — 1s, 1080p, H.264, 366KB
-- `public/video/ab-curtain-transition.webm` — 1s, 1080p, VP9, 159KB
+- `public/video/ab-transition.mp4` — transition fallback source
+- `public/video/ab-transition.webm` — transition primary source
 
 ### Deployment Notes
-- Video files must be deployed via SCP to the Hostinger server (not in git due to size of source file)
-- Trimmed clips ARE committed to git (total ~1.8MB)
+- Keep only active runtime assets under `public/video/`; remove legacy source clips and scratch media
 - No new runtime dependencies added
 - Existing `.env.local` variables unchanged
 
