@@ -1,10 +1,31 @@
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
 import { getEvents, getSponsors, getSettings } from '@/lib/data';
+import { buildRateLimitHeaders, checkRateLimit } from '@/lib/redis';
 
 export const maxDuration = 60;
+function parsePositiveInt(rawValue: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(rawValue ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+}
+
+const ADMIN_CHAT_RATE_LIMIT_MAX = parsePositiveInt(
+  process.env.ADMIN_CHAT_RATE_LIMIT_MAX,
+  30
+);
+const ADMIN_CHAT_RATE_LIMIT_WINDOW_SECONDS = parsePositiveInt(
+  process.env.ADMIN_CHAT_RATE_LIMIT_WINDOW_SECONDS,
+  60
+);
+
+function getClientIp(request: NextRequest): string {
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  if (forwardedFor) return forwardedFor.split(',')[0].trim();
+  return request.headers.get('x-real-ip') || 'unknown';
+}
 
 async function requireAuth() {
   const cookieStore = await cookies();
@@ -26,7 +47,34 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const clientIp = getClientIp(request);
+    const rateLimitResult = await checkRateLimit(
+      `admin-chat:${clientIp}`,
+      ADMIN_CHAT_RATE_LIMIT_MAX,
+      ADMIN_CHAT_RATE_LIMIT_WINDOW_SECONDS
+    );
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        {
+          status: 429,
+          headers: buildRateLimitHeaders(
+            ADMIN_CHAT_RATE_LIMIT_MAX,
+            0,
+            rateLimitResult.resetIn
+          ),
+        }
+      );
+    }
+
     const { messages } = await request.json();
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json(
+        { error: 'Invalid request format: messages array required' },
+        { status: 400 }
+      );
+    }
+
     const [events, sponsors, settings] = await Promise.all([
       getEvents(),
       getSponsors(),
@@ -133,6 +181,11 @@ Never modify production code directly. Always provide recommendations that the a
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
+        ...buildRateLimitHeaders(
+          ADMIN_CHAT_RATE_LIMIT_MAX,
+          rateLimitResult.remaining,
+          rateLimitResult.resetIn
+        ),
       },
     });
   } catch (error) {

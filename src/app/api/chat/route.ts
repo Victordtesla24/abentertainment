@@ -1,14 +1,25 @@
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { streamText, tool } from 'ai';
 import { z } from 'zod';
-import { checkRateLimit } from '@/lib/redis';
+import { buildRateLimitHeaders, checkRateLimit } from '@/lib/redis';
 import { SITE_CONFIG } from '@/lib/constants';
 import { getEvents, getSettings } from '@/lib/data';
 
 export const maxDuration = 30;
 
 const OPENAI_CONFIGURED = Boolean(process.env.OPENAI_API_KEY);
+function parsePositiveInt(rawValue: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(rawValue ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+}
+
+const CHAT_RATE_LIMIT_MAX = parsePositiveInt(process.env.CHAT_RATE_LIMIT_MAX, 20);
+const CHAT_RATE_LIMIT_WINDOW_SECONDS = parsePositiveInt(
+  process.env.CHAT_RATE_LIMIT_WINDOW_SECONDS,
+  60
+);
 
 const fetchUpcomingEventsSchema = z.object({
   limit: z.number().optional().describe('Maximum number of events to return'),
@@ -37,19 +48,23 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // In-memory rate limiting: 20 requests per minute per IP
+    // In-memory token-bucket limiter: configurable via env.
     const clientIp = getClientIp(request);
-    const rateLimitResult = await checkRateLimit(clientIp, 20, 60);
+    const rateLimitResult = await checkRateLimit(
+      clientIp,
+      CHAT_RATE_LIMIT_MAX,
+      CHAT_RATE_LIMIT_WINDOW_SECONDS
+    );
     if (!rateLimitResult.allowed) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
         {
           status: 429,
-          headers: {
-            'Retry-After': String(Math.ceil(rateLimitResult.resetIn / 1000)),
-            'X-RateLimit-Limit': '20',
-            'X-RateLimit-Remaining': '0',
-          },
+          headers: buildRateLimitHeaders(
+            CHAT_RATE_LIMIT_MAX,
+            0,
+            rateLimitResult.resetIn
+          ),
         }
       );
     }
@@ -128,7 +143,13 @@ Always remember:
       },
     });
 
-    return stream.toTextStreamResponse();
+    return stream.toTextStreamResponse({
+      headers: buildRateLimitHeaders(
+        CHAT_RATE_LIMIT_MAX,
+        rateLimitResult.remaining,
+        rateLimitResult.resetIn
+      ),
+    });
   } catch (error) {
     console.error('Chat API error:', error);
     return NextResponse.json(

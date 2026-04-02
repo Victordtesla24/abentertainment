@@ -104,9 +104,55 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const openrouter = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
   baseURL: 'https://openrouter.ai/api/v1',
+  defaultHeaders: {
+    // OpenRouter recommends these for attribution/routing.
+    'HTTP-Referer': process.env.APP_BASE_URL || 'https://abentertainment.com.au',
+    'X-Title': process.env.APP_TITLE || 'AB Entertainment Agent',
+  },
 });
 const geminiKey = process.env.GEMINI_API_KEY;
 const minimaxKey = process.env.MINIMAX_API_KEY;
+
+// ─── Outbound Provider Rate Limiting (per-key, token bucket) ─────────────────
+const providerRateStore = new Map();
+function parsePositiveInt(rawValue, fallback) {
+  const parsed = Number.parseInt(rawValue || '', 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+}
+const PROVIDER_LIMITS = {
+  openai: parsePositiveInt(process.env.OPENAI_RPM, 60),
+  openrouter: parsePositiveInt(process.env.OPENROUTER_RPM, 60),
+  gemini: parsePositiveInt(process.env.GEMINI_RPM, 60),
+  minimax: parsePositiveInt(process.env.MINIMAX_RPM, 60),
+};
+
+function checkProviderRateLimit(provider, maxPerMinute) {
+  const now = Date.now();
+  const windowMs = 60_000;
+  const key = `provider:${provider}`;
+  const normalizedMaxPerMinute = Math.max(1, Number(maxPerMinute) || 1);
+  const refillRate = normalizedMaxPerMinute / windowMs;
+  let entry = providerRateStore.get(key);
+
+  if (!entry) {
+    entry = { tokens: normalizedMaxPerMinute, lastRefill: now };
+    providerRateStore.set(key, entry);
+  }
+
+  const elapsed = now - entry.lastRefill;
+  const tokensToAdd = elapsed * refillRate;
+  entry.tokens = Math.min(normalizedMaxPerMinute, entry.tokens + tokensToAdd);
+  entry.lastRefill = now;
+
+  if (entry.tokens >= 1) {
+    entry.tokens -= 1;
+    return { allowed: true, retryAfterS: 0 };
+  }
+
+  const retryAfterS = Math.max(1, Math.ceil((1 - entry.tokens) / refillRate / 1000));
+  return { allowed: false, retryAfterS };
+}
 
 // ─── Available Models (15) ───────────────────────────────────────────────────
 const MODELS = {
@@ -267,6 +313,10 @@ let productionApproved = false;
 async function executeTool(name, args, sessionId) {
   switch (name) {
     case 'search_web': {
+      const limit = checkProviderRateLimit('openrouter', PROVIDER_LIMITS.openrouter);
+      if (!limit.allowed) {
+        return 'Provider throttle: OpenRouter rate limit reached locally. Retry after ' + limit.retryAfterS + 's.';
+      }
       try {
         const result = await openrouter.chat.completions.create({
           model: 'perplexity/sonar',
@@ -280,6 +330,10 @@ async function executeTool(name, args, sessionId) {
     }
 
     case 'generate_image': {
+      const limit = checkProviderRateLimit('openai', PROVIDER_LIMITS.openai);
+      if (!limit.allowed) {
+        return 'Provider throttle: OpenAI rate limit reached locally. Retry after ' + limit.retryAfterS + 's.';
+      }
       try {
         const result = await openai.images.generate({
           model: 'gpt-image-1',
@@ -362,6 +416,13 @@ async function executeTool(name, args, sessionId) {
 
       try {
         if (model.provider === 'gemini') {
+          const limit = checkProviderRateLimit('gemini', PROVIDER_LIMITS.gemini);
+          if (!limit.allowed) {
+            return 'Provider throttle: Gemini rate limit reached locally. Retry after ' + limit.retryAfterS + 's.';
+          }
+          if (!geminiKey) {
+            return 'Gemini API key is not configured.';
+          }
           const res = await fetch(
             'https://generativelanguage.googleapis.com/v1beta/models/' + model.id + ':generateContent?key=' + geminiKey,
             {
@@ -378,6 +439,11 @@ async function executeTool(name, args, sessionId) {
         }
 
         const client = model.client;
+        const providerName = model.provider === 'openrouter' ? 'openrouter' : 'openai';
+        const limit = checkProviderRateLimit(providerName, PROVIDER_LIMITS[providerName]);
+        if (!limit.allowed) {
+          return 'Provider throttle: ' + providerName + ' rate limit reached locally. Retry after ' + limit.retryAfterS + 's.';
+        }
         const result = await client.chat.completions.create({
           model: model.id,
           messages: [
@@ -585,6 +651,10 @@ async function handleAgentChat(messages, sessionId) {
   // Agent loop — tool calling with max 10 iterations (increased for Step 8 memory updates)
   let response = '';
   for (let i = 0; i < 10; i++) {
+    const limit = checkProviderRateLimit('openai', PROVIDER_LIMITS.openai);
+    if (!limit.allowed) {
+      return 'Provider throttle: OpenAI rate limit reached locally. Retry after ' + limit.retryAfterS + 's.';
+    }
     const completion = await model.client.chat.completions.create({
       model: model.id,
       messages: chatMessages,
@@ -621,6 +691,13 @@ async function handleAgentChat(messages, sessionId) {
 
 // ─── Gemini Chat (for model selection) ───────────────────────────────────────
 async function chatWithGemini(messages) {
+  const limit = checkProviderRateLimit('gemini', PROVIDER_LIMITS.gemini);
+  if (!limit.allowed) {
+    return 'Provider throttle: Gemini rate limit reached locally. Retry after ' + limit.retryAfterS + 's.';
+  }
+  if (!geminiKey) {
+    return 'Gemini API key is not configured.';
+  }
   const contents = messages
     .filter(m => m.role !== 'system')
     .map(m => ({
@@ -836,6 +913,17 @@ const server = http.createServer(async (req, res) => {
   // ─── Customer Chatbot (streaming) ────────────────────────────────────────────
   if (req.method === 'POST' && url === '/api/chat') {
     try {
+      const limit = checkProviderRateLimit('openai', PROVIDER_LIMITS.openai);
+      if (!limit.allowed) {
+        res.writeHead(429, {
+          'Content-Type': 'application/json',
+          'Retry-After': String(limit.retryAfterS),
+          'X-RateLimit-Limit': String(PROVIDER_LIMITS.openai),
+          'X-RateLimit-Remaining': '0',
+        });
+        res.end(JSON.stringify({ error: 'Too many requests' }));
+        return;
+      }
       const body = await parseBody(req);
       const result = await openai.chat.completions.create({
         model: 'gpt-4o-mini',

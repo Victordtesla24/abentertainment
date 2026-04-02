@@ -3,6 +3,7 @@
 import { Suspense, useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import type { Event } from '@/lib/data';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -28,14 +29,22 @@ function getStatusBadge(event: Event): { label: string; color: string } {
     return { label: 'Live Now', color: 'bg-red-500 text-white' };
   }
 
-  // Check capacity-based status
-  if (event.capacity) {
-    const soldPercentage = Math.random(); // Placeholder — would use real ticket data
-    if (soldPercentage > 0.95) {
-      return { label: 'Sold Out', color: 'bg-red-600 text-white' };
-    }
-    if (soldPercentage > 0.75) {
-      return { label: 'Selling Fast', color: 'bg-amber-500 text-black' };
+  // Time-driven urgency as deterministic fallback when ticket inventory is unavailable.
+  const daysUntilEvent = Math.ceil(
+    (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  );
+  if (daysUntilEvent <= 7) {
+    return { label: 'Selling Fast', color: 'bg-amber-500 text-black' };
+  }
+
+  // Recently updated events get a freshness indicator.
+  if (event.updatedAt) {
+    const updatedAt = new Date(event.updatedAt);
+    const daysSinceUpdate = Math.floor(
+      (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysSinceUpdate >= 0 && daysSinceUpdate <= 10) {
+      return { label: 'New Date Added', color: 'bg-[#C9A84C] text-black' };
     }
   }
 
@@ -151,21 +160,42 @@ function FilterBar({
 
 function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }) {
   const badge = getStatusBadge(event);
+  const useNextImage = event.image.startsWith('/');
 
   return (
     <Link href={`/events/${event.slug}`}>
       <div
-        className={`group relative overflow-hidden bg-[#111111]/50 border border-[#C9A84C]/10 hover:border-[#C9A84C]/40 transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_32px_rgba(204,138,28,0.15)] ${
+        className={`group relative overflow-hidden bg-[#111111]/50 border border-[#C9A84C]/10 transition-all duration-500 transform-gpu [transform-style:preserve-3d] hover:border-[#C9A84C]/40 hover:shadow-[0_20px_45px_rgba(204,138,28,0.22)] hover:[transform:perspective(1200px)_rotateX(2deg)_rotateY(-3deg)_translateY(-4px)] ${
           isPast ? 'opacity-75 hover:opacity-100' : ''
         }`}
       >
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 z-20 w-2 opacity-80"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 0 8px, transparent 5px, rgba(10,10,10,0.95) 5px)',
+            backgroundSize: '10px 16px',
+            backgroundRepeat: 'repeat-y',
+          }}
+          aria-hidden="true"
+        />
+
         {/* Image */}
         <div className="relative h-52 overflow-hidden bg-gradient-to-br from-[#111111] to-[#0A0A0A]">
-          {event.image && (
+          {event.image && useNextImage && (
+            <Image
+              src={event.image}
+              alt={event.title}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              className="object-cover transition-transform duration-700 group-hover:scale-110"
+            />
+          )}
+          {event.image && !useNextImage && (
             <img
               src={event.image}
               alt={event.title}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
               loading="lazy"
             />
           )}
@@ -200,6 +230,12 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
                 From ${event.price} {event.currency}
               </p>
             )}
+          </div>
+          <div className="pt-1">
+            <span className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] font-body text-[#C9A84C]/85">
+              <span className="inline-block h-px w-6 bg-[#C9A84C]/40" />
+              Golden Ticket
+            </span>
           </div>
         </div>
       </div>

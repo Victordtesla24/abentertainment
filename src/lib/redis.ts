@@ -58,6 +58,18 @@ export async function checkRateLimit(
   };
 }
 
+export function buildRateLimitHeaders(
+  limit: number,
+  remaining: number,
+  resetInMs: number
+): Record<string, string> {
+  return {
+    'X-RateLimit-Limit': String(limit),
+    'X-RateLimit-Remaining': String(Math.max(0, remaining)),
+    'Retry-After': String(Math.max(1, Math.ceil(resetInMs / 1000))),
+  };
+}
+
 // Cleanup stale entries every 5 minutes
 if (typeof globalThis !== 'undefined') {
   const CLEANUP_INTERVAL = 5 * 60 * 1000;

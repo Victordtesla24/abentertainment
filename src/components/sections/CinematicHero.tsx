@@ -52,11 +52,25 @@ function VolumetricSpotlight({ className }: { className?: string }) {
     const isLowPower = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (isLowPower) return;
 
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: false,
-      alpha: true,
-    });
+    const gl =
+      canvas.getContext('webgl2', { alpha: true, antialias: false }) ||
+      canvas.getContext('webgl', { alpha: true, antialias: false });
+    if (!gl) {
+      return;
+    }
+
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        context: gl,
+        antialias: false,
+        alpha: true,
+      });
+    } catch {
+      // Gracefully degrade when WebGL is unavailable so the hero still renders.
+      return;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
 
@@ -256,6 +270,7 @@ function VolumetricSpotlight({ className }: { className?: string }) {
 export function CinematicHero() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [heroReady, setHeroReady] = useState(false);
 
   const { scrollY } = useScroll();
   const parallaxBg = useTransform(scrollY, [0, 800], [0, -150]);
@@ -288,6 +303,21 @@ export function CinematicHero() {
     }, SLIDE_DURATION);
     return () => clearInterval(interval);
   }, [isPaused]);
+
+  useEffect(() => {
+    const htmlHasPreloaderDone = document.documentElement.classList.contains(
+      'preloader-done'
+    );
+    if (htmlHasPreloaderDone) {
+      setHeroReady(true);
+      return;
+    }
+
+    const handlePreloaderComplete = () => setHeroReady(true);
+    window.addEventListener('ab:preloader-complete', handlePreloaderComplete);
+    return () =>
+      window.removeEventListener('ab:preloader-complete', handlePreloaderComplete);
+  }, []);
 
   return (
     <section
@@ -346,6 +376,13 @@ export function CinematicHero() {
       <motion.div
         className="relative z-10 w-full h-full flex flex-col items-center justify-center text-center"
         style={{ y: parallaxContent, opacity: heroOpacity }}
+        initial={{ opacity: 0, y: 24, filter: 'blur(10px)' }}
+        animate={
+          heroReady
+            ? { opacity: 1, y: 0, filter: 'blur(0px)' }
+            : { opacity: 0, y: 24, filter: 'blur(10px)' }
+        }
+        transition={{ duration: 0.9, ease: EASE }}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.7, filter: 'blur(10px)' }}
