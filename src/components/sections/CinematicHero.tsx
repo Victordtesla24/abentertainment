@@ -38,12 +38,13 @@ const heroSlides = [
 
 /**
  * Hero video background configuration.
- * When /videos/hero-reel.mp4 exists, it replaces the image slideshow.
+ * When /video/hero-reel.mp4 exists, it plays behind the image slideshow.
  * Falls back gracefully to image carousel if video fails to load.
+ * Video assets are stored in public/video/ (same directory as other video assets).
  */
 const HERO_VIDEO = {
-  src: '/videos/hero-reel.mp4',
-  webmSrc: '/videos/hero-reel.webm',
+  src: '/video/hero-reel.mp4',
+  webmSrc: '/video/hero-reel.webm',
   poster: '/images/hero-bg.jpg',
 };
 

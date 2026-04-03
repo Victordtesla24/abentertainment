@@ -59,8 +59,8 @@ export default function VideoHighlights() {
             playsInline
             muted={prefersReducedMotion}
           >
-            <source src="/videos/highlights.mp4" type="video/mp4" />
-            <source src="/videos/highlights.webm" type="video/webm" />
+            <source src="/video/highlights.mp4" type="video/mp4" />
+            <source src="/video/highlights.webm" type="video/webm" />
           </video>
         </motion.div>
       </div>

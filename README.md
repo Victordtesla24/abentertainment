@@ -1,5 +1,74 @@
 # AB Entertainment
 
+## v4.0.0 — Comprehensive Platform Remediation (2026-04-03)
+
+### Summary of Changes
+
+**Security & Authentication (Phase 1)**
+- TOTP 2FA infrastructure (`src/lib/totp.ts`) using otplib — ready for production activation
+- CSRF token generation and validation (`src/lib/csrf.ts`) for admin API mutation protection
+- Admin audit trail system (`src/lib/audit.ts`) with structured logging
+- CORS origin validation (`src/lib/cors.ts`) with production domain whitelist
+- Session versioning via `SESSION_VERSION` env var — bump to invalidate all active sessions
+- Auth error responses standardized to prevent username enumeration
+- Rate limit countdown UI on admin login (429 handler with live timer)
+
+**UI Components & Interactions**
+- Gallery lightbox with zoom + fullscreen (`yet-another-react-lightbox`)
+- Event countdown timer component for presale/upcoming events
+- Contact form refactored with Zod schema validation + React Hook Form inline errors
+- Focus trapping in search modal (`focus-trap-react`)
+- Mobile sliding drawer navigation with semi-transparent backdrop
+- ChatWidget/BackToTop mobile overlap resolved
+
+**Visual Design & Content**
+- Hero video background element with graceful image fallback
+- Duplicate About page heading removed
+- WCAG AAA gold contrast utility (`.text-gold-accessible` at 7.2:1 ratio)
+- Sponsor logos gold-tinted at rest, horizontal footer marquee layout
+- CookieConsent sharp-edge brand alignment
+- Cultural-specific tagline: "Melbourne's Premier Indian & Marathi Performing Arts Experience"
+- Testimonial headshots and event references
+- Four Pillars section elevated to immediately after hero
+- Video highlights placeholder component
+
+**Admin Dashboard**
+- SWR-based live health polling (replaces manual fetch/setInterval)
+- Sparkline trend charts below telemetry gauges
+- Error rate gauge tooltip with methodology explanation
+- PDF export via html2canvas + jsPDF
+- Smoother accordion spring animation
+- AI chatbot: token usage indicator, differentiated error states (429/5xx/network)
+
+**Performance**
+- LazyMotion wrapper for Framer Motion tree-shaking
+- Blur placeholder infrastructure in OptimizedImage
+- Interactive particle physics (mouse-tracking with damping)
+- Event card 3D tilt effect (±4°, reduced-motion gated)
+- Preloader → hero entrance animation synchronization
+
+**Accessibility**
+- 44x44pt minimum touch targets on touch devices
+- Dynamic viewport height (`dvh`) for mobile keyboard handling
+- Team member photos upgraded to Next.js Image with responsive sizes
+- Structured content model fields in admin EventsManager
+
+**New Dependencies**
+- `react-hook-form`, `@hookform/resolvers` — form validation
+- `yet-another-react-lightbox` — gallery lightbox
+- `focus-trap-react` — modal accessibility
+- `otplib` — TOTP 2FA
+- `qrcode`, `@types/qrcode` — QR code generation
+- `html2canvas`, `jspdf` — PDF report export
+
+### Deployment Notes
+- Video assets stored in `public/video/` (not `public/videos/`)
+- Set `SESSION_VERSION=1` in production `.env`
+- Set `TOTP_SECRET` when ready to enable admin 2FA
+- All existing `.env` variables unchanged
+
+---
+
 ## v3.3.0 — Cinematic Curtain Transition & Preloader Upgrade (2026-03-31)
 
 ### Summary of Changes
