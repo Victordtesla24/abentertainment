@@ -244,18 +244,20 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
             <h3 className="text-sm font-display font-semibold text-[#C9A84C]">{group.label}</h3>
             <span className="text-[10px] font-body text-white/25">{group.images.length} images</span>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {group.images.map((image) => (
-              <div key={image.src} className="group bg-[#111111] border border-white/5 overflow-hidden hover:border-[#C9A84C]/20 transition-colors">
-                <div className="aspect-[4/3] bg-[#0A0A0A] flex items-center justify-center overflow-hidden">
-                  <img src={image.src} alt={image.alt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+          <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 min-w-[320px]">
+              {group.images.map((image) => (
+                <div key={image.src} className="group bg-[#111111] border border-white/5 overflow-hidden hover:border-[#C9A84C]/20 transition-colors">
+                  <div className="aspect-[4/3] bg-[#0A0A0A] flex items-center justify-center overflow-hidden">
+                    <img src={image.src} alt={image.alt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                  </div>
+                  <div className="p-2.5">
+                    <p className="text-white text-[11px] font-body font-medium truncate">{image.alt}</p>
+                    <p className="text-white/25 text-[9px] font-body mt-0.5 truncate">{image.src}</p>
+                  </div>
                 </div>
-                <div className="p-2.5">
-                  <p className="text-white text-[11px] font-body font-medium truncate">{image.alt}</p>
-                  <p className="text-white/25 text-[9px] font-body mt-0.5 truncate">{image.src}</p>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       ))}
@@ -267,28 +269,30 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
             <h3 className="text-sm font-display font-semibold text-[#C9A84C]">Custom Uploads</h3>
             <span className="text-[10px] font-body text-white/25">{images.length} images</span>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {images.map((image) => (
-              <div key={image.id} className="relative group bg-[#111111] border border-white/5 overflow-hidden hover:border-[#C9A84C]/20 transition-colors">
-                <div className="aspect-[4/3] bg-[#0A0A0A] flex items-center justify-center overflow-hidden">
-                  {image.src ? (
-                    <img src={image.src} alt={image.alt} className="w-full h-full object-cover" loading="lazy" />
-                  ) : (
-                    <span className="text-white/20 text-xs font-body">No image</span>
-                  )}
+          <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 min-w-[320px]">
+              {images.map((image) => (
+                <div key={image.id} className="relative group bg-[#111111] border border-white/5 overflow-hidden hover:border-[#C9A84C]/20 transition-colors">
+                  <div className="aspect-[4/3] bg-[#0A0A0A] flex items-center justify-center overflow-hidden">
+                    {image.src ? (
+                      <img src={image.src} alt={image.alt} className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <span className="text-white/20 text-xs font-body">No image</span>
+                    )}
+                  </div>
+                  <div className="p-2.5">
+                    <p className="text-white text-[11px] font-body font-medium truncate">{image.alt}</p>
+                    <p className="text-white/25 text-[9px] font-body mt-0.5">{image.category}</p>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(image.id)}
+                    className="absolute top-2 right-2 w-6 h-6 bg-red-500/80 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    x
+                  </button>
                 </div>
-                <div className="p-2.5">
-                  <p className="text-white text-[11px] font-body font-medium truncate">{image.alt}</p>
-                  <p className="text-white/25 text-[9px] font-body mt-0.5">{image.category}</p>
-                </div>
-                <button
-                  onClick={() => handleDelete(image.id)}
-                  className="absolute top-2 right-2 w-6 h-6 bg-red-500/80 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  x
-                </button>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )}

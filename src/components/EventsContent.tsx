@@ -25,6 +25,16 @@ function getStatusBadge(event: Event): { label: string; color: string } {
     return { label: 'Past Event', color: 'bg-white/20 text-white/70' };
   }
 
+  if (event.ticketStatus === 'sold_out') {
+    return { label: 'Sold Out', color: 'bg-red-600 text-white' };
+  }
+  if (event.ticketStatus === 'selling_fast') {
+    return { label: 'Selling Fast', color: 'bg-amber-500 text-black' };
+  }
+  if (event.ticketStatus === 'available') {
+    return { label: 'On Sale', color: 'bg-emerald-500 text-white' };
+  }
+
   if (event.status === 'live') {
     return { label: 'Live Now', color: 'bg-red-500 text-white' };
   }
@@ -406,6 +416,9 @@ function EventsContentInner({ events, contactEmail }: EventsContentProps) {
 
   return (
     <>
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {`Showing ${filteredEvents.length} events. ${upcomingEvents.length} upcoming and ${pastEvents.length} past.`}
+      </div>
       {/* Filter Bar */}
       <section className="pt-8 pb-4">
         <div className="container-eu">

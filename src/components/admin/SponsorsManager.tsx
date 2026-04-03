@@ -168,29 +168,31 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {sponsors.map((sponsor) => (
-          <div key={sponsor.id} className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="text-white font-semibold text-sm">{sponsor.name}</h3>
-                <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-sm ${tierColors[sponsor.tier]}`}>
-                  {sponsor.tier}
-                </span>
+      <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 min-w-[320px]">
+          {sponsors.map((sponsor) => (
+            <div key={sponsor.id} className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="text-white font-semibold text-sm">{sponsor.name}</h3>
+                  <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-sm ${tierColors[sponsor.tier]}`}>
+                    {sponsor.tier}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => startEdit(sponsor)} className="text-xs text-[#1BBFA1] hover:text-[#1BBFA1]/80">Edit</button>
+                  <button onClick={() => handleDelete(sponsor.id)} className="text-xs text-red-400 hover:text-red-300">Delete</button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => startEdit(sponsor)} className="text-xs text-[#1BBFA1] hover:text-[#1BBFA1]/80">Edit</button>
-                <button onClick={() => handleDelete(sponsor.id)} className="text-xs text-red-400 hover:text-red-300">Delete</button>
-              </div>
+              {sponsor.description && (
+                <p className="text-white/40 text-xs">{sponsor.description}</p>
+              )}
             </div>
-            {sponsor.description && (
-              <p className="text-white/40 text-xs">{sponsor.description}</p>
-            )}
-          </div>
-        ))}
-        {sponsors.length === 0 && (
-          <p className="text-white/40 text-sm col-span-full text-center py-8">No sponsors yet.</p>
-        )}
+          ))}
+          {sponsors.length === 0 && (
+            <p className="text-white/40 text-sm col-span-full text-center py-8">No sponsors yet.</p>
+          )}
+        </div>
       </div>
     </div>
   );

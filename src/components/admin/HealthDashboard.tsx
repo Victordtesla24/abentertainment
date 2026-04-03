@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getApiUrl } from '@/lib/api-config';
 import { TelemetryGaugeGrid } from './telemetry/TelemetryGaugeGrid';
+import useSWR from 'swr';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -278,37 +279,36 @@ export default function HealthDashboard() {
   const [selectedPage, setSelectedPage] = useState<string | null>(null);
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
   const [showAgentDetail, setShowAgentDetail] = useState(false);
-  const refreshInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchHealthData = useCallback(async () => {
-    try {
-      abortControllerRef.current = new AbortController();
-      const res = await fetch(getApiUrl('/api/admin/chat'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'health' }),
-        signal: abortControllerRef.current.signal,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.type === 'health') {
-          setHealthData(data);
-          setDataFresh(true);
-          setFetchError(false);
-        }
-      } else {
-        setDataFresh(false);
-        setFetchError(true);
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        setDataFresh(false);
-        setFetchError(true);
-      }
+  const fetchHealth = useCallback(async (): Promise<HealthData> => {
+    abortControllerRef.current = new AbortController();
+    const res = await fetch(getApiUrl('/api/admin/chat'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'health' }),
+      signal: abortControllerRef.current.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Health fetch failed with status ${res.status}`);
     }
+    const data = (await res.json()) as HealthData;
+    if (data.type !== 'health') {
+      throw new Error('Invalid health payload');
+    }
+    return data;
   }, []);
+
+  const {
+    data: swrHealthData,
+    error: swrHealthError,
+    isLoading: swrLoading,
+    mutate,
+  } = useSWR(getApiUrl('/api/admin/chat'), fetchHealth, {
+    refreshInterval: autoRefresh ? 30000 : 0,
+    revalidateOnFocus: true,
+  });
 
   const checkPages = useCallback(async () => {
     const results: PageCheck[] = [];
@@ -401,27 +401,36 @@ export default function HealthDashboard() {
   const refreshAll = useCallback(async () => {
     try {
       setLoading(true);
-      await Promise.all([fetchHealthData(), checkPages()]);
+      await Promise.all([mutate(), checkPages()]);
       setLastRefresh(new Date());
     } finally {
       setLoading(false);
     }
-  }, [fetchHealthData, checkPages]);
+  }, [mutate, checkPages]);
 
   useEffect(() => { if (!loading) detectIssues(healthData, pages); }, [healthData, pages, loading, detectIssues]);
-  useEffect(() => { refreshAll(); }, [refreshAll]);
   useEffect(() => {
-    if (autoRefresh) refreshInterval.current = setInterval(refreshAll, 30000);
-    return () => { if (refreshInterval.current) clearInterval(refreshInterval.current); };
-  }, [autoRefresh, refreshAll]);
+    if (swrHealthData) {
+      setHealthData(swrHealthData);
+      setDataFresh(true);
+      setFetchError(false);
+      setLastRefresh(new Date());
+      void checkPages();
+    }
+  }, [swrHealthData, checkPages]);
+  useEffect(() => {
+    if (swrHealthError) {
+      setDataFresh(false);
+      setFetchError(true);
+    }
+  }, [swrHealthError]);
+  useEffect(() => { refreshAll(); }, [refreshAll]);
+  useEffect(() => { setLoading(swrLoading); }, [swrLoading]);
 
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
-      }
-      if (refreshInterval.current) {
-        clearInterval(refreshInterval.current);
       }
       if (copyTimeoutRef.current) {
         clearTimeout(copyTimeoutRef.current);

@@ -25,6 +25,7 @@ export interface Event {
   price: number;
   currency: string;
   status: 'upcoming' | 'live' | 'past';
+  ticketStatus: 'available' | 'selling_fast' | 'sold_out';
   image: string;
   category: string;
   capacity?: number;
@@ -85,6 +86,7 @@ const SEED_EVENTS: Event[] = [
     price: 45,
     currency: 'AUD',
     status: 'past',
+    ticketStatus: 'sold_out',
     image: '/images/events/shrimant-damodar-pant.jpg',
     category: 'Theatre',
     capacity: 800,
@@ -102,6 +104,7 @@ const SEED_EVENTS: Event[] = [
     price: 65,
     currency: 'AUD',
     status: 'past',
+    ticketStatus: 'sold_out',
     image: '/images/events/arya-ambekar.jpg',
     category: 'Concert',
     capacity: 2400,
@@ -119,6 +122,7 @@ const SEED_EVENTS: Event[] = [
     price: 55,
     currency: 'AUD',
     status: 'upcoming',
+    ticketStatus: 'available',
     image: '/images/events/shikayla-gelo-ek.jpg',
     category: 'Comedy',
     capacity: 1000,
@@ -136,6 +140,7 @@ const SEED_EVENTS: Event[] = [
     price: 50,
     currency: 'AUD',
     status: 'upcoming',
+    ticketStatus: 'available',
     image: '/images/events/varvarche-vadhu-var.jpg',
     category: 'Drama',
     capacity: 600,
@@ -152,6 +157,7 @@ const SEED_EVENTS: Event[] = [
     price: 95,
     currency: 'AUD',
     status: 'upcoming',
+    ticketStatus: 'available',
     image: '/images/events/swaranirmiti.jpg',
     category: 'Classical Music',
     capacity: 2400,
@@ -168,6 +174,7 @@ const SEED_EVENTS: Event[] = [
     price: 75,
     currency: 'AUD',
     status: 'upcoming',
+    ticketStatus: 'available',
     image: '/images/events/diwali-spectacular.jpg',
     category: 'Festival',
     capacity: 3000,
@@ -274,6 +281,17 @@ async function readJsonFile<T>(filename: string, fallback: T): Promise<T> {
   }
 }
 
+function normalizeEvent(event: Event | (Event & { ticketStatus?: Event['ticketStatus'] })): Event {
+  if (event.ticketStatus) {
+    return event as Event;
+  }
+
+  if (event.status === 'past') {
+    return { ...event, ticketStatus: 'sold_out' };
+  }
+  return { ...event, ticketStatus: 'available' };
+}
+
 async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
   await ensureDataDir();
   const filepath = join(DATA_DIR, filename);
@@ -283,7 +301,8 @@ async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export async function getEvents(): Promise<Event[]> {
-  return readJsonFile('events.json', SEED_EVENTS);
+  const events = await readJsonFile('events.json', SEED_EVENTS);
+  return events.map(normalizeEvent);
 }
 
 export async function getEventBySlug(slug: string): Promise<Event | null> {

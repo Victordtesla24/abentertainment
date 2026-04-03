@@ -117,6 +117,12 @@ function ThreeCanvasInner() {
     let animationId: number | null = null;
     let isCancelled = false; // Prevent RAF start after unmount (review fix #4)
     let idleHandle: number | ReturnType<typeof setTimeout> | null = null;
+    const onPointerMove = (event: PointerEvent) => {
+      if (!engine) return;
+      const nx = (event.clientX / window.innerWidth) * 2 - 1;
+      const ny = -(event.clientY / window.innerHeight) * 2 + 1;
+      engine.setPointerNormalized(nx, ny);
+    };
 
     // Defer engine initialization to requestIdleCallback with 3s timeout fallback
     const initEngine = () => {
@@ -132,6 +138,7 @@ function ThreeCanvasInner() {
       }).then((initializedEngine) => {
         if (isCancelled) return; // Component unmounted before engine resolved
         engine = initializedEngine;
+        window.addEventListener('pointermove', onPointerMove, { passive: true });
         tick();
       }).catch((err) => {
         console.error('[ThreeCanvas] Engine initialization failed:', err);
@@ -170,6 +177,7 @@ function ThreeCanvasInner() {
         }
       }
       if (animationId !== null) cancelAnimationFrame(animationId);
+      window.removeEventListener('pointermove', onPointerMove);
       engine?.dispose(); // Full GPU memory cleanup on unmount
     };
   }, [pathname, webglSupport, onContextLost, onFallback]);

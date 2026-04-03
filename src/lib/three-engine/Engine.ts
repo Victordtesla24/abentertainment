@@ -41,6 +41,10 @@ export class ThreeEngine {
 
   // Visibility state
   private wasRenderingBeforeHidden = false;
+  private interactiveSpotLight: THREE.SpotLight | null = null;
+  private spotLightTargetObject: THREE.Object3D | null = null;
+  private pointerTarget = new THREE.Vector2(0, 0);
+  private pointerCurrent = new THREE.Vector2(0, 0);
 
   private constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -278,6 +282,20 @@ export class ThreeEngine {
     const fillLight = new THREE.DirectionalLight(0x4a6070, 0.8); // Cool blue shadow fill
     fillLight.position.set(-20, 10, -20);
     this.scene.add(fillLight);
+
+    this.interactiveSpotLight = new THREE.SpotLight(0xc9a84c, 1.8, 42, Math.PI / 7, 0.42, 1);
+    this.interactiveSpotLight.position.set(0, 12, 14);
+    this.interactiveSpotLight.castShadow = false;
+    this.scene.add(this.interactiveSpotLight);
+
+    this.spotLightTargetObject = new THREE.Object3D();
+    this.spotLightTargetObject.position.set(0, 0, 0);
+    this.scene.add(this.spotLightTargetObject);
+    this.interactiveSpotLight.target = this.spotLightTargetObject;
+  }
+
+  public setPointerNormalized(x: number, y: number) {
+    this.pointerTarget.set(x, y);
   }
 
   private onWindowResize() {
@@ -370,6 +388,14 @@ export class ThreeEngine {
     if (!this.isInitialized || this.isContextLost) return;
 
     const delta = this.clock.getDelta();
+    this.pointerCurrent.lerp(this.pointerTarget, 1 - Math.exp(-delta * 6));
+    if (this.interactiveSpotLight && this.spotLightTargetObject) {
+      this.interactiveSpotLight.position.x = this.pointerCurrent.x * 8;
+      this.interactiveSpotLight.position.y = 10 + this.pointerCurrent.y * 2;
+      this.spotLightTargetObject.position.x = this.pointerCurrent.x * 5;
+      this.spotLightTargetObject.position.y = this.pointerCurrent.y * 3;
+      this.spotLightTargetObject.updateMatrixWorld();
+    }
     
     // 1. Failsafe 60fps telemetry
     const isHealthy = this.monitor.checkHealth(delta);

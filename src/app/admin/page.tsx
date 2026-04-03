@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminDashboard from '@/components/admin/AdminDashboard';
+import { getApiUrl } from '@/lib/api-config';
 
 /**
  * Admin page — checks session cookie client-side.
@@ -15,12 +16,44 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!document.cookie.includes('ab-admin-session-v3')) {
-      router.replace('/admin/login');
-    } else {
-      setIsAuthed(true);
+    let isCancelled = false;
+
+    const verify = async () => {
+      if (!document.cookie.includes('ab-admin-session-v3')) {
+        router.replace('/admin/login');
+        if (!isCancelled) setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(getApiUrl('/api/admin/auth'), {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          router.replace('/admin/login');
+          return;
+        }
+
+        if (!isCancelled) {
+          setIsAuthed(true);
+        }
+      } catch {
+        router.replace('/admin/login');
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void verify();
+
+    return () => {
+      isCancelled = true;
     }
-    setLoading(false);
   }, [router]);
 
   if (loading) {

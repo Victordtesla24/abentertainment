@@ -552,6 +552,7 @@ docker compose down
 ### Production Build (Static Export)
 
 ```bash
+export NEXT_PUBLIC_VPS_API_URL="https://api.abentertainment.com.au"
 NEXT_EXPORT=true npm run build
 # Output: out/ directory → SCP to Hostinger
 ```

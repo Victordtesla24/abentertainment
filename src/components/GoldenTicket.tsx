@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { motion, useMotionValue, useTransform, useSpring, useMotionTemplate } from 'framer-motion';
-import Link from 'next/link';
+import { motion, useMotionValue, useTransform, useSpring, useMotionTemplate, useReducedMotion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import type { Event } from '@/lib/data';
 
 /**
@@ -39,6 +39,9 @@ function formatTime(dateString: string): string {
 export default function GoldenTicket({ event }: GoldenTicketProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [isRouting, setIsRouting] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
+  const router = useRouter();
 
   // Motion values for 3D tilt
   const mouseX = useMotionValue(0);
@@ -87,6 +90,22 @@ export default function GoldenTicket({ event }: GoldenTicketProps) {
     mouseY.set(0);
   }, [mouseX, mouseY]);
 
+  const handleBookNow = useCallback((eventSlug: string) => {
+    const target = `/events/${eventSlug}`;
+    if (isRouting) return;
+
+    if (shouldReduceMotion) {
+      router.push(target);
+      return;
+    }
+
+    setIsRouting(true);
+    window.setTimeout(() => {
+      router.push(target);
+      setIsRouting(false);
+    }, 180);
+  }, [isRouting, router, shouldReduceMotion]);
+
   return (
     <div style={{ perspective: '1200px' }} className="w-full max-w-xl mx-auto">
       <motion.div
@@ -100,6 +119,8 @@ export default function GoldenTicket({ event }: GoldenTicketProps) {
           transformStyle: 'preserve-3d',
         }}
         whileTap={{ scale: 0.975, rotateX: 3, transition: { duration: 0.12 } }}
+        animate={isRouting ? { scale: 0.98, clipPath: 'inset(0 4% 0 4%)' } : { scale: 1, clipPath: 'inset(0 0 0 0)' }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
         className="relative cursor-pointer"
       >
         {/* Main Ticket Body */}
@@ -245,12 +266,14 @@ export default function GoldenTicket({ event }: GoldenTicketProps) {
               </span>
 
               {/* Book CTA */}
-              <Link
-                href={event.ticketUrl || `/events/${event.slug}`}
-                className="mt-4 px-5 py-2 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-xs font-body font-bold tracking-wider uppercase transition-all duration-300 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)] hover:scale-105"
+              <button
+                type="button"
+                onClick={() => handleBookNow(event.slug)}
+                className="mt-4 px-5 py-2 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-xs font-body font-bold tracking-wider uppercase transition-all duration-300 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)] hover:scale-105 disabled:opacity-70"
+                disabled={isRouting}
               >
-                Book Now
-              </Link>
+                {isRouting ? 'Opening...' : 'Book Now'}
+              </button>
             </div>
           </div>
 

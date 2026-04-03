@@ -57,6 +57,7 @@ export default function ScrollNarrative() {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const root = document.documentElement;
 
     const ctx = gsap.context(() => {
       // Pin the container for horizontal-style scroll
@@ -78,6 +79,13 @@ export default function ScrollNarrative() {
             end: 'top 20%',
             scrub: 1,
             toggleActions: 'play none none reverse',
+            onUpdate: (self) => {
+              const mix = (i + self.progress) / Math.max(slides.length, 1);
+              const glow = 0.04 + mix * 0.14;
+              const darkness = 0.7 + mix * 0.18;
+              root.style.setProperty('--ab-narrative-glow', glow.toFixed(3));
+              root.style.setProperty('--ab-narrative-darkness', darkness.toFixed(3));
+            },
           },
         });
 
@@ -154,13 +162,21 @@ export default function ScrollNarrative() {
       });
     }, container);
 
-    return () => ctx.revert();
+    return () => {
+      root.style.removeProperty('--ab-narrative-glow');
+      root.style.removeProperty('--ab-narrative-darkness');
+      ctx.revert();
+    };
   }, []);
 
   return (
     <section
       ref={containerRef}
       className="relative bg-[#0A0A0A] overflow-hidden"
+      style={{
+        background:
+          'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,var(--ab-narrative-glow,0.05)) 0%, rgba(10,10,10,var(--ab-narrative-darkness,0.78)) 65%)',
+      }}
       aria-label="Our Story"
     >
       {/* Section Header */}

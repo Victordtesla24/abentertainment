@@ -18,6 +18,7 @@ const EMPTY_EVENT: Omit<Event, 'id' | 'createdAt' | 'updatedAt'> = {
   price: 0,
   currency: 'AUD',
   status: 'upcoming',
+  ticketStatus: 'available',
   image: '',
   category: '',
   capacity: 0,
@@ -51,6 +52,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
       price: event.price,
       currency: event.currency,
       status: event.status,
+      ticketStatus: event.ticketStatus,
       image: event.image,
       category: event.category,
       capacity: event.capacity || 0,
@@ -229,6 +231,18 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
                 <option value="upcoming">Upcoming</option>
                 <option value="live">Live</option>
                 <option value="past">Past</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Ticket Status</label>
+              <select
+                value={form.ticketStatus}
+                onChange={(e) => setForm({ ...form, ticketStatus: e.target.value as Event['ticketStatus'] })}
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
+              >
+                <option value="available">Available</option>
+                <option value="selling_fast">Selling Fast</option>
+                <option value="sold_out">Sold Out</option>
               </select>
             </div>
             <div>

@@ -4,6 +4,7 @@ import {
   validateCredentials,
   createSessionToken,
   getSessionCookieName,
+  validateSessionToken,
 } from '@/lib/auth';
 import {
   checkLoginAllowed,
@@ -67,8 +68,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
-  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(request: NextRequest) {
+  const token = request.cookies.get(getSessionCookieName())?.value;
+  if (!token || !validateSessionToken(token)) {
+    return NextResponse.json({ authenticated: false }, { status: 401 });
+  }
+
+  return NextResponse.json({ authenticated: true });
 }
 
 export async function DELETE() {

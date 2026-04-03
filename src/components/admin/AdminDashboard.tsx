@@ -101,7 +101,7 @@ export default function AdminDashboard({
             <SettingsManager initialSettings={initialSettings} />
           )}
           {activeTab === 'ai' && (
-            <AdminChatbot />
+            <AdminChatbot activeTab={activeTab} />
           )}
         </div>
       </main>

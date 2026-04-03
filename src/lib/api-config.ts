@@ -7,7 +7,9 @@
  * Public pages continue to use local paths (statically rendered).
  */
 
-const VPS_API_BASE = process.env.NEXT_PUBLIC_VPS_API_URL || 'https://api.abentertainment.com.au';
+const DEFAULT_VPS_API_BASE = 'https://api.abentertainment.com.au';
+const RAW_VPS_API_BASE = process.env.NEXT_PUBLIC_VPS_API_URL || DEFAULT_VPS_API_BASE;
+const VPS_API_BASE = RAW_VPS_API_BASE.replace(/\/+$/, '');
 
 /**
  * Resolve an API path to the correct endpoint.
@@ -27,6 +29,11 @@ export function getApiUrl(path: string): string {
 
   // Production: admin endpoints go directly to the VPS
   if (path.startsWith('/api/admin')) {
+    if (!process.env.NEXT_PUBLIC_VPS_API_URL) {
+      console.warn(
+        '[api-config] NEXT_PUBLIC_VPS_API_URL is not set. Falling back to default VPS origin for admin APIs.'
+      );
+    }
     return `${VPS_API_BASE}${path}`;
   }
 
