@@ -3,7 +3,7 @@
 
 # Next.js build
 /.next/
-/out/
+# /out/ — tracked for Hostinger Git auto-deploy (static export served via .htaccess rewrite)
 
 # Testing
 /coverage
