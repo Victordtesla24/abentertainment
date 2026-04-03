@@ -37,6 +37,6 @@ export function getApiUrl(path: string): string {
     return `${VPS_API_BASE}${path}`;
   }
 
-  // Non-admin API paths stay relative (same origin)
-  return path;
+  // Production: all API paths route to VPS (static export has no API routes)
+  return `${VPS_API_BASE}${path}`;
 }

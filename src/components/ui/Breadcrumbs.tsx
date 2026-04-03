@@ -30,7 +30,10 @@ export default function Breadcrumbs() {
         {segments.map((segment, index) => {
           const href = '/' + segments.slice(0, index + 1).join('/');
           const isLast = index === segments.length - 1;
-          const label = routeLabels[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
+          const label = routeLabels[segment] || segment
+            .split('-')
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
 
           return (
             <li key={href} className="flex items-center gap-2">
