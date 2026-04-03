@@ -71,6 +71,11 @@ body {
 ::selection { background: rgba(201,168,76,0.3); color: #FDF8F1; }
 :focus-visible { outline: 2px solid #C9A84C; outline-offset: 2px; }
 
+/* WCAG AAA compliant gold for small text (<18px) — 7.2:1 on #0A0A0A */
+.text-gold-accessible {
+  color: #D4B85E;
+}
+
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0;
@@ -206,4 +211,24 @@ body {
     scroll-behavior: auto !important;
   }
   /* Preserve essential transitions for focus indicators and color changes */
+}
+
+/* Issue 40: Minimum 44x44pt touch targets on touch devices */
+@media (pointer: coarse) {
+  footer a,
+  .btn-utility,
+  button[aria-label] {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Issue 43: Dynamic viewport height for mobile keyboard */
+@supports (height: 100dvh) {
+  .min-h-screen-dynamic {
+    min-height: 100dvh;
+  }
 }

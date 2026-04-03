@@ -75,6 +75,8 @@ const config: Config = {
         '8xl': '88rem',
       },
       borderRadius: {
+        // Design decision: Sharp-edge brand identity uses 0px for cards/buttons, 8px (rounded-lg) for dialogs only.
+        // CookieConsent dialog uses rounded-none to align with sharp-edge brand.
         '4xl': '2rem',
       },
       boxShadow: {

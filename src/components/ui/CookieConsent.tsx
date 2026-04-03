@@ -39,7 +39,7 @@ export default function CookieConsent() {
           role="dialog"
           aria-label="Cookie consent"
         >
-          <div className="bg-[#111111]/95 backdrop-blur-xl border border-[#C9A84C]/15 shadow-[0_8px_32px_rgba(0,0,0,0.4)] rounded-lg overflow-hidden">
+          <div className="bg-[#111111]/95 backdrop-blur-xl border border-[#C9A84C]/15 shadow-[0_8px_32px_rgba(0,0,0,0.4)] rounded-none overflow-hidden">
             <div className="p-4">
               <p className="text-white/60 text-sm font-body leading-relaxed">
                 We use cookies for analytics.{' '}

@@ -17,7 +17,7 @@ const heroSlides = [
     id: 'slide-1',
     badge: 'Welcome to',
     title: 'AB ENTERTAINMENT',
-    subtitle: 'Experience Events Like No Other',
+    subtitle: "Melbourne's Premier Indian & Marathi Performing Arts Experience",
     bg: '/images/hero-bg.jpg',
   },
   {
@@ -35,6 +35,17 @@ const heroSlides = [
     bg: '/images/hero-bg.jpg',
   },
 ];
+
+/**
+ * Hero video background configuration.
+ * When /videos/hero-reel.mp4 exists, it replaces the image slideshow.
+ * Falls back gracefully to image carousel if video fails to load.
+ */
+const HERO_VIDEO = {
+  src: '/videos/hero-reel.mp4',
+  webmSrc: '/videos/hero-reel.webm',
+  poster: '/images/hero-bg.jpg',
+};
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
 const SLIDE_DURATION = 8000;
@@ -315,8 +326,16 @@ export function CinematicHero() {
 
     const handlePreloaderComplete = () => setHeroReady(true);
     window.addEventListener('ab:preloader-complete', handlePreloaderComplete);
-    return () =>
+
+    // Fallback: if preloader event never fires (e.g. video fails to load), start hero after 5 seconds
+    const fallbackTimer = setTimeout(() => {
+      setHeroReady(true);
+    }, 5000);
+
+    return () => {
       window.removeEventListener('ab:preloader-complete', handlePreloaderComplete);
+      clearTimeout(fallbackTimer);
+    };
   }, []);
 
   return (
@@ -334,6 +353,23 @@ export function CinematicHero() {
     >
       {/* Animated Background Images with Ken Burns */}
       <motion.div className="absolute inset-0" style={{ y: parallaxBg, scale: heroScale }}>
+        {/* Video background layer — plays when asset exists, falls back to image slideshow */}
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          poster={HERO_VIDEO.poster}
+          className="absolute inset-0 w-full h-[130%] object-cover"
+          style={{ filter: 'saturate(0.85) contrast(1.1)' }}
+          aria-hidden="true"
+          onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
+        >
+          <source src={HERO_VIDEO.src} type="video/mp4" />
+          <source src={HERO_VIDEO.webmSrc} type="video/webm" />
+        </video>
+
+        {/* Image slideshow fallback — visible when video not available */}
         <AnimatePresence mode="sync">
           <motion.div
             key={heroSlides[currentSlide].bg + currentSlide}

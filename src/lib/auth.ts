@@ -136,6 +136,7 @@ export function createSessionToken(): string {
     jti: randomBytes(16).toString('hex'),
     iat: Date.now(),
     exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+    ver: parseInt(process.env.SESSION_VERSION || '1'),
   });
   const encodedPayload = Buffer.from(payload).toString('base64url');
   const signature = createHmac('sha256', getSessionSecret())
@@ -177,6 +178,7 @@ export function validateSessionToken(token: string): boolean {
     if (payload.user !== getAdminUsername()) return false;
     if (typeof payload.exp !== 'number' || payload.exp < Date.now())
       return false;
+    if (payload.ver !== parseInt(process.env.SESSION_VERSION || '1')) return false;
 
     return true;
   } catch {

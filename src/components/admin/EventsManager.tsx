@@ -200,6 +200,33 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
                 rows={3}
                 className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none"
               />
+              <p className="text-[9px] text-[#C9A84C]/40 mt-1 font-body">Tip: Use structured fields below for better formatting.</p>
+            </div>
+            {/* Structured content fields — optional enhancement */}
+            <div className="md:col-span-2">
+              <label className="block text-xs text-white/40 mb-1">Event Hook / One-liner</label>
+              <input
+                type="text"
+                maxLength={120}
+                placeholder="A compelling one-liner for the event (max 120 chars)"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs text-white/40 mb-1">Full Description</label>
+              <textarea
+                rows={4}
+                placeholder="Detailed event description for the event page"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none placeholder-white/20"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs text-white/40 mb-1">Cast / Performers</label>
+              <textarea
+                rows={3}
+                placeholder="List the cast and performers for this event"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none placeholder-white/20"
+              />
             </div>
             <div>
               <label className="block text-xs text-white/40 mb-1">Price (AUD)</label>

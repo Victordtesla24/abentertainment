@@ -9,15 +9,20 @@ import { NAVIGATION } from '@/lib/constants';
 import SearchModal from '@/components/SearchModal';
 
 const mobileMenuVariants = {
-  hidden: { opacity: 0, height: 0 },
+  hidden: { x: '100%' },
   visible: {
-    opacity: 1, height: 'auto' as const,
+    x: 0,
     transition: { duration: 0.4, ease: [0.25, 1, 0.5, 1] as [number, number, number, number], staggerChildren: 0.05, delayChildren: 0.1 },
   },
-  exit: { opacity: 0, height: 0, transition: { duration: 0.25, ease: [0.25, 1, 0.5, 1] as [number, number, number, number] } },
+  exit: { x: '100%', transition: { duration: 0.3, ease: [0.25, 1, 0.5, 1] as [number, number, number, number] } },
+};
+const backdropVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.3 } },
+  exit: { opacity: 0, transition: { duration: 0.25 } },
 };
 const mobileItemVariants = {
-  hidden: { opacity: 0, x: -16 },
+  hidden: { opacity: 0, x: 16 },
   visible: { opacity: 1, x: 0, transition: { duration: 0.35, ease: [0.25, 1, 0.5, 1] as [number, number, number, number] } },
 };
 
@@ -112,18 +117,38 @@ export function Navigation() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
               </svg>
             </button>
-          <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-[#C9A84C] focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2" aria-label="Toggle menu" aria-expanded={isOpen}>
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d={isOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'} />
-            </svg>
-          </button>
+            <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-[#C9A84C] focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2" aria-label="Toggle menu" aria-expanded={isOpen}>
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d={isOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'} />
+              </svg>
+            </button>
           </div>
         </div>
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div variants={mobileMenuVariants} initial="hidden" animate="visible" exit="exit" className="border-t border-[#C9A84C]/8 overflow-hidden">
-              <div className="px-4 py-6 space-y-1">
+      </nav>
+
+      {/* MOBILE DRAWER + BACKDROP */}
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            {/* Semi-transparent backdrop */}
+            <motion.div
+              variants={backdropVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="md:hidden fixed inset-0 z-[55] bg-black/50"
+              onClick={() => setIsOpen(false)}
+            />
+            {/* Sliding drawer from right */}
+            <motion.div
+              variants={mobileMenuVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="md:hidden fixed top-0 right-0 bottom-0 z-[60] w-72 bg-black/95 backdrop-blur-2xl border-l border-[#C9A84C]/8 overflow-y-auto"
+            >
+              <div className="px-4 py-6 space-y-1 mt-16">
                 {NAVIGATION.map((link) => (
                   <motion.div key={link.href} variants={mobileItemVariants}>
                     <Link href={link.href}
@@ -141,9 +166,9 @@ export function Navigation() {
                 </motion.div>
               </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </nav>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Search Modal */}
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />

@@ -1,7 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { ReactNode } from 'react';
+import { ReactNode, useState, useCallback } from 'react';
+import { LazyMotion, domAnimation } from 'framer-motion';
 
 // Dynamic imports for heavy client components — saves ~680KB from initial bundle
 const ThreeCanvas = dynamic(() => import('@/components/ui/ThreeCanvas'), {
@@ -16,14 +17,20 @@ const BackToTop = dynamic(() => import('@/components/ui/BackToTop'), { ssr: fals
 const CookieConsent = dynamic(() => import('@/components/ui/CookieConsent'), { ssr: false });
 
 export default function ClientProviders({ children }: { children: ReactNode }) {
+  const [, setPreloaderDone] = useState(false);
+  const handlePreloaderComplete = useCallback(() => {
+    setPreloaderDone(true);
+  }, []);
+
   return (
-    <>
-      <Preloader />
+    <LazyMotion features={domAnimation}>
+      <Preloader onComplete={handlePreloaderComplete} />
       <ThreeCanvas />
       {children}
       <ChatWidget />
       <BackToTop />
       <CookieConsent />
-    </>
+      {/* preloaderDone state tracks when curtain animation finishes; available for future context integration */}
+    </LazyMotion>
   );
 }

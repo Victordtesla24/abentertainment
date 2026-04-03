@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     if (!(await validateCredentials(username, password))) {
       recordFailedAttempt(ip, username ?? '');
       return NextResponse.json(
-        { error: 'Invalid username or password' },
+        { error: 'Authentication failed' },
         { status: 401 }
       );
     }

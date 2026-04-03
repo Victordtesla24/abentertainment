@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useMemo, useCallback, useEffect } from 'react';
+import { Suspense, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -171,11 +171,36 @@ function FilterBar({
 function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }) {
   const badge = getStatusBadge(event);
   const useNextImage = event.image.startsWith('/');
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [tiltStyle, setTiltStyle] = useState<string>('');
+  const prefersReducedMotion = useRef(
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (prefersReducedMotion.current || !cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = (e.clientX - cx) / (rect.width / 2);
+    const dy = (e.clientY - cy) / (rect.height / 2);
+    const rotX = (-dy * 4).toFixed(2);
+    const rotY = (dx * 4).toFixed(2);
+    setTiltStyle(`perspective(800px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateY(-4px)`);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setTiltStyle('');
+  }, []);
 
   return (
     <Link href={`/events/${event.slug}`}>
       <div
-        className={`group relative overflow-hidden bg-[#111111]/50 border border-[#C9A84C]/10 transition-all duration-500 transform-gpu [transform-style:preserve-3d] hover:border-[#C9A84C]/40 hover:shadow-[0_20px_45px_rgba(204,138,28,0.22)] hover:[transform:perspective(1200px)_rotateX(2deg)_rotateY(-3deg)_translateY(-4px)] ${
+        ref={cardRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        style={tiltStyle ? { transform: tiltStyle } : undefined}
+        className={`group relative overflow-hidden bg-[#111111]/50 border border-[#C9A84C]/10 transition-all duration-300 transform-gpu [transform-style:preserve-3d] hover:border-[#C9A84C]/40 hover:shadow-[0_20px_45px_rgba(204,138,28,0.22)] ${
           isPast ? 'opacity-75 hover:opacity-100' : ''
         }`}
       >

@@ -1,5 +1,10 @@
 'use client';
 
+// Tiny inline SVG blur data URL — pre-encoded as static base64 for client-side use
+// SVG: 8x8 dark placeholder with Gaussian blur, no Buffer dependency
+const BLUR_SVG_DATA_URL =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxmaWx0ZXIgaWQ9ImIiIHg9IjAiIHk9IjAiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjMiLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMTExMTExIiBmaWx0ZXI9InVybCgjYikiLz48L3N2Zz4=';
+
 interface OptimizedImageProps {
   src: string;
   alt: string;
@@ -8,6 +13,7 @@ interface OptimizedImageProps {
   sizes?: string;
   priority?: boolean;
   className?: string;
+  blurPlaceholder?: boolean;
 }
 
 /**
@@ -28,6 +34,7 @@ export default function OptimizedImage({
   sizes = '100vw',
   priority = false,
   className,
+  blurPlaceholder = false,
 }: OptimizedImageProps) {
   const extMatch = src.match(/\.[^.]+$/);
   const ext = extMatch ? extMatch[0] : '.jpg';
@@ -59,6 +66,11 @@ export default function OptimizedImage({
         fetchPriority={priority ? 'high' : 'auto'}
         decoding={priority ? 'sync' : 'async'}
         className={className}
+        style={blurPlaceholder && !priority ? {
+          backgroundImage: `url(${BLUR_SVG_DATA_URL})`,
+          backgroundSize: 'cover',
+          backgroundRepeat: 'no-repeat',
+        } : undefined}
       />
     </picture>
   );

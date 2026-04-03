@@ -6,6 +6,20 @@ import { getApiUrl } from '@/lib/api-config';
 import { TelemetryGaugeGrid } from './telemetry/TelemetryGaugeGrid';
 import useSWR from 'swr';
 
+// ─── SWR Fetcher ─────────────────────────────────────────────────────────────
+
+const fetcher = (url: string): Promise<HealthData> =>
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'health' }),
+  }).then(async (res) => {
+    if (!res.ok) throw new Error(`Health fetch failed with status ${res.status}`);
+    const data = (await res.json()) as HealthData;
+    if (data.type !== 'health') throw new Error('Invalid health payload');
+    return data;
+  });
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface ServerHealth {
@@ -282,41 +296,25 @@ export default function HealthDashboard() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchHealth = useCallback(async (): Promise<HealthData> => {
-    abortControllerRef.current = new AbortController();
-    const res = await fetch(getApiUrl('/api/admin/chat'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'health' }),
-      signal: abortControllerRef.current.signal,
-    });
-    if (!res.ok) {
-      throw new Error(`Health fetch failed with status ${res.status}`);
-    }
-    const data = (await res.json()) as HealthData;
-    if (data.type !== 'health') {
-      throw new Error('Invalid health payload');
-    }
-    return data;
-  }, []);
-
   const {
     data: swrHealthData,
     error: swrHealthError,
     isLoading: swrLoading,
     mutate,
-  } = useSWR(getApiUrl('/api/admin/chat'), fetchHealth, {
-    refreshInterval: autoRefresh ? 30000 : 0,
+  } = useSWR(getApiUrl('/api/admin/chat'), fetcher, {
+    refreshInterval: 30000,
     revalidateOnFocus: true,
+    revalidateOnReconnect: true,
   });
 
   const checkPages = useCallback(async () => {
     const results: PageCheck[] = [];
-    abortControllerRef.current = new AbortController();
+    const pageAbortController = new AbortController();
+    abortControllerRef.current = pageAbortController;
     for (const page of PAGES) {
       const start = performance.now();
       try {
-        const res = await fetch(page.path, { method: 'HEAD', cache: 'no-store', signal: abortControllerRef.current.signal });
+        const res = await fetch(page.path, { method: 'HEAD', cache: 'no-store', signal: pageAbortController.signal });
         results.push({ ...page, status: res.ok ? 'pass' : 'fail', responseTime: Math.round(performance.now() - start), statusCode: res.status });
       } catch (error) {
         if (error instanceof Error && error.name !== 'AbortError') {
@@ -455,8 +453,30 @@ export default function HealthDashboard() {
   const avgResponse = pages.filter(p => p.status === 'pass' && p.responseTime > 0).reduce((s, p) => s + p.responseTime, 0) / Math.max(passedPages, 1);
   const criticalCount = issues.filter(i => i.severity === 'critical').length;
 
+  const exportPdf = async () => {
+    const { default: html2canvas } = await import('html2canvas');
+    const { default: jsPDF } = await import('jspdf');
+    const element = document.getElementById('health-dashboard-content');
+    if (!element) return;
+    const canvas = await html2canvas(element, { backgroundColor: '#0A0A0A', scale: 2 });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    pdf.setFillColor(10, 10, 10);
+    pdf.rect(0, 0, pdfWidth, pdfHeight + 20, 'F');
+    pdf.setTextColor(201, 168, 76);
+    pdf.setFontSize(16);
+    pdf.text('AB Entertainment — System Health Report', 14, 15);
+    pdf.setFontSize(8);
+    pdf.setTextColor(255, 255, 255);
+    pdf.text(new Date().toLocaleString(), 14, 21);
+    pdf.addImage(imgData, 'PNG', 0, 25, pdfWidth, pdfHeight);
+    pdf.save(`health-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   return (
-    <div className="space-y-6">
+    <div id="health-dashboard-content" className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -494,6 +514,10 @@ export default function HealthDashboard() {
           <button onClick={refreshAll} disabled={loading}
             className="text-[10px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors disabled:opacity-40">
             {loading ? 'Scanning...' : 'Refresh'}
+          </button>
+          <button onClick={exportPdf}
+            className="text-[10px] font-body px-3 py-1.5 bg-white/5 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/70 transition-colors">
+            Export PDF
           </button>
         </div>
       </div>
@@ -658,7 +682,7 @@ export default function HealthDashboard() {
                   </button>
                   <AnimatePresence>
                     {isOpen && (
-                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-white/5">
+                      <motion.div layout initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ layout: { type: 'spring', stiffness: 300, damping: 30 } }} className="border-t border-white/5">
                         <div className="px-4 py-3 space-y-2">
                           <p className="text-[11px] font-body text-white/50">{issue.description}</p>
                           <div className="bg-[#111111] border border-white/5 p-2">

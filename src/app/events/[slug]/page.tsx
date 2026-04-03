@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getEvents, getEventBySlug } from '@/lib/data';
 import PageHero from '@/components/ui/PageHero';
+import CountdownTimer from '@/components/ui/CountdownTimer';
 
 export const dynamic = 'force-static';
 
@@ -267,6 +268,11 @@ export default async function EventDetailPage({ params }: PageProps) {
                       {event.capacity.toLocaleString()} seats
                     </p>
                   </div>
+                )}
+
+                {/* Countdown Timer — only for upcoming events */}
+                {!isPast && (
+                  <CountdownTimer targetDate={event.date} />
                 )}
               </div>
 

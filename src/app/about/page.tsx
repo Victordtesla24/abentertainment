@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import Image from 'next/image';
 import { ABOUT_CONTENT, SITE_CONFIG, FOUR_PILLARS, TEAM_MEMBERS } from '@/lib/constants';
 import PageHero from '@/components/ui/PageHero';
 
@@ -28,13 +29,10 @@ export default function AboutPage() {
         subtitle="Where every detail is meticulously crafted to create unforgettable experiences"
       />
 
-      {/* Legacy content below hero - keeping existing sections */}
+      {/* Tagline subheading below hero */}
       <section className="relative py-20 md:py-28">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(201,168,76,0.05)_0%,transparent_60%)]" />
         <div className="container-eu relative z-10">
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white mb-6">
-            {ABOUT_CONTENT.title}
-          </h2>
           <p className="text-white/40 font-body text-lg max-w-2xl mx-auto leading-relaxed">
             {ABOUT_CONTENT.tagline}
           </p>
@@ -72,10 +70,12 @@ export default function AboutPage() {
                 className="bg-white/[0.02] border border-[#C9A84C]/10 overflow-hidden group hover:border-[#C9A84C]/25 transition-all duration-500"
               >
                 <div className="relative h-80 overflow-hidden bg-[#111]">
-                  <img
+                  <Image
                     src={member.image}
                     alt={member.name}
-                    className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    className="object-cover object-top transition-transform duration-700 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent opacity-80" />
                 </div>

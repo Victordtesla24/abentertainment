@@ -152,7 +152,7 @@ export default function ChatWidget() {
       {/* Floating toggle button */}
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-[900] w-14 h-14 flex items-center justify-center bg-gradient-to-br from-[#C9A84C] to-[#D4B65C] text-black shadow-[0_4px_20px_rgba(201,168,76,0.4)] hover:shadow-[0_6px_30px_rgba(201,168,76,0.6)] transition-shadow duration-300"
+        className="fixed bottom-20 right-6 md:bottom-6 z-[900] w-14 h-14 flex items-center justify-center bg-gradient-to-br from-[#C9A84C] to-[#D4B65C] text-black shadow-[0_4px_20px_rgba(201,168,76,0.4)] hover:shadow-[0_6px_30px_rgba(201,168,76,0.6)] transition-shadow duration-300"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         aria-label={isOpen ? 'Close chat' : 'Open chat'}

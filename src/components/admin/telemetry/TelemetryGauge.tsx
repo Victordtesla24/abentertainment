@@ -15,10 +15,11 @@ interface TelemetryGaugeProps {
   unit?: string;
   thresholds: { green: number; amber: number };
   inverted?: boolean;
+  tooltip?: string;
 }
 
 function TelemetryGaugeInner({
-  value, max, label, sublabel, unit, thresholds, inverted = false,
+  value, max, label, sublabel, unit, thresholds, inverted = false, tooltip,
 }: TelemetryGaugeProps) {
   const pct = Math.min(value / max, 1);
   const radius = 40;
@@ -61,7 +62,18 @@ function TelemetryGaugeInner({
           / {max}{unit || ''}
         </text>
       </svg>
-      <p className="text-[10px] font-body font-semibold text-white mt-1 text-center">{label}</p>
+      <div className="flex items-center justify-center gap-1 mt-1">
+        <p className="text-[10px] font-body font-semibold text-white text-center">{label}</p>
+        {tooltip && (
+          <span
+            className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-white/10 text-white/40 text-[8px] cursor-help hover:bg-white/20 hover:text-white/70 transition-colors flex-shrink-0"
+            title={tooltip}
+            aria-label={tooltip}
+          >
+            i
+          </span>
+        )}
+      </div>
       {sublabel && <p className="text-[9px] font-body text-white/30 text-center">{sublabel}</p>}
     </div>
   );

@@ -10,7 +10,7 @@
 
 export const SITE_CONFIG = {
   name: 'AB Entertainment',
-  tagline: 'Experience Events Like No Other',
+  tagline: "Melbourne's Premier Indian & Marathi Performing Arts Experience",
   description: '6+ Events, 25+ Team, 25,000+ Audience Reach — Digital footprint across Australia and New Zealand',
   url: process.env.NEXT_PUBLIC_SITE_URL || 'https://abentertainment.com.au',
   contact: {

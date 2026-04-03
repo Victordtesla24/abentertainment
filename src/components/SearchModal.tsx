@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import Fuse, { type IFuseOptions, type FuseResult } from 'fuse.js';
+import FocusTrap from 'focus-trap-react';
 import eventsData from '../../data/events.json';
 
 interface SearchableEvent {
@@ -155,6 +156,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
+        <FocusTrap active={isOpen}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -317,6 +319,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             )}
           </motion.div>
         </motion.div>
+        </FocusTrap>
       )}
     </AnimatePresence>
   );

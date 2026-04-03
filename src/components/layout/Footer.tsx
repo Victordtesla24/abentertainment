@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useState, FormEvent } from 'react';
 import { usePathname } from 'next/navigation';
 import { SITE_CONFIG, NAVIGATION } from '@/lib/constants';
+import SponsorBanner from '@/components/ui/SponsorBanner';
 
 export default function Footer() {
   const pathname = usePathname();
@@ -102,6 +103,9 @@ export default function Footer() {
           </div>
         </div>
       </div>
+
+      {/* Sponsor Banner */}
+      <SponsorBanner />
 
       {/* Main footer grid */}
       <div className="container-eu py-18">

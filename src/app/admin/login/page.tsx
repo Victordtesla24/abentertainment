@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { getApiUrl } from '@/lib/api-config';
@@ -11,6 +11,20 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rateLimited, setRateLimited] = useState(false);
+  const [retryAfter, setRetryAfter] = useState(0);
+
+  useEffect(() => {
+    if (!rateLimited) return;
+    if (retryAfter <= 0) {
+      setRateLimited(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setRetryAfter((prev) => prev - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [rateLimited, retryAfter]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -27,6 +41,12 @@ export default function AdminLoginPage() {
 
       if (res.ok) {
         router.push('/admin');
+      } else if (res.status === 429) {
+        const retryAfterHeader = res.headers.get('Retry-After');
+        const seconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 60;
+        setRetryAfter(seconds);
+        setRateLimited(true);
+        setError('');
       } else {
         const data = await res.json();
         setError(data.error || 'Invalid credentials');
@@ -100,7 +120,13 @@ export default function AdminLoginPage() {
               />
             </div>
 
-            {error && (
+            {rateLimited && (
+              <div className="text-yellow-400 text-sm bg-yellow-400/10 px-4 py-3 border border-yellow-400/20 font-body">
+                Too many attempts. Try again in {retryAfter} seconds.
+              </div>
+            )}
+
+            {!rateLimited && error && (
               <div className="text-red-400 text-sm bg-red-400/10 px-4 py-3 border border-red-400/20 font-body">
                 {error}
               </div>
@@ -108,7 +134,7 @@ export default function AdminLoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || rateLimited}
               className="w-full py-3.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black font-body font-bold text-sm uppercase tracking-[0.12em] hover:shadow-[0_0_25px_rgba(201,168,76,0.35)] transition-all duration-400 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Signing in...' : 'Sign In'}

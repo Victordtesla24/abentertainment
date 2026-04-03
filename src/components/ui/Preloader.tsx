@@ -135,7 +135,11 @@ function CurtainScene({ open }: { open: boolean }) {
   );
 }
 
-export default function Preloader() {
+interface PreloaderProps {
+  onComplete?: () => void;
+}
+
+export default function Preloader({ onComplete }: PreloaderProps = {}) {
   const [dismissed, setDismissed] = useState(false);
   const [curtainsOpen, setCurtainsOpen] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -157,6 +161,7 @@ export default function Preloader() {
       document.documentElement.classList.add('preloader-done');
       document.body.style.overflow = '';
       window.dispatchEvent(new CustomEvent('ab:preloader-complete'));
+      onComplete?.();
       setDismissed(true);
     }, 900);
   }, []);

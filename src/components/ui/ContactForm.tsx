@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { getApiUrl } from '@/lib/api-config';
 
@@ -8,21 +11,42 @@ type FormStatus = 'idle' | 'submitting' | 'success' | 'error';
 
 const CINEMATIC_EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
 
+const contactSchema = z.object({
+  name: z.string().min(2, 'Please enter your full name (at least 2 characters)'),
+  email: z.string().email('Please enter a valid email address'),
+  phone: z.string().optional(),
+  subject: z.string().min(1, 'Please select a topic'),
+  message: z.string().min(10, 'Message must be at least 10 characters'),
+  // Honeypot fields — hidden from real users, filled by bots
+  company: z.string().optional(),
+  website: z.string().optional(),
+});
+
+type ContactFormData = z.infer<typeof contactSchema>;
+
 export default function ContactForm() {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    subject: '',
-    message: '',
-    company: '',
-    website: '',
-  });
   const [status, setStatus] = useState<FormStatus>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<ContactFormData>({
+    resolver: zodResolver(contactSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      phone: '',
+      subject: '',
+      message: '',
+      company: '',
+      website: '',
+    },
+  });
+
+  const onSubmit = async (formData: ContactFormData) => {
     setStatus('submitting');
     setErrorMessage('');
 
@@ -44,7 +68,7 @@ export default function ContactForm() {
       }
 
       setStatus('success');
-      setFormData({ name: '', email: '', phone: '', subject: '', message: '', company: '', website: '' });
+      reset();
     } catch {
       setErrorMessage('An unexpected error occurred. Please try again later.');
       setStatus('error');
@@ -90,32 +114,24 @@ export default function ContactForm() {
           </button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Honeypot fields — hidden from real users, filled by bots */}
           <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
             <label htmlFor="contact-company">Company</label>
             <input
               id="contact-company"
               type="text"
-              name="company"
               tabIndex={-1}
               autoComplete="off"
-              value={formData.company}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, company: e.target.value }))
-              }
+              {...register('company')}
             />
             <label htmlFor="contact-website">Website</label>
             <input
               id="contact-website"
               type="text"
-              name="website"
               tabIndex={-1}
               autoComplete="off"
-              value={formData.website}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, website: e.target.value }))
-              }
+              {...register('website')}
             />
           </div>
 
@@ -130,18 +146,14 @@ export default function ContactForm() {
               <input
                 id="contact-name"
                 type="text"
-                required
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    name: e.target.value,
-                  }))
-                }
+                {...register('name')}
                 disabled={status === 'submitting'}
-                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
+                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:shadow-[inset_0_0_0_1px_rgba(201,168,76,0.15)] transition-all duration-300 disabled:opacity-50"
                 placeholder="Your name"
               />
+              {errors.name && (
+                <p className="mt-1.5 text-xs text-red-400 font-body">{errors.name.message}</p>
+              )}
             </div>
             <div>
               <label
@@ -153,18 +165,14 @@ export default function ContactForm() {
               <input
                 id="contact-email"
                 type="email"
-                required
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    email: e.target.value,
-                  }))
-                }
+                {...register('email')}
                 disabled={status === 'submitting'}
-                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
+                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:shadow-[inset_0_0_0_1px_rgba(201,168,76,0.15)] transition-all duration-300 disabled:opacity-50"
                 placeholder="your@email.com"
               />
+              {errors.email && (
+                <p className="mt-1.5 text-xs text-red-400 font-body">{errors.email.message}</p>
+              )}
             </div>
           </div>
 
@@ -179,17 +187,14 @@ export default function ContactForm() {
               <input
                 id="contact-phone"
                 type="tel"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    phone: e.target.value,
-                  }))
-                }
+                {...register('phone')}
                 disabled={status === 'submitting'}
-                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
+                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:shadow-[inset_0_0_0_1px_rgba(201,168,76,0.15)] transition-all duration-300 disabled:opacity-50"
                 placeholder="Your phone number"
               />
+              {errors.phone && (
+                <p className="mt-1.5 text-xs text-red-400 font-body">{errors.phone.message}</p>
+              )}
             </div>
             <div>
               <label
@@ -200,15 +205,9 @@ export default function ContactForm() {
               </label>
               <select
                 id="contact-subject"
-                value={formData.subject}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    subject: e.target.value,
-                  }))
-                }
+                {...register('subject')}
                 disabled={status === 'submitting'}
-                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body focus:outline-none focus:border-[#C9A84C] transition-all duration-300 disabled:opacity-50"
+                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body focus:outline-none focus:border-[#C9A84C] focus:shadow-[inset_0_0_0_1px_rgba(201,168,76,0.15)] transition-all duration-300 disabled:opacity-50"
               >
                 <option value="">Select a topic</option>
                 <option value="event-inquiry">Event Inquiry</option>
@@ -217,6 +216,9 @@ export default function ContactForm() {
                 <option value="press">Press &amp; Media</option>
                 <option value="other">Other</option>
               </select>
+              {errors.subject && (
+                <p className="mt-1.5 text-xs text-red-400 font-body">{errors.subject.message}</p>
+              )}
             </div>
           </div>
 
@@ -229,19 +231,15 @@ export default function ContactForm() {
             </label>
             <textarea
               id="contact-message"
-              required
               rows={6}
-              value={formData.message}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  message: e.target.value,
-                }))
-              }
+              {...register('message')}
               disabled={status === 'submitting'}
-              className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] transition-all duration-300 resize-vertical disabled:opacity-50"
+              className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:shadow-[inset_0_0_0_1px_rgba(201,168,76,0.15)] transition-all duration-300 resize-vertical disabled:opacity-50"
               placeholder="Tell us about your inquiry..."
             />
+            {errors.message && (
+              <p className="mt-1.5 text-xs text-red-400 font-body">{errors.message.message}</p>
+            )}
           </div>
 
           {status === 'error' && (

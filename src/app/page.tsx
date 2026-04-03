@@ -6,6 +6,7 @@ import { VisionSection } from '@/components/VisionSection';
 import { TestimonialsSection } from '@/components/TestimonialsSection';
 import CTASection from '@/components/CTASection';
 import ScrollNarrative from '@/components/ScrollNarrative';
+import VideoHighlights from '@/components/VideoHighlights';
 import { ScrollReveal, StageLightingOverlay } from '@/components/ui/ScrollReveal';
 import { getEvents } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
@@ -32,13 +33,15 @@ export default async function Home() {
       <StageLightingOverlay />
 
       <CinematicHero />
-      <IntroSection />
-      <ScrollNarrative />
 
       {/* Dramatic section entrance — VisionSection emerges from darkness */}
       <ScrollReveal variant="dramatic" duration={1.3}>
         <VisionSection />
       </ScrollReveal>
+
+      <IntroSection />
+      <VideoHighlights />
+      <ScrollNarrative />
 
       {/* Dramatic section entrance — EventsShowcase rises with stage-light effect */}
       <ScrollReveal variant="dramatic" duration={1.5} delay={0.05}>

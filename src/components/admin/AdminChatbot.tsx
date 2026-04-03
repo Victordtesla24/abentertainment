@@ -1,7 +1,7 @@
 'use client';
 import { getApiUrl } from '@/lib/api-config';
 
-import { useState, useRef, useEffect, FormEvent } from 'react';
+import { useState, useRef, useEffect, useMemo, FormEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -131,6 +131,11 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
 
   const suggestedPrompts = SUGGESTED_PROMPTS[activeTab] || SUGGESTED_PROMPTS.default;
 
+  const tokenEstimate = useMemo(() =>
+    messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0),
+    [messages]
+  );
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -189,8 +194,42 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
 
       const contentType = res.headers.get('content-type') || '';
 
-      if (!res.ok || contentType.includes('text/html')) {
+      if (contentType.includes('text/html')) {
         throw new Error('API not available');
+      }
+
+      if (res.status === 429) {
+        const retryAfter = res.headers.get('Retry-After');
+        const waitSec = retryAfter ? parseInt(retryAfter) : 60;
+        const assistantId = `error-ratelimit-${Date.now()}`;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: assistantId,
+            role: 'assistant',
+            content: `⏱ **Rate limit reached.** Too many requests — please wait ${waitSec} seconds before trying again.`,
+          },
+        ]);
+        setLoading(false);
+        return;
+      }
+
+      if (res.status >= 500) {
+        const assistantId = `error-server-${Date.now()}`;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: assistantId,
+            role: 'assistant',
+            content: `🔧 **AI service temporarily unavailable.** The server returned a ${res.status} error. Please try again in a moment.`,
+          },
+        ]);
+        setLoading(false);
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
       }
 
       // Agent returns JSON with { response, productionApproved }
@@ -255,7 +294,7 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
             id: `error-${Date.now()}`,
             role: 'assistant',
             content:
-              'Sorry, I encountered an error. Please ensure the OpenAI API key is configured in .env and try again.',
+              '📡 **Network connection lost.** Unable to reach the AI service. Please check your internet connection and try again.',
           },
         ]);
       }
@@ -369,6 +408,9 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
               </button>
             )}
           </form>
+          <p className="text-white/30 text-xs font-body mt-2 text-right">
+            {tokenEstimate.toLocaleString()} / 128K tokens estimated
+          </p>
         </div>
       </div>
     </div>

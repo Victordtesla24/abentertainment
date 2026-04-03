@@ -9,13 +9,15 @@ interface Testimonial {
   role: string;
   quote: string;
   rating: number;
+  image: string;
+  event: string;
 }
 
 const TESTIMONIALS: Testimonial[] = [
-  { id: 'test-1', name: 'Priya Sharma', role: 'Event Attendee', quote: 'AB Entertainment transformed my understanding of Marathi theatre. The production quality rivals anything I\'ve seen in Mumbai. Absolutely world-class.', rating: 5 },
-  { id: 'test-2', name: 'Rajesh Kulkarni', role: 'Community Leader', quote: 'They don\'t just organize events -- they create cultural experiences. Every detail from lighting to sound is meticulously crafted. A gem for Melbourne\'s Indian community.', rating: 5 },
-  { id: 'test-3', name: 'Sneha Deshmukh', role: 'Regular Patron', quote: 'I\'ve attended every AB Entertainment show for the past three years. The consistency of quality and the passion behind every performance is truly inspiring.', rating: 5 },
-  { id: 'test-4', name: 'Michael Thompson', role: 'Arts Critic, The Age', quote: 'AB Entertainment is doing something remarkable -- bringing authentic Indian cultural performances to Melbourne with production values that rival our best theatre companies.', rating: 5 },
+  { id: 'test-1', name: 'Priya Sharma', role: 'Event Attendee', quote: 'AB Entertainment transformed my understanding of Marathi theatre. The production quality rivals anything I\'ve seen in Mumbai. Absolutely world-class.', rating: 5, image: '/images/testimonials/avatar-1.png', event: 'Punha Sahi re Sahi' },
+  { id: 'test-2', name: 'Rajesh Kulkarni', role: 'Community Leader', quote: 'They don\'t just organize events -- they create cultural experiences. Every detail from lighting to sound is meticulously crafted. A gem for Melbourne\'s Indian community.', rating: 5, image: '/images/testimonials/avatar-2.png', event: 'Shyamachi Aai' },
+  { id: 'test-3', name: 'Sneha Deshmukh', role: 'Regular Patron', quote: 'I\'ve attended every AB Entertainment show for the past three years. The consistency of quality and the passion behind every performance is truly inspiring.', rating: 5, image: '/images/testimonials/avatar-3.png', event: 'Sankarshan via Spruha' },
+  { id: 'test-4', name: 'Michael Thompson', role: 'Arts Critic, The Age', quote: 'AB Entertainment is doing something remarkable -- bringing authentic Indian cultural performances to Melbourne with production values that rival our best theatre companies.', rating: 5, image: '/images/testimonials/avatar-4.png', event: 'Arya Ambekar Live in Concert' },
 ];
 
 function StarRating({ rating }: { rating: number }) {
@@ -27,6 +29,28 @@ function StarRating({ rating }: { rating: number }) {
         </svg>
       ))}
     </div>
+  );
+}
+
+function AvatarImage({ src, name }: { src: string; name: string }) {
+  const [imgError, setImgError] = useState(false);
+  const initials = name.split(' ').map((n) => n[0]).join('');
+
+  if (imgError) {
+    return (
+      <div className="w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-[#C9A84C]/15 to-[#C9A84C]/5 border border-[#C9A84C]/20">
+        <span className="text-[#C9A84C] font-display font-bold text-sm">{initials}</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={name}
+      onError={() => setImgError(true)}
+      className="w-12 h-12 rounded-full object-cover border border-[#C9A84C]/20"
+    />
   );
 }
 
@@ -76,7 +100,7 @@ export function TestimonialsSection() {
 
         {/* Testimonials carousel */}
         <div className="relative max-w-3xl mx-auto" onMouseEnter={() => setIsPaused(true)} onMouseLeave={() => setIsPaused(false)}>
-          <div className="relative h-80 md:h-64 flex items-center">
+          <div className="relative h-96 md:h-72 flex items-center">
             <AnimatePresence initial={false} custom={direction} mode="wait">
               <motion.div
                 key={currentIndex}
@@ -94,18 +118,18 @@ export function TestimonialsSection() {
                   {/* Stars */}
                   <div className="mb-5 relative z-10"><StarRating rating={current.rating} /></div>
                   {/* Quote */}
-                  <p className="text-white/65 text-lg md:text-xl font-body leading-relaxed mb-8 relative z-10 italic">
+                  <p className="text-white/65 text-lg md:text-xl font-body leading-relaxed mb-4 relative z-10 italic">
                     {current.quote}
+                  </p>
+                  {/* Event reference */}
+                  <p className="text-[#C9A84C]/50 text-xs font-body italic mb-6 relative z-10">
+                    — {current.event}
                   </p>
                   {/* Divider */}
                   <div className="w-12 h-[1px] bg-[#C9A84C]/20 mb-6" />
                   {/* Author */}
                   <div className="flex items-center gap-4 relative z-10">
-                    <div className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-[#C9A84C]/15 to-[#C9A84C]/5 border border-[#C9A84C]/20">
-                      <span className="text-[#C9A84C] font-display font-bold text-sm">
-                        {current.name.split(' ').map((n) => n[0]).join('')}
-                      </span>
-                    </div>
+                    <AvatarImage src={current.image} name={current.name} />
                     <div>
                       <p className="text-white font-semibold font-body text-sm">{current.name}</p>
                       <p className="text-[#C9A84C]/50 text-xs font-body tracking-wide">{current.role}</p>

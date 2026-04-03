@@ -45,10 +45,18 @@ export class ThreeEngine {
   private spotLightTargetObject: THREE.Object3D | null = null;
   private pointerTarget = new THREE.Vector2(0, 0);
   private pointerCurrent = new THREE.Vector2(0, 0);
+  private pointerDelta = new THREE.Vector2(0, 0);
+  private pointerPrev = new THREE.Vector2(0, 0);
+  private reducedMotion = false;
+  private boundPointerMoveHandler: ((e: PointerEvent) => void) | null = null;
 
   private constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
+    // Check prefers-reduced-motion
+    if (typeof window !== 'undefined') {
+      this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
 
     // Core Game of Thrones aesthetic colors (slate/obsidian dark base)
     this.scene.background = new THREE.Color(0x0a0a0c);
@@ -88,6 +96,7 @@ export class ThreeEngine {
         // Attach context loss/restore and visibility listeners
         ThreeEngine.instance.attachContextHandlers();
         ThreeEngine.instance.attachVisibilityHandler();
+        ThreeEngine.instance.attachPointerMoveHandler();
       }
     } else {
       ThreeEngine.instance.bindCanvas(canvas);
@@ -298,6 +307,32 @@ export class ThreeEngine {
     this.pointerTarget.set(x, y);
   }
 
+  /**
+   * Create an InstancedMesh particle system for performant rendering of many identical objects.
+   * Particles are NOT created as individual Mesh objects; they share a single geometry/material.
+   * Existing particle content uses THREE.Points with BufferGeometry (already optimal for point clouds).
+   * This method is available for future use when mesh-based particles are needed.
+   */
+  public createInstancedParticles(
+    count: number,
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material,
+    positionFn: (index: number) => THREE.Vector3
+  ): THREE.InstancedMesh {
+    const instancedMesh = new THREE.InstancedMesh(geometry, material, count);
+    instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < count; i++) {
+      const pos = positionFn(i);
+      dummy.position.copy(pos);
+      dummy.updateMatrix();
+      instancedMesh.setMatrixAt(i, dummy.matrix);
+    }
+    instancedMesh.instanceMatrix.needsUpdate = true;
+    this.scene.add(instancedMesh);
+    return instancedMesh;
+  }
+
   private onWindowResize() {
     if (!this.camera || !this.renderer) return;
     this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -306,6 +341,19 @@ export class ThreeEngine {
     if (this.postProcessing) {
       this.postProcessing.resize(window.innerWidth, window.innerHeight);
     }
+  }
+
+  /** Attach pointermove listener on canvas for interactive particle forces */
+  private attachPointerMoveHandler() {
+    if (this.reducedMotion) return;
+    this.boundPointerMoveHandler = (e: PointerEvent) => {
+      const nx = (e.clientX / window.innerWidth) * 2 - 1;
+      const ny = -(e.clientY / window.innerHeight) * 2 + 1;
+      this.pointerDelta.set(nx - this.pointerPrev.x, ny - this.pointerPrev.y);
+      this.pointerPrev.set(nx, ny);
+      this.pointerTarget.set(nx, ny);
+    };
+    this.canvas.addEventListener('pointermove', this.boundPointerMoveHandler, { passive: true });
   }
 
   /** Remove all event listeners — call from component cleanup to prevent memory leaks */
@@ -325,6 +373,10 @@ export class ThreeEngine {
     if (this.boundVisibilityChangeHandler) {
       document.removeEventListener('visibilitychange', this.boundVisibilityChangeHandler);
       this.boundVisibilityChangeHandler = null;
+    }
+    if (this.boundPointerMoveHandler) {
+      this.canvas.removeEventListener('pointermove', this.boundPointerMoveHandler);
+      this.boundPointerMoveHandler = null;
     }
   }
 
@@ -402,6 +454,26 @@ export class ThreeEngine {
     
     // 2. Update cinematic camera position based on GSAP scroll progress
     updateCameraPath(this.camera, scrollProgress);
+
+    // 2b. Apply subtle mouse-driven force to particles (gated behind reduced-motion)
+    if (!this.reducedMotion && (Math.abs(this.pointerDelta.x) > 0.001 || Math.abs(this.pointerDelta.y) > 0.001)) {
+      const DAMPING = 0.95;
+      const forceMagnitude = 0.04;
+      this.scene.traverse((object) => {
+        if (object instanceof THREE.Points) {
+          const pos = object.geometry.getAttribute('position') as THREE.BufferAttribute;
+          if (pos) {
+            for (let i = 0; i < pos.count; i++) {
+              pos.setX(i, pos.getX(i) + this.pointerDelta.x * forceMagnitude);
+              pos.setY(i, pos.getY(i) + this.pointerDelta.y * forceMagnitude);
+            }
+            pos.needsUpdate = true;
+          }
+        }
+      });
+      // Damp the delta so the force fades
+      this.pointerDelta.multiplyScalar(DAMPING);
+    }
 
     // 3. Render
     if (this.postProcessing && isHealthy) {
