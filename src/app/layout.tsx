@@ -78,7 +78,6 @@ export const metadata: Metadata = {
 };
 
 import RouteTransition from '@/components/layout/RouteTransition';
-import SponsorBanner from '@/components/ui/SponsorBanner';
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -92,7 +91,6 @@ export default function RootLayout({ children }: RootLayoutProps) {
       className={`${displayFont.variable} ${bodyFont.variable}`}
     >
       <head>
-        <link rel="preload" as="image" href="/images/hero-bg.webp" type="image/webp" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -147,7 +145,6 @@ export default function RootLayout({ children }: RootLayoutProps) {
             </RouteTransition>
           </main>
           <Footer />
-          <SponsorBanner />
         </ClientProviders>
       </body>
     </html>
