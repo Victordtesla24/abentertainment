@@ -272,7 +272,7 @@ export default function Preloader() {
         autoPlay
         muted
         playsInline
-        preload="auto"
+        preload="none"
         onEnded={dismiss}
         style={{
           width: '100%',
