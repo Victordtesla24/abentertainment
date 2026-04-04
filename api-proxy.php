@@ -10,7 +10,7 @@
  *                   /uploads/* → api-proxy.php?__path=/uploads/*
  */
 
-$VPS_HOST = 'http://187.77.12.13:3001';
+$VPS_HOST = 'http://187.77.12.13:3000';
 
 // Get the API path from the query parameter set by .htaccess rewrite
 $apiPath = isset($_GET['__path']) ? $_GET['__path'] : '';
@@ -62,15 +62,17 @@ if ($method === 'OPTIONS') {
     exit;
 }
 
-// Make the request to VPS
+// Make the request to VPS — follow redirects (trailingSlash in Next.js may issue 308)
 $ch = curl_init($targetUrl);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HEADER => true,
     CURLOPT_CUSTOMREQUEST => $method,
     CURLOPT_HTTPHEADER => $forwardHeaders,
-    CURLOPT_TIMEOUT => 30,
+    CURLOPT_TIMEOUT => 60,
     CURLOPT_CONNECTTIMEOUT => 10,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_MAXREDIRS => 3,
 ]);
 
 if ($requestBody && in_array($method, ['POST', 'PUT', 'PATCH'])) {
