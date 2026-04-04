@@ -60,12 +60,12 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
       </div>
 
       {/* Logo area */}
-      <div className="h-20 flex items-center justify-center mb-6 bg-white/5 border border-white/5">
+      <div className="h-20 flex items-center justify-center mb-6 bg-white/90 rounded p-3">
         {sponsor.logo ? (
           <img
             src={sponsor.logo}
             alt={`${sponsor.name} logo`}
-            className="max-h-16 max-w-full object-contain brightness-0 invert opacity-80 group-hover:brightness-100 group-hover:invert-0 group-hover:opacity-100 transition-all duration-300"
+            className="max-h-14 max-w-full object-contain"
           />
         ) : (
           <span className="text-lg font-display font-bold text-[rgba(255,255,255,0.4)] group-hover:text-[#C9A84C] transition-colors duration-300">

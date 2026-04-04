@@ -47,7 +47,7 @@ export default function SponsorBanner() {
               rel="noopener noreferrer"
               className="flex items-center gap-3 flex-shrink-0 group/item"
             >
-              <div className="w-10 h-10 flex items-center justify-center brightness-0 invert opacity-40 group-hover/item:brightness-100 group-hover/item:invert-0 group-hover/item:opacity-100 transition-all duration-500">
+              <div className="w-10 h-10 flex items-center justify-center rounded bg-white/90 p-1 opacity-60 group-hover/item:opacity-100 transition-all duration-500">
                 <img src={sponsor.logo} alt={sponsor.name} className="max-w-full max-h-full object-contain" />
               </div>
               <span className="text-white/50 text-[10px] font-body whitespace-nowrap group-hover/item:text-[#C9A84C] transition-colors duration-500">
