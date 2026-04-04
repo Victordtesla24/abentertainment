@@ -1,31 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
+import { join, basename, normalize, extname } from 'path';
 
 export const dynamic = 'force-static';
 
+const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg'];
+const MAX_SIZE_BYTES = 20 * 1024 * 1024;
+
 export const POST = withAuth(async (request: NextRequest) => {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    const folder = (formData.get('folder') as string) || 'general';
+    const body = await request.json() as { filename?: string; mimeType?: string; data?: string; folder?: string };
+    const { filename, data: b64, folder = 'general' } = body;
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    if (!filename || !b64) {
+      return NextResponse.json({ error: 'filename and data required' }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const ext = extname(filename).toLowerCase();
+    if (!ALLOWED_EXTS.includes(ext)) {
+      return NextResponse.json({ error: 'File type not allowed' }, { status: 400 });
+    }
 
-    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const buffer = Buffer.from(b64, 'base64');
+    if (buffer.length > MAX_SIZE_BYTES) {
+      return NextResponse.json({ error: 'File too large (max 20 MB)' }, { status: 400 });
+    }
+
+    const uploadsRoot = join(process.cwd(), 'public', 'uploads');
+    const safeFolder = normalize(folder).replace(/^(\.\.[/\\])+/, '').replace(/[^a-zA-Z0-9._\-/]/g, '_') || 'general';
+    const uploadDir = join(uploadsRoot, safeFolder);
+    if (!uploadDir.startsWith(uploadsRoot)) {
+      return NextResponse.json({ error: 'Invalid folder' }, { status: 400 });
+    }
+
+    const safe = basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
     const finalName = `${Date.now()}-${safe}`;
-    const uploadDir = join(process.cwd(), 'public', 'uploads', folder);
     await mkdir(uploadDir, { recursive: true });
     await writeFile(join(uploadDir, finalName), buffer);
 
-    const url = `/uploads/${folder}/${finalName}`;
-    return NextResponse.json({ url, filename: finalName });
+    return NextResponse.json({ url: `/uploads/${safeFolder}/${finalName}`, filename: finalName });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Upload failed';
     return NextResponse.json({ error: message }, { status: 500 });

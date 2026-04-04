@@ -129,8 +129,7 @@ function validateAdminToken(req) {
   const auth = req.headers['authorization'] || '';
   if (!auth.startsWith('Bearer ')) return false;
   const token = auth.slice(7).trim();
-  // Tokens are 64 hex chars (32 random bytes) issued by our auth endpoint
-  return token.length >= 32 && /^[0-9a-f]+$/.test(token);
+  return token.length >= 32 && /^[0-9a-f]+$/.test(token) && activeTokens.has(token);
 }
 
 function sendJSON(res, status, data) {
@@ -776,9 +775,13 @@ const ALLOWED_ORIGINS = [
 ];
 
 function parseBody(req) {
+  const MAX_BODY = 15 * 1024 * 1024; // 15 MB
   return new Promise((resolve) => {
     let body = '';
-    req.on('data', c => body += c);
+    req.on('data', c => {
+      body += c;
+      if (body.length > MAX_BODY) { req.destroy(); resolve({}); }
+    });
     req.on('end', () => { try { resolve(JSON.parse(body)); } catch { resolve({}); } });
   });
 }
@@ -938,7 +941,12 @@ const server = http.createServer(async (req, res) => {
   // ─── Admin Auth ──────────────────────────────────────────────────────────────
   if (req.method === 'POST' && url === '/api/admin/auth') {
     const body = await parseBody(req);
-    if (body.username === 'admin' && body.password === 'admin123') {
+    const adminUser = process.env.AGENT_ADMIN_USERNAME || 'admin';
+    const adminPass = process.env.AGENT_ADMIN_PASSWORD || '';
+    const valid = adminPass
+      ? body.username === adminUser && body.password === adminPass
+      : body.username === 'admin' && body.password === 'admin123';
+    if (valid) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       const token = crypto.randomBytes(32).toString('hex');
       activeTokens.add(token);
@@ -952,13 +960,18 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && url === '/api/admin/auth') {
-    // Session check — always returns authenticated for token-based flow
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ authenticated: true }));
+    const authenticated = validateAdminToken(req);
+    res.writeHead(authenticated ? 200 : 401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ authenticated }));
     return;
   }
 
   if (req.method === 'DELETE' && url === '/api/admin/auth') {
+    const auth = req.headers['authorization'] || '';
+    if (auth.startsWith('Bearer ')) {
+      const token = auth.slice(7).trim();
+      activeTokens.delete(token);
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true }));
     return;
@@ -1016,8 +1029,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ─── Auth check for all admin CRUD routes ────────────────────────────────
-  if (url.startsWith('/api/admin/') && url !== '/api/admin/auth' && url !== '/api/admin/chat' &&
-      !url.startsWith('/api/admin/action')) {
+  if (url.startsWith('/api/admin/') && url !== '/api/admin/auth') {
     if (!validateAdminToken(req)) {
       sendJSON(res, 401, { error: 'Unauthorized' });
       return;
@@ -1039,17 +1051,25 @@ const server = http.createServer(async (req, res) => {
 
   // ─── File Upload ─────────────────────────────────────────────────────────
   if (req.method === 'POST' && url === '/api/admin/upload') {
-    if (!validateAdminToken(req)) { sendJSON(res, 401, { error: 'Unauthorized' }); return; }
     const body = await parseBody(req);
     try {
       const { filename, mimeType, data: b64, folder = 'general' } = body;
       if (!filename || !b64) { sendJSON(res, 400, { error: 'filename and data required' }); return; }
+      // Whitelist allowed file extensions
+      const ext = path.extname(filename).toLowerCase();
+      const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg'];
+      if (!ALLOWED_EXTS.includes(ext)) { sendJSON(res, 400, { error: 'File type not allowed' }); return; }
+      // Check decoded size (base64 is ~4/3 of binary)
+      if (b64.length > 20 * 1024 * 1024 * 4 / 3) { sendJSON(res, 400, { error: 'File too large (max 20 MB)' }); return; }
+      // Sanitize folder — prevent path traversal
+      const safeFolder = path.normalize(String(folder)).replace(/^(\.\.[/\\])+/, '').replace(/[^a-zA-Z0-9._\-/]/g, '_') || 'general';
+      const uploadDir = path.join(UPLOADS_DIR, safeFolder);
+      if (!uploadDir.startsWith(UPLOADS_DIR)) { sendJSON(res, 400, { error: 'Invalid folder' }); return; }
       const safe = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
       const finalName = `${Date.now()}-${safe}`;
-      const uploadDir = path.join(UPLOADS_DIR, folder);
       ensureDir(uploadDir);
       fs.writeFileSync(path.join(uploadDir, finalName), Buffer.from(b64, 'base64'));
-      const publicUrl = `/uploads/${folder}/${finalName}`;
+      const publicUrl = `/uploads/${safeFolder}/${finalName}`;
       trackTelemetry('upload', 'media');
       sendJSON(res, 200, { url: publicUrl, filename: finalName });
     } catch (e) { sendJSON(res, 500, { error: e.message }); }
