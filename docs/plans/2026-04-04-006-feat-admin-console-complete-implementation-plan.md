@@ -1,7 +1,7 @@
 ---
 title: "feat: Admin Console Complete Implementation — VPS CRUD, File Uploads, Telemetry"
 type: feat
-status: active
+status: completed
 date: 2026-04-04
 ---
 
