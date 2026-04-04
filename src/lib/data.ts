@@ -36,6 +36,7 @@ export interface Event {
   featuredVideo?: string;
   ticketsSold?: number;
   ticketRevenue?: number;
+  sponsorIds?: string[];
   order?: number;
   createdAt: string;
   updatedAt: string;
@@ -84,6 +85,58 @@ export interface SiteSettings {
   heroVideoUrl?: string;
   contactEmail: string;
   contactPhone: string;
+  pageTitles?: PageTitle[];
+}
+
+export interface AgentConfig {
+  id: string;
+  name: string;
+  type: 'customer' | 'admin';
+  model: string;
+  systemPrompt: string;
+  temperature: number;
+  maxTokens: number;
+  status: 'active' | 'inactive';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentConversation {
+  id: string;
+  agentId: string;
+  agentName: string;
+  messages: { role: 'user' | 'assistant'; content: string; timestamp: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Video {
+  id: string;
+  title: string;
+  url: string;
+  type: 'promo' | 'featured' | 'event';
+  eventId?: string;
+  thumbnail?: string;
+  featured: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HeroImage {
+  id: string;
+  src: string;
+  alt: string;
+  page: string;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PageTitle {
+  slug: string;
+  title: string;
+  updatedAt: string;
 }
 
 // ─── Seed Data ───────────────────────────────────────────────────────────────
@@ -275,6 +328,30 @@ const SEED_SETTINGS: SiteSettings = {
   contactPhone: '(+61) 430082646',
 };
 
+const SEED_AGENTS: AgentConfig[] = [
+  {
+    id: 'agent-admin-default',
+    name: 'Admin Assistant',
+    type: 'admin',
+    model: 'gpt-4o',
+    systemPrompt: 'You are the AB Entertainment Admin Agent...',
+    temperature: 0.7,
+    maxTokens: 2000,
+    status: 'active',
+    createdAt: '2025-01-01T00:00:00Z',
+    updatedAt: '2025-01-01T00:00:00Z',
+  },
+];
+
+const SEED_PAGES: PageTitle[] = [
+  { slug: '/', title: 'Home', updatedAt: '2025-01-01T00:00:00Z' },
+  { slug: '/about', title: 'About', updatedAt: '2025-01-01T00:00:00Z' },
+  { slug: '/events', title: 'Events', updatedAt: '2025-01-01T00:00:00Z' },
+  { slug: '/gallery', title: 'Gallery', updatedAt: '2025-01-01T00:00:00Z' },
+  { slug: '/sponsors', title: 'Sponsors', updatedAt: '2025-01-01T00:00:00Z' },
+  { slug: '/contact', title: 'Contact', updatedAt: '2025-01-01T00:00:00Z' },
+];
+
 // ─── Data Access Functions ───────────────────────────────────────────────────
 
 async function ensureDataDir(): Promise<void> {
@@ -358,4 +435,44 @@ export async function getSettings(): Promise<SiteSettings> {
 /** @dev Dev-only — production admin CRUD goes through VPS agent server */
 export async function saveSettings(settings: SiteSettings): Promise<void> {
   await writeJsonFile('settings.json', settings);
+}
+
+export async function getAgents(): Promise<AgentConfig[]> {
+  return readJsonFile('agents.json', SEED_AGENTS);
+}
+
+export async function saveAgents(agents: AgentConfig[]): Promise<void> {
+  await writeJsonFile('agents.json', agents);
+}
+
+export async function getAgentConversations(): Promise<AgentConversation[]> {
+  return readJsonFile('conversations.json', []);
+}
+
+export async function saveAgentConversations(conversations: AgentConversation[]): Promise<void> {
+  await writeJsonFile('conversations.json', conversations);
+}
+
+export async function getVideos(): Promise<Video[]> {
+  return readJsonFile('videos.json', []);
+}
+
+export async function saveVideos(videos: Video[]): Promise<void> {
+  await writeJsonFile('videos.json', videos);
+}
+
+export async function getHeroImages(): Promise<HeroImage[]> {
+  return readJsonFile('hero-images.json', []);
+}
+
+export async function saveHeroImages(images: HeroImage[]): Promise<void> {
+  await writeJsonFile('hero-images.json', images);
+}
+
+export async function getPageTitles(): Promise<PageTitle[]> {
+  return readJsonFile('pages.json', SEED_PAGES);
+}
+
+export async function savePageTitles(pages: PageTitle[]): Promise<void> {
+  await writeJsonFile('pages.json', pages);
 }

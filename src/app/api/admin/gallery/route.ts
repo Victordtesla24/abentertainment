@@ -4,6 +4,20 @@ import { withAuth } from '@/lib/with-auth';
 import { getGalleryImages, saveGalleryImages } from '@/lib/data';
 import type { GalleryImage } from '@/lib/data';
 
+export const GET = withAuth(async (request: NextRequest) => {
+  try {
+    const { searchParams } = new URL(request.url);
+    const eventId = searchParams.get('eventId');
+    let images = await getGalleryImages();
+    if (eventId) {
+      images = images.filter((img) => img.eventId === eventId);
+    }
+    return NextResponse.json({ images });
+  } catch {
+    return NextResponse.json({ error: 'Failed to fetch images' }, { status: 500 });
+  }
+});
+
 export const POST = withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();

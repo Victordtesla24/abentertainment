@@ -2,13 +2,14 @@
 import { adminFetch } from '@/lib/admin-fetch';
 
 import { useState, useMemo, FormEvent } from 'react';
-import type { Sponsor } from '@/lib/data';
+import type { Sponsor, Event } from '@/lib/data';
 
 interface SponsorsManagerProps {
   initialSponsors: Sponsor[];
+  allEvents?: Event[];
 }
 
-export default function SponsorsManager({ initialSponsors }: SponsorsManagerProps) {
+export default function SponsorsManager({ initialSponsors, allEvents }: SponsorsManagerProps) {
   const [sponsors, setSponsors] = useState<Sponsor[]>(
     () => [...initialSponsors].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   );
@@ -448,6 +449,17 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
               )}
               {sponsor.description && (
                 <p className="text-white/40 text-xs">{sponsor.description}</p>
+              )}
+              {/* Linked Events */}
+              {allEvents && allEvents.filter(e => (e.sponsorIds || []).includes(sponsor.id)).length > 0 && (
+                <div className="mt-2 pt-2 border-t border-white/5">
+                  <p className="text-[9px] text-white/30 mb-1">LINKED EVENTS</p>
+                  <div className="flex flex-wrap gap-1">
+                    {allEvents.filter(e => (e.sponsorIds || []).includes(sponsor.id)).map(e => (
+                      <span key={e.id} className="text-[9px] px-1.5 py-0.5 bg-white/5 text-white/50 rounded-sm">{e.title}</span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           ))}

@@ -1,7 +1,7 @@
 'use client';
 import { adminFetch } from '@/lib/admin-fetch';
 
-import { useState, useRef, useEffect, useMemo, FormEvent } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, FormEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -302,6 +302,39 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
       setLoading(false);
     }
   }
+
+  const saveConversation = useCallback(async (msgs: Message[]) => {
+    const nonWelcome = msgs.filter((m) => m.id !== 'welcome');
+    if (nonWelcome.length < 2) return;
+    try {
+      await adminFetch('/api/admin/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: 'agent-admin-default',
+          agentName: 'Admin Assistant',
+          messages: nonWelcome.map((m) => ({
+            role: m.role,
+            content: m.content,
+            timestamp: new Date().toISOString(),
+          })),
+        }),
+      });
+    } catch {
+      // Silent fail -- conversation save must not block chat
+    }
+  }, []);
+
+  // Save conversation when user navigates away
+  useEffect(() => {
+    return () => {
+      const nonWelcome = messages.filter((m) => m.id !== 'welcome');
+      if (nonWelcome.length >= 2) {
+        saveConversation(messages);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function exportConversation(format: 'json' | 'text') {
     const timestamp = new Date().toISOString().slice(0, 10);

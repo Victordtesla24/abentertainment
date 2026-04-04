@@ -80,6 +80,14 @@ export const PUT = withAuth(async (request: NextRequest) => {
       category: body.category ?? events[index].category,
       capacity: body.capacity ?? events[index].capacity,
       ticketUrl: body.ticketUrl ?? events[index].ticketUrl,
+      videoUrl: body.videoUrl ?? events[index].videoUrl,
+      featuredVideo: body.featuredVideo ?? events[index].featuredVideo,
+      ticketsSold: body.ticketsSold ?? events[index].ticketsSold,
+      ticketRevenue: body.ticketRevenue ?? events[index].ticketRevenue,
+      order: body.order ?? events[index].order,
+      hook: body.hook ?? events[index].hook,
+      cast: body.cast ?? events[index].cast,
+      sponsorIds: body.sponsorIds ?? events[index].sponsorIds,
       updatedAt: new Date().toISOString(),
     };
 

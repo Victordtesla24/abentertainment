@@ -1,9 +1,9 @@
 'use client';
 import { adminFetch } from '@/lib/admin-fetch';
 
-import { useState, useRef, FormEvent } from 'react';
+import { useState, useRef, useEffect, FormEvent } from 'react';
 import Image from 'next/image';
-import type { SiteSettings } from '@/lib/data';
+import type { SiteSettings, PageTitle } from '@/lib/data';
 
 interface SettingsManagerProps {
   initialSettings: SiteSettings;
@@ -37,10 +37,10 @@ interface PageTitleEntry {
 const DEFAULT_PAGES: PageTitleEntry[] = [
   { slug: '/', label: 'Home', title: 'Home' },
   { slug: '/about', label: 'About', title: 'About' },
-  { slug: '/services', label: 'Services', title: 'Services' },
-  { slug: '/portfolio', label: 'Portfolio', title: 'Portfolio' },
+  { slug: '/events', label: 'Events', title: 'Events' },
+  { slug: '/gallery', label: 'Gallery', title: 'Gallery' },
+  { slug: '/sponsors', label: 'Sponsors', title: 'Sponsors' },
   { slug: '/contact', label: 'Contact', title: 'Contact' },
-  { slug: '/blog', label: 'Blog', title: 'Blog' },
 ];
 
 export default function SettingsManager({ initialSettings }: SettingsManagerProps) {
@@ -52,6 +52,23 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [pageTitles, setPageTitles] = useState<PageTitleEntry[]>(DEFAULT_PAGES);
   const [editingPage, setEditingPage] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadPageTitles() {
+      try {
+        const res = await adminFetch('/api/admin/pages');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.pages) setPageTitles(data.pages.map((p: PageTitle) => ({
+            slug: p.slug,
+            label: p.slug === '/' ? 'Home' : p.slug.replace('/', '').charAt(0).toUpperCase() + p.slug.replace('/', '').slice(1),
+            title: p.title,
+          })));
+        }
+      } catch { /* use defaults */ }
+    }
+    loadPageTitles();
+  }, []);
 
   function handleLogoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -123,6 +140,24 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
     );
   }
 
+  async function handlePageTitleSave(slug: string, newTitle: string) {
+    try {
+      const res = await adminFetch('/api/admin/pages', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, title: newTitle }),
+      });
+      if (res.ok) {
+        setPageTitles(prev => prev.map(p => p.slug === slug ? { ...p, title: newTitle } : p));
+        setEditingPage(null);
+        setMessage('Page title saved');
+        setTimeout(() => setMessage(''), 3000);
+      }
+    } catch {
+      setMessage('Error: Failed to save page title');
+    }
+  }
+
   function renderModelSelector(
     label: string,
     description: string,
@@ -130,37 +165,28 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
     fallbackField: 'chatModel'
   ) {
     const currentValue = settings[fieldKey] || settings[fallbackField] || 'gpt-4o';
+    const currentModel = AVAILABLE_MODELS.find(m => m.id === currentValue);
     return (
       <div>
         <h4 className="text-sm font-semibold text-white mb-1">{label}</h4>
-        <p className="text-white/40 text-xs mb-3">{description}</p>
-        <div className="space-y-2">
+        <p className="text-white/40 text-xs mb-2">{description}</p>
+        <select
+          value={currentValue}
+          onChange={(e) => setSettings({ ...settings, [fieldKey]: e.target.value })}
+          className="w-full px-3 py-2.5 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] appearance-none cursor-pointer"
+          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23C9A84C' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px', paddingRight: '40px' }}
+        >
           {AVAILABLE_MODELS.map((model) => (
-            <label
-              key={model.id}
-              className={`flex items-start gap-3 p-3 rounded-sm border cursor-pointer transition-colors ${
-                currentValue === model.id
-                  ? 'border-[#C9A84C] bg-[#C9A84C]/10'
-                  : 'border-[#C9A84C]/20 hover:border-[#C9A84C]/40'
-              }`}
-            >
-              <input
-                type="radio"
-                name={fieldKey}
-                value={model.id}
-                checked={currentValue === model.id}
-                onChange={(e) =>
-                  setSettings({ ...settings, [fieldKey]: e.target.value })
-                }
-                className="accent-[#C9A84C] mt-0.5"
-              />
-              <div>
-                <span className="text-white text-sm font-medium">{model.label}</span>
-                <p className="text-white/40 text-xs mt-0.5">{model.description}</p>
-              </div>
-            </label>
+            <option key={model.id} value={model.id}>
+              {model.label} — {model.description}
+            </option>
           ))}
-        </div>
+        </select>
+        {currentModel && (
+          <p className="text-[10px] text-white/30 mt-1.5">
+            Currently: <span className="text-[#C9A84C]">{currentModel.label}</span> — {currentModel.description}
+          </p>
+        )}
       </div>
     );
   }
@@ -271,9 +297,9 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
                     type="text"
                     value={page.title}
                     onChange={(e) => handlePageTitleChange(page.slug, e.target.value)}
-                    onBlur={() => setEditingPage(null)}
+                    onBlur={() => handlePageTitleSave(page.slug, page.title)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') setEditingPage(null);
+                      if (e.key === 'Enter') handlePageTitleSave(page.slug, page.title);
                     }}
                     autoFocus
                     className="flex-1 px-2 py-1 bg-[#0A0A0A] border border-[#C9A84C] rounded-sm text-white text-sm focus:outline-none"
@@ -283,12 +309,16 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
                 )}
                 <button
                   type="button"
-                  onClick={() =>
-                    setEditingPage(editingPage === page.slug ? null : page.slug)
-                  }
+                  onClick={() => {
+                    if (editingPage === page.slug) {
+                      handlePageTitleSave(page.slug, page.title);
+                    } else {
+                      setEditingPage(page.slug);
+                    }
+                  }}
                   className="px-3 py-1 text-xs text-[#C9A84C] border border-[#C9A84C]/30 rounded-sm hover:bg-[#C9A84C]/10 transition-colors"
                 >
-                  {editingPage === page.slug ? 'Done' : 'Edit'}
+                  {editingPage === page.slug ? 'Save' : 'Edit'}
                 </button>
               </div>
             ))}

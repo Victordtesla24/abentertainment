@@ -1,10 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getApiUrl } from '@/lib/api-config';
 import { adminFetch } from '@/lib/admin-fetch';
 import { TelemetryGaugeGrid } from './telemetry/TelemetryGaugeGrid';
+import { TimeScopeFilter } from './telemetry/TimeScopeFilter';
+import { RevenueChart } from './telemetry/RevenueChart';
+import { TicketSalesChart } from './telemetry/TicketSalesChart';
+import { EventAnalytics } from './telemetry/EventAnalytics';
+import type { Event, Sponsor } from '@/lib/data';
 import useSWR from 'swr';
 
 // ─── SWR Fetcher ─────────────────────────────────────────────────────────────
@@ -281,7 +286,12 @@ function PageDetailPanel({ page, onClose }: { page: PageCheck; onClose: () => vo
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function HealthDashboard() {
+interface HealthDashboardProps {
+  events?: Event[];
+  sponsors?: Sponsor[];
+}
+
+export default function HealthDashboard({ events, sponsors }: HealthDashboardProps) {
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [pages, setPages] = useState<PageCheck[]>(PAGES.map(p => ({ ...p, status: 'checking' as const, responseTime: 0, statusCode: 0 })));
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -299,6 +309,16 @@ export default function HealthDashboard() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [timeScope, setTimeScope] = useState<'all' | 'past' | 'live' | 'future'>('all');
+
+  const filteredEvents = useMemo(() => {
+    if (!events) return [];
+    if (timeScope === 'all') return events;
+    if (timeScope === 'future') return events.filter(e => e.status === 'upcoming');
+    return events.filter(e => e.status === timeScope);
+  }, [events, timeScope]);
+
+  const filteredSponsors = sponsors || [];
 
   const {
     data: swrHealthData,
@@ -339,8 +359,8 @@ export default function HealthDashboard() {
         id: 'vps-down', severity: 'critical',
         title: 'VPS Agent Server Unreachable',
         description: 'The AI Agent server on the VPS is not responding. This affects admin chat, customer chatbot, and contact form.',
-        fix: 'SSH to VPS and restart: sudo systemctl restart ab-chatbot',
-        aiPrompt: 'The VPS agent server is unreachable. Check the server status and restart the ab-chatbot service.',
+        fix: 'Click "Wake Agent" above to start the AI service. If it remains unreachable, check VPS network connectivity.',
+        aiPrompt: 'The AI agent is currently sleeping. Click Wake Agent to activate it, or check if the VPS server is online.',
       });
     }
 
@@ -350,7 +370,7 @@ export default function HealthDashboard() {
           id: 'workspace', severity: 'critical',
           title: 'Workspace Context Files Not Loaded',
           description: 'SOUL, MEMORY, HEARTBEAT, or SKILLS files are missing. The agent will not have company knowledge.',
-          fix: 'Check /opt/ab-chatbot/workspace/ on the VPS',
+          fix: 'Verify workspace files exist in the agent directory. Re-upload SOUL, MEMORY, HEARTBEAT, and SKILLS files if missing.',
           aiPrompt: 'Your workspace context files are not loading. Check which files are present and verify the path.',
         });
       }
@@ -360,7 +380,7 @@ export default function HealthDashboard() {
           id: 'keys', severity: 'warning',
           title: `Missing API Keys: ${missingKeys.join(', ')}`,
           description: `Keys not configured: ${missingKeys.join(', ')}. Some AI models will not work.`,
-          fix: 'Add missing keys to /opt/ab-chatbot/.env and restart the service',
+          fix: `Configure the missing API keys in Settings > AI Model Configuration. Keys needed: ${missingKeys.join(', ')}.`,
           aiPrompt: `These API keys are missing: ${missingKeys.join(', ')}. What models are affected?`,
         });
       }
@@ -369,8 +389,8 @@ export default function HealthDashboard() {
           id: 'memory', severity: 'warning',
           title: 'High Memory Usage',
           description: `${data.server.memoryMB}MB of ${data.server.memoryTotalMB}MB heap (${Math.round(data.server.memoryMB / data.server.memoryTotalMB * 100)}%).`,
-          fix: 'Restart agent: sudo systemctl restart ab-chatbot',
-          aiPrompt: 'Memory usage is high. What could cause this?',
+          fix: `Click "Clear Cache" to free memory, or "Restart Chatbot" if usage remains high. Current: ${data.server.memoryMB}MB / ${data.server.memoryTotalMB}MB.`,
+          aiPrompt: `Memory usage is at ${Math.round(data.server.memoryMB / data.server.memoryTotalMB * 100)}%. What steps can reduce memory consumption for the AI agent?`,
         });
       }
     }
@@ -381,7 +401,7 @@ export default function HealthDashboard() {
         id: 'pages', severity: failedPages.length >= 3 ? 'critical' : 'warning',
         title: `${failedPages.length} Page(s) Failing`,
         description: `Failing: ${failedPages.map(p => `${p.name} (${p.statusCode || 'timeout'})`).join(', ')}`,
-        fix: 'Rebuild static export and redeploy to Hostinger',
+        fix: 'Run a new build and deploy. Check the failing pages exist in the out/ directory.',
         aiPrompt: `Pages failing: ${failedPages.map(p => p.name).join(', ')}. Diagnose the issue.`,
       });
     }
@@ -392,7 +412,7 @@ export default function HealthDashboard() {
         id: 'slow', severity: 'info',
         title: `${slowPages.length} Slow Page(s) (>2s)`,
         description: `Slow: ${slowPages.map(p => `${p.name} (${p.responseTime}ms)`).join(', ')}`,
-        fix: 'Optimize images and assets',
+        fix: 'Compress images, enable caching headers, and consider lazy-loading heavy assets on these pages.',
         aiPrompt: `Slow pages: ${slowPages.map(p => `${p.name} at ${p.responseTime}ms`).join(', ')}. What optimizations can help?`,
       });
     }
@@ -479,6 +499,11 @@ export default function HealthDashboard() {
     }, 2000);
   };
 
+  // When no health data, show agent as sleeping with zeroed metrics
+  const agentStatus = healthData?.server?.agentStatus || 'sleeping';
+  const agentUptime = healthData?.server?.uptime || 0;
+  const agentMemory = healthData?.server?.memoryMB || 0;
+
   const score = healthScore(healthData, pages);
   const passedPages = pages.filter(p => p.status === 'pass').length;
   const avgResponse = pages.filter(p => p.status === 'pass' && p.responseTime > 0).reduce((s, p) => s + p.responseTime, 0) / Math.max(passedPages, 1);
@@ -558,11 +583,13 @@ export default function HealthDashboard() {
         <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-3">Quick Actions</p>
         <div className="flex flex-wrap gap-2">
           {[
+            { id: 'wake', label: 'Wake Agent', icon: '⏰', desc: 'Force wake the sleeping agent' },
             { id: 'restart', label: 'Restart Chatbot', icon: '🔄', desc: 'Restart the AI agent service' },
             { id: 'clear_cache', label: 'Clear Cache', icon: '🧹', desc: 'Clear server response cache' },
             { id: 'clear_stats', label: 'Clear Stats', icon: '📊', desc: 'Reset request counters' },
-            { id: 'wake', label: 'Wake Agent', icon: '⏰', desc: 'Force wake the sleeping agent' },
-          ].map(action => (
+          ].map(action => {
+            const isWakeProminent = action.id === 'wake' && agentStatus === 'sleeping';
+            return (
             <button
               key={action.id}
               onClick={() => runAction(action.id)}
@@ -571,13 +598,16 @@ export default function HealthDashboard() {
               className={`flex items-center gap-2 px-4 py-2.5 border text-xs font-body transition-all duration-200 ${
                 actionLoading === action.id
                   ? 'border-[#C9A84C]/40 bg-[#C9A84C]/10 text-[#C9A84C]'
-                  : 'border-white/10 text-white/60 hover:border-[#C9A84C]/30 hover:text-[#C9A84C] hover:bg-[#C9A84C]/5'
+                  : isWakeProminent
+                    ? 'border-[#C9A84C]/50 bg-[#C9A84C]/15 text-[#C9A84C] ring-1 ring-[#C9A84C]/30 shadow-[0_0_12px_rgba(201,168,76,0.15)]'
+                    : 'border-white/10 text-white/60 hover:border-[#C9A84C]/30 hover:text-[#C9A84C] hover:bg-[#C9A84C]/5'
               } disabled:opacity-40`}
             >
               <span>{action.icon}</span>
               <span>{actionLoading === action.id ? 'Running...' : action.label}</span>
             </button>
-          ))}
+            );
+          })}
         </div>
         <AnimatePresence>
           {actionResult && (
@@ -598,11 +628,11 @@ export default function HealthDashboard() {
       {/* Telemetry Gauges */}
       <TelemetryGaugeGrid
         healthScore={score}
-        memoryMB={healthData?.server.memoryMB ?? 0}
+        memoryMB={agentMemory}
         memoryTotalMB={healthData?.server.memoryTotalMB ?? 1}
         avgResponseMs={avgResponse}
         totalRequests={healthData?.server.totalRequests ?? 0}
-        uptimeSeconds={healthData?.server.uptime ?? 0}
+        uptimeSeconds={agentUptime}
         totalSleeps={healthData?.server.totalSleeps ?? 0}
         errorRate={pages.length > 0 ? (pages.filter(p => p.status === 'fail').length / pages.length) * 100 : 0}
       />
@@ -610,7 +640,7 @@ export default function HealthDashboard() {
       {/* Top Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <MetricCard title="Health Score" value={score} suffix="%" icon="📊" color={scoreColor(score)} subtitle={score >= 90 ? 'Excellent' : score >= 70 ? 'Good' : 'Needs attention'} />
-        <MetricCard title="VPS Uptime" value={healthData ? Math.round(healthData.server.uptime / 60) : 0} suffix="m" icon="⏱" subtitle={healthData ? formatUptime(healthData.server.uptime) : isLocalhost() ? 'N/A (local dev)' : 'Unavailable'} />
+        <MetricCard title="VPS Uptime" value={Math.round(agentUptime / 60)} suffix="m" icon="⏱" subtitle={agentUptime > 0 ? formatUptime(agentUptime) : agentStatus === 'sleeping' ? 'Agent sleeping' : 'Unavailable'} />
         <MetricCard title="Avg Response" value={Math.round(avgResponse)} suffix="ms" icon="⚡" color={avgResponse < 500 ? GREEN : avgResponse < 1500 ? AMBER : RED} subtitle={`${passedPages}/${PAGES.length} pages healthy`} />
         <MetricCard title="Active Issues" value={issues.length} icon="⚠" color={criticalCount > 0 ? RED : issues.length > 0 ? AMBER : GREEN} subtitle={criticalCount > 0 ? `${criticalCount} critical` : issues.length > 0 ? `${issues.length} minor` : 'All clear'} />
       </div>
@@ -630,17 +660,17 @@ export default function HealthDashboard() {
         <button onClick={() => setShowAgentDetail(!showAgentDetail)} className="w-full flex items-center justify-between mb-4 text-left">
           <div className="flex items-center gap-2">
             <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35">AI Agent</p>
-            <StatusDot status={healthData?.server.agentStatus || (isLocalhost() ? 'sleeping' : 'fail')} size={6} />
-            <span className="text-[10px] font-body text-white/40 capitalize">{healthData?.server.agentStatus || (isLocalhost() ? 'on VPS' : 'unknown')}</span>
+            <StatusDot status={agentStatus} size={6} />
+            <span className="text-[10px] font-body text-white/40 capitalize">{agentStatus}</span>
           </div>
           <span className="text-white/20 text-xs">{showAgentDetail ? '▲ Less' : '▼ Details'}</span>
         </button>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
           {[
-            { label: 'Requests', value: healthData?.server.totalRequests ?? '—', icon: '📨' },
-            { label: 'Sleep Cycles', value: healthData?.server.totalSleeps ?? '—', icon: '😴' },
-            { label: 'Wakes', value: healthData?.server.totalWakes ?? '—', icon: '⏰' },
-            { label: 'Memory', value: healthData ? `${healthData.server.memoryMB}MB` : '—', icon: '💾' },
+            { label: 'Requests', value: healthData?.server.totalRequests ?? 0, icon: '📨' },
+            { label: 'Sleep Cycles', value: healthData?.server.totalSleeps ?? 0, icon: '😴' },
+            { label: 'Wakes', value: healthData?.server.totalWakes ?? 0, icon: '⏰' },
+            { label: 'Memory', value: `${agentMemory}MB`, icon: '💾' },
             { label: 'Cost Limit', value: `$${healthData?.costLimit || 5}`, icon: '💰' },
             { label: 'Prod Approval', value: healthData?.server.productionApproved ? 'YES' : 'NO', icon: '🔒' },
           ].map(item => (
@@ -806,6 +836,21 @@ export default function HealthDashboard() {
         <p className="text-[11px] font-body text-white/50">
           For critical issues the AI Agent cannot resolve, contact: <span className="text-[#C9A84C]">{process.env.NEXT_PUBLIC_ESCALATION_EMAIL || healthData?.developer || 'Vikram (sarkar.vikram@gmail.com)'}</span>
         </p>
+      </div>
+
+      {/* Business Metrics */}
+      <div className="mt-8 space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-display font-semibold text-white">Business Intelligence</h3>
+          <TimeScopeFilter scope={timeScope} onChange={setTimeScope} />
+        </div>
+
+        <EventAnalytics events={filteredEvents} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <RevenueChart sponsors={filteredSponsors} />
+          <TicketSalesChart events={filteredEvents} />
+        </div>
       </div>
 
       {/* Toast */}

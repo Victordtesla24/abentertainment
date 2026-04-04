@@ -2,10 +2,11 @@
 import { adminFetch } from '@/lib/admin-fetch';
 
 import { useState, useCallback, FormEvent } from 'react';
-import type { GalleryImage } from '@/lib/data';
+import type { GalleryImage, Event } from '@/lib/data';
 
 interface GalleryManagerProps {
   initialGallery: GalleryImage[];
+  allEvents?: Event[];
 }
 
 // All images that exist on the website, organized by category
@@ -94,7 +95,7 @@ function escapeCsvField(field: string): string {
   return field;
 }
 
-export default function GalleryManager({ initialGallery }: GalleryManagerProps) {
+export default function GalleryManager({ initialGallery, allEvents }: GalleryManagerProps) {
   const [images, setImages] = useState<GalleryImage[]>(initialGallery);
   const [creating, setCreating] = useState(false);
   const [src, setSrc] = useState('');
@@ -110,6 +111,12 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
   const [editAlt, setEditAlt] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+
+  // Site image edit state
+  const [siteImageEdits, setSiteImageEdits] = useState<Record<string, { alt?: string; src?: string }>>({});
+  const [editingSiteImage, setEditingSiteImage] = useState<string | null>(null);
+  const [editSiteSrc, setEditSiteSrc] = useState('');
+  const [editSiteAlt, setEditSiteAlt] = useState('');
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -429,7 +436,7 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
         </div>
       </div>
 
-      {/* Site Images by Category (read-only) */}
+      {/* Site Images by Category */}
       {filteredSiteImages.map(group => (
         <div key={group.category} className="mb-6">
           <div className="flex items-center gap-2 mb-3">
@@ -441,12 +448,33 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
               {group.images.map((image) => (
                 <div key={image.src} className="group bg-[#111111] border border-white/5 overflow-hidden hover:border-[#C9A84C]/20 transition-colors">
                   <div className="aspect-[4/3] bg-[#0A0A0A] flex items-center justify-center overflow-hidden">
-                    <img src={image.src} alt={image.alt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                    <img src={siteImageEdits[image.src]?.src || image.src} alt={siteImageEdits[image.src]?.alt || image.alt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
                   </div>
-                  <div className="p-2.5">
-                    <p className="text-white text-[11px] font-body font-medium truncate">{image.alt}</p>
-                    <p className="text-white/25 text-[9px] font-body mt-0.5 truncate">{image.src}</p>
-                  </div>
+                  {editingSiteImage === image.src ? (
+                    <div className="p-2.5 space-y-2 bg-[#0A0A0A] border-t border-[#C9A84C]/20">
+                      <div>
+                        <label className="block text-[9px] font-body uppercase tracking-wider text-white/35 mb-0.5">Alt Text</label>
+                        <input type="text" value={editSiteAlt} onChange={(e) => setEditSiteAlt(e.target.value)} className="w-full px-2 py-1.5 bg-[#111111] border border-[#C9A84C]/20 text-white text-[11px] font-body focus:outline-none focus:border-[#C9A84C]/50" autoFocus />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-body uppercase tracking-wider text-white/35 mb-0.5">Image URL</label>
+                        <input type="text" value={editSiteSrc} onChange={(e) => setEditSiteSrc(e.target.value)} className="w-full px-2 py-1.5 bg-[#111111] border border-[#C9A84C]/20 text-white text-[11px] font-body focus:outline-none focus:border-[#C9A84C]/50" />
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => { setSiteImageEdits(prev => ({ ...prev, [image.src]: { alt: editSiteAlt, src: editSiteSrc } })); setEditingSiteImage(null); showMessage('Image updated'); }} className="flex-1 px-3 py-1.5 bg-[#C9A84C] text-black text-[10px] font-body font-semibold hover:bg-[#D4B65C] transition-colors">Save</button>
+                        <button onClick={() => setEditingSiteImage(null)} className="flex-1 px-3 py-1.5 border border-white/20 text-white/40 text-[10px] font-body hover:text-white transition-colors">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5">
+                      <p className="text-white text-[11px] font-body font-medium truncate">{siteImageEdits[image.src]?.alt || image.alt}</p>
+                      <p className="text-white/25 text-[9px] font-body mt-0.5 truncate">{siteImageEdits[image.src]?.src || image.src}</p>
+                      <div className="flex items-center gap-1 mt-2 pt-2 border-t border-white/5">
+                        <button onClick={() => { setEditingSiteImage(image.src); setEditSiteAlt(siteImageEdits[image.src]?.alt || image.alt); setEditSiteSrc(siteImageEdits[image.src]?.src || image.src); }} className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-[#C9A84C] hover:border-[#C9A84C]/30 transition-colors">Edit</button>
+                        <button onClick={() => { setSiteImageEdits(prev => ({ ...prev, [image.src]: { ...prev[image.src], src: '' } })); showMessage('Image marked for replacement'); }} className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-[#C9A84C] hover:border-[#C9A84C]/30 transition-colors">Replace</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -571,7 +599,14 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
                     ) : (
                       /* Display mode */
                       <div className="p-2.5">
-                        <p className="text-white text-[11px] font-body font-medium truncate">{image.alt}</p>
+                        <p className="text-white text-[11px] font-body font-medium truncate">
+                          {image.alt}
+                          {image.eventId && allEvents && (
+                            <span className="text-[9px] text-[#C9A84C]/60 ml-1">
+                              ({allEvents.find(e => e.id === image.eventId)?.title || 'Unknown event'})
+                            </span>
+                          )}
+                        </p>
                         <p className="text-white/25 text-[9px] font-body mt-0.5">{image.category}</p>
 
                         {/* Action buttons row */}

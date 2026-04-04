@@ -4,15 +4,27 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import { isAuthenticated, adminFetch } from '@/lib/admin-fetch';
+import type { Event, Sponsor, GalleryImage, SiteSettings, AgentConfig, Video, HeroImage } from '@/lib/data';
 
-/**
- * Admin page — checks sessionStorage auth token client-side.
- * Token is stored on login and sent as Bearer header on API calls.
- */
+const DEFAULT_SETTINGS: SiteSettings = {
+  chatModel: 'gpt-4o-mini',
+  heroTitle: 'AB ENTERTAINMENT',
+  heroSubtitle: 'Experience Events Like No Other',
+  contactEmail: 'abhi@abentertainment.com.au',
+  contactPhone: '(+61) 430082646',
+};
+
 export default function AdminPage() {
   const router = useRouter();
   const [isAuthed, setIsAuthed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [sponsors, setSponsors] = useState<Sponsor[]>([]);
+  const [gallery, setGallery] = useState<GalleryImage[]>([]);
+  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
+  const [agents, setAgents] = useState<AgentConfig[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [heroImages, setHeroImages] = useState<HeroImage[]>([]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -37,6 +49,26 @@ export default function AdminPage() {
 
         if (!isCancelled) {
           setIsAuthed(true);
+          // Fetch all data in parallel
+          const [eventsRes, sponsorsRes, galleryRes, settingsRes, agentsRes, videosRes, heroRes] = await Promise.allSettled([
+            adminFetch('/api/admin/events').then(r => r.ok ? r.json() : null),
+            adminFetch('/api/admin/sponsors').then(r => r.ok ? r.json() : null),
+            adminFetch('/api/admin/gallery').then(r => r.ok ? r.json() : null),
+            adminFetch('/api/admin/settings').then(r => r.ok ? r.json() : null),
+            adminFetch('/api/admin/agents').then(r => r.ok ? r.json() : null),
+            adminFetch('/api/admin/videos').then(r => r.ok ? r.json() : null),
+            adminFetch('/api/admin/hero-images').then(r => r.ok ? r.json() : null),
+          ]);
+
+          if (!isCancelled) {
+            if (eventsRes.status === 'fulfilled' && eventsRes.value) setEvents(eventsRes.value.events || []);
+            if (sponsorsRes.status === 'fulfilled' && sponsorsRes.value) setSponsors(sponsorsRes.value.sponsors || []);
+            if (galleryRes.status === 'fulfilled' && galleryRes.value) setGallery(galleryRes.value.images || []);
+            if (settingsRes.status === 'fulfilled' && settingsRes.value) setSettings(settingsRes.value.settings || DEFAULT_SETTINGS);
+            if (agentsRes.status === 'fulfilled' && agentsRes.value) setAgents(agentsRes.value.agents || []);
+            if (videosRes.status === 'fulfilled' && videosRes.value) setVideos(videosRes.value.videos || []);
+            if (heroRes.status === 'fulfilled' && heroRes.value) setHeroImages(heroRes.value.images || []);
+          }
         }
       } catch {
         router.replace('/admin/login');
@@ -66,16 +98,13 @@ export default function AdminPage() {
 
   return (
     <AdminDashboard
-      initialEvents={[]}
-      initialSponsors={[]}
-      initialGallery={[]}
-      initialSettings={{
-        chatModel: 'gpt-4o-mini',
-        heroTitle: 'AB ENTERTAINMENT',
-        heroSubtitle: 'Experience Events Like No Other',
-        contactEmail: 'abhi@abentertainment.com.au',
-        contactPhone: '(+61) 430082646',
-      }}
+      initialEvents={events}
+      initialSponsors={sponsors}
+      initialGallery={gallery}
+      initialSettings={settings}
+      initialAgents={agents}
+      initialVideos={videos}
+      initialHeroImages={heroImages}
     />
   );
 }

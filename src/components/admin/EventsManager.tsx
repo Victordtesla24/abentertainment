@@ -1,11 +1,13 @@
 'use client';
+import React from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 
 import { useState, useRef, useEffect, useCallback, FormEvent, useMemo } from 'react';
-import type { Event } from '@/lib/data';
+import type { Event, GalleryImage, Sponsor } from '@/lib/data';
 
 interface EventsManagerProps {
   initialEvents: Event[];
+  allSponsors?: Sponsor[];
 }
 
 const EMPTY_EVENT: Omit<Event, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -39,7 +41,7 @@ function escapeCsvField(value: string): string {
   return value;
 }
 
-export default function EventsManager({ initialEvents }: EventsManagerProps) {
+export default function EventsManager({ initialEvents, allSponsors = [] }: EventsManagerProps) {
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [editing, setEditing] = useState<Event | null>(null);
   const [creating, setCreating] = useState(false);
@@ -48,6 +50,11 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
   const [message, setMessage] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const [eventImages, setEventImages] = useState<Record<string, GalleryImage[]>>({});
+  const [addingImageToEvent, setAddingImageToEvent] = useState<string | null>(null);
+  const [newImageSrc, setNewImageSrc] = useState('');
+  const [newImageAlt, setNewImageAlt] = useState('');
 
   const sortedEvents = useMemo(() => {
     return [...events].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -251,19 +258,79 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
     }
   }
 
+  async function fetchEventImages(eventId: string) {
+    try {
+      const res = await adminFetch(`/api/admin/gallery?eventId=${eventId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setEventImages(prev => ({ ...prev, [eventId]: data.images || [] }));
+      }
+    } catch { /* silent */ }
+  }
+
+  function toggleEventImages(eventId: string) {
+    if (expandedEventId === eventId) {
+      setExpandedEventId(null);
+    } else {
+      setExpandedEventId(eventId);
+      if (!eventImages[eventId]) fetchEventImages(eventId);
+    }
+  }
+
+  async function handleAddEventImage(eventId: string) {
+    if (!newImageSrc.trim()) return;
+    try {
+      const res = await adminFetch('/api/admin/gallery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ src: newImageSrc, alt: newImageAlt || 'Event image', category: 'event', eventId, width: 1200, height: 800 }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEventImages(prev => ({ ...prev, [eventId]: [...(prev[eventId] || []), data.image] }));
+        setNewImageSrc('');
+        setNewImageAlt('');
+        setAddingImageToEvent(null);
+      }
+    } catch { setMessage('Error: Failed to add image'); }
+  }
+
+  async function handleDeleteEventImage(imageId: string, eventId: string) {
+    if (!confirm('Delete this image?')) return;
+    try {
+      const res = await adminFetch('/api/admin/gallery', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: imageId }),
+      });
+      if (res.ok) {
+        setEventImages(prev => ({ ...prev, [eventId]: (prev[eventId] || []).filter(img => img.id !== imageId) }));
+      }
+    } catch { setMessage('Error: Failed to delete image'); }
+  }
+
+  async function handleUnlinkSponsor(eventId: string, sponsorId: string) {
+    const event = events.find(e => e.id === eventId);
+    if (!event) return;
+    const updatedIds = (event.sponsorIds || []).filter(id => id !== sponsorId);
+    try {
+      const res = await adminFetch('/api/admin/events', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: eventId, sponsorIds: updatedIds }),
+      });
+      if (res.ok) {
+        setEvents(prev => prev.map(e => e.id === eventId ? { ...e, sponsorIds: updatedIds } : e));
+      }
+    } catch { setMessage('Error: Failed to unlink sponsor'); }
+  }
+
   function handleExportCsv() {
-    const headers = ['id', 'title', 'date', 'venue', 'price', 'ticketsSold', 'ticketRevenue', 'status', 'category'];
-    const rows = events.map((ev) => [
-      escapeCsvField(ev.id),
-      escapeCsvField(ev.title),
-      escapeCsvField(ev.date),
-      escapeCsvField(ev.venue),
-      String(ev.price),
-      String(ev.ticketsSold ?? 0),
-      String(ev.ticketRevenue ?? 0),
-      escapeCsvField(ev.status),
-      escapeCsvField(ev.category),
-    ]);
+    const headers = ['id', 'title', 'slug', 'date', 'venue', 'description', 'longDescription', 'hook', 'cast', 'price', 'currency', 'status', 'ticketStatus', 'image', 'category', 'capacity', 'ticketUrl', 'videoUrl', 'featuredVideo', 'ticketsSold', 'ticketRevenue', 'order'];
+    const rows = events.map((ev) => headers.map(h => {
+      const val = ev[h as keyof Event];
+      return escapeCsvField(String(val ?? ''));
+    }));
 
     const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -273,6 +340,26 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
     const a = document.createElement('a');
     a.href = url;
     a.download = `events-export-${today}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function handleExportJson() {
+    const data = {
+      exportDate: new Date().toISOString(),
+      events: events.map(ev => ({
+        ...ev,
+        galleryImages: eventImages[ev.id] || [],
+      })),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const today = new Date().toISOString().split('T')[0];
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `events-full-export-${today}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -291,6 +378,12 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
             className="px-4 py-2 border border-[#C9A84C]/40 text-[#C9A84C] text-sm font-semibold rounded-sm hover:bg-[#C9A84C]/10 transition-colors"
           >
             Export CSV
+          </button>
+          <button
+            onClick={handleExportJson}
+            className="px-4 py-2 border border-[#C9A84C]/40 text-[#C9A84C] text-sm font-semibold rounded-sm hover:bg-[#C9A84C]/10 transition-colors"
+          >
+            Export JSON
           </button>
           <button
             onClick={startCreate}
@@ -572,7 +665,8 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
           </thead>
           <tbody>
             {sortedEvents.map((event, idx) => (
-              <tr key={event.id} className="border-b border-[#C9A84C]/10 hover:bg-white/5 transition-colors">
+              <React.Fragment key={event.id}>
+              <tr className="border-b border-[#C9A84C]/10 hover:bg-white/5 transition-colors">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
                     <button
@@ -607,6 +701,12 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
                 <td className="px-4 py-3 text-sm text-white/40">{event.category}</td>
                 <td className="px-4 py-3 text-right">
                   <button
+                    onClick={() => toggleEventImages(event.id)}
+                    className="text-xs text-[#C9A84C] hover:text-[#C9A84C]/80 mr-3"
+                  >
+                    Images
+                  </button>
+                  <button
                     onClick={() => startEdit(event)}
                     className="text-xs text-[#1BBFA1] hover:text-[#1BBFA1]/80 mr-3"
                   >
@@ -620,6 +720,69 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
                   </button>
                 </td>
               </tr>
+              {expandedEventId === event.id && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-4 bg-[#111111]">
+                    {/* Linked Sponsors */}
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-semibold text-[#C9A84C]">Linked Sponsors</h4>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(event.sponsorIds || []).length === 0 && (
+                          <p className="text-white/30 text-xs">No sponsors linked. Use the Sponsors tab to manage sponsor associations.</p>
+                        )}
+                        {(event.sponsorIds || []).map(sid => {
+                          const sponsor = allSponsors.find(s => s.id === sid);
+                          return sponsor ? (
+                            <span key={sid} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#C9A84C]/10 border border-[#C9A84C]/20 text-[#C9A84C] text-[10px] rounded-sm">
+                              {sponsor.name}
+                              <button onClick={() => handleUnlinkSponsor(event.id, sid)} className="text-white/30 hover:text-red-400 ml-1">&times;</button>
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-[#C9A84C]">Event Images</h4>
+                        <button onClick={() => setAddingImageToEvent(event.id)} className="text-xs px-3 py-1 bg-[#C9A84C] text-white rounded-sm hover:bg-[#D4B65C]">
+                          + Add Image
+                        </button>
+                      </div>
+                      {/* Add image form */}
+                      {addingImageToEvent === event.id && (
+                        <div className="flex gap-2">
+                          <input type="text" value={newImageSrc} onChange={e => setNewImageSrc(e.target.value)} placeholder="Image URL" className="flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm" />
+                          <input type="text" value={newImageAlt} onChange={e => setNewImageAlt(e.target.value)} placeholder="Alt text" className="flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm" />
+                          <button onClick={() => handleAddEventImage(event.id)} className="px-3 py-2 bg-[#C9A84C] text-white text-sm rounded-sm">Add</button>
+                          <button onClick={() => { setAddingImageToEvent(null); setNewImageSrc(''); setNewImageAlt(''); }} className="px-3 py-2 border border-white/20 text-white/40 text-sm rounded-sm">Cancel</button>
+                        </div>
+                      )}
+                      {/* Image grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {(eventImages[event.id] || []).map((img) => (
+                          <div key={img.id} className="bg-[#0A0A0A] border border-white/10 overflow-hidden">
+                            <div className="aspect-[4/3] bg-[#0A0A0A]">
+                              <img src={img.src} alt={img.alt} className="w-full h-full object-cover" loading="lazy" />
+                            </div>
+                            <div className="p-2 flex items-center justify-between">
+                              <span className="text-[10px] text-white/40 truncate">{img.alt}</span>
+                              <div className="flex gap-1">
+                                <button onClick={() => handleDeleteEventImage(img.id, event.id)} className="text-[9px] text-red-400 hover:text-red-300">Del</button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {(eventImages[event.id] || []).length === 0 && (
+                          <p className="col-span-full text-center text-white/30 text-xs py-4">No images for this event</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
             ))}
             {events.length === 0 && (
               <tr>

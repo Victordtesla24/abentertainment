@@ -2,17 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "Next.js Dev Server",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "name": "dev",
+      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeArgs": ["/opt/homebrew/bin/npx", "next", "dev"],
       "port": 3000,
-      "autoPort": true
-    },
-    {
-      "name": "Playwright Test UI",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["playwright", "test", "--ui"],
-      "port": 0
+      "env": {
+        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     }
   ]
 }
