@@ -74,17 +74,17 @@ export default function CTASection() {
 
         <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-5 justify-center items-center">
           <Link
-            href="/contact"
+            href="/events"
             className="group relative px-12 py-4.5 bg-gradient-to-r from-[#C9A84C] via-[#D4B65C] to-[#C9A84C] text-black text-sm font-bold uppercase tracking-[0.15em] overflow-hidden transition-all duration-500 hover:shadow-[0_0_50px_rgba(201,168,76,0.4)]"
           >
-            <span className="relative z-10">Get in Touch</span>
+            <span className="relative z-10">Buy Tickets</span>
             <div className="absolute inset-0 bg-gradient-to-r from-[#D4B65C] via-[#E8D5A3] to-[#D4B65C] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           </Link>
           <Link
-            href="/events"
+            href="/contact"
             className="px-12 py-4.5 border border-[#C9A84C]/25 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-black text-sm font-bold uppercase tracking-[0.15em] transition-all duration-500 hover:shadow-[0_0_30px_rgba(201,168,76,0.2)]"
           >
-            Explore Events
+            Get in Touch
           </Link>
         </motion.div>
       </motion.div>

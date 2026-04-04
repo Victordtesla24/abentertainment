@@ -136,7 +136,7 @@ test.describe('@req-hero-section', () => {
   });
   test('hero CTAs', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('link', { name: /explore events/i }).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: /buy tickets/i }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: /get in touch/i }).first()).toBeVisible();
   });
 });

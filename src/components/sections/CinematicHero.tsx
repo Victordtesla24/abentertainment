@@ -502,7 +502,7 @@ export function CinematicHero() {
             href="/events"
             className="group relative px-10 py-4 bg-gradient-to-r from-[#C9A84C] via-[#D4B65C] to-[#C9A84C] text-black text-sm uppercase tracking-[0.15em] font-body font-bold overflow-hidden transition-all duration-500 hover:shadow-[0_0_40px_rgba(201,168,76,0.4)] hover:scale-[1.02]"
           >
-            <span className="relative z-10">Explore Events</span>
+            <span className="relative z-10">Buy Tickets</span>
             <div className="absolute inset-0 bg-gradient-to-r from-[#D4B65C] via-[#E8D5A3] to-[#D4B65C] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           </Link>
           <Link
