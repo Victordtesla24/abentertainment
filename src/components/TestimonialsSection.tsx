@@ -14,10 +14,10 @@ interface Testimonial {
 }
 
 const TESTIMONIALS: Testimonial[] = [
-  { id: 'test-1', name: 'Priya Sharma', role: 'Event Attendee', quote: 'AB Entertainment transformed my understanding of Marathi theatre. The production quality rivals anything I\'ve seen in Mumbai. Absolutely world-class.', rating: 5, image: '/images/testimonials/avatar-1.png', event: 'Punha Sahi re Sahi' },
-  { id: 'test-2', name: 'Rajesh Kulkarni', role: 'Community Leader', quote: 'They don\'t just organize events -- they create cultural experiences. Every detail from lighting to sound is meticulously crafted. A gem for Melbourne\'s Indian community.', rating: 5, image: '/images/testimonials/avatar-2.png', event: 'Shyamachi Aai' },
-  { id: 'test-3', name: 'Sneha Deshmukh', role: 'Regular Patron', quote: 'I\'ve attended every AB Entertainment show for the past three years. The consistency of quality and the passion behind every performance is truly inspiring.', rating: 5, image: '/images/testimonials/avatar-3.png', event: 'Sankarshan via Spruha' },
-  { id: 'test-4', name: 'Michael Thompson', role: 'Arts Critic, The Age', quote: 'AB Entertainment is doing something remarkable -- bringing authentic Indian cultural performances to Melbourne with production values that rival our best theatre companies.', rating: 5, image: '/images/testimonials/avatar-4.png', event: 'Arya Ambekar Live in Concert' },
+  { id: 'test-1', name: 'Priya Sharma', role: 'Event Attendee', quote: 'AB Entertainment transformed my understanding of Marathi theatre. The production quality rivals anything I\'ve seen in Mumbai. Absolutely world-class.', rating: 5, image: '/images/team/vrushali-deshpande.jpg', event: 'Punha Sahi re Sahi' },
+  { id: 'test-2', name: 'Rajesh Kulkarni', role: 'Community Leader', quote: 'They don\'t just organize events -- they create cultural experiences. Every detail from lighting to sound is meticulously crafted. A gem for Melbourne\'s Indian community.', rating: 5, image: '/images/team/abhijit-kadam.jpg', event: 'Shyamachi Aai' },
+  { id: 'test-3', name: 'Sneha Deshmukh', role: 'Regular Patron', quote: 'I\'ve attended every AB Entertainment show for the past three years. The consistency of quality and the passion behind every performance is truly inspiring.', rating: 5, image: '/images/team/vrushali-deshpande.jpg', event: 'Sankarshan via Spruha' },
+  { id: 'test-4', name: 'Michael Thompson', role: 'Arts Critic, The Age', quote: 'AB Entertainment is doing something remarkable -- bringing authentic Indian cultural performances to Melbourne with production values that rival our best theatre companies.', rating: 5, image: '/images/team/abhijit-kadam.jpg', event: 'Arya Ambekar Live in Concert' },
 ];
 
 function StarRating({ rating }: { rating: number }) {
