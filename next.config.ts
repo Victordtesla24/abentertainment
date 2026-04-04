@@ -3,9 +3,9 @@ import type { NextConfig } from 'next';
 const isStaticExport = process.env.NEXT_EXPORT === 'true';
 
 const nextConfig: NextConfig = {
-  // Static export for Firebase/Hostinger shared hosting
-  // Server mode (default) for Hostinger Node.js / VPS / Docker
-  ...(isStaticExport ? { output: 'export' } : {}),
+  // Static export for Hostinger shared hosting
+  // Standalone output for VPS/Docker server mode
+  ...(isStaticExport ? { output: 'export' } : { output: 'standalone' }),
   trailingSlash: true,
   images: {
     unoptimized: true,

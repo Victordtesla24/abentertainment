@@ -1,7 +1,14 @@
 FROM node:22-alpine AS base
 
-# Install dependencies only when needed
+# Install ALL dependencies (including devDeps needed for build: postcss, tailwindcss, typescript)
 FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Production-only deps for the runner stage
+FROM base AS prod-deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json ./
