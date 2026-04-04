@@ -10,6 +10,8 @@ const PRODUCTION_SAFETY_PHRASE = 'i have reviewed your changes to production web
 const COST_LIMIT = 5.00;
 const DEVELOPER_CONTACT = 'Vikram (sarkar.vikram@gmail.com)';
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || path.join(process.cwd(), 'workspace');
+const DATA_DIR = path.join(WORKSPACE_DIR, 'data');
+const UPLOADS_DIR = path.join(WORKSPACE_DIR, 'public', 'uploads');
 const SLEEP_TIMEOUT_MS = 60_000; // 60 seconds of inactivity before sleep
 
 // ─── Sleep/Wake State Machine ────────────────────────────────────────────────
@@ -97,6 +99,54 @@ let workspaceContext = loadMandatoryContext();
 function reloadWorkspaceContext() {
   workspaceContext = loadMandatoryContext();
   return workspaceContext;
+}
+
+// ─── Data Layer ──────────────────────────────────────────────────────────────
+
+function ensureDir(dir) {
+  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+}
+
+function readData(filename, fallback) {
+  ensureDir(DATA_DIR);
+  const fp = path.join(DATA_DIR, filename);
+  try {
+    if (fs.existsSync(fp)) return JSON.parse(fs.readFileSync(fp, 'utf-8'));
+  } catch (e) { console.error('[data] readData error:', filename, e.message); }
+  return fallback;
+}
+
+function writeData(filename, data) {
+  ensureDir(DATA_DIR);
+  const fp = path.join(DATA_DIR, filename);
+  fs.writeFileSync(fp, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+// In-memory token store — tokens persist until server restart
+const activeTokens = new Set();
+
+function validateAdminToken(req) {
+  const auth = req.headers['authorization'] || '';
+  if (!auth.startsWith('Bearer ')) return false;
+  const token = auth.slice(7).trim();
+  // Tokens are 64 hex chars (32 random bytes) issued by our auth endpoint
+  return token.length >= 32 && /^[0-9a-f]+$/.test(token);
+}
+
+function sendJSON(res, status, data) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+}
+
+function trackTelemetry(action, section) {
+  try {
+    const tel = readData('telemetry.json', { actions: [], totals: {}, lastLogin: null });
+    const entry = { action, section, timestamp: new Date().toISOString() };
+    tel.actions.push(entry);
+    if (tel.actions.length > 1000) tel.actions = tel.actions.slice(-500);
+    tel.totals[section] = (tel.totals[section] || 0) + 1;
+    writeData('telemetry.json', tel);
+  } catch {}
 }
 
 // ─── API Clients ─────────────────────────────────────────────────────────────
@@ -737,8 +787,9 @@ const server = http.createServer(async (req, res) => {
   const origin = req.headers.origin || '';
   const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   res.setHeader('Access-Control-Allow-Origin', allowed);
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400');
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
@@ -889,7 +940,10 @@ const server = http.createServer(async (req, res) => {
     const body = await parseBody(req);
     if (body.username === 'admin' && body.password === 'admin123') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, token: crypto.randomBytes(32).toString('hex') }));
+      const token = crypto.randomBytes(32).toString('hex');
+      activeTokens.add(token);
+      trackTelemetry('login', 'auth');
+      res.end(JSON.stringify({ success: true, token }));
     } else {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Invalid credentials' }));
@@ -958,6 +1012,575 @@ const server = http.createServer(async (req, res) => {
     console.log('Contact form submission:', body.name, body.email);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'Thank you for your message. We will be in touch shortly.' }));
+    return;
+  }
+
+  // ─── Auth check for all admin CRUD routes ────────────────────────────────
+  if (url.startsWith('/api/admin/') && url !== '/api/admin/auth' && url !== '/api/admin/chat' &&
+      !url.startsWith('/api/admin/action')) {
+    if (!validateAdminToken(req)) {
+      sendJSON(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+  }
+
+  // ─── Serve uploaded files ────────────────────────────────────────────────
+  if (req.method === 'GET' && url.startsWith('/uploads/')) {
+    const safePath = path.normalize(decodeURIComponent(url.replace(/^\/uploads\//, '')));
+    if (safePath.includes('..')) { sendJSON(res, 400, { error: 'Invalid path' }); return; }
+    const fp = path.join(UPLOADS_DIR, safePath);
+    if (!fs.existsSync(fp)) { sendJSON(res, 404, { error: 'File not found' }); return; }
+    const ext = path.extname(fp).toLowerCase();
+    const mimes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.avif': 'image/avif' };
+    res.writeHead(200, { 'Content-Type': mimes[ext] || 'application/octet-stream', 'Cache-Control': 'public, max-age=31536000' });
+    fs.createReadStream(fp).pipe(res);
+    return;
+  }
+
+  // ─── File Upload ─────────────────────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/admin/upload') {
+    if (!validateAdminToken(req)) { sendJSON(res, 401, { error: 'Unauthorized' }); return; }
+    const body = await parseBody(req);
+    try {
+      const { filename, mimeType, data: b64, folder = 'general' } = body;
+      if (!filename || !b64) { sendJSON(res, 400, { error: 'filename and data required' }); return; }
+      const safe = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
+      const finalName = `${Date.now()}-${safe}`;
+      const uploadDir = path.join(UPLOADS_DIR, folder);
+      ensureDir(uploadDir);
+      fs.writeFileSync(path.join(uploadDir, finalName), Buffer.from(b64, 'base64'));
+      const publicUrl = `/uploads/${folder}/${finalName}`;
+      trackTelemetry('upload', 'media');
+      sendJSON(res, 200, { url: publicUrl, filename: finalName });
+    } catch (e) { sendJSON(res, 500, { error: e.message }); }
+    return;
+  }
+
+  // ─── Events CRUD ─────────────────────────────────────────────────────────
+  if (url === '/api/admin/events') {
+    if (req.method === 'GET') {
+      sendJSON(res, 200, { events: readData('events.json', []) });
+      return;
+    }
+    if (req.method === 'POST') {
+      const body = await parseBody(req);
+      const events = readData('events.json', []);
+      const ev = {
+        id: `evt-${Date.now()}`,
+        title: body.title || '',
+        slug: body.slug || (body.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+        date: body.date || '',
+        venue: body.venue || '',
+        description: body.description || '',
+        longDescription: body.longDescription || '',
+        hook: body.hook || '',
+        cast: body.cast || '',
+        price: Number(body.price) || 0,
+        currency: body.currency || 'AUD',
+        status: body.status || 'upcoming',
+        ticketStatus: body.ticketStatus || 'available',
+        image: body.image || '',
+        category: body.category || '',
+        capacity: Number(body.capacity) || 0,
+        ticketUrl: body.ticketUrl || '',
+        videoUrl: body.videoUrl || '',
+        featuredVideo: body.featuredVideo || '',
+        ticketsSold: Number(body.ticketsSold) || 0,
+        ticketRevenue: Number(body.ticketRevenue) || 0,
+        sponsorIds: Array.isArray(body.sponsorIds) ? body.sponsorIds : [],
+        order: body.order !== undefined ? Number(body.order) : events.length,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      events.push(ev);
+      writeData('events.json', events);
+      trackTelemetry('create', 'events');
+      sendJSON(res, 201, { event: ev });
+      return;
+    }
+    if (req.method === 'PUT') {
+      const body = await parseBody(req);
+      const events = readData('events.json', []);
+      const idx = events.findIndex(e => e.id === body.id);
+      if (idx === -1) { sendJSON(res, 404, { error: 'Event not found' }); return; }
+      events[idx] = { ...events[idx], ...body, updatedAt: new Date().toISOString() };
+      writeData('events.json', events);
+      trackTelemetry('update', 'events');
+      sendJSON(res, 200, { event: events[idx] });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      const body = await parseBody(req);
+      let events = readData('events.json', []);
+      events = events.filter(e => e.id !== body.id);
+      writeData('events.json', events);
+      trackTelemetry('delete', 'events');
+      sendJSON(res, 200, { success: true });
+      return;
+    }
+  }
+
+  // ─── Gallery CRUD ─────────────────────────────────────────────────────────
+  if (url === '/api/admin/gallery' || url.startsWith('/api/admin/gallery?')) {
+    const parsedUrl = new URL('http://localhost' + url);
+    const eventId = parsedUrl.searchParams.get('eventId');
+    if (req.method === 'GET') {
+      let images = readData('gallery.json', []);
+      if (eventId) images = images.filter(i => i.eventId === eventId);
+      sendJSON(res, 200, { images });
+      return;
+    }
+    if (req.method === 'POST') {
+      const body = await parseBody(req);
+      const images = readData('gallery.json', []);
+      const img = {
+        id: `img-${Date.now()}`,
+        src: body.src || '',
+        alt: body.alt || '',
+        eventId: body.eventId || null,
+        category: body.category || 'event',
+        width: Number(body.width) || 1200,
+        height: Number(body.height) || 800,
+        order: body.order !== undefined ? Number(body.order) : images.length,
+        createdAt: new Date().toISOString(),
+      };
+      images.push(img);
+      writeData('gallery.json', images);
+      trackTelemetry('create', 'gallery');
+      sendJSON(res, 201, { image: img });
+      return;
+    }
+    if (req.method === 'PUT') {
+      const body = await parseBody(req);
+      const images = readData('gallery.json', []);
+      const idx = images.findIndex(i => i.id === body.id);
+      if (idx === -1) { sendJSON(res, 404, { error: 'Image not found' }); return; }
+      images[idx] = { ...images[idx], ...body };
+      writeData('gallery.json', images);
+      trackTelemetry('update', 'gallery');
+      sendJSON(res, 200, { image: images[idx] });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      const body = await parseBody(req);
+      let images = readData('gallery.json', []);
+      if (Array.isArray(body.ids)) {
+        images = images.filter(i => !body.ids.includes(i.id));
+      } else {
+        images = images.filter(i => i.id !== body.id);
+      }
+      writeData('gallery.json', images);
+      trackTelemetry('delete', 'gallery');
+      sendJSON(res, 200, { success: true });
+      return;
+    }
+  }
+
+  // ─── Sponsors CRUD ───────────────────────────────────────────────────────
+  if (url === '/api/admin/sponsors') {
+    if (req.method === 'GET') {
+      sendJSON(res, 200, { sponsors: readData('sponsors.json', []) });
+      return;
+    }
+    if (req.method === 'POST') {
+      const body = await parseBody(req);
+      const sponsors = readData('sponsors.json', []);
+      const sp = {
+        id: `sp-${Date.now()}`,
+        name: body.name || '',
+        logo: body.logo || '',
+        url: body.url || '#',
+        tier: body.tier || 'silver',
+        description: body.description || '',
+        revenue: body.revenue !== undefined ? Number(body.revenue) : undefined,
+        contractValue: body.contractValue !== undefined ? Number(body.contractValue) : undefined,
+        order: body.order !== undefined ? Number(body.order) : sponsors.length,
+        createdAt: new Date().toISOString(),
+      };
+      sponsors.push(sp);
+      writeData('sponsors.json', sponsors);
+      trackTelemetry('create', 'sponsors');
+      sendJSON(res, 201, { sponsor: sp });
+      return;
+    }
+    if (req.method === 'PUT') {
+      const body = await parseBody(req);
+      const sponsors = readData('sponsors.json', []);
+      const idx = sponsors.findIndex(s => s.id === body.id);
+      if (idx === -1) { sendJSON(res, 404, { error: 'Sponsor not found' }); return; }
+      sponsors[idx] = { ...sponsors[idx], ...body };
+      writeData('sponsors.json', sponsors);
+      trackTelemetry('update', 'sponsors');
+      sendJSON(res, 200, { sponsor: sponsors[idx] });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      const body = await parseBody(req);
+      let sponsors = readData('sponsors.json', []);
+      sponsors = sponsors.filter(s => s.id !== body.id);
+      writeData('sponsors.json', sponsors);
+      trackTelemetry('delete', 'sponsors');
+      sendJSON(res, 200, { success: true });
+      return;
+    }
+  }
+
+  // ─── Videos CRUD ─────────────────────────────────────────────────────────
+  if (url === '/api/admin/videos') {
+    if (req.method === 'GET') {
+      sendJSON(res, 200, { videos: readData('videos.json', []) });
+      return;
+    }
+    if (req.method === 'POST') {
+      const body = await parseBody(req);
+      const videos = readData('videos.json', []);
+      const vid = {
+        id: `vid-${Date.now()}`,
+        title: body.title || '',
+        url: body.url || '',
+        type: body.type || 'promo',
+        eventId: body.eventId || '',
+        thumbnail: body.thumbnail || '',
+        featured: !!body.featured,
+        order: body.order !== undefined ? Number(body.order) : videos.length,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      videos.push(vid);
+      writeData('videos.json', videos);
+      trackTelemetry('create', 'videos');
+      sendJSON(res, 201, { video: vid });
+      return;
+    }
+    if (req.method === 'PUT') {
+      const body = await parseBody(req);
+      const videos = readData('videos.json', []);
+      const idx = videos.findIndex(v => v.id === body.id);
+      if (idx === -1) { sendJSON(res, 404, { error: 'Video not found' }); return; }
+      videos[idx] = { ...videos[idx], ...body, updatedAt: new Date().toISOString() };
+      writeData('videos.json', videos);
+      trackTelemetry('update', 'videos');
+      sendJSON(res, 200, { video: videos[idx] });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      const body = await parseBody(req);
+      let videos = readData('videos.json', []);
+      videos = videos.filter(v => v.id !== body.id);
+      writeData('videos.json', videos);
+      trackTelemetry('delete', 'videos');
+      sendJSON(res, 200, { success: true });
+      return;
+    }
+  }
+
+  // ─── Hero Images CRUD ────────────────────────────────────────────────────
+  if (url === '/api/admin/hero-images') {
+    if (req.method === 'GET') {
+      sendJSON(res, 200, { images: readData('hero-images.json', []) });
+      return;
+    }
+    if (req.method === 'POST') {
+      const body = await parseBody(req);
+      const images = readData('hero-images.json', []);
+      const img = {
+        id: `hero-${Date.now()}`,
+        src: body.src || '',
+        alt: body.alt || '',
+        page: body.page || 'Home',
+        order: body.order !== undefined ? Number(body.order) : images.length,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      images.push(img);
+      writeData('hero-images.json', images);
+      trackTelemetry('create', 'heroes');
+      sendJSON(res, 201, { image: img });
+      return;
+    }
+    if (req.method === 'PUT') {
+      const body = await parseBody(req);
+      const images = readData('hero-images.json', []);
+      const idx = images.findIndex(i => i.id === body.id);
+      if (idx === -1) { sendJSON(res, 404, { error: 'Image not found' }); return; }
+      images[idx] = { ...images[idx], ...body, updatedAt: new Date().toISOString() };
+      writeData('hero-images.json', images);
+      trackTelemetry('update', 'heroes');
+      sendJSON(res, 200, { image: images[idx] });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      const body = await parseBody(req);
+      let images = readData('hero-images.json', []);
+      images = images.filter(i => i.id !== body.id);
+      writeData('hero-images.json', images);
+      trackTelemetry('delete', 'heroes');
+      sendJSON(res, 200, { success: true });
+      return;
+    }
+  }
+
+  // ─── AI Agents CRUD ──────────────────────────────────────────────────────
+  if (url === '/api/admin/agents') {
+    if (req.method === 'GET') {
+      sendJSON(res, 200, { agents: readData('agents.json', []) });
+      return;
+    }
+    if (req.method === 'POST') {
+      const body = await parseBody(req);
+      const agents = readData('agents.json', []);
+      const agent = {
+        id: `agent-${Date.now()}`,
+        name: body.name || 'New Agent',
+        type: body.type || 'customer',
+        model: body.model || 'gpt-4o-mini',
+        systemPrompt: body.systemPrompt || '',
+        temperature: body.temperature !== undefined ? Number(body.temperature) : 0.7,
+        maxTokens: body.maxTokens !== undefined ? Number(body.maxTokens) : 2000,
+        status: body.status || 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      agents.push(agent);
+      writeData('agents.json', agents);
+      trackTelemetry('create', 'agents');
+      sendJSON(res, 201, { agent });
+      return;
+    }
+    if (req.method === 'PUT') {
+      const body = await parseBody(req);
+      const agents = readData('agents.json', []);
+      const idx = agents.findIndex(a => a.id === body.id);
+      if (idx === -1) { sendJSON(res, 404, { error: 'Agent not found' }); return; }
+      agents[idx] = { ...agents[idx], ...body, updatedAt: new Date().toISOString() };
+      writeData('agents.json', agents);
+      trackTelemetry('update', 'agents');
+      sendJSON(res, 200, { agent: agents[idx] });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      const body = await parseBody(req);
+      let agents = readData('agents.json', []);
+      agents = agents.filter(a => a.id !== body.id);
+      writeData('agents.json', agents);
+      trackTelemetry('delete', 'agents');
+      sendJSON(res, 200, { success: true });
+      return;
+    }
+  }
+
+  // ─── Conversations CRUD ──────────────────────────────────────────────────
+  if (url === '/api/admin/conversations') {
+    if (req.method === 'GET') {
+      sendJSON(res, 200, { conversations: readData('conversations.json', []) });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      const body = await parseBody(req);
+      let convs = readData('conversations.json', []);
+      convs = convs.filter(c => c.id !== body.id);
+      writeData('conversations.json', convs);
+      trackTelemetry('delete', 'conversations');
+      sendJSON(res, 200, { success: true });
+      return;
+    }
+  }
+
+  // ─── Settings CRUD ───────────────────────────────────────────────────────
+  if (url === '/api/admin/settings') {
+    const DEFAULT_SETTINGS = {
+      chatModel: 'gpt-4o',
+      heroTitle: 'Experience Events Like No Other',
+      heroSubtitle: "Melbourne's Premier Indian & Marathi Performing Arts",
+      contactEmail: 'abhi@abentertainment.com.au',
+      contactPhone: '(+61) 430082646',
+    };
+    if (req.method === 'GET') {
+      sendJSON(res, 200, { settings: readData('settings.json', DEFAULT_SETTINGS) });
+      return;
+    }
+    if (req.method === 'PUT' || req.method === 'PATCH') {
+      const body = await parseBody(req);
+      const current = readData('settings.json', DEFAULT_SETTINGS);
+      const updated = { ...current, ...body };
+      writeData('settings.json', updated);
+      trackTelemetry('update', 'settings');
+      sendJSON(res, 200, { settings: updated });
+      return;
+    }
+  }
+
+  // ─── Pages CRUD ──────────────────────────────────────────────────────────
+  if (url === '/api/admin/pages') {
+    const DEFAULT_PAGES = [
+      { slug: '/', title: 'Home', updatedAt: new Date().toISOString() },
+      { slug: '/about', title: 'About', updatedAt: new Date().toISOString() },
+      { slug: '/events', title: 'Events', updatedAt: new Date().toISOString() },
+      { slug: '/gallery', title: 'Gallery', updatedAt: new Date().toISOString() },
+      { slug: '/sponsors', title: 'Sponsors', updatedAt: new Date().toISOString() },
+      { slug: '/contact', title: 'Contact', updatedAt: new Date().toISOString() },
+    ];
+    if (req.method === 'GET') {
+      sendJSON(res, 200, { pages: readData('pages.json', DEFAULT_PAGES) });
+      return;
+    }
+    if (req.method === 'PUT') {
+      const body = await parseBody(req);
+      let pages = readData('pages.json', DEFAULT_PAGES);
+      const idx = pages.findIndex(p => p.slug === body.slug);
+      if (idx === -1) {
+        pages.push({ slug: body.slug, title: body.title, updatedAt: new Date().toISOString() });
+      } else {
+        pages[idx] = { ...pages[idx], title: body.title, updatedAt: new Date().toISOString() };
+      }
+      writeData('pages.json', pages);
+      trackTelemetry('update', 'pages');
+      sendJSON(res, 200, { pages });
+      return;
+    }
+  }
+
+  // ─── Timeline CRUD ───────────────────────────────────────────────────────
+  if (url === '/api/admin/timeline') {
+    if (req.method === 'GET') {
+      sendJSON(res, 200, { chapters: readData('timeline.json', []) });
+      return;
+    }
+    if (req.method === 'POST') {
+      const body = await parseBody(req);
+      const chapters = readData('timeline.json', []);
+      const ch = {
+        id: `ch-${Date.now()}`,
+        preTitle: body.preTitle || '',
+        title: body.title || '',
+        body: body.body || '',
+        statValue: body.statValue || '',
+        statLabel: body.statLabel || '',
+        backgroundImage: body.backgroundImage || '',
+        accent: body.accent || '#C9A84C',
+        order: body.order !== undefined ? Number(body.order) : chapters.length,
+        updatedAt: new Date().toISOString(),
+      };
+      chapters.push(ch);
+      writeData('timeline.json', chapters);
+      trackTelemetry('create', 'timeline');
+      sendJSON(res, 201, { chapter: ch });
+      return;
+    }
+    if (req.method === 'PUT') {
+      const body = await parseBody(req);
+      const chapters = readData('timeline.json', []);
+      const idx = chapters.findIndex(c => c.id === body.id);
+      if (idx === -1) { sendJSON(res, 404, { error: 'Chapter not found' }); return; }
+      chapters[idx] = { ...chapters[idx], ...body, updatedAt: new Date().toISOString() };
+      writeData('timeline.json', chapters);
+      trackTelemetry('update', 'timeline');
+      sendJSON(res, 200, { chapter: chapters[idx] });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      const body = await parseBody(req);
+      let chapters = readData('timeline.json', []);
+      chapters = chapters.filter(c => c.id !== body.id);
+      writeData('timeline.json', chapters);
+      trackTelemetry('delete', 'timeline');
+      sendJSON(res, 200, { success: true });
+      return;
+    }
+  }
+
+  // ─── Testimonials CRUD ───────────────────────────────────────────────────
+  if (url === '/api/admin/testimonials') {
+    if (req.method === 'GET') {
+      sendJSON(res, 200, { testimonials: readData('testimonials.json', []) });
+      return;
+    }
+    if (req.method === 'POST') {
+      const body = await parseBody(req);
+      const testimonials = readData('testimonials.json', []);
+      const t = {
+        id: `test-${Date.now()}`,
+        name: body.name || '',
+        role: body.role || '',
+        quote: body.quote || '',
+        rating: Number(body.rating) || 5,
+        avatar: body.avatar || '',
+        createdAt: new Date().toISOString(),
+      };
+      testimonials.push(t);
+      writeData('testimonials.json', testimonials);
+      trackTelemetry('create', 'testimonials');
+      sendJSON(res, 201, { testimonial: t });
+      return;
+    }
+    if (req.method === 'PUT') {
+      const body = await parseBody(req);
+      const testimonials = readData('testimonials.json', []);
+      const idx = testimonials.findIndex(t => t.id === body.id);
+      if (idx === -1) { sendJSON(res, 404, { error: 'Testimonial not found' }); return; }
+      testimonials[idx] = { ...testimonials[idx], ...body };
+      writeData('testimonials.json', testimonials);
+      trackTelemetry('update', 'testimonials');
+      sendJSON(res, 200, { testimonial: testimonials[idx] });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      const body = await parseBody(req);
+      let testimonials = readData('testimonials.json', []);
+      testimonials = testimonials.filter(t => t.id !== body.id);
+      writeData('testimonials.json', testimonials);
+      trackTelemetry('delete', 'testimonials');
+      sendJSON(res, 200, { success: true });
+      return;
+    }
+  }
+
+  // ─── Telemetry ───────────────────────────────────────────────────────────
+  if (url === '/api/admin/telemetry') {
+    if (req.method === 'GET') {
+      if (!validateAdminToken(req)) { sendJSON(res, 401, { error: 'Unauthorized' }); return; }
+      const tel = readData('telemetry.json', { actions: [], totals: {}, lastLogin: null });
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0, 10);
+      const todayActions = tel.actions.filter(a => a.timestamp.startsWith(todayStr));
+      const recentActions = tel.actions.slice(-20).reverse();
+      sendJSON(res, 200, {
+        totals: tel.totals,
+        todayCount: todayActions.length,
+        totalCount: tel.actions.length,
+        recentActions,
+        lastLogin: tel.lastLogin,
+      });
+      return;
+    }
+  }
+
+  // ─── Admin Action (wake/restart/clear_cache/clear_stats) ─────────────────
+  if (req.method === 'POST' && url === '/api/admin/action') {
+    if (!validateAdminToken(req)) { sendJSON(res, 401, { error: 'Unauthorized' }); return; }
+    const body = await parseBody(req);
+    const action = body.action || '';
+    switch (action) {
+      case 'wake':
+        wakeAgent();
+        sendJSON(res, 200, { message: 'Agent woken successfully', agentStatus: agentState.status });
+        break;
+      case 'restart':
+        sendJSON(res, 200, { message: 'Agent context reloaded', agentStatus: agentState.status });
+        reloadWorkspaceContext();
+        break;
+      case 'clear_cache':
+        sendJSON(res, 200, { message: 'Cache cleared', agentStatus: agentState.status });
+        break;
+      case 'clear_stats':
+        agentState.requestCount = 0;
+        agentState.sleepCount = 0;
+        agentState.wakeCount = 0;
+        sendJSON(res, 200, { message: 'Stats reset', agentStatus: agentState.status });
+        break;
+      default:
+        sendJSON(res, 400, { error: `Unknown action: ${action}` });
+    }
     return;
   }
 

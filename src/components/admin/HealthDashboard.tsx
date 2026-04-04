@@ -9,6 +9,7 @@ import { TimeScopeFilter } from './telemetry/TimeScopeFilter';
 import { RevenueChart } from './telemetry/RevenueChart';
 import { TicketSalesChart } from './telemetry/TicketSalesChart';
 import { EventAnalytics } from './telemetry/EventAnalytics';
+import { AdminConsoleTelemetry } from './telemetry/AdminConsoleTelemetry';
 import type { Event, Sponsor } from '@/lib/data';
 import useSWR from 'swr';
 
@@ -837,6 +838,8 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
           For critical issues the AI Agent cannot resolve, contact: <span className="text-[#C9A84C]">{process.env.NEXT_PUBLIC_ESCALATION_EMAIL || healthData?.developer || 'Vikram (sarkar.vikram@gmail.com)'}</span>
         </p>
       </div>
+
+      <AdminConsoleTelemetry />
 
       {/* Business Metrics */}
       <div className="mt-8 space-y-6">

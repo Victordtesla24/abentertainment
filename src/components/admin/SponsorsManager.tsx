@@ -1,5 +1,6 @@
 'use client';
 import { adminFetch } from '@/lib/admin-fetch';
+import { uploadFile } from '@/lib/upload-helper';
 
 import { useState, useMemo, FormEvent } from 'react';
 import type { Sponsor, Event } from '@/lib/data';
@@ -24,6 +25,7 @@ export default function SponsorsManager({ initialSponsors, allEvents }: Sponsors
   const [contractValue, setContractValue] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   const summary = useMemo(() => {
     const totalRevenue = sponsors.reduce((sum, s) => sum + (s.revenue ?? 0), 0);
@@ -304,12 +306,40 @@ export default function SponsorsManager({ initialSponsors, allEvents }: Sponsors
             </div>
             <div>
               <label className="block text-xs text-white/40 mb-1">Logo URL</label>
-              <input
-                type="text"
-                value={logo}
-                onChange={(e) => setLogo(e.target.value)}
-                className={inputClasses}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={logo}
+                  onChange={(e) => setLogo(e.target.value)}
+                  className={`flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]`}
+                />
+                <input
+                  type="file"
+                  id="sponsor-logo-upload"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setUploading(true);
+                    try {
+                      const result = await uploadFile(file, 'sponsors');
+                      setLogo(result.url);
+                    } catch (err) {
+                      setMessage(`Error: ${err instanceof Error ? err.message : 'Upload failed'}`);
+                    } finally {
+                      setUploading(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <label
+                  htmlFor="sponsor-logo-upload"
+                  className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors cursor-pointer whitespace-nowrap flex items-center rounded-sm"
+                >
+                  {uploading ? 'Uploading...' : 'Upload File'}
+                </label>
+              </div>
             </div>
             <div>
               <label className="block text-xs text-white/40 mb-1">Website URL</label>

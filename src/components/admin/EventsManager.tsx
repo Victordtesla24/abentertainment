@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
+import { uploadFile } from '@/lib/upload-helper';
 
 import { useState, useRef, useEffect, useCallback, FormEvent, useMemo } from 'react';
 import type { Event, GalleryImage, Sponsor } from '@/lib/data';
@@ -48,6 +49,7 @@ export default function EventsManager({ initialEvents, allSponsors = [] }: Event
   const [form, setForm] = useState(EMPTY_EVENT);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [uploading, setUploading] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
@@ -561,12 +563,40 @@ export default function EventsManager({ initialEvents, allSponsors = [] }: Event
             </div>
             <div>
               <label className="block text-xs text-white/40 mb-1">Image URL</label>
-              <input
-                type="text"
-                value={form.image}
-                onChange={(e) => setForm({ ...form, image: e.target.value })}
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={form.image}
+                  onChange={(e) => setForm({ ...form, image: e.target.value })}
+                  className="flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
+                />
+                <input
+                  type="file"
+                  id="event-image-upload"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setUploading(true);
+                    try {
+                      const result = await uploadFile(file, 'events');
+                      setForm((prev) => ({ ...prev, image: result.url }));
+                    } catch (err) {
+                      setMessage(`Error: ${err instanceof Error ? err.message : 'Upload failed'}`);
+                    } finally {
+                      setUploading(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <label
+                  htmlFor="event-image-upload"
+                  className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors cursor-pointer whitespace-nowrap flex items-center rounded-sm"
+                >
+                  {uploading ? 'Uploading...' : 'Upload File'}
+                </label>
+              </div>
             </div>
             <div>
               <label className="block text-xs text-white/40 mb-1">Ticket URL</label>
