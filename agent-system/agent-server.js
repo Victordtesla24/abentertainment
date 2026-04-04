@@ -5,7 +5,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const PORT = 3002;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3002;
 const PRODUCTION_SAFETY_PHRASE = 'i have reviewed your changes to production website and i approve for you to make changes now';
 const COST_LIMIT = 5.00;
 const DEVELOPER_CONTACT = 'Vikram (sarkar.vikram@gmail.com)';
