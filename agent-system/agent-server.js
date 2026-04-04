@@ -122,14 +122,34 @@ function writeData(filename, data) {
   fs.writeFileSync(fp, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-// In-memory token store — tokens persist until server restart
-const activeTokens = new Set();
+// HMAC-signed stateless tokens — survive server restarts, no in-memory state needed
+const AGENT_TOKEN_SECRET = process.env.AGENT_SECRET || process.env.SESSION_SECRET || 'ab-agent-token-secret-change-me';
+const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function issueAdminToken() {
+  const payload = JSON.stringify({ iat: Date.now(), exp: Date.now() + TOKEN_TTL_MS, jti: crypto.randomBytes(8).toString('hex') });
+  const encoded = Buffer.from(payload).toString('base64url');
+  const sig = crypto.createHmac('sha256', AGENT_TOKEN_SECRET).update(encoded).digest('hex');
+  return `${encoded}.${sig}`;
+}
 
 function validateAdminToken(req) {
   const auth = req.headers['authorization'] || '';
   if (!auth.startsWith('Bearer ')) return false;
   const token = auth.slice(7).trim();
-  return token.length >= 32 && /^[0-9a-f]+$/.test(token) && activeTokens.has(token);
+  const dot = token.lastIndexOf('.');
+  if (dot < 1) return false;
+  const encoded = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const expected = crypto.createHmac('sha256', AGENT_TOKEN_SECRET).update(encoded).digest('hex');
+  if (sig.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expected.charCodeAt(i);
+  if (diff !== 0) return false;
+  try {
+    const pl = JSON.parse(Buffer.from(encoded, 'base64url').toString());
+    return typeof pl.exp === 'number' && pl.exp > Date.now();
+  } catch { return false; }
 }
 
 function sendJSON(res, status, data) {
@@ -948,8 +968,7 @@ const server = http.createServer(async (req, res) => {
       : body.username === 'admin' && body.password === 'admin123';
     if (valid) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      const token = crypto.randomBytes(32).toString('hex');
-      activeTokens.add(token);
+      const token = issueAdminToken();
       trackTelemetry('login', 'auth');
       res.end(JSON.stringify({ success: true, token }));
     } else {
@@ -967,11 +986,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'DELETE' && url === '/api/admin/auth') {
-    const auth = req.headers['authorization'] || '';
-    if (auth.startsWith('Bearer ')) {
-      const token = auth.slice(7).trim();
-      activeTokens.delete(token);
-    }
+    // HMAC tokens are stateless — logout is handled client-side by discarding the token
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true }));
     return;
@@ -1586,17 +1601,24 @@ const server = http.createServer(async (req, res) => {
         sendJSON(res, 200, { message: 'Agent woken successfully', agentStatus: agentState.status });
         break;
       case 'restart':
-        sendJSON(res, 200, { message: 'Agent context reloaded', agentStatus: agentState.status });
-        reloadWorkspaceContext();
+        // Send response before exiting — systemd (Restart=always) will restart the process
+        sendJSON(res, 200, { message: 'Agent service restarting…', agentStatus: agentState.status });
+        setTimeout(() => {
+          console.log('[ACTION] Admin triggered service restart via /api/admin/action');
+          process.exit(0);
+        }, 200);
         break;
       case 'clear_cache':
-        sendJSON(res, 200, { message: 'Cache cleared', agentStatus: agentState.status });
+        // Reset rate-limiter windows and in-process caches
+        providerRateStore.clear();
+        agentState.lastActivity = Date.now();
+        sendJSON(res, 200, { message: 'Server cache and rate-limit state cleared', agentStatus: agentState.status });
         break;
       case 'clear_stats':
         agentState.requestCount = 0;
         agentState.sleepCount = 0;
         agentState.wakeCount = 0;
-        sendJSON(res, 200, { message: 'Stats reset', agentStatus: agentState.status });
+        sendJSON(res, 200, { message: 'Request counters reset to zero', agentStatus: agentState.status });
         break;
       default:
         sendJSON(res, 400, { error: `Unknown action: ${action}` });

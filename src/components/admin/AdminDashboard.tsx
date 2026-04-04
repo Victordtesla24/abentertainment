@@ -1,6 +1,7 @@
 'use client';
 import { getApiUrl } from '@/lib/api-config';
 import { clearCsrfToken, clearAuthToken } from '@/lib/admin-fetch';
+import Image from 'next/image';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -140,10 +141,17 @@ export default function AdminDashboard({
       <aside className={`${sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'} bg-[#0A0A0A] border-r border-white/[0.06] flex flex-col transition-all duration-300 ease-out relative`}>
         {/* Brand Header */}
         <div className={`${sidebarCollapsed ? 'px-3 py-5' : 'px-6 py-6'} border-b border-white/[0.06]`}>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#C9A84C] to-[#A68B3C] flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#C9A84C]/10">
-              <span className="text-black font-bold text-sm">AB</span>
-            </div>
+            <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0 bg-[#0A0A0A]">
+                <Image
+                  src="/images/AB_Logo_transparent.png"
+                  alt="AB Entertainment"
+                  width={36}
+                  height={36}
+                  className="w-full h-full object-contain"
+                  unoptimized
+                />
+              </div>
             {!sidebarCollapsed && (
               <div className="min-w-0">
                 <h1 className="text-[13px] font-semibold text-white tracking-wide truncate">
