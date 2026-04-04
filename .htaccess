@@ -12,12 +12,17 @@ RewriteRule ^ - [L]
 # Deny access to hidden files/directories (.htaccess, .git, .env.*, etc.)
 RewriteRule (^|/)\. - [F,L]
 
-# If the file/directory exists in out/, rewrite transparently
-RewriteCond %{DOCUMENT_ROOT}/out/$1 -f [OR]
-RewriteCond %{DOCUMENT_ROOT}/out/$1 -d
+# If the file exists directly in out/, serve it (static assets: JS, CSS, images, fonts)
+RewriteCond %{DOCUMENT_ROOT}/out/$1 -f
 RewriteRule ^(.*)$ out/$1 [L]
 
-# Default: serve out/index.html for the root
+# For route paths: serve index.html from the matching out/ subdirectory
+# Handles both /events and /events/ → out/events/index.html
+# This avoids the directory redirect that exposes /out/ in the URL
+RewriteCond %{DOCUMENT_ROOT}/out/$1/index.html -f
+RewriteRule ^(.*?)/?$ out/$1/index.html [L]
+
+# Root URL fallback → serve out/index.html
 RewriteCond %{REQUEST_URI} ^/$
 RewriteRule ^$ out/index.html [L]
 
@@ -25,7 +30,19 @@ RewriteRule ^$ out/index.html [L]
 ErrorDocument 404 /out/404.html
 
 # Security: block access to source/build/config files
-<FilesMatch "\.(ts|tsx|jsx|mjs|cjs|mts|cts|json|md|yml|yaml|lock|env|local)$">
+# Note: .json is intentionally excluded — out/data/events.json must be served for the search modal
+<FilesMatch "\.(ts|tsx|jsx|mjs|cjs|mts|cts|md|yml|yaml|lock|env|local)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# Block specific dangerous JSON config files at repo root
+<FilesMatch "^(package|package-lock|tsconfig|next-env|postcss\.config|tailwind\.config)\.json$">
   <IfModule mod_authz_core.c>
     Require all denied
   </IfModule>
@@ -63,6 +80,11 @@ RedirectMatch 403 ^/\.claude(/.*)?$
   ExpiresByType video/mp4 "access plus 1 year"
   ExpiresByType video/webm "access plus 1 year"
   ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+
+# HSTS: enforce HTTPS for 1 year
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
 </IfModule>
 
 # Compression
