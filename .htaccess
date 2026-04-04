@@ -17,6 +17,14 @@ RewriteRule (^|/)\. - [F,L]
 RewriteCond %{REQUEST_URI} ^/api/ [NC]
 RewriteRule ^api/(.*)$ api-proxy.php?__path=/api/$1 [QSA,L]
 
+# Reverse proxy: forward /uploads/* to VPS for admin-uploaded media files
+RewriteCond %{REQUEST_URI} ^/uploads/ [NC]
+RewriteRule ^uploads/(.*)$ api-proxy.php?__path=/uploads/$1 [QSA,L]
+
+# Reverse proxy: forward /uploads/* to VPS (admin-uploaded images)
+RewriteCond %{REQUEST_URI} ^/uploads/ [NC]
+RewriteRule ^uploads/(.*)$ api-proxy.php?__path=/uploads/$1 [QSA,L]
+
 # If the file exists directly in out/, serve it (static assets: JS, CSS, images, fonts)
 RewriteCond %{DOCUMENT_ROOT}/out/$1 -f
 RewriteRule ^(.*)$ out/$1 [L]

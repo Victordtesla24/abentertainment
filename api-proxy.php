@@ -7,16 +7,18 @@
  * VPS at 187.77.12.13:3001 and relaying responses back to the browser.
  *
  * .htaccess routes: /api/* → api-proxy.php?__path=/api/*
+ *                   /uploads/* → api-proxy.php?__path=/uploads/*
  */
 
 $VPS_HOST = 'http://187.77.12.13:3001';
 
 // Get the API path from the query parameter set by .htaccess rewrite
 $apiPath = isset($_GET['__path']) ? $_GET['__path'] : '';
-if (!$apiPath || strpos($apiPath, '/api/') !== 0) {
+$validPath = $apiPath && (strpos($apiPath, '/api/') === 0 || strpos($apiPath, '/uploads/') === 0);
+if (!$validPath) {
     http_response_code(400);
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Invalid API path']);
+    echo json_encode(['error' => 'Invalid path']);
     exit;
 }
 
