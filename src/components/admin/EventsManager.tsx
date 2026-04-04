@@ -15,6 +15,8 @@ const EMPTY_EVENT: Omit<Event, 'id' | 'createdAt' | 'updatedAt'> = {
   venue: '',
   description: '',
   longDescription: '',
+  hook: '',
+  cast: '',
   price: 0,
   currency: 'AUD',
   status: 'upcoming',
@@ -49,6 +51,8 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
       venue: event.venue,
       description: event.description,
       longDescription: event.longDescription || '',
+      hook: event.hook || '',
+      cast: event.cast || '',
       price: event.price,
       currency: event.currency,
       status: event.status,
@@ -202,12 +206,14 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               />
               <p className="text-[9px] text-[#C9A84C]/40 mt-1 font-body">Tip: Use structured fields below for better formatting.</p>
             </div>
-            {/* Structured content fields — optional enhancement */}
+            {/* Structured content fields — Hook / Details / Cast */}
             <div className="md:col-span-2">
               <label className="block text-xs text-white/40 mb-1">Event Hook / One-liner</label>
               <input
                 type="text"
                 maxLength={120}
+                value={form.hook}
+                onChange={(e) => setForm({ ...form, hook: e.target.value })}
                 placeholder="A compelling one-liner for the event (max 120 chars)"
                 className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
               />
@@ -216,6 +222,8 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               <label className="block text-xs text-white/40 mb-1">Full Description</label>
               <textarea
                 rows={4}
+                value={form.longDescription}
+                onChange={(e) => setForm({ ...form, longDescription: e.target.value })}
                 placeholder="Detailed event description for the event page"
                 className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none placeholder-white/20"
               />
@@ -224,6 +232,8 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               <label className="block text-xs text-white/40 mb-1">Cast / Performers</label>
               <textarea
                 rows={3}
+                value={form.cast}
+                onChange={(e) => setForm({ ...form, cast: e.target.value })}
                 placeholder="List the cast and performers for this event"
                 className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none placeholder-white/20"
               />

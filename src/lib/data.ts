@@ -22,6 +22,10 @@ export interface Event {
   venue: string;
   description: string;
   longDescription?: string;
+  /** Short compelling one-liner for marketing (Hook/Details/Cast structure) */
+  hook?: string;
+  /** Cast and performers list */
+  cast?: string;
   price: number;
   currency: string;
   status: 'upcoming' | 'live' | 'past';

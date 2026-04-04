@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { getEvents, getEventBySlug } from '@/lib/data';
 import PageHero from '@/components/ui/PageHero';
 import CountdownTimer from '@/components/ui/CountdownTimer';
+import EventSchema from '@/components/EventSchema';
 
 export const dynamic = 'force-static';
 
@@ -96,53 +97,11 @@ export default async function EventDetailPage({ params }: PageProps) {
   }
 
   const isPast = new Date(event.date) <= new Date();
-  const baseUrl = 'https://abentertainment.com.au';
-
-  // Schema.org Event structured data
-  const eventJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Event',
-    name: event.title,
-    description: event.longDescription || event.description,
-    startDate: event.date,
-    eventStatus: isPast
-      ? 'https://schema.org/EventScheduled'
-      : 'https://schema.org/EventScheduled',
-    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
-    location: {
-      '@type': 'Place',
-      name: event.venue,
-      address: {
-        '@type': 'PostalAddress',
-        addressLocality: 'Melbourne',
-        addressRegion: 'VIC',
-        addressCountry: 'AU',
-      },
-    },
-    organizer: {
-      '@type': 'Organization',
-      name: 'AB Entertainment',
-      url: baseUrl,
-    },
-    image: event.image ? `${baseUrl}${event.image}` : undefined,
-    offers: {
-      '@type': 'Offer',
-      price: event.price,
-      priceCurrency: event.currency || 'AUD',
-      availability: isPast
-        ? 'https://schema.org/SoldOut'
-        : 'https://schema.org/InStock',
-      url: event.ticketUrl || `${baseUrl}/events/${event.slug}/`,
-    },
-  };
 
   return (
     <main className="bg-[#0A0A0A]">
       {/* JSON-LD Structured Data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(eventJsonLd) }}
-      />
+      <EventSchema event={event} />
 
       <PageHero
         image={event.image || '/images/heroes/events-hero.png'}
