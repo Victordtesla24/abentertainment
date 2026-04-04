@@ -51,7 +51,13 @@ function isTokenValid(token: string): boolean {
     const parts = token.split('.');
     if (parts.length !== 2) return false;
 
-    const [encodedPayload] = parts;
+    const [encodedPayload, signature] = parts;
+
+    // Validate signature format: HMAC-SHA256 hex digest is exactly 64 hex chars
+    if (!/^[0-9a-f]{64}$/.test(signature)) {
+      return false;
+    }
+
     const payload = JSON.parse(
       Buffer.from(encodedPayload, 'base64url').toString('utf-8')
     );

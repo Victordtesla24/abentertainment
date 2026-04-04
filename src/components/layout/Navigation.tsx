@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useScroll, useTransform, motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -39,6 +39,23 @@ export function Navigation() {
   const navBorder = useTransform(scrollY, [0, 120], ['rgba(201,168,76,0)', 'rgba(201,168,76,0.1)']);
 
   useEffect(() => { setIsOpen(false); }, [pathname]);
+
+  // Global Cmd/Ctrl+K shortcut to toggle search modal
+  const toggleSearch = useCallback(() => {
+    setIsSearchOpen((prev) => !prev);
+  }, []);
+
+  useEffect(() => {
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        toggleSearch();
+      }
+    }
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [toggleSearch]);
+
   const isActive = (href: string) => pathname === href;
 
   return (
@@ -65,14 +82,16 @@ export function Navigation() {
           <div className="flex items-center gap-9">
             {NAVIGATION.map((link) => (
               <Link key={link.href} href={link.href}
-                className={`relative text-xs uppercase tracking-[0.18em] font-body font-medium transition-all duration-400 py-1 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-4 ${
+                className={`group relative text-xs uppercase tracking-wider font-body font-medium transition-all duration-400 py-1 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-4 ${
                   isActive(link.href) ? 'text-[#C9A84C]' : 'text-white/60 hover:text-white'
                 }`}
               >
                 {link.label}
-                {isActive(link.href) && (
+                {isActive(link.href) ? (
                   <motion.div layoutId="nav-underline" className="absolute -bottom-1 left-0 right-0 h-[2px] bg-gradient-to-r from-[#C9A84C]/50 via-[#C9A84C] to-[#C9A84C]/50"
                     transition={{ type: 'spring', stiffness: 380, damping: 30 }} />
+                ) : (
+                  <span className="absolute -bottom-1 left-0 right-0 h-[2px] bg-[#C9A84C] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out" />
                 )}
               </Link>
             ))}

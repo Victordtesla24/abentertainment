@@ -50,6 +50,32 @@ export function validatePasswordPolicy(password: string): PasswordValidation {
   return { valid: errors.length === 0, errors };
 }
 
+/** Alias for plan compatibility — identical to validatePasswordPolicy. */
+export const validatePasswordStrength = validatePasswordPolicy;
+
+// ─── Legacy Weak Hash Detection ─────────────────────────────────────────────
+
+/**
+ * Known bcrypt hashes of the weak default password "admin123".
+ * bcrypt includes a per-hash salt so there is no single canonical hash,
+ * but we can detect the weak password by running bcrypt.compare against
+ * the stored hash.
+ */
+const KNOWN_WEAK_PASSWORD = 'admin123';
+
+/**
+ * Returns true when the stored password hash corresponds to the known
+ * weak default password "admin123".  Uses bcrypt.compare so it works
+ * regardless of the salt embedded in the hash.
+ */
+export async function isLegacyWeakHash(storedHash: string): Promise<boolean> {
+  try {
+    return await bcrypt.compare(KNOWN_WEAK_PASSWORD, storedHash);
+  } catch {
+    return false;
+  }
+}
+
 // ─── Environment ─────────────────────────────────────────────────────────────
 
 /**
@@ -76,6 +102,21 @@ function getSessionSecret(): string {
   return getEnv('SESSION_SECRET');
 }
 
+// ─── Session Secret Safety Check ────────────────────────────────────────────
+
+/**
+ * Warn at import time if SESSION_SECRET is set to the known weak default.
+ * Only emits the warning once and only when the env var is actually set
+ * (avoids noise during static export builds where env vars are absent).
+ */
+const _sessionSecret = process.env.SESSION_SECRET;
+if (_sessionSecret === 'admin123') {
+  console.warn(
+    '[auth] WARNING: SESSION_SECRET is set to the weak default "admin123". ' +
+    'Generate a strong secret: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+  );
+}
+
 // ─── Credential Validation ───────────────────────────────────────────────────
 
 /** Constant-time string comparison to prevent timing oracle attacks. */
@@ -86,6 +127,13 @@ function constantTimeEqual(a: string, b: string): boolean {
     result |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   }
   return result === 0;
+}
+
+/** Result of extended credential validation. */
+export interface CredentialResult {
+  valid: boolean;
+  /** True when the stored hash corresponds to a known weak default password. */
+  requirePasswordChange?: boolean;
 }
 
 /**
@@ -110,6 +158,42 @@ export async function validateCredentials(
   const passwordMatch = await bcrypt.compare(password, storedHash);
 
   return usernameMatch && passwordMatch;
+}
+
+/**
+ * Extended credential validation that also checks whether the stored
+ * password hash corresponds to a known weak default.
+ *
+ * Callers should inspect `requirePasswordChange` and force a password
+ * reset flow when it is true.
+ */
+export async function validateCredentialsExtended(
+  username: string,
+  password: string
+): Promise<CredentialResult> {
+  // Block known weak default credentials unconditionally
+  if (username === 'admin' && password === 'admin123') {
+    return { valid: false };
+  }
+
+  const usernameMatch = constantTimeEqual(username, getAdminUsername());
+
+  const storedHash = getAdminPasswordHash();
+  const passwordMatch = await bcrypt.compare(password, storedHash);
+
+  const valid = usernameMatch && passwordMatch;
+
+  if (!valid) {
+    return { valid: false };
+  }
+
+  // Credentials are correct — check if the stored hash is a known weak default
+  const legacyWeak = await isLegacyWeakHash(storedHash);
+
+  return {
+    valid: true,
+    requirePasswordChange: legacyWeak || undefined,
+  };
 }
 
 /**

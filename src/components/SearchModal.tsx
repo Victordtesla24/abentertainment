@@ -28,8 +28,9 @@ interface SearchModalProps {
 const fuseOptions: IFuseOptions<SearchableEvent> = {
   keys: [
     { name: 'title', weight: 0.4 },
-    { name: 'description', weight: 0.25 },
-    { name: 'venue', weight: 0.2 },
+    { name: 'description', weight: 0.2 },
+    { name: 'date', weight: 0.1 },
+    { name: 'venue', weight: 0.15 },
     { name: 'category', weight: 0.15 },
   ],
   threshold: 0.4,
@@ -98,6 +99,16 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
     };
   }, [isOpen]);
 
+  // Scroll selected result into view during keyboard navigation
+  useEffect(() => {
+    if (results[selectedIndex]) {
+      const el = document.getElementById(
+        `search-result-${results[selectedIndex].item.id}`
+      );
+      el?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [selectedIndex, results]);
+
   const navigateToResult = useCallback(
     (slug: string) => {
       onClose();
@@ -132,19 +143,13 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
     [results, selectedIndex, navigateToResult, onClose]
   );
 
-  // Global keyboard shortcut: Cmd/Ctrl+K
+  // Global Escape key handler (Cmd/Ctrl+K is handled in Navigation where state lives)
   useEffect(() => {
+    if (!isOpen) return;
+
     function handleGlobalKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if (e.key === 'Escape') {
         e.preventDefault();
-        if (isOpen) {
-          onClose();
-        } else {
-          // Parent component controls opening - this is handled
-          // via the search button click
-        }
-      }
-      if (e.key === 'Escape' && isOpen) {
         onClose();
       }
     }
@@ -209,10 +214,29 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 className="flex-1 bg-transparent text-white text-base font-body placeholder-white/30 outline-none"
                 autoComplete="off"
                 spellCheck={false}
+                role="combobox"
+                aria-expanded={results.length > 0}
+                aria-controls="search-results-listbox"
+                aria-activedescendant={
+                  results[selectedIndex]
+                    ? `search-result-${results[selectedIndex].item.id}`
+                    : undefined
+                }
               />
               <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-white/30 border border-white/10 rounded">
                 ESC
               </kbd>
+            </div>
+
+            {/* Accessible live region for result count */}
+            <div
+              aria-live="polite"
+              aria-atomic="true"
+              className="sr-only"
+            >
+              {query.length > 0 && results.length > 0 &&
+                `${results.length} result${results.length === 1 ? '' : 's'} found`}
+              {query.length > 0 && results.length === 0 && 'No results found'}
             </div>
 
             {/* Results */}
@@ -235,13 +259,14 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               )}
 
               {results.length > 0 && (
-                <ul role="listbox" aria-label="Search results">
+                <ul role="listbox" id="search-results-listbox" aria-label="Search results">
                   {results.map((result, index) => {
                     const event = result.item;
                     const isSelected = index === selectedIndex;
                     return (
                       <li
                         key={event.id}
+                        id={`search-result-${event.id}`}
                         role="option"
                         aria-selected={isSelected}
                         className={`flex items-center gap-4 px-5 py-3.5 cursor-pointer transition-colors duration-150 ${
