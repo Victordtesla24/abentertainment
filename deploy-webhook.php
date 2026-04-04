@@ -91,42 +91,28 @@ if ($ref !== "refs/heads/main" || $repoFullName !== "Victordtesla24/abentertainm
 $deployRoot = "/home/u970615914/domains/abentertainment.com.au/public_html";
 $lockPath = "/tmp/abentertainment_deploy.lock";
 $logPath = "/home/u970615914/deploy-webhook.log";
-
-$lockFp = fopen($lockPath, "c");
-if ($lockFp === false || !flock($lockFp, LOCK_EX | LOCK_NB)) {
-    http_response_code(409);
-    echo json_encode(["ok" => false, "error" => "Deployment already in progress"]);
-    exit;
-}
-
-$command = sprintf(
-    "/usr/bin/env bash -lc %s",
-    escapeshellarg(
-        "set -euo pipefail; " .
-        "cd " . escapeshellarg($deployRoot) . " && " .
-        "git fetch origin main && " .
-        "git reset --hard origin/main && " .
-        "git clean -fd"
-    )
-);
-
-$output = [];
-$exitCode = 1;
-exec($command . " 2>&1", $output, $exitCode);
-
 $timestamp = gmdate("Y-m-d\\TH:i:s\\Z");
 $shortSha = substr((string)($payload["after"] ?? ""), 0, 12);
-$logLine = "[" . $timestamp . "] exit=" . $exitCode . " sha=" . $shortSha . PHP_EOL .
-    implode(PHP_EOL, $output) . PHP_EOL . str_repeat("-", 80) . PHP_EOL;
-file_put_contents($logPath, $logLine, FILE_APPEND);
 
-flock($lockFp, LOCK_UN);
-fclose($lockFp);
+$preamble = "[" . $timestamp . "] queued sha=" . $shortSha . PHP_EOL;
+file_put_contents($logPath, $preamble, FILE_APPEND);
 
-if ($exitCode !== 0) {
-    http_response_code(500);
-    echo json_encode(["ok" => false, "error" => "Deployment command failed", "sha" => $shortSha]);
-    exit;
-}
+$backgroundScript =
+    "set -euo pipefail; " .
+    "exec 9>" . escapeshellarg($lockPath) . "; " .
+    "flock -n 9 || exit 0; " .
+    "cd " . escapeshellarg($deployRoot) . "; " .
+    "git fetch origin main; " .
+    "git reset --hard origin/main; " .
+    "git clean -fd; " .
+    "echo '[done] " . $shortSha . " '\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\";";
 
-echo json_encode(["ok" => true, "deployed_sha" => $shortSha]);
+$launchCommand = sprintf(
+    "/usr/bin/env bash -lc %s >> %s 2>&1 &",
+    escapeshellarg($backgroundScript),
+    escapeshellarg($logPath)
+);
+exec($launchCommand);
+
+http_response_code(202);
+echo json_encode(["ok" => true, "queued_sha" => $shortSha]);
