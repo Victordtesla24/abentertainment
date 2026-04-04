@@ -21,6 +21,7 @@ interface NarrativeSlide {
   body: string;
   stat?: { value: string; label: string };
   accent: string;
+  backgroundImage?: string;
 }
 
 const NARRATIVE_SLIDES: NarrativeSlide[] = [
@@ -31,6 +32,7 @@ const NARRATIVE_SLIDES: NarrativeSlide[] = [
     body: 'Born from a passion for Indian performing arts, AB Entertainment set out to bring the richness of Marathi and Indian culture to Melbourne\u2019s stages.',
     stat: { value: '2007', label: 'Year Founded' },
     accent: '#C9A84C',
+    backgroundImage: '/images/timeline/chapter-1-origins.jpg',
   },
   {
     id: 'vision',
@@ -39,6 +41,7 @@ const NARRATIVE_SLIDES: NarrativeSlide[] = [
     body: 'From intimate theatre performances to grand cultural celebrations, every event is crafted with cinematic precision and artistic authenticity.',
     stat: { value: '25+', label: 'Team Members' },
     accent: '#D4B65C',
+    backgroundImage: '/images/timeline/chapter-2-vision.jpg',
   },
   {
     id: 'impact',
@@ -47,6 +50,7 @@ const NARRATIVE_SLIDES: NarrativeSlide[] = [
     body: 'Over 25,000 audience members have experienced the magic of live Indian performing arts, creating memories that bridge cultures and generations.',
     stat: { value: '25K+', label: 'Audience Reached' },
     accent: '#C9A84C',
+    backgroundImage: '/images/timeline/chapter-3-impact.jpg',
   },
 ];
 
@@ -212,13 +216,30 @@ export default function ScrollNarrative() {
           ref={(el) => { slidesRef.current[index] = el; }}
           className="relative min-h-[70vh] flex items-center"
         >
-          {/* Parallax background glow */}
-          <div
-            className="narrative-bg absolute inset-0 pointer-events-none"
-            style={{
-              background: `radial-gradient(ellipse at ${index % 2 === 0 ? '30%' : '70%'} 50%, ${slide.accent}08, transparent 60%)`,
-            }}
-          />
+          {/* Background image with parallax */}
+          <div className="narrative-bg absolute inset-0 pointer-events-none overflow-hidden">
+            {slide.backgroundImage ? (
+              <>
+                <img
+                  src={slide.backgroundImage}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover opacity-20"
+                  loading="lazy"
+                  aria-hidden="true"
+                />
+                <div className="absolute inset-0" style={{
+                  background: `linear-gradient(${index % 2 === 0 ? 'to right' : 'to left'}, rgba(10,10,10,0.95) 30%, rgba(10,10,10,0.6) 60%, rgba(10,10,10,0.4) 100%)`,
+                }} />
+                <div className="absolute inset-0" style={{
+                  background: `radial-gradient(ellipse at ${index % 2 === 0 ? '70%' : '30%'} 50%, ${slide.accent}15, transparent 70%)`,
+                }} />
+              </>
+            ) : (
+              <div style={{
+                background: `radial-gradient(ellipse at ${index % 2 === 0 ? '30%' : '70%'} 50%, ${slide.accent}08, transparent 60%)`,
+              }} className="absolute inset-0" />
+            )}
+          </div>
 
           {/* Decorative side line */}
           <div

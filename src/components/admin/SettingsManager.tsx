@@ -252,31 +252,15 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
               <textarea value={settings.heroSubtitle} onChange={(e) => setSettings({ ...settings, heroSubtitle: e.target.value })} rows={2} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none" />
             </div>
             <div>
-              <label className="block text-xs text-white/40 mb-1">Hero Background Video URL</label>
+              <label className="block text-xs text-white/40 mb-1">Highlight Video URL</label>
               <input
-                type="url"
+                type="text"
                 value={settings.heroVideoUrl || ''}
                 onChange={(e) => setSettings({ ...settings, heroVideoUrl: e.target.value })}
-                placeholder="https://example.com/video.mp4"
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder:text-white/20"
+                placeholder="https://youtube.com/watch?v=..."
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
               />
-              <p className="text-white/40 text-xs mt-1">Direct link to an MP4 or WebM video for the homepage hero background.</p>
-              {settings.heroVideoUrl && (
-                <div className="mt-3 border border-[#C9A84C]/20 rounded-sm overflow-hidden">
-                  <div className="bg-black/40 px-3 py-1.5 flex items-center justify-between">
-                    <span className="text-white/40 text-xs">Video Preview</span>
-                    <span className="text-white/30 text-xs truncate max-w-[300px] ml-2">{settings.heroVideoUrl}</span>
-                  </div>
-                  <video
-                    src={settings.heroVideoUrl}
-                    className="w-full max-h-48 object-cover"
-                    muted
-                    loop
-                    autoPlay
-                    playsInline
-                  />
-                </div>
-              )}
+              <p className="text-[9px] text-white/25 mt-1">YouTube URL for the homepage highlight video. Leave empty to show placeholder.</p>
             </div>
           </div>
         </div>

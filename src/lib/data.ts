@@ -139,6 +139,19 @@ export interface PageTitle {
   updatedAt: string;
 }
 
+export interface TimelineChapter {
+  id: string;
+  preTitle: string;
+  title: string;
+  body: string;
+  statValue?: string;
+  statLabel?: string;
+  backgroundImage?: string;
+  accent: string;
+  order: number;
+  updatedAt: string;
+}
+
 // ─── Seed Data ───────────────────────────────────────────────────────────────
 
 const SEED_EVENTS: Event[] = [
@@ -343,6 +356,12 @@ const SEED_AGENTS: AgentConfig[] = [
   },
 ];
 
+const SEED_TIMELINE: TimelineChapter[] = [
+  { id: 'origins', preTitle: 'Chapter I', title: 'Where It All Began', body: 'Born from a passion for Indian performing arts, AB Entertainment set out to bring the richness of Marathi and Indian culture to Melbourne\u2019s stages.', statValue: '2007', statLabel: 'Year Founded', backgroundImage: '/images/timeline/chapter-1-origins.jpg', accent: '#C9A84C', order: 0, updatedAt: '2025-01-01T00:00:00Z' },
+  { id: 'vision', preTitle: 'Chapter II', title: 'A Vision Realised', body: 'From intimate theatre performances to grand cultural celebrations, every event is crafted with cinematic precision and artistic authenticity.', statValue: '25+', statLabel: 'Team Members', backgroundImage: '/images/timeline/chapter-2-vision.jpg', accent: '#D4B65C', order: 1, updatedAt: '2025-01-01T00:00:00Z' },
+  { id: 'impact', preTitle: 'Chapter III', title: 'The Impact', body: 'Over 25,000 audience members have experienced the magic of live Indian performing arts, creating memories that bridge cultures and generations.', statValue: '25K+', statLabel: 'Audience Reached', backgroundImage: '/images/timeline/chapter-3-impact.jpg', accent: '#C9A84C', order: 2, updatedAt: '2025-01-01T00:00:00Z' },
+];
+
 const SEED_PAGES: PageTitle[] = [
   { slug: '/', title: 'Home', updatedAt: '2025-01-01T00:00:00Z' },
   { slug: '/about', title: 'About', updatedAt: '2025-01-01T00:00:00Z' },
@@ -428,6 +447,10 @@ export async function getTestimonials(): Promise<Testimonial[]> {
   return readJsonFile('testimonials.json', SEED_TESTIMONIALS);
 }
 
+export async function saveTestimonials(testimonials: Testimonial[]): Promise<void> {
+  await writeJsonFile('testimonials.json', testimonials);
+}
+
 export async function getSettings(): Promise<SiteSettings> {
   return readJsonFile('settings.json', SEED_SETTINGS);
 }
@@ -475,4 +498,12 @@ export async function getPageTitles(): Promise<PageTitle[]> {
 
 export async function savePageTitles(pages: PageTitle[]): Promise<void> {
   await writeJsonFile('pages.json', pages);
+}
+
+export async function getTimeline(): Promise<TimelineChapter[]> {
+  return readJsonFile('timeline.json', SEED_TIMELINE);
+}
+
+export async function saveTimeline(chapters: TimelineChapter[]): Promise<void> {
+  await writeJsonFile('timeline.json', chapters);
 }

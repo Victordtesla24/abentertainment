@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import { isAuthenticated, adminFetch } from '@/lib/admin-fetch';
-import type { Event, Sponsor, GalleryImage, SiteSettings, AgentConfig, Video, HeroImage } from '@/lib/data';
+import type { Event, Sponsor, GalleryImage, SiteSettings, AgentConfig, Video, HeroImage, TimelineChapter, Testimonial } from '@/lib/data';
 
 const DEFAULT_SETTINGS: SiteSettings = {
   chatModel: 'gpt-4o-mini',
@@ -25,6 +25,8 @@ export default function AdminPage() {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [heroImages, setHeroImages] = useState<HeroImage[]>([]);
+  const [timeline, setTimeline] = useState<TimelineChapter[]>([]);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -50,7 +52,7 @@ export default function AdminPage() {
         if (!isCancelled) {
           setIsAuthed(true);
           // Fetch all data in parallel
-          const [eventsRes, sponsorsRes, galleryRes, settingsRes, agentsRes, videosRes, heroRes] = await Promise.allSettled([
+          const [eventsRes, sponsorsRes, galleryRes, settingsRes, agentsRes, videosRes, heroRes, timelineRes, testimonialsRes] = await Promise.allSettled([
             adminFetch('/api/admin/events').then(r => r.ok ? r.json() : null),
             adminFetch('/api/admin/sponsors').then(r => r.ok ? r.json() : null),
             adminFetch('/api/admin/gallery').then(r => r.ok ? r.json() : null),
@@ -58,6 +60,8 @@ export default function AdminPage() {
             adminFetch('/api/admin/agents').then(r => r.ok ? r.json() : null),
             adminFetch('/api/admin/videos').then(r => r.ok ? r.json() : null),
             adminFetch('/api/admin/hero-images').then(r => r.ok ? r.json() : null),
+            adminFetch('/api/admin/timeline').then(r => r.ok ? r.json() : null),
+            adminFetch('/api/admin/testimonials').then(r => r.ok ? r.json() : null),
           ]);
 
           if (!isCancelled) {
@@ -68,6 +72,8 @@ export default function AdminPage() {
             if (agentsRes.status === 'fulfilled' && agentsRes.value) setAgents(agentsRes.value.agents || []);
             if (videosRes.status === 'fulfilled' && videosRes.value) setVideos(videosRes.value.videos || []);
             if (heroRes.status === 'fulfilled' && heroRes.value) setHeroImages(heroRes.value.images || []);
+            if (timelineRes.status === 'fulfilled' && timelineRes.value) setTimeline(timelineRes.value.chapters || []);
+            if (testimonialsRes.status === 'fulfilled' && testimonialsRes.value) setTestimonials(testimonialsRes.value.testimonials || []);
           }
         }
       } catch {
@@ -105,6 +111,8 @@ export default function AdminPage() {
       initialAgents={agents}
       initialVideos={videos}
       initialHeroImages={heroImages}
+      initialTimeline={timeline}
+      initialTestimonials={testimonials}
     />
   );
 }
