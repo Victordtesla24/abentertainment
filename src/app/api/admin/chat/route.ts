@@ -112,7 +112,7 @@ Never modify production code directly. Always provide recommendations that the a
         Authorization: `Bearer ${OPENAI_KEY}`,
       },
       body: JSON.stringify({
-        model: settings.chatModel || 'gpt-4o',
+        model: settings.chatModel || 'gpt-4.1-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           ...messages.slice(-20),

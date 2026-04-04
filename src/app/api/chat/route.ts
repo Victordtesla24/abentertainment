@@ -111,7 +111,7 @@ GUIDELINES:
 
     const { openai } = await import('@ai-sdk/openai');
     const settings = await getSettings();
-    const modelId = settings.chatModel || 'gpt-4o';
+    const modelId = settings.chatModel || 'gpt-4.1-mini';
 
     const stream = streamText({
       model: openai(modelId),

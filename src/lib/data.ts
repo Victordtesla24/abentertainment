@@ -334,7 +334,7 @@ const SEED_TESTIMONIALS: Testimonial[] = [
 ];
 
 const SEED_SETTINGS: SiteSettings = {
-  chatModel: 'gpt-4o',
+  chatModel: 'gpt-4.1-mini',
   heroTitle: 'Experience Events Like No Other',
   heroSubtitle: "Melbourne's Premier Indian & Marathi Performing Arts — 6+ Events, 25+ Team, 25,000+ Audience Reach",
   contactEmail: 'abhi@abentertainment.com.au',
@@ -346,7 +346,7 @@ const SEED_AGENTS: AgentConfig[] = [
     id: 'agent-admin-default',
     name: 'Admin Assistant',
     type: 'admin',
-    model: 'gpt-4o',
+    model: 'gpt-4.1-mini',
     systemPrompt: 'You are the AB Entertainment Admin Agent...',
     temperature: 0.7,
     maxTokens: 2000,
