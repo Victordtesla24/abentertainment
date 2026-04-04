@@ -9,8 +9,8 @@ RewriteEngine On
 RewriteCond %{REQUEST_URI} ^/out/ [NC]
 RewriteRule ^ - [L]
 
-# Skip rewriting for hidden files (.htaccess, .git, etc.)
-RewriteRule ^\. - [L]
+# Deny access to hidden files/directories (.htaccess, .git, .env.*, etc.)
+RewriteRule (^|/)\. - [F,L]
 
 # If the file/directory exists in out/, rewrite transparently
 RewriteCond %{DOCUMENT_ROOT}/out/$1 -f [OR]
@@ -24,8 +24,8 @@ RewriteRule ^$ out/index.html [L]
 # Custom 404: serve the Next.js 404 page
 ErrorDocument 404 /out/404.html
 
-# Security: block access to source files
-<FilesMatch "\.(tsx?|jsx?|json|mjs|lock|env|md|yml|yaml|mts|cts)$">
+# Security: block access to source/build/config files
+<FilesMatch "\.(tsx?|jsx?|mjs|cjs|mts|cts|json|md|yml|yaml|lock|env|local)$">
   <IfModule mod_authz_core.c>
     Require all denied
   </IfModule>
@@ -39,6 +39,9 @@ ErrorDocument 404 /out/404.html
 RedirectMatch 403 ^/src(/.*)?$
 RedirectMatch 403 ^/node_modules(/.*)?$
 RedirectMatch 403 ^/\.git(/.*)?$
+RedirectMatch 403 ^/\.github(/.*)?$
+RedirectMatch 403 ^/\.next(/.*)?$
+RedirectMatch 403 ^/\.env(\..*)?$
 RedirectMatch 403 ^/data(/.*)?$
 RedirectMatch 403 ^/scripts(/.*)?$
 RedirectMatch 403 ^/docs(/.*)?$
