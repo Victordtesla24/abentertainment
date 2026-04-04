@@ -1,7 +1,7 @@
 'use client';
 import { adminFetch } from '@/lib/admin-fetch';
 
-import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
+import { useState, useRef, useEffect, useCallback, FormEvent, useMemo } from 'react';
 import type { Event } from '@/lib/data';
 
 interface EventsManagerProps {
@@ -25,7 +25,19 @@ const EMPTY_EVENT: Omit<Event, 'id' | 'createdAt' | 'updatedAt'> = {
   category: '',
   capacity: 0,
   ticketUrl: '',
+  videoUrl: '',
+  featuredVideo: '',
+  ticketsSold: 0,
+  ticketRevenue: 0,
+  order: 0,
 };
+
+function escapeCsvField(value: string): string {
+  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
 
 export default function EventsManager({ initialEvents }: EventsManagerProps) {
   const [events, setEvents] = useState<Event[]>(initialEvents);
@@ -36,6 +48,19 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
   const [message, setMessage] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const sortedEvents = useMemo(() => {
+    return [...events].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [events]);
+
+  const revenueSummary = useMemo(() => {
+    const totalEvents = events.length;
+    const totalTicketsSold = events.reduce((sum, ev) => sum + (ev.ticketsSold ?? 0), 0);
+    const totalRevenue = events.reduce((sum, ev) => sum + (ev.ticketRevenue ?? 0), 0);
+    const upcoming = events.filter((ev) => ev.status === 'upcoming' || ev.status === 'live').length;
+    const past = events.filter((ev) => ev.status === 'past').length;
+    return { totalEvents, totalTicketsSold, totalRevenue, upcoming, past };
+  }, [events]);
 
   const checkScroll = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -81,6 +106,11 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
       category: event.category,
       capacity: event.capacity || 0,
       ticketUrl: event.ticketUrl || '',
+      videoUrl: event.videoUrl || '',
+      featuredVideo: event.featuredVideo || '',
+      ticketsSold: event.ticketsSold || 0,
+      ticketRevenue: event.ticketRevenue || 0,
+      order: event.order || 0,
     });
   }
 
@@ -147,18 +177,128 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
     }
   }
 
+  async function handleMoveUp(event: Event) {
+    const sorted = [...events].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const idx = sorted.findIndex((ev) => ev.id === event.id);
+    if (idx <= 0) return;
+
+    const above = sorted[idx - 1];
+    const currentOrder = event.order ?? 0;
+    const aboveOrder = above.order ?? 0;
+
+    try {
+      const [res1, res2] = await Promise.all([
+        adminFetch('/api/admin/events', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: event.id, order: aboveOrder }),
+        }),
+        adminFetch('/api/admin/events', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: above.id, order: currentOrder }),
+        }),
+      ]);
+
+      if (!res1.ok || !res2.ok) throw new Error('Failed to reorder');
+
+      setEvents((prev) =>
+        prev.map((ev) => {
+          if (ev.id === event.id) return { ...ev, order: aboveOrder };
+          if (ev.id === above.id) return { ...ev, order: currentOrder };
+          return ev;
+        })
+      );
+    } catch (err) {
+      setMessage(`Error: ${err instanceof Error ? err.message : 'Failed to reorder'}`);
+    }
+  }
+
+  async function handleMoveDown(event: Event) {
+    const sorted = [...events].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const idx = sorted.findIndex((ev) => ev.id === event.id);
+    if (idx < 0 || idx >= sorted.length - 1) return;
+
+    const below = sorted[idx + 1];
+    const currentOrder = event.order ?? 0;
+    const belowOrder = below.order ?? 0;
+
+    try {
+      const [res1, res2] = await Promise.all([
+        adminFetch('/api/admin/events', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: event.id, order: belowOrder }),
+        }),
+        adminFetch('/api/admin/events', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: below.id, order: currentOrder }),
+        }),
+      ]);
+
+      if (!res1.ok || !res2.ok) throw new Error('Failed to reorder');
+
+      setEvents((prev) =>
+        prev.map((ev) => {
+          if (ev.id === event.id) return { ...ev, order: belowOrder };
+          if (ev.id === below.id) return { ...ev, order: currentOrder };
+          return ev;
+        })
+      );
+    } catch (err) {
+      setMessage(`Error: ${err instanceof Error ? err.message : 'Failed to reorder'}`);
+    }
+  }
+
+  function handleExportCsv() {
+    const headers = ['id', 'title', 'date', 'venue', 'price', 'ticketsSold', 'ticketRevenue', 'status', 'category'];
+    const rows = events.map((ev) => [
+      escapeCsvField(ev.id),
+      escapeCsvField(ev.title),
+      escapeCsvField(ev.date),
+      escapeCsvField(ev.venue),
+      String(ev.price),
+      String(ev.ticketsSold ?? 0),
+      String(ev.ticketRevenue ?? 0),
+      escapeCsvField(ev.status),
+      escapeCsvField(ev.category),
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const today = new Date().toISOString().split('T')[0];
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `events-export-${today}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   const showForm = creating || editing;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-2xl font-display font-bold text-white">Events</h2>
-        <button
-          onClick={startCreate}
-          className="px-4 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors"
-        >
-          + New Event
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportCsv}
+            className="px-4 py-2 border border-[#C9A84C]/40 text-[#C9A84C] text-sm font-semibold rounded-sm hover:bg-[#C9A84C]/10 transition-colors"
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={startCreate}
+            className="px-4 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors"
+          >
+            + New Event
+          </button>
+        </div>
       </div>
 
       {message && (
@@ -168,6 +308,30 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
           {message}
         </div>
       )}
+
+      {/* Revenue Summary Bar */}
+      <div className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
+          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Total Events</p>
+          <p className="text-xl font-display font-bold text-white">{revenueSummary.totalEvents}</p>
+        </div>
+        <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
+          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Tickets Sold</p>
+          <p className="text-xl font-display font-bold text-[#C9A84C]">{revenueSummary.totalTicketsSold.toLocaleString()}</p>
+        </div>
+        <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
+          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Total Revenue</p>
+          <p className="text-xl font-display font-bold text-[#1BBFA1]">${revenueSummary.totalRevenue.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        </div>
+        <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
+          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Upcoming / Live</p>
+          <p className="text-xl font-display font-bold text-[#1BBFA1]">{revenueSummary.upcoming}</p>
+        </div>
+        <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
+          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Past</p>
+          <p className="text-xl font-display font-bold text-white/40">{revenueSummary.past}</p>
+        </div>
+      </div>
 
       {showForm && (
         <div className="mb-8 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-6">
@@ -311,6 +475,67 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
                 className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               />
             </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Ticket URL</label>
+              <input
+                type="text"
+                value={form.ticketUrl}
+                onChange={(e) => setForm({ ...form, ticketUrl: e.target.value })}
+                placeholder="https://..."
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+              />
+            </div>
+            {/* Ticket Sales & Video Fields */}
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Tickets Sold</label>
+              <input
+                type="number"
+                value={form.ticketsSold}
+                onChange={(e) => setForm({ ...form, ticketsSold: Number(e.target.value) })}
+                min={0}
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Ticket Revenue (AUD)</label>
+              <input
+                type="number"
+                value={form.ticketRevenue}
+                onChange={(e) => setForm({ ...form, ticketRevenue: Number(e.target.value) })}
+                min={0}
+                step="0.01"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Promo Video URL</label>
+              <input
+                type="text"
+                value={form.videoUrl}
+                onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
+                placeholder="https://youtube.com/..."
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Featured Video URL</label>
+              <input
+                type="text"
+                value={form.featuredVideo}
+                onChange={(e) => setForm({ ...form, featuredVideo: e.target.value })}
+                placeholder="https://youtube.com/..."
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Display Order</label>
+              <input
+                type="number"
+                value={form.order}
+                onChange={(e) => setForm({ ...form, order: Number(e.target.value) })}
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
+              />
+            </div>
             <div className="md:col-span-2 flex gap-3 pt-2">
               <button
                 type="submit"
@@ -337,6 +562,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
         <table className="w-full min-w-[640px]">
           <thead>
             <tr className="border-b border-[#C9A84C]/20">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[#C9A84C] uppercase tracking-wider">Order</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#C9A84C] uppercase tracking-wider">Title</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#C9A84C] uppercase tracking-wider">Date</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#C9A84C] uppercase tracking-wider">Status</th>
@@ -345,8 +571,28 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
             </tr>
           </thead>
           <tbody>
-            {events.map((event) => (
+            {sortedEvents.map((event, idx) => (
               <tr key={event.id} className="border-b border-[#C9A84C]/10 hover:bg-white/5 transition-colors">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleMoveUp(event)}
+                      disabled={idx === 0}
+                      className="text-xs text-[#C9A84C] hover:text-[#D4B65C] disabled:text-white/10 disabled:cursor-not-allowed transition-colors"
+                      title="Move up"
+                    >
+                      &#9650;
+                    </button>
+                    <button
+                      onClick={() => handleMoveDown(event)}
+                      disabled={idx === sortedEvents.length - 1}
+                      className="text-xs text-[#C9A84C] hover:text-[#D4B65C] disabled:text-white/10 disabled:cursor-not-allowed transition-colors"
+                      title="Move down"
+                    >
+                      &#9660;
+                    </button>
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-sm text-white font-medium">{event.title}</td>
                 <td className="px-4 py-3 text-sm text-white/40">{event.date}</td>
                 <td className="px-4 py-3">
@@ -377,7 +623,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
             ))}
             {events.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-white/40 text-sm">
+                <td colSpan={6} className="px-4 py-8 text-center text-white/40 text-sm">
                   No events yet. Click &quot;+ New Event&quot; to create one.
                 </td>
               </tr>

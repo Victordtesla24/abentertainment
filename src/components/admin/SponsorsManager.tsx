@@ -1,7 +1,7 @@
 'use client';
 import { adminFetch } from '@/lib/admin-fetch';
 
-import { useState, FormEvent } from 'react';
+import { useState, useMemo, FormEvent } from 'react';
 import type { Sponsor } from '@/lib/data';
 
 interface SponsorsManagerProps {
@@ -9,7 +9,9 @@ interface SponsorsManagerProps {
 }
 
 export default function SponsorsManager({ initialSponsors }: SponsorsManagerProps) {
-  const [sponsors, setSponsors] = useState<Sponsor[]>(initialSponsors);
+  const [sponsors, setSponsors] = useState<Sponsor[]>(
+    () => [...initialSponsors].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+  );
   const [editing, setEditing] = useState<Sponsor | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -17,8 +19,25 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
   const [url, setUrl] = useState('');
   const [tier, setTier] = useState<Sponsor['tier']>('silver');
   const [description, setDescription] = useState('');
+  const [revenue, setRevenue] = useState<string>('');
+  const [contractValue, setContractValue] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+
+  const summary = useMemo(() => {
+    const totalRevenue = sponsors.reduce((sum, s) => sum + (s.revenue ?? 0), 0);
+    const totalContractValue = sponsors.reduce((sum, s) => sum + (s.contractValue ?? 0), 0);
+    const tierCounts: Record<Sponsor['tier'], number> = {
+      platinum: 0,
+      gold: 0,
+      silver: 0,
+      bronze: 0,
+    };
+    for (const s of sponsors) {
+      tierCounts[s.tier]++;
+    }
+    return { total: sponsors.length, totalRevenue, totalContractValue, tierCounts };
+  }, [sponsors]);
 
   function resetForm() {
     setName('');
@@ -26,6 +45,8 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
     setUrl('');
     setTier('silver');
     setDescription('');
+    setRevenue('');
+    setContractValue('');
     setEditing(null);
     setCreating(false);
   }
@@ -43,6 +64,8 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
     setUrl(sponsor.url);
     setTier(sponsor.tier);
     setDescription(sponsor.description || '');
+    setRevenue(sponsor.revenue != null ? String(sponsor.revenue) : '');
+    setContractValue(sponsor.contractValue != null ? String(sponsor.contractValue) : '');
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -52,14 +75,23 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
 
     try {
       const method = creating ? 'POST' : 'PUT';
-      const body = creating
-        ? { name, logo, url, tier, description }
-        : { id: editing!.id, name, logo, url, tier, description };
+      const payload: Record<string, unknown> = {
+        name,
+        logo,
+        url,
+        tier,
+        description,
+        revenue: revenue !== '' ? Number(revenue) : undefined,
+        contractValue: contractValue !== '' ? Number(contractValue) : undefined,
+      };
+      if (!creating) {
+        payload.id = editing!.id;
+      }
 
       const res = await adminFetch('/api/admin/sponsors', {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) throw new Error('Failed to save sponsor');
@@ -95,11 +127,84 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
 
       if (!res.ok) throw new Error('Failed to delete');
       setSponsors((prev) => prev.filter((s) => s.id !== id));
+      if (editing?.id === id) resetForm();
       setMessage('Sponsor deleted');
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
       setMessage(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
+  }
+
+  async function handleMove(id: string, direction: 'up' | 'down') {
+    const idx = sponsors.findIndex((s) => s.id === id);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sponsors.length) return;
+
+    const reordered = [...sponsors];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+
+    const updated = reordered.map((s, i) => ({ ...s, order: i }));
+    setSponsors(updated);
+
+    try {
+      await adminFetch('/api/admin/sponsors', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: updated[idx].id,
+          order: updated[idx].order,
+        }),
+      });
+      await adminFetch('/api/admin/sponsors', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: updated[swapIdx].id,
+          order: updated[swapIdx].order,
+        }),
+      });
+    } catch {
+      setMessage('Error: Failed to save new order');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  }
+
+  function handleExportCSV() {
+    const header = 'id,name,tier,revenue,contractValue,url';
+    const escape = (val: string) => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+    const rows = sponsors.map((s) =>
+      [
+        escape(s.id),
+        escape(s.name),
+        escape(s.tier),
+        s.revenue != null ? String(s.revenue) : '',
+        s.contractValue != null ? String(s.contractValue) : '',
+        escape(s.url),
+      ].join(',')
+    );
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    const today = new Date().toISOString().slice(0, 10);
+    link.download = `sponsors-export-${today}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  function formatAUD(value: number): string {
+    return new Intl.NumberFormat('en-AU', {
+      style: 'currency',
+      currency: 'AUD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
   }
 
   const showForm = creating || editing;
@@ -110,17 +215,72 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
     bronze: 'bg-orange-400/20 text-orange-300',
   };
 
+  const inputClasses =
+    'w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]';
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-2xl font-display font-bold text-white">Sponsors</h2>
-        <button onClick={startCreate} className="px-4 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors">
-          + New Sponsor
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleExportCSV}
+            className="px-4 py-2 border border-[#C9A84C]/40 text-[#C9A84C] text-sm font-semibold rounded-sm hover:bg-[#C9A84C]/10 transition-colors"
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={startCreate}
+            className="px-4 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors"
+          >
+            + New Sponsor
+          </button>
+        </div>
+      </div>
+
+      {/* Revenue Summary */}
+      <div className="mb-6 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          <div>
+            <p className="text-xs text-white/40 mb-1">Total Sponsors</p>
+            <p className="text-xl font-semibold text-white">{summary.total}</p>
+          </div>
+          <div>
+            <p className="text-xs text-white/40 mb-1">Total Revenue</p>
+            <p className="text-xl font-semibold text-[#1BBFA1]">
+              {formatAUD(summary.totalRevenue)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-white/40 mb-1">Total Contract Value</p>
+            <p className="text-xl font-semibold text-[#C9A84C]">
+              {formatAUD(summary.totalContractValue)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-white/40 mb-1">By Tier</p>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {(['platinum', 'gold', 'silver', 'bronze'] as const).map((t) => (
+                <span
+                  key={t}
+                  className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-sm ${tierColors[t]}`}
+                >
+                  {t} {summary.tierCounts[t]}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {message && (
-        <div className={`mb-4 px-4 py-2 rounded-sm text-sm ${message.startsWith('Error') ? 'bg-red-400/10 text-red-400' : 'bg-[#1BBFA1]/10 text-[#1BBFA1]'}`}>
+        <div
+          className={`mb-4 px-4 py-2 rounded-sm text-sm ${
+            message.startsWith('Error')
+              ? 'bg-red-400/10 text-red-400'
+              : 'bg-[#1BBFA1]/10 text-[#1BBFA1]'
+          }`}
+        >
           {message}
         </div>
       )}
@@ -133,34 +293,91 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-white/40 mb-1">Name</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]" />
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className={inputClasses}
+              />
             </div>
             <div>
               <label className="block text-xs text-white/40 mb-1">Logo URL</label>
-              <input type="text" value={logo} onChange={(e) => setLogo(e.target.value)} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]" />
+              <input
+                type="text"
+                value={logo}
+                onChange={(e) => setLogo(e.target.value)}
+                className={inputClasses}
+              />
             </div>
             <div>
               <label className="block text-xs text-white/40 mb-1">Website URL</label>
-              <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]" />
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className={inputClasses}
+              />
             </div>
             <div>
               <label className="block text-xs text-white/40 mb-1">Tier</label>
-              <select value={tier} onChange={(e) => setTier(e.target.value as Sponsor['tier'])} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]">
+              <select
+                value={tier}
+                onChange={(e) => setTier(e.target.value as Sponsor['tier'])}
+                className={inputClasses}
+              >
                 <option value="platinum">Platinum</option>
                 <option value="gold">Gold</option>
                 <option value="silver">Silver</option>
                 <option value="bronze">Bronze</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Revenue (AUD)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={revenue}
+                onChange={(e) => setRevenue(e.target.value)}
+                placeholder="0"
+                className={inputClasses}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Contract Value (AUD)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={contractValue}
+                onChange={(e) => setContractValue(e.target.value)}
+                placeholder="0"
+                className={inputClasses}
+              />
+            </div>
             <div className="md:col-span-2">
               <label className="block text-xs text-white/40 mb-1">Description</label>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none" />
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className={`${inputClasses} resize-none`}
+              />
             </div>
             <div className="md:col-span-2 flex gap-3 pt-2">
-              <button type="submit" disabled={saving} className="px-6 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] disabled:opacity-50">
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-6 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] disabled:opacity-50"
+              >
                 {saving ? 'Saving...' : creating ? 'Add Sponsor' : 'Update'}
               </button>
-              <button type="button" onClick={resetForm} className="px-6 py-2 border border-white/30 text-white/40 text-sm rounded-sm hover:text-white">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-6 py-2 border border-white/30 text-white/40 text-sm rounded-sm hover:text-white"
+              >
                 Cancel
               </button>
             </div>
@@ -170,27 +387,74 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
 
       <div className="overflow-x-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 min-w-[320px]">
-          {sponsors.map((sponsor) => (
-            <div key={sponsor.id} className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
+          {sponsors.map((sponsor, idx) => (
+            <div
+              key={sponsor.id}
+              className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4"
+            >
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="text-white font-semibold text-sm">{sponsor.name}</h3>
-                  <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-sm ${tierColors[sponsor.tier]}`}>
+                  <span
+                    className={`inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-sm ${tierColors[sponsor.tier]}`}
+                  >
                     {sponsor.tier}
                   </span>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => startEdit(sponsor)} className="text-xs text-[#1BBFA1] hover:text-[#1BBFA1]/80">Edit</button>
-                  <button onClick={() => handleDelete(sponsor.id)} className="text-xs text-red-400 hover:text-red-300">Delete</button>
+                <div className="flex gap-2 items-center">
+                  <button
+                    onClick={() => handleMove(sponsor.id, 'up')}
+                    disabled={idx === 0}
+                    className="text-xs text-white/40 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed"
+                    title="Move up"
+                  >
+                    &#9650;
+                  </button>
+                  <button
+                    onClick={() => handleMove(sponsor.id, 'down')}
+                    disabled={idx === sponsors.length - 1}
+                    className="text-xs text-white/40 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed"
+                    title="Move down"
+                  >
+                    &#9660;
+                  </button>
+                  <button
+                    onClick={() => startEdit(sponsor)}
+                    className="text-xs text-[#1BBFA1] hover:text-[#1BBFA1]/80"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(sponsor.id)}
+                    className="text-xs text-red-400 hover:text-red-300"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
+              {(sponsor.revenue != null || sponsor.contractValue != null) && (
+                <div className="flex gap-4 mb-2 text-xs">
+                  {sponsor.revenue != null && (
+                    <span className="text-[#1BBFA1]">
+                      Rev: {formatAUD(sponsor.revenue)}
+                    </span>
+                  )}
+                  {sponsor.contractValue != null && (
+                    <span className="text-[#C9A84C]">
+                      Contract: {formatAUD(sponsor.contractValue)}
+                    </span>
+                  )}
+                </div>
+              )}
               {sponsor.description && (
                 <p className="text-white/40 text-xs">{sponsor.description}</p>
               )}
             </div>
           ))}
           {sponsors.length === 0 && (
-            <p className="text-white/40 text-sm col-span-full text-center py-8">No sponsors yet.</p>
+            <p className="text-white/40 text-sm col-span-full text-center py-8">
+              No sponsors yet.
+            </p>
           )}
         </div>
       </div>

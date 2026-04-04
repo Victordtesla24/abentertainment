@@ -9,10 +9,38 @@ interface SettingsManagerProps {
   initialSettings: SiteSettings;
 }
 
-const AVAILABLE_MODELS = [
-  { id: 'gpt-4o', label: 'GPT-4o (Default)' },
-  { id: 'gpt-4o-mini', label: 'GPT-4o Mini (Faster)' },
-  { id: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+interface ModelOption {
+  id: string;
+  label: string;
+  description: string;
+}
+
+const AVAILABLE_MODELS: ModelOption[] = [
+  { id: 'gpt-4o', label: 'GPT-4o', description: 'High quality, balanced speed. Great default choice.' },
+  { id: 'gpt-4o-mini', label: 'GPT-4o Mini', description: 'Fastest OpenAI option. Lower cost, good for simple tasks.' },
+  { id: 'gpt-4-turbo', label: 'GPT-4 Turbo', description: 'Strong reasoning with large context window.' },
+  { id: 'gpt-5.4', label: 'GPT-5.4', description: 'Latest generation. Best-in-class reasoning and accuracy.' },
+  { id: 'claude-opus-4.6', label: 'Claude Opus 4.6', description: 'Top-tier Anthropic model. Excellent at complex, nuanced tasks.' },
+  { id: 'claude-sonnet-4.6', label: 'Claude Sonnet 4.6', description: 'Fast and capable Anthropic model. Great quality-to-speed ratio.' },
+  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', description: 'Ultra-fast Google model. Best for high-throughput, low-latency.' },
+  { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro', description: 'Premium Google model. Strong multimodal reasoning.' },
+  { id: 'deepseek-v3.2', label: 'DeepSeek V3.2', description: 'Open-weight powerhouse. Strong coding and math performance.' },
+  { id: 'qwen-3.5', label: 'Qwen 3.5', description: 'Multilingual specialist. Excellent for diverse language support.' },
+];
+
+interface PageTitleEntry {
+  slug: string;
+  label: string;
+  title: string;
+}
+
+const DEFAULT_PAGES: PageTitleEntry[] = [
+  { slug: '/', label: 'Home', title: 'Home' },
+  { slug: '/about', label: 'About', title: 'About' },
+  { slug: '/services', label: 'Services', title: 'Services' },
+  { slug: '/portfolio', label: 'Portfolio', title: 'Portfolio' },
+  { slug: '/contact', label: 'Contact', title: 'Contact' },
+  { slug: '/blog', label: 'Blog', title: 'Blog' },
 ];
 
 export default function SettingsManager({ initialSettings }: SettingsManagerProps) {
@@ -22,6 +50,8 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
   const [logoPreview, setLogoPreview] = useState('/images/AB_Logo_transparent.png');
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [pageTitles, setPageTitles] = useState<PageTitleEntry[]>(DEFAULT_PAGES);
+  const [editingPage, setEditingPage] = useState<string | null>(null);
 
   function handleLogoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -68,6 +98,73 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
     }
   }
 
+  function handleExportSettings() {
+    const exportData = {
+      ...settings,
+      pageTitles,
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `site-settings-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setMessage('Settings exported successfully');
+    setTimeout(() => setMessage(''), 3000);
+  }
+
+  function handlePageTitleChange(slug: string, newTitle: string) {
+    setPageTitles((prev) =>
+      prev.map((p) => (p.slug === slug ? { ...p, title: newTitle } : p))
+    );
+  }
+
+  function renderModelSelector(
+    label: string,
+    description: string,
+    fieldKey: 'adminChatModel' | 'customerChatModel',
+    fallbackField: 'chatModel'
+  ) {
+    const currentValue = settings[fieldKey] || settings[fallbackField] || 'gpt-4o';
+    return (
+      <div>
+        <h4 className="text-sm font-semibold text-white mb-1">{label}</h4>
+        <p className="text-white/40 text-xs mb-3">{description}</p>
+        <div className="space-y-2">
+          {AVAILABLE_MODELS.map((model) => (
+            <label
+              key={model.id}
+              className={`flex items-start gap-3 p-3 rounded-sm border cursor-pointer transition-colors ${
+                currentValue === model.id
+                  ? 'border-[#C9A84C] bg-[#C9A84C]/10'
+                  : 'border-[#C9A84C]/20 hover:border-[#C9A84C]/40'
+              }`}
+            >
+              <input
+                type="radio"
+                name={fieldKey}
+                value={model.id}
+                checked={currentValue === model.id}
+                onChange={(e) =>
+                  setSettings({ ...settings, [fieldKey]: e.target.value })
+                }
+                className="accent-[#C9A84C] mt-0.5"
+              />
+              <div>
+                <span className="text-white text-sm font-medium">{model.label}</span>
+                <p className="text-white/40 text-xs mt-0.5">{model.description}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <h2 className="text-2xl font-display font-bold text-white mb-8">Settings</h2>
@@ -95,17 +192,24 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
             </div>
           </div>
         </div>
-        {/* AI Model Selection */}
+
+        {/* AI Model Configuration */}
         <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-6 mb-6">
-          <h3 className="text-lg font-display font-semibold text-[#C9A84C] mb-4">Customer Chatbot Model</h3>
-          <p className="text-white/40 text-sm mb-4">Select which OpenAI model powers the customer-facing chatbot.</p>
-          <div className="space-y-2">
-            {AVAILABLE_MODELS.map((model) => (
-              <label key={model.id} className={`flex items-center gap-3 p-3 rounded-sm border cursor-pointer transition-colors ${settings.chatModel === model.id ? 'border-[#C9A84C] bg-[#C9A84C]/10' : 'border-[#C9A84C]/20 hover:border-[#C9A84C]/40'}`}>
-                <input type="radio" name="chatModel" value={model.id} checked={settings.chatModel === model.id} onChange={(e) => setSettings({ ...settings, chatModel: e.target.value })} className="accent-[#C9A84C]" />
-                <span className="text-white text-sm">{model.label}</span>
-              </label>
-            ))}
+          <h3 className="text-lg font-display font-semibold text-[#C9A84C] mb-6">AI Model Configuration</h3>
+          <div className="space-y-8">
+            {renderModelSelector(
+              'Admin AI Agent',
+              'The model used for internal admin tasks such as content generation, analytics summaries, and operational assistance.',
+              'adminChatModel',
+              'chatModel'
+            )}
+            <hr className="border-[#C9A84C]/10" />
+            {renderModelSelector(
+              'Customer-facing Chatbot',
+              'The model that powers the public chatbot your visitors interact with on the website.',
+              'customerChatModel',
+              'chatModel'
+            )}
           </div>
         </div>
 
@@ -121,8 +225,76 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
               <label className="block text-xs text-white/40 mb-1">Hero Subtitle</label>
               <textarea value={settings.heroSubtitle} onChange={(e) => setSettings({ ...settings, heroSubtitle: e.target.value })} rows={2} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none" />
             </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Hero Background Video URL</label>
+              <input
+                type="url"
+                value={settings.heroVideoUrl || ''}
+                onChange={(e) => setSettings({ ...settings, heroVideoUrl: e.target.value })}
+                placeholder="https://example.com/video.mp4"
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder:text-white/20"
+              />
+              <p className="text-white/40 text-xs mt-1">Direct link to an MP4 or WebM video for the homepage hero background.</p>
+              {settings.heroVideoUrl && (
+                <div className="mt-3 border border-[#C9A84C]/20 rounded-sm overflow-hidden">
+                  <div className="bg-black/40 px-3 py-1.5 flex items-center justify-between">
+                    <span className="text-white/40 text-xs">Video Preview</span>
+                    <span className="text-white/30 text-xs truncate max-w-[300px] ml-2">{settings.heroVideoUrl}</span>
+                  </div>
+                  <video
+                    src={settings.heroVideoUrl}
+                    className="w-full max-h-48 object-cover"
+                    muted
+                    loop
+                    autoPlay
+                    playsInline
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Page Configuration */}
+        <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-6 mb-6">
+          <h3 className="text-lg font-display font-semibold text-[#C9A84C] mb-4">Page Configuration</h3>
+          <p className="text-white/40 text-sm mb-4">Rename page titles displayed in navigation and browser tabs.</p>
+          <div className="space-y-2">
+            {pageTitles.map((page) => (
+              <div
+                key={page.slug}
+                className="flex items-center gap-3 p-3 rounded-sm border border-[#C9A84C]/20"
+              >
+                <span className="text-white/40 text-xs font-mono w-24 shrink-0">{page.slug}</span>
+                {editingPage === page.slug ? (
+                  <input
+                    type="text"
+                    value={page.title}
+                    onChange={(e) => handlePageTitleChange(page.slug, e.target.value)}
+                    onBlur={() => setEditingPage(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') setEditingPage(null);
+                    }}
+                    autoFocus
+                    className="flex-1 px-2 py-1 bg-[#0A0A0A] border border-[#C9A84C] rounded-sm text-white text-sm focus:outline-none"
+                  />
+                ) : (
+                  <span className="flex-1 text-white text-sm">{page.title}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditingPage(editingPage === page.slug ? null : page.slug)
+                  }
+                  className="px-3 py-1 text-xs text-[#C9A84C] border border-[#C9A84C]/30 rounded-sm hover:bg-[#C9A84C]/10 transition-colors"
+                >
+                  {editingPage === page.slug ? 'Done' : 'Edit'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Contact Info */}
         <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-6 mb-6">
           <h3 className="text-lg font-display font-semibold text-[#C9A84C] mb-4">Contact Information</h3>
@@ -138,9 +310,19 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
           </div>
         </div>
 
-        <button type="submit" disabled={saving} className="px-8 py-3 bg-[#C9A84C] text-white font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors disabled:opacity-50">
-          {saving ? 'Saving...' : 'Save Settings'}
-        </button>
+        {/* Action buttons */}
+        <div className="flex items-center gap-4">
+          <button type="submit" disabled={saving} className="px-8 py-3 bg-[#C9A84C] text-white font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors disabled:opacity-50">
+            {saving ? 'Saving...' : 'Save Settings'}
+          </button>
+          <button
+            type="button"
+            onClick={handleExportSettings}
+            className="px-6 py-3 bg-transparent border border-[#C9A84C]/40 text-[#C9A84C] font-semibold rounded-sm hover:bg-[#C9A84C]/10 transition-colors"
+          >
+            Export Settings as JSON
+          </button>
+        </div>
       </form>
     </div>
   );

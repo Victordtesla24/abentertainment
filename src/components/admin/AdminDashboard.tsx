@@ -1,6 +1,6 @@
 'use client';
 import { getApiUrl } from '@/lib/api-config';
-import { clearCsrfToken } from '@/lib/admin-fetch';
+import { clearCsrfToken, clearAuthToken } from '@/lib/admin-fetch';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,14 +21,48 @@ interface AdminDashboardProps {
   initialSettings: SiteSettings;
 }
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'health', label: 'Health', icon: '📊' },
-  { id: 'events', label: 'Events', icon: '📅' },
-  { id: 'sponsors', label: 'Sponsors', icon: '🤝' },
-  { id: 'gallery', label: 'Gallery', icon: '🖼' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
-  { id: 'ai', label: 'AI Agent', icon: '🤖' },
+const TABS: { id: Tab; label: string; desc: string }[] = [
+  { id: 'health', label: 'Dashboard', desc: 'System overview' },
+  { id: 'events', label: 'Events', desc: 'Manage performances' },
+  { id: 'sponsors', label: 'Sponsors', desc: 'Partner management' },
+  { id: 'gallery', label: 'Gallery', desc: 'Media assets' },
+  { id: 'settings', label: 'Settings', desc: 'Configuration' },
+  { id: 'ai', label: 'AI Agent', desc: 'Intelligent assistant' },
 ];
+
+const TAB_ICONS: Record<Tab, React.ReactNode> = {
+  health: (
+    <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
+    </svg>
+  ),
+  events: (
+    <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    </svg>
+  ),
+  sponsors: (
+    <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+    </svg>
+  ),
+  gallery: (
+    <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M2.25 18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V6a2.25 2.25 0 00-2.25-2.25h-15A2.25 2.25 0 002.25 6v12z" />
+    </svg>
+  ),
+  settings: (
+    <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
+  ai: (
+    <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+    </svg>
+  ),
+};
 
 export default function AdminDashboard({
   initialEvents,
@@ -38,73 +72,143 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('health');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   async function handleLogout() {
     await fetch(getApiUrl('/api/admin/auth'), { method: 'DELETE', credentials: 'include' });
     clearCsrfToken();
+    clearAuthToken();
     router.push('/admin/login');
     router.refresh();
   }
 
   return (
-    <div className="flex min-h-screen">
-      {/* Sidebar */}
-      <aside className="w-64 bg-[#0A0A0A] border-r border-[#C9A84C]/20 flex flex-col">
-        <div className="p-6 border-b border-[#C9A84C]/20">
-          <h1 className="text-lg font-display font-bold text-[#C9A84C]">
-            AB Entertainment
-          </h1>
-          <p className="text-xs text-white/40 mt-1">Admin Portal</p>
+    <div className="flex min-h-screen bg-[#060606]">
+      {/* Executive Sidebar */}
+      <aside className={`${sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'} bg-[#0A0A0A] border-r border-white/[0.06] flex flex-col transition-all duration-300 ease-out relative`}>
+        {/* Brand Header */}
+        <div className={`${sidebarCollapsed ? 'px-3 py-5' : 'px-6 py-6'} border-b border-white/[0.06]`}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#C9A84C] to-[#A68B3C] flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#C9A84C]/10">
+              <span className="text-black font-bold text-sm">AB</span>
+            </div>
+            {!sidebarCollapsed && (
+              <div className="min-w-0">
+                <h1 className="text-[13px] font-semibold text-white tracking-wide truncate">
+                  AB Entertainment
+                </h1>
+                <p className="text-[10px] text-white/25 tracking-[0.08em] uppercase mt-0.5">Executive Portal</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        <nav className="flex-1 py-4">
+        {/* Collapse toggle */}
+        <button
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className="absolute -right-3 top-[72px] w-6 h-6 bg-[#111] border border-white/[0.08] rounded-full flex items-center justify-center text-white/30 hover:text-white/60 hover:border-white/20 transition-all z-10"
+        >
+          <svg className={`w-3 h-3 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+        </button>
+
+        {/* Navigation */}
+        <nav className="flex-1 py-4 px-2 space-y-0.5">
+          {!sidebarCollapsed && (
+            <p className="text-[9px] font-medium text-white/20 uppercase tracking-[0.2em] px-3 mb-3">Navigation</p>
+          )}
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors ${
+              title={sidebarCollapsed ? tab.label : undefined}
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-3'} py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative ${
                 activeTab === tab.id
-                  ? 'text-[#C9A84C] bg-[#C9A84C]/10 border-r-2 border-[#C9A84C]'
-                  : 'text-white/40 hover:text-white hover:bg-white/5'
+                  ? 'text-[#C9A84C] bg-[#C9A84C]/[0.08]'
+                  : 'text-white/35 hover:text-white/70 hover:bg-white/[0.03]'
               }`}
             >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
+              {activeTab === tab.id && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#C9A84C] rounded-r-full" />
+              )}
+              <span className={`flex-shrink-0 ${activeTab === tab.id ? 'text-[#C9A84C]' : 'text-white/30 group-hover:text-white/50'} transition-colors`}>
+                {TAB_ICONS[tab.id]}
+              </span>
+              {!sidebarCollapsed && (
+                <div className="ml-3 text-left min-w-0">
+                  <span className="block text-[13px] leading-tight truncate">{tab.label}</span>
+                  <span className="block text-[10px] text-white/20 leading-tight mt-0.5 truncate">{tab.desc}</span>
+                </div>
+              )}
             </button>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-[#C9A84C]/20">
+        {/* Footer */}
+        <div className={`${sidebarCollapsed ? 'px-2' : 'px-4'} py-4 border-t border-white/[0.06]`}>
+          {!sidebarCollapsed && (
+            <div className="px-2 mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#C9A84C]/30 to-[#C9A84C]/10 flex items-center justify-center">
+                  <span className="text-[10px] text-[#C9A84C] font-semibold">A</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-white/50 truncate">Administrator</p>
+                  <p className="text-[9px] text-white/20">Active session</p>
+                </div>
+              </div>
+            </div>
+          )}
           <button
             onClick={handleLogout}
-            className="w-full py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-sm transition-colors"
+            className={`w-full ${sidebarCollapsed ? 'px-2' : 'px-3'} py-2 text-[11px] text-white/30 hover:text-red-400 hover:bg-red-400/[0.06] rounded-lg transition-all duration-200 flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'}`}
           >
-            Sign Out
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+            </svg>
+            {!sidebarCollapsed && <span>Sign Out</span>}
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 bg-[#0A0A0A] overflow-auto">
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto">
+        {/* Top Bar */}
+        <div className="sticky top-0 z-10 bg-[#060606]/80 backdrop-blur-xl border-b border-white/[0.04]">
+          <div className="px-8 py-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-[15px] font-semibold text-white tracking-wide">
+                {TABS.find(t => t.id === activeTab)?.label}
+              </h2>
+              <p className="text-[11px] text-white/25 mt-0.5">
+                {TABS.find(t => t.id === activeTab)?.desc}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] text-white/15 font-mono">
+                {new Date().toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+              <div className="w-px h-4 bg-white/[0.06]" />
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <span className="text-[10px] text-emerald-500/70">Live</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Page Content */}
         <div className="p-8">
-          {activeTab === 'health' && (
-            <HealthDashboard />
-          )}
-          {activeTab === 'events' && (
-            <EventsManager initialEvents={initialEvents} />
-          )}
-          {activeTab === 'sponsors' && (
-            <SponsorsManager initialSponsors={initialSponsors} />
-          )}
-          {activeTab === 'gallery' && (
-            <GalleryManager initialGallery={initialGallery} />
-          )}
-          {activeTab === 'settings' && (
-            <SettingsManager initialSettings={initialSettings} />
-          )}
-          {activeTab === 'ai' && (
-            <AdminChatbot activeTab={activeTab} />
-          )}
+          {activeTab === 'health' && <HealthDashboard />}
+          {activeTab === 'events' && <EventsManager initialEvents={initialEvents} />}
+          {activeTab === 'sponsors' && <SponsorsManager initialSponsors={initialSponsors} />}
+          {activeTab === 'gallery' && <GalleryManager initialGallery={initialGallery} />}
+          {activeTab === 'settings' && <SettingsManager initialSettings={initialSettings} />}
+          {activeTab === 'ai' && <AdminChatbot activeTab={activeTab} />}
         </div>
       </main>
     </div>

@@ -22,9 +22,7 @@ export interface Event {
   venue: string;
   description: string;
   longDescription?: string;
-  /** Short compelling one-liner for marketing (Hook/Details/Cast structure) */
   hook?: string;
-  /** Cast and performers list */
   cast?: string;
   price: number;
   currency: string;
@@ -34,6 +32,11 @@ export interface Event {
   category: string;
   capacity?: number;
   ticketUrl?: string;
+  videoUrl?: string;
+  featuredVideo?: string;
+  ticketsSold?: number;
+  ticketRevenue?: number;
+  order?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -45,6 +48,9 @@ export interface Sponsor {
   url: string;
   tier: 'platinum' | 'gold' | 'silver' | 'bronze';
   description?: string;
+  revenue?: number;
+  contractValue?: number;
+  order?: number;
   createdAt: string;
 }
 
@@ -56,6 +62,7 @@ export interface GalleryImage {
   category: string;
   width: number;
   height: number;
+  order?: number;
   createdAt: string;
 }
 
@@ -70,8 +77,11 @@ export interface Testimonial {
 
 export interface SiteSettings {
   chatModel: string;
+  adminChatModel?: string;
+  customerChatModel?: string;
   heroTitle: string;
   heroSubtitle: string;
+  heroVideoUrl?: string;
   contactEmail: string;
   contactPhone: string;
 }

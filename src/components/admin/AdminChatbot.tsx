@@ -303,15 +303,61 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
     }
   }
 
+  function exportConversation(format: 'json' | 'text') {
+    const timestamp = new Date().toISOString().slice(0, 10);
+    if (format === 'json') {
+      const data = JSON.stringify(messages.map(m => ({ role: m.role, content: m.content, timestamp: m.id })), null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ai-conversation-${timestamp}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const text = messages.map(m => `[${m.role.toUpperCase()}]\n${m.content}\n`).join('\n---\n\n');
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ai-conversation-${timestamp}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }
+
   return (
     <div>
-      <h2 className="text-2xl font-display font-bold text-white mb-2">AI Agent</h2>
-      <p className="text-white/40 text-sm mb-6">
-        Agentic assistant with access to events, market research, and content creation
-        capabilities.
-      </p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-display font-bold text-white">AI Agent</h2>
+          <p className="text-white/30 text-[11px] mt-0.5">
+            Intelligent assistant with access to events, market research, and content creation
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => exportConversation('json')}
+            className="text-[10px] font-body px-3 py-1.5 bg-white/[0.03] text-white/40 border border-white/[0.08] hover:bg-white/[0.06] hover:text-white/60 transition-all rounded-md"
+          >
+            Export JSON
+          </button>
+          <button
+            onClick={() => exportConversation('text')}
+            className="text-[10px] font-body px-3 py-1.5 bg-white/[0.03] text-white/40 border border-white/[0.08] hover:bg-white/[0.06] hover:text-white/60 transition-all rounded-md"
+          >
+            Export Text
+          </button>
+          <button
+            onClick={() => { setMessages([messages[0]]); }}
+            className="text-[10px] font-body px-3 py-1.5 text-red-400/60 border border-red-400/10 hover:bg-red-400/[0.06] hover:text-red-400 transition-all rounded-md"
+          >
+            Clear Chat
+          </button>
+        </div>
+      </div>
 
-      <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm flex flex-col h-[600px]">
+      <div className="bg-[#0A0A0A] border border-white/[0.06] rounded-lg flex flex-col h-[600px] shadow-2xl shadow-black/40">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((message) => (
@@ -381,20 +427,20 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
         </div>
 
         {/* Input */}
-        <div className="border-t border-[#C9A84C]/20 p-4">
-          <form onSubmit={handleSubmit} className="flex gap-3">
+        <div className="border-t border-white/[0.06] p-4 bg-[#080808]">
+          <form onSubmit={handleSubmit} className="flex gap-2">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask the agent to create events, research markets..."
               disabled={loading}
-              className="flex-1 px-4 py-3 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#C9A84C] disabled:opacity-50"
+              className="flex-1 px-4 py-3 bg-[#0A0A0A] border border-white/[0.08] rounded-lg text-white text-sm placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/40 focus:ring-1 focus:ring-[#C9A84C]/20 disabled:opacity-50 transition-all"
             />
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="px-6 py-3 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] transition-colors disabled:opacity-50"
+              className="px-5 py-3 bg-gradient-to-r from-[#C9A84C] to-[#B8973F] text-black text-sm font-semibold rounded-lg hover:from-[#D4B65C] hover:to-[#C9A84C] transition-all disabled:opacity-30 shadow-lg shadow-[#C9A84C]/10"
             >
               Send
             </button>
@@ -402,15 +448,20 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
               <button
                 type="button"
                 onClick={() => abortControllerRef.current?.abort()}
-                className="px-4 py-3 border border-red-500/30 text-red-400 text-sm hover:bg-red-500/10 transition-colors"
+                className="px-4 py-3 border border-red-500/20 text-red-400/70 text-sm rounded-lg hover:bg-red-500/10 hover:text-red-400 transition-all"
               >
                 Stop
               </button>
             )}
           </form>
-          <p className="text-white/30 text-xs font-body mt-2 text-right">
-            {tokenEstimate.toLocaleString()} / 128K tokens estimated
-          </p>
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-white/15 text-[10px] font-body">
+              {messages.length - 1} message{messages.length !== 2 ? 's' : ''} in conversation
+            </p>
+            <p className="text-white/15 text-[10px] font-body">
+              {tokenEstimate.toLocaleString()} / 128K tokens
+            </p>
+          </div>
         </div>
       </div>
     </div>

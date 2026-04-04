@@ -1,7 +1,7 @@
 'use client';
 import { adminFetch } from '@/lib/admin-fetch';
 
-import { useState, FormEvent } from 'react';
+import { useState, useCallback, FormEvent } from 'react';
 import type { GalleryImage } from '@/lib/data';
 
 interface GalleryManagerProps {
@@ -87,6 +87,13 @@ const SITE_IMAGES: { category: string; label: string; images: { src: string; alt
   },
 ];
 
+function escapeCsvField(field: string): string {
+  if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+    return `"${field.replace(/"/g, '""')}"`;
+  }
+  return field;
+}
+
 export default function GalleryManager({ initialGallery }: GalleryManagerProps) {
   const [images, setImages] = useState<GalleryImage[]>(initialGallery);
   const [creating, setCreating] = useState(false);
@@ -97,6 +104,21 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
   const [message, setMessage] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [search, setSearch] = useState('');
+
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAlt, setEditAlt] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  function showMessage(msg: string) {
+    setMessage(msg);
+    setTimeout(() => setMessage(''), 3000);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -117,8 +139,7 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
       setSrc('');
       setAlt('');
       setCreating(false);
-      setMessage('Image added');
-      setTimeout(() => setMessage(''), 3000);
+      showMessage('Image added');
     } catch (err) {
       setMessage(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
@@ -138,11 +159,171 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
 
       if (!res.ok) throw new Error('Failed to delete');
       setImages((prev) => prev.filter((img) => img.id !== id));
-      setMessage('Image deleted');
-      setTimeout(() => setMessage(''), 3000);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      showMessage('Image deleted');
     } catch (err) {
       setMessage(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
+  }
+
+  // --- Edit Image ---
+  function startEditing(image: GalleryImage) {
+    setEditingId(image.id);
+    setEditAlt(image.alt);
+    setEditCategory(image.category);
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setEditAlt('');
+    setEditCategory('');
+  }
+
+  async function handleEditSave(id: string) {
+    setEditSaving(true);
+    try {
+      const res = await adminFetch('/api/admin/gallery', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, alt: editAlt, category: editCategory }),
+      });
+
+      if (!res.ok) throw new Error('Failed to update image');
+
+      setImages((prev) =>
+        prev.map((img) =>
+          img.id === id ? { ...img, alt: editAlt, category: editCategory } : img
+        )
+      );
+      cancelEditing();
+      showMessage('Image updated');
+    } catch (err) {
+      setMessage(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  // --- Reorder Images ---
+  const handleMoveUp = useCallback(async (index: number) => {
+    if (index <= 0) return;
+    setImages((prev) => {
+      const next = [...prev];
+      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      return next;
+    });
+    // Persist new order
+    try {
+      const reordered = [...images];
+      [reordered[index - 1], reordered[index]] = [reordered[index], reordered[index - 1]];
+      const orderPayload = reordered.map((img, i) => ({ id: img.id, order: i }));
+      await adminFetch('/api/admin/gallery/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: orderPayload }),
+      });
+    } catch {
+      // Order was already updated in local state; silent fail for persistence
+    }
+  }, [images]);
+
+  const handleMoveDown = useCallback(async (index: number) => {
+    if (index >= images.length - 1) return;
+    setImages((prev) => {
+      const next = [...prev];
+      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      return next;
+    });
+    try {
+      const reordered = [...images];
+      [reordered[index], reordered[index + 1]] = [reordered[index + 1], reordered[index]];
+      const orderPayload = reordered.map((img, i) => ({ id: img.id, order: i }));
+      await adminFetch('/api/admin/gallery/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: orderPayload }),
+      });
+    } catch {
+      // silent fail
+    }
+  }, [images]);
+
+  // --- Bulk Actions ---
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === images.length && images.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(images.map((img) => img.id)));
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} selected image${selectedIds.size > 1 ? 's' : ''}?`)) return;
+    setBulkDeleting(true);
+
+    try {
+      const deletePromises = Array.from(selectedIds).map((id) =>
+        adminFetch('/api/admin/gallery', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        })
+      );
+      await Promise.all(deletePromises);
+      setImages((prev) => prev.filter((img) => !selectedIds.has(img.id)));
+      showMessage(`${selectedIds.size} image${selectedIds.size > 1 ? 's' : ''} deleted`);
+      setSelectedIds(new Set());
+    } catch (err) {
+      setMessage(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
+  // --- Export CSV ---
+  function handleExportCsv() {
+    const rows: string[][] = [['src', 'alt', 'category']];
+
+    // Site images
+    for (const group of SITE_IMAGES) {
+      for (const img of group.images) {
+        rows.push([escapeCsvField(img.src), escapeCsvField(img.alt), escapeCsvField(group.category)]);
+      }
+    }
+
+    // Custom uploads
+    for (const img of images) {
+      rows.push([escapeCsvField(img.src), escapeCsvField(img.alt), escapeCsvField(img.category)]);
+    }
+
+    const csvContent = rows.map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'gallery-export.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showMessage('Gallery exported as CSV');
   }
 
   // Filter site images by category and search
@@ -156,18 +337,29 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
     }))
     .filter(group => group.images.length > 0);
 
+  // Filter custom uploads by search
+  const filteredCustomImages = images.filter(img =>
+    !search || img.alt.toLowerCase().includes(search.toLowerCase()) || img.src.toLowerCase().includes(search.toLowerCase())
+  );
+
   const totalImages = SITE_IMAGES.reduce((sum, g) => sum + g.images.length, 0);
+  const allSelected = images.length > 0 && selectedIds.size === images.length;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-display font-bold text-white">Gallery</h2>
-          <p className="text-xs font-body text-white/30 mt-1">{totalImages} images across {SITE_IMAGES.length} categories</p>
+          <p className="text-xs font-body text-white/30 mt-1">{totalImages} site images across {SITE_IMAGES.length} categories{images.length > 0 ? ` + ${images.length} custom upload${images.length > 1 ? 's' : ''}` : ''}</p>
         </div>
-        <button onClick={() => setCreating(!creating)} className="px-4 py-2 bg-[#C9A84C] text-black text-sm font-body font-semibold hover:bg-[#D4B65C] transition-colors">
-          + Add Image
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleExportCsv} className="px-4 py-2 border border-white/20 text-white/60 text-sm font-body hover:text-white hover:border-white/40 transition-colors">
+            Export CSV
+          </button>
+          <button onClick={() => setCreating(!creating)} className="px-4 py-2 bg-[#C9A84C] text-black text-sm font-body font-semibold hover:bg-[#D4B65C] transition-colors">
+            + Add Image
+          </button>
+        </div>
       </div>
 
       {message && (
@@ -237,7 +429,7 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
         </div>
       </div>
 
-      {/* Site Images by Category */}
+      {/* Site Images by Category (read-only) */}
       {filteredSiteImages.map(group => (
         <div key={group.category} className="mb-6">
           <div className="flex items-center gap-2 mb-3">
@@ -262,42 +454,171 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
         </div>
       ))}
 
-      {/* User-added images */}
-      {images.length > 0 && (
+      {/* Custom Uploads (editable) */}
+      {filteredCustomImages.length > 0 && (
         <div className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="text-sm font-display font-semibold text-[#C9A84C]">Custom Uploads</h3>
-            <span className="text-[10px] font-body text-white/25">{images.length} images</span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-display font-semibold text-[#C9A84C]">Custom Uploads</h3>
+              <span className="text-[10px] font-body text-white/25">{filteredCustomImages.length} images</span>
+            </div>
           </div>
+
+          {/* Bulk Actions Bar */}
+          <div className="flex items-center gap-3 mb-3 bg-[#111111] border border-white/5 px-3 py-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleSelectAll}
+                className="w-3.5 h-3.5 accent-[#C9A84C] cursor-pointer"
+              />
+              <span className="text-[10px] font-body text-white/50">Select All</span>
+            </label>
+            {selectedIds.size > 0 && (
+              <>
+                <span className="text-[10px] font-body text-white/30">
+                  {selectedIds.size} selected
+                </span>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleting}
+                  className="ml-auto px-3 py-1 bg-red-500/15 border border-red-500/25 text-red-400 text-[10px] font-body font-semibold hover:bg-red-500/25 disabled:opacity-50 transition-colors"
+                >
+                  {bulkDeleting ? 'Deleting...' : `Delete ${selectedIds.size} Selected`}
+                </button>
+              </>
+            )}
+          </div>
+
           <div className="overflow-x-auto">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 min-w-[320px]">
-              {images.map((image) => (
-                <div key={image.id} className="relative group bg-[#111111] border border-white/5 overflow-hidden hover:border-[#C9A84C]/20 transition-colors">
-                  <div className="aspect-[4/3] bg-[#0A0A0A] flex items-center justify-center overflow-hidden">
-                    {image.src ? (
-                      <img src={image.src} alt={image.alt} className="w-full h-full object-cover" loading="lazy" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 min-w-[320px]">
+              {filteredCustomImages.map((image) => {
+                const realIndex = images.findIndex((img) => img.id === image.id);
+                const isEditing = editingId === image.id;
+                const isSelected = selectedIds.has(image.id);
+
+                return (
+                  <div
+                    key={image.id}
+                    className={`relative group bg-[#111111] border overflow-hidden transition-colors ${isSelected ? 'border-[#C9A84C]/40' : 'border-white/5 hover:border-[#C9A84C]/20'}`}
+                  >
+                    {/* Selection checkbox */}
+                    <div className="absolute top-2 left-2 z-10">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(image.id)}
+                        className="w-3.5 h-3.5 accent-[#C9A84C] cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Image preview - click to edit */}
+                    <div
+                      className="aspect-[4/3] bg-[#0A0A0A] flex items-center justify-center overflow-hidden cursor-pointer"
+                      onClick={() => !isEditing && startEditing(image)}
+                      title="Click to edit"
+                    >
+                      {image.src ? (
+                        <img src={image.src} alt={image.alt} className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <span className="text-white/20 text-xs font-body">No image</span>
+                      )}
+                    </div>
+
+                    {isEditing ? (
+                      /* Inline Edit Form */
+                      <div className="p-3 space-y-2 bg-[#0A0A0A] border-t border-[#C9A84C]/20">
+                        <div>
+                          <label className="block text-[9px] font-body uppercase tracking-wider text-white/35 mb-0.5">Alt Text / Name</label>
+                          <input
+                            type="text"
+                            value={editAlt}
+                            onChange={(e) => setEditAlt(e.target.value)}
+                            className="w-full px-2 py-1.5 bg-[#111111] border border-[#C9A84C]/20 text-white text-[11px] font-body focus:outline-none focus:border-[#C9A84C]/50"
+                            autoFocus
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-body uppercase tracking-wider text-white/35 mb-0.5">Category</label>
+                          <select
+                            value={editCategory}
+                            onChange={(e) => setEditCategory(e.target.value)}
+                            className="w-full px-2 py-1.5 bg-[#111111] border border-[#C9A84C]/20 text-white text-[11px] font-body focus:outline-none focus:border-[#C9A84C]/50"
+                          >
+                            <option value="event">Event</option>
+                            <option value="behind-the-scenes">Behind the Scenes</option>
+                            <option value="venue">Venue</option>
+                            <option value="promotional">Promotional</option>
+                          </select>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={() => handleEditSave(image.id)}
+                            disabled={editSaving}
+                            className="flex-1 px-3 py-1.5 bg-[#C9A84C] text-black text-[10px] font-body font-semibold hover:bg-[#D4B65C] disabled:opacity-50 transition-colors"
+                          >
+                            {editSaving ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            onClick={cancelEditing}
+                            className="flex-1 px-3 py-1.5 border border-white/20 text-white/40 text-[10px] font-body hover:text-white transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
                     ) : (
-                      <span className="text-white/20 text-xs font-body">No image</span>
+                      /* Display mode */
+                      <div className="p-2.5">
+                        <p className="text-white text-[11px] font-body font-medium truncate">{image.alt}</p>
+                        <p className="text-white/25 text-[9px] font-body mt-0.5">{image.category}</p>
+
+                        {/* Action buttons row */}
+                        <div className="flex items-center gap-1 mt-2 pt-2 border-t border-white/5">
+                          <button
+                            onClick={() => startEditing(image)}
+                            className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-[#C9A84C] hover:border-[#C9A84C]/30 transition-colors"
+                            title="Edit"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleMoveUp(realIndex)}
+                            disabled={realIndex <= 0}
+                            className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-white hover:border-white/30 disabled:opacity-20 disabled:hover:text-white/40 disabled:hover:border-white/10 transition-colors"
+                            title="Move up"
+                          >
+                            Up
+                          </button>
+                          <button
+                            onClick={() => handleMoveDown(realIndex)}
+                            disabled={realIndex >= images.length - 1}
+                            className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-white hover:border-white/30 disabled:opacity-20 disabled:hover:text-white/40 disabled:hover:border-white/10 transition-colors"
+                            title="Move down"
+                          >
+                            Down
+                          </button>
+                          <button
+                            onClick={() => handleDelete(image.id)}
+                            className="ml-auto px-2 py-1 text-[9px] font-body text-red-400/60 border border-red-400/15 hover:text-red-400 hover:border-red-400/30 transition-colors"
+                            title="Delete"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
-                  <div className="p-2.5">
-                    <p className="text-white text-[11px] font-body font-medium truncate">{image.alt}</p>
-                    <p className="text-white/25 text-[9px] font-body mt-0.5">{image.category}</p>
-                  </div>
-                  <button
-                    onClick={() => handleDelete(image.id)}
-                    className="absolute top-2 right-2 w-6 h-6 bg-red-500/80 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    x
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
       )}
 
-      {filteredSiteImages.length === 0 && images.length === 0 && (
+      {/* Empty state when no custom uploads exist but filter might hide site images */}
+      {images.length === 0 && filteredSiteImages.length === 0 && (
         <p className="text-white/30 text-sm font-body text-center py-8">No images match your search.</p>
       )}
     </div>
