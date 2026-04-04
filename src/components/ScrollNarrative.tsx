@@ -59,6 +59,23 @@ export default function ScrollNarrative() {
     if (!container) return;
     const root = document.documentElement;
 
+    // Respect prefers-reduced-motion: make all content immediately visible
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      const slides = slidesRef.current.filter(Boolean) as HTMLDivElement[];
+      slides.forEach((slide) => {
+        const elements = slide.querySelectorAll(
+          '.narrative-pretitle, .narrative-title, .narrative-body, .narrative-stat, .narrative-line'
+        );
+        elements.forEach((el) => {
+          (el as HTMLElement).style.opacity = '1';
+          (el as HTMLElement).style.transform = 'none';
+          (el as HTMLElement).style.filter = 'none';
+        });
+      });
+      return;
+    }
+
     const ctx = gsap.context(() => {
       // Pin the container for horizontal-style scroll
       const slides = slidesRef.current.filter(Boolean) as HTMLDivElement[];

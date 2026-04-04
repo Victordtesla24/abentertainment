@@ -108,16 +108,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Log contact submission (replace with DB write in production)
-    console.log('Contact form submission:', {
-      name: trimmedName,
-      email: trimmedEmail,
-      phone: body.phone?.trim() || '',
-      subject: body.subject?.trim() || '',
-      message: trimmedMessage,
-      eventInterest: body.eventInterest?.trim() || '',
-      ip,
-      timestamp: new Date().toISOString(),
-    });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Contact form submission:', {
+        name: trimmedName,
+        email: trimmedEmail,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     return NextResponse.json(
       {

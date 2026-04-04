@@ -42,6 +42,12 @@ export default function Preloader({ onComplete }: PreloaderProps = {}) {
       html.classList.add('preloader-skip');
     }
 
+    // Respect prefers-reduced-motion: skip the video preloader entirely
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      html.classList.add('preloader-skip');
+    }
+
     if (html.classList.contains('preloader-skip')) {
       dismissedRef.current = true;
       html.classList.add('preloader-done');

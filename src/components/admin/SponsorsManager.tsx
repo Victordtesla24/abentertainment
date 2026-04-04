@@ -160,7 +160,7 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
               <button type="submit" disabled={saving} className="px-6 py-2 bg-[#C9A84C] text-white text-sm font-semibold rounded-sm hover:bg-[#D4B65C] disabled:opacity-50">
                 {saving ? 'Saving...' : creating ? 'Add Sponsor' : 'Update'}
               </button>
-              <button type="button" onClick={resetForm} className="px-6 py-2 border border-white/30/30 text-white/40 text-sm rounded-sm hover:text-white">
+              <button type="button" onClick={resetForm} className="px-6 py-2 border border-white/30 text-white/40 text-sm rounded-sm hover:text-white">
                 Cancel
               </button>
             </div>
@@ -168,7 +168,7 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
         </div>
       )}
 
-      <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div className="overflow-x-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 min-w-[320px]">
           {sponsors.map((sponsor) => (
             <div key={sponsor.id} className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">

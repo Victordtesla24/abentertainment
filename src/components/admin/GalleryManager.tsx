@@ -244,7 +244,7 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
             <h3 className="text-sm font-display font-semibold text-[#C9A84C]">{group.label}</h3>
             <span className="text-[10px] font-body text-white/25">{group.images.length} images</span>
           </div>
-          <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="overflow-x-auto">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 min-w-[320px]">
               {group.images.map((image) => (
                 <div key={image.src} className="group bg-[#111111] border border-white/5 overflow-hidden hover:border-[#C9A84C]/20 transition-colors">
@@ -269,7 +269,7 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
             <h3 className="text-sm font-display font-semibold text-[#C9A84C]">Custom Uploads</h3>
             <span className="text-[10px] font-body text-white/25">{images.length} images</span>
           </div>
-          <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="overflow-x-auto">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 min-w-[320px]">
               {images.map((image) => (
                 <div key={image.id} className="relative group bg-[#111111] border border-white/5 overflow-hidden hover:border-[#C9A84C]/20 transition-colors">

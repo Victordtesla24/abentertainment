@@ -302,7 +302,7 @@ export default function HealthDashboard() {
     isLoading: swrLoading,
     mutate,
   } = useSWR(getApiUrl('/api/admin/chat'), fetcher, {
-    refreshInterval: 30000,
+    refreshInterval: 10000,
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
   });
@@ -497,7 +497,7 @@ export default function HealthDashboard() {
             </span>
           </div>
           <p className="text-[11px] font-body text-white/30 mt-0.5">
-            Last refresh: {lastRefresh.toLocaleTimeString()} · {autoRefresh ? 'Auto-refresh: 30s' : 'Auto-refresh: off'}
+            Last refresh: {lastRefresh.toLocaleTimeString()} · {autoRefresh ? 'Auto-refresh: 10s' : 'Auto-refresh: off'}
             {isLocalhost() && <span className="text-[#f59e0b] ml-2">Local Dev Mode</span>}
           </p>
           {fetchError && (
@@ -731,7 +731,7 @@ export default function HealthDashboard() {
       <div className="bg-[#0A0A0A] border border-white/5 p-4">
         <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-2">Developer Escalation</p>
         <p className="text-[11px] font-body text-white/50">
-          For critical issues the AI Agent cannot resolve, contact: <span className="text-[#C9A84C]">{healthData?.developer || 'Vikram (sarkar.vikram@gmail.com)'}</span>
+          For critical issues the AI Agent cannot resolve, contact: <span className="text-[#C9A84C]">{process.env.NEXT_PUBLIC_ESCALATION_EMAIL || healthData?.developer || 'Vikram (sarkar.vikram@gmail.com)'}</span>
         </p>
       </div>
 

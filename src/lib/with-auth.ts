@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSessionToken } from '@/lib/auth';
+import { validateCsrfToken } from '@/lib/csrf';
 
 const COOKIE_NAME = 'ab-admin-session-v3';
 
@@ -30,17 +31,30 @@ export function withAuth(handler: RouteHandler): RouteHandler {
       );
     }
 
-    // Check Origin header on mutating requests (CSRF protection)
+    // Check Origin header and CSRF token on mutating requests
     if (MUTATING_METHODS.has(request.method)) {
       const origin = request.headers.get('origin');
-      if (origin) {
-        const allowed = getAllowedOrigins();
-        if (!allowed.includes(origin)) {
-          return NextResponse.json(
-            { error: 'Forbidden: origin not allowed' },
-            { status: 403 }
-          );
-        }
+      if (!origin) {
+        return NextResponse.json(
+          { error: 'Forbidden: missing origin' },
+          { status: 403 }
+        );
+      }
+      const allowed = getAllowedOrigins();
+      if (!allowed.includes(origin)) {
+        return NextResponse.json(
+          { error: 'Forbidden: origin not allowed' },
+          { status: 403 }
+        );
+      }
+
+      // Validate CSRF double-submit cookie token
+      const csrfValid = await validateCsrfToken(request);
+      if (!csrfValid) {
+        return NextResponse.json(
+          { error: 'Forbidden: invalid CSRF token' },
+          { status: 403 }
+        );
       }
     }
 

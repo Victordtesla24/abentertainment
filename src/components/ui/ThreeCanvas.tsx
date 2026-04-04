@@ -106,11 +106,19 @@ function ThreeCanvasInner() {
     setShowFallback(true);
   }, []);
 
+  // Respect prefers-reduced-motion: skip WebGL entirely to save GPU resources
+  const [prefersReducedMotion] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  );
+
   // All hooks declared BEFORE any conditional return (React rules of hooks)
   useEffect(() => {
     // Skip initialization on admin routes
     if (pathname.startsWith('/admin')) return;
     if (webglSupport === 'none') return;
+    if (prefersReducedMotion) return;
     if (!canvasRef.current) return;
 
     let engine: ThreeEngine | null = null;
@@ -180,13 +188,13 @@ function ThreeCanvasInner() {
       window.removeEventListener('pointermove', onPointerMove);
       engine?.dispose(); // Full GPU memory cleanup on unmount
     };
-  }, [pathname, webglSupport, onContextLost, onFallback]);
+  }, [pathname, webglSupport, onContextLost, onFallback, prefersReducedMotion]);
 
   // Conditional render AFTER all hooks
   if (pathname.startsWith('/admin')) return null;
 
-  // No WebGL support at all — pure CSS fallback
-  if (webglSupport === 'none' || showFallback) {
+  // No WebGL support, reduced motion preference, or fallback triggered — pure CSS fallback
+  if (webglSupport === 'none' || showFallback || prefersReducedMotion) {
     return <CSSFallback />;
   }
 

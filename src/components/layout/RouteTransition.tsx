@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { ReactNode, useRef, useEffect, useState, useCallback } from 'react';
 
@@ -46,8 +46,11 @@ export default function RouteTransition({ children }: RouteTransitionProps) {
   const [showCurtain, setShowCurtain] = useState(false);
   const prevPathRef = useRef(pathname);
   const hasInitializedRef = useRef(false);
+  const shouldReduceMotion = useReducedMotion();
 
   const playCurtain = useCallback(() => {
+    // Skip curtain video when user prefers reduced motion
+    if (shouldReduceMotion) return;
     const video = videoRef.current;
     if (!video) return;
     setShowCurtain(true);
@@ -56,7 +59,7 @@ export default function RouteTransition({ children }: RouteTransitionProps) {
       // If video fails, just skip the curtain
       setShowCurtain(false);
     });
-  }, []);
+  }, [shouldReduceMotion]);
 
   const handleVideoEnded = useCallback(() => {
     setShowCurtain(false);
@@ -102,46 +105,48 @@ export default function RouteTransition({ children }: RouteTransitionProps) {
         <motion.div
           key={pathname}
           className="flex-1 w-full"
-          variants={pageVariants}
-          initial="initial"
+          variants={shouldReduceMotion ? undefined : pageVariants}
+          initial={shouldReduceMotion ? false : 'initial'}
           animate="animate"
-          exit="exit"
-          transition={pageTransition}
+          exit={shouldReduceMotion ? undefined : 'exit'}
+          transition={shouldReduceMotion ? { duration: 0 } : pageTransition}
         >
-          {/* Gold blade wipe — sweeps left-to-right on page enter */}
-          <motion.div
-            className="fixed inset-0 z-[997] pointer-events-none"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.7, 0] }}
-            transition={{ duration: 0.7, ease: EASE }}
-          >
-            {/* Top edge */}
+          {/* Gold blade wipe — sweeps left-to-right on page enter (skipped for reduced motion) */}
+          {!shouldReduceMotion && (
             <motion.div
-              className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#C9A84C] to-transparent"
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 0.5, ease: EASE }}
-              style={{ transformOrigin: 'left' }}
-            />
-            {/* Bottom edge */}
-            <motion.div
-              className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#C9A84C]/40 to-transparent"
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 0.6, ease: EASE, delay: 0.05 }}
-              style={{ transformOrigin: 'right' }}
-            />
-            {/* Ambient gold glow */}
-            <motion.div
-              className="absolute inset-0"
+              className="fixed inset-0 z-[997] pointer-events-none"
               initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 0.03, 0] }}
-              transition={{ duration: 0.8 }}
-              style={{
-                background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.15), transparent 60%)',
-              }}
-            />
-          </motion.div>
+              animate={{ opacity: [0, 0.7, 0] }}
+              transition={{ duration: 0.7, ease: EASE }}
+            >
+              {/* Top edge */}
+              <motion.div
+                className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#C9A84C] to-transparent"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.5, ease: EASE }}
+                style={{ transformOrigin: 'left' }}
+              />
+              {/* Bottom edge */}
+              <motion.div
+                className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#C9A84C]/40 to-transparent"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.6, ease: EASE, delay: 0.05 }}
+                style={{ transformOrigin: 'right' }}
+              />
+              {/* Ambient gold glow */}
+              <motion.div
+                className="absolute inset-0"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0, 0.03, 0] }}
+                transition={{ duration: 0.8 }}
+                style={{
+                  background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.15), transparent 60%)',
+                }}
+              />
+            </motion.div>
+          )}
 
           {children}
         </motion.div>

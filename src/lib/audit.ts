@@ -13,6 +13,7 @@ export interface AuditEntry {
   details?: Record<string, unknown>;
 }
 
+const MAX_AUDIT_ENTRIES = 1000;
 const auditLog: AuditEntry[] = [];
 
 export function logAdminAction(
@@ -30,6 +31,9 @@ export function logAdminAction(
     ip,
     details,
   };
+  if (auditLog.length >= MAX_AUDIT_ENTRIES) {
+    auditLog.shift();
+  }
   auditLog.push(entry);
   // In production, this would POST to VPS audit endpoint
   if (process.env.NODE_ENV === 'development') {

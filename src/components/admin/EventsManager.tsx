@@ -1,7 +1,7 @@
 'use client';
 import { adminFetch } from '@/lib/admin-fetch';
 
-import { useState, FormEvent } from 'react';
+import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
 import type { Event } from '@/lib/data';
 
 interface EventsManagerProps {
@@ -34,6 +34,26 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
   const [form, setForm] = useState(EMPTY_EVENT);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    setCanScrollRight(el.scrollWidth - el.scrollLeft - el.clientWidth > 1);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener('scroll', checkScroll, { passive: true });
+    window.addEventListener('resize', checkScroll);
+    return () => {
+      el.removeEventListener('scroll', checkScroll);
+      window.removeEventListener('resize', checkScroll);
+    };
+  }, [checkScroll, events]);
 
   function startCreate() {
     setEditing(null);
@@ -302,7 +322,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
               <button
                 type="button"
                 onClick={cancelForm}
-                className="px-6 py-2 border border-white/30/30 text-white/40 text-sm rounded-sm hover:text-white hover:border-white/30 transition-colors"
+                className="px-6 py-2 border border-white/30 text-white/40 text-sm rounded-sm hover:text-white hover:border-white/30 transition-colors"
               >
                 Cancel
               </button>
@@ -312,8 +332,8 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
       )}
 
       {/* Events Table */}
-      <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm overflow-hidden">
-        <div className="overflow-x-auto -mx-0 px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm overflow-hidden relative">
+        <div ref={scrollContainerRef} className="overflow-x-auto" role="region" aria-label="Events table">
         <table className="w-full min-w-[640px]">
           <thead>
             <tr className="border-b border-[#C9A84C]/20">
@@ -333,7 +353,7 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
                   <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-sm ${
                     event.status === 'upcoming' ? 'bg-[#1BBFA1]/20 text-[#1BBFA1]' :
                     event.status === 'live' ? 'bg-[#C9A84C]/20 text-[#C9A84C]' :
-                    'bg-white/20/20 text-white/40'
+                    'bg-white/20 text-white/40'
                   }`}>
                     {event.status}
                   </span>
@@ -365,6 +385,12 @@ export default function EventsManager({ initialEvents }: EventsManagerProps) {
           </tbody>
         </table>
         </div>
+        {canScrollRight && (
+          <div
+            className="absolute right-0 top-0 bottom-0 w-8 pointer-events-none bg-gradient-to-l from-[#0A0A0A] to-transparent"
+            aria-hidden="true"
+          />
+        )}
       </div>
     </div>
   );
