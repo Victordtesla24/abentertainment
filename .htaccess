@@ -53,18 +53,21 @@ ErrorDocument 404 /out/404.html
 </FilesMatch>
 
 # Block access to source directories
-RedirectMatch 403 ^/src(/.*)?$
-RedirectMatch 403 ^/node_modules(/.*)?$
-RedirectMatch 403 ^/\.git(/.*)?$
-RedirectMatch 403 ^/\.github(/.*)?$
-RedirectMatch 403 ^/\.next(/.*)?$
-RedirectMatch 403 ^/\.env(\..*)?$
-RedirectMatch 403 ^/data(/.*)?$
-RedirectMatch 403 ^/scripts(/.*)?$
-RedirectMatch 403 ^/docs(/.*)?$
-RedirectMatch 403 ^/e2e(/.*)?$
-RedirectMatch 403 ^/agent-system(/.*)?$
-RedirectMatch 403 ^/\.claude(/.*)?$
+# Uses RewriteRule instead of RedirectMatch so these run AFTER the file-serving
+# rewrite rules above. On LiteSpeed, RedirectMatch (mod_alias) fires before
+# RewriteRule (mod_rewrite), which was blocking out/data/events.json.
+RewriteRule ^src(/.*)?$ - [F,L]
+RewriteRule ^node_modules(/.*)?$ - [F,L]
+RewriteRule ^\.git(/.*)?$ - [F,L]
+RewriteRule ^\.github(/.*)?$ - [F,L]
+RewriteRule ^\.next(/.*)?$ - [F,L]
+RewriteRule ^\.env(\..*)?$ - [F,L]
+RewriteRule ^data(/.*)?$ - [F,L]
+RewriteRule ^scripts(/.*)?$ - [F,L]
+RewriteRule ^docs(/.*)?$ - [F,L]
+RewriteRule ^e2e(/.*)?$ - [F,L]
+RewriteRule ^agent-system(/.*)?$ - [F,L]
+RewriteRule ^\.claude(/.*)?$ - [F,L]
 
 # Cache static assets
 <IfModule mod_expires.c>
