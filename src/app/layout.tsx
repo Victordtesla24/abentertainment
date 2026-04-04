@@ -64,6 +64,10 @@ export const metadata: Metadata = {
     description: SITE_CONFIG.description,
     images: ['/images/og-image.jpg'],
   },
+  icons: {
+    icon: '/images/AB_Logo_transparent.png',
+    apple: '/images/AB_Logo_transparent.png',
+  },
   robots: {
     index: true,
     follow: true,
