@@ -2,7 +2,11 @@
 
 /**
  * Guardrail for static exports:
- * Admin API calls must target the VPS API host in production exports.
+ * Validates environment for production static export builds.
+ *
+ * NEXT_PUBLIC_VPS_API_URL is optional — when not set, the frontend uses
+ * relative paths (/api/*) which are proxied to the VPS by api-proxy.php.
+ * When set, it must be a valid http/https URL.
  */
 
 const isExportBuild = process.env.NEXT_EXPORT === 'true';
@@ -14,10 +18,10 @@ if (!isExportBuild) {
 const vpsApiUrl = process.env.NEXT_PUBLIC_VPS_API_URL;
 
 if (!vpsApiUrl) {
-  console.error(
-    '[build:export] Missing NEXT_PUBLIC_VPS_API_URL. Set it before static export builds.'
+  console.log(
+    '[build:export] NEXT_PUBLIC_VPS_API_URL not set — using same-origin proxy (api-proxy.php).'
   );
-  process.exit(1);
+  process.exit(0);
 }
 
 try {

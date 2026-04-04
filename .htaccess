@@ -12,6 +12,11 @@ RewriteRule ^ - [L]
 # Deny access to hidden files/directories (.htaccess, .git, .env.*, etc.)
 RewriteRule (^|/)\. - [F,L]
 
+# Reverse proxy: forward /api/* requests to VPS Node.js server via PHP proxy
+# This allows admin login and other API calls to work without a separate API domain
+RewriteCond %{REQUEST_URI} ^/api/ [NC]
+RewriteRule ^api/(.*)$ api-proxy.php?__path=/api/$1 [QSA,L]
+
 # If the file exists directly in out/, serve it (static assets: JS, CSS, images, fonts)
 RewriteCond %{DOCUMENT_ROOT}/out/$1 -f
 RewriteRule ^(.*)$ out/$1 [L]
