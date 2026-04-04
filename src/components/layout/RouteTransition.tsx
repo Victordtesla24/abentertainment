@@ -48,18 +48,19 @@ export default function RouteTransition({ children }: RouteTransitionProps) {
   const hasInitializedRef = useRef(false);
   const shouldReduceMotion = useReducedMotion();
 
+  // Skip all transitions for admin pages — they block form interaction
+  const isAdminPage = pathname.startsWith('/admin');
+
   const playCurtain = useCallback(() => {
-    // Skip curtain video when user prefers reduced motion
-    if (shouldReduceMotion) return;
+    if (shouldReduceMotion || isAdminPage) return;
     const video = videoRef.current;
     if (!video) return;
     setShowCurtain(true);
     video.currentTime = 0;
     video.play().catch(() => {
-      // If video fails, just skip the curtain
       setShowCurtain(false);
     });
-  }, [shouldReduceMotion]);
+  }, [shouldReduceMotion, isAdminPage]);
 
   const handleVideoEnded = useCallback(() => {
     setShowCurtain(false);
@@ -78,6 +79,11 @@ export default function RouteTransition({ children }: RouteTransitionProps) {
       playCurtain();
     }
   }, [pathname, playCurtain]);
+
+  // Admin pages: render directly without any motion wrappers
+  if (isAdminPage) {
+    return <div className="flex-1 w-full">{children}</div>;
+  }
 
   return (
     <>

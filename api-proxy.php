@@ -34,6 +34,11 @@ $forwardHeaders = [
     'X-Forwarded-Proto: https',
 ];
 
+// Forward Authorization header if present
+if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+    $forwardHeaders[] = 'Authorization: ' . $_SERVER['HTTP_AUTHORIZATION'];
+}
+
 // Forward CSRF token header if present
 if (isset($_SERVER['HTTP_X_CSRF_TOKEN'])) {
     $forwardHeaders[] = 'X-CSRF-Token: ' . $_SERVER['HTTP_X_CSRF_TOKEN'];
@@ -48,7 +53,7 @@ if (isset($_SERVER['HTTP_ORIGIN'])) {
 if ($method === 'OPTIONS') {
     header('Access-Control-Allow-Origin: https://abentertainment.com.au');
     header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-Token');
     header('Access-Control-Allow-Credentials: true');
     header('Access-Control-Max-Age: 86400');
     http_response_code(204);

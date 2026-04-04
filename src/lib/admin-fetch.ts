@@ -11,7 +11,9 @@
 import { getApiUrl } from '@/lib/api-config';
 
 const CSRF_HEADER = 'X-CSRF-Token';
+const AUTH_HEADER = 'Authorization';
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const TOKEN_KEY = 'ab-admin-token';
 
 let csrfToken: string | null = null;
 
@@ -30,9 +32,41 @@ export function clearCsrfToken(): void {
   csrfToken = null;
 }
 
+/** Store auth token in sessionStorage. */
+export function setAuthToken(token: string): void {
+  try {
+    sessionStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // SSR or storage unavailable
+  }
+}
+
+/** Read auth token from sessionStorage. */
+export function getAuthToken(): string | null {
+  try {
+    return sessionStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Clear auth token (call on logout). */
+export function clearAuthToken(): void {
+  try {
+    sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // SSR or storage unavailable
+  }
+}
+
+/** Check if user has a stored auth token. */
+export function isAuthenticated(): boolean {
+  return !!getAuthToken();
+}
+
 /**
  * Fetch wrapper that resolves the API URL, attaches credentials, and
- * includes the CSRF token header for mutating methods.
+ * includes the auth token + CSRF token header on requests.
  */
 export async function adminFetch(
   path: string,
@@ -42,6 +76,11 @@ export async function adminFetch(
   const method = (init.method ?? 'GET').toUpperCase();
 
   const headers = new Headers(init.headers);
+
+  const token = getAuthToken();
+  if (token) {
+    headers.set(AUTH_HEADER, `Bearer ${token}`);
+  }
 
   if (MUTATING_METHODS.has(method) && csrfToken) {
     headers.set(CSRF_HEADER, csrfToken);

@@ -4,7 +4,7 @@ import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { getApiUrl } from '@/lib/api-config';
-import { setCsrfToken } from '@/lib/admin-fetch';
+import { setCsrfToken, setAuthToken } from '@/lib/admin-fetch';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -42,6 +42,9 @@ export default function AdminLoginPage() {
 
       if (res.ok) {
         const data = await res.json();
+        if (data.token) {
+          setAuthToken(data.token);
+        }
         if (data.csrfToken) {
           setCsrfToken(data.csrfToken);
         }

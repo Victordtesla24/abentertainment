@@ -3,12 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminDashboard from '@/components/admin/AdminDashboard';
-import { getApiUrl } from '@/lib/api-config';
+import { isAuthenticated, adminFetch } from '@/lib/admin-fetch';
 
 /**
- * Admin page — checks session cookie client-side.
- * Production VPS should set httpOnly: true on the cookie;
- * this dev-mode route uses httpOnly: false for local testing.
+ * Admin page — checks sessionStorage auth token client-side.
+ * Token is stored on login and sent as Bearer header on API calls.
  */
 export default function AdminPage() {
   const router = useRouter();
@@ -19,16 +18,15 @@ export default function AdminPage() {
     let isCancelled = false;
 
     const verify = async () => {
-      if (!document.cookie.includes('ab-admin-session-v3')) {
+      if (!isAuthenticated()) {
         router.replace('/admin/login');
         if (!isCancelled) setLoading(false);
         return;
       }
 
       try {
-        const response = await fetch(getApiUrl('/api/admin/auth'), {
+        const response = await adminFetch('/api/admin/auth', {
           method: 'GET',
-          credentials: 'include',
           cache: 'no-store',
         });
 
