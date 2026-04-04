@@ -35,6 +35,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Ensure runtime-critical modules that standalone analysis may miss are present
+COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
+COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules/@types/bcryptjs ./node_modules/@types/bcryptjs
+
 # Create data directory for JSON storage
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 
