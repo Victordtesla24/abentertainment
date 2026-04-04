@@ -1,0 +1,28 @@
+# Exclude all .env files so docker-compose env_file is the sole source of truth.
+# Without this, COPY . . bakes .env (with docker-compose $$-escaped values) into
+# the image. Next.js standalone then reads the file and gets literal "$$" strings
+# instead of "$", making bcrypt comparisons always fail.
+.env
+.env.*
+.env.local
+.env.production
+.env.production.local
+.env.development
+.env.development.local
+
+# Build artifacts
+node_modules
+.next
+out
+
+# Dev / CI artifacts
+*.log
+.DS_Store
+.git
+.github
+.vscode
+coverage
+
+# Local docs / plans (save build context size)
+docs/
+e2e/
