@@ -223,7 +223,7 @@ function checkProviderRateLimit(provider, maxPerMinute) {
   return { allowed: false, retryAfterS };
 }
 
-// ─── Available Models (15) ───────────────────────────────────────────────────
+// ─── Available Models (17) ───────────────────────────────────────────────────
 const MODELS = {
   // Fast/cheap — default orchestrator
   'gpt-4o-mini': { provider: 'openai', client: openai, id: 'gpt-4o-mini' },
@@ -717,7 +717,10 @@ async function handleAgentChat(messages, sessionId, modelKey = DEFAULT_MODEL) {
 
   const systemPrompt = buildSystemPrompt();
   const chatMessages = [{ role: 'system', content: systemPrompt }, ...messages.slice(-30)];
-  const model = MODELS[modelKey];
+  const model = MODELS[modelKey] || MODELS[DEFAULT_MODEL];
+  if (!model || !model.client) {
+    return 'Model not available: ' + modelKey + '. Please select a different model.';
+  }
 
   // Agent loop — tool calling with max 10 iterations (increased for Step 8 memory updates)
   let response = '';
