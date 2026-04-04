@@ -1,4 +1,4 @@
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
@@ -34,7 +34,12 @@ async function requireAuth() {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await requireAuth())) {
+  try {
+    const authed = await requireAuth().catch(() => false);
+    if (!authed) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { getApiUrl } from '@/lib/api-config';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,60 +30,103 @@ const QUICK_PROMPTS = [
 const WELCOME_MESSAGE =
   "Namaste! 🙏 I'm your personal AB Concierge — here to help you discover **Melbourne's finest Indian & Marathi cultural experiences**. Ask me about upcoming events, tickets, venues, or anything about our shows. I'm delighted to assist!";
 
-// ─── Markdown Renderer ────────────────────────────────────────────────────────
+// ─── Markdown Components ──────────────────────────────────────────────────────
 
-function renderContent(text: string): React.ReactNode {
-  if (!text) return null;
-  const paragraphs = text.split(/\n\n+/);
-  return (
-    <div className="space-y-2">
-      {paragraphs.map((para, pi) => {
-        const lines = para.split('\n');
-        const isList = lines.some(l => l.match(/^[-•*]\s/) || l.match(/^\d+\.\s/));
-        if (isList) {
-          return (
-            <ul key={pi} className="space-y-1">
-              {lines.filter(l => l.trim()).map((line, li) => {
-                const bulletMatch = line.match(/^[-•*]\s+(.*)/);
-                const numMatch = line.match(/^(\d+)\.\s+(.*)/);
-                const content = bulletMatch ? bulletMatch[1] : numMatch ? numMatch[2] : line;
-                return (
-                  <li key={li} className="flex gap-2">
-                    <span className="text-[#C9A84C] flex-shrink-0 font-bold leading-relaxed mt-px">
-                      {numMatch ? `${numMatch[1]}.` : '›'}
-                    </span>
-                    <span className="leading-relaxed">{renderInline(content)}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          );
-        }
-        return (
-          <p key={pi} className="leading-relaxed">
-            {lines.map((line, li) => (
-              <span key={li}>
-                {renderInline(line)}
-                {li < lines.length - 1 && <br />}
-              </span>
-            ))}
-          </p>
-        );
-      })}
-    </div>
-  );
-}
-
-function renderInline(text: string): React.ReactNode {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**'))
-      return <strong key={i} className="font-semibold text-white">{part.slice(2, -2)}</strong>;
-    if (part.startsWith('*') && part.endsWith('*'))
-      return <em key={i} className="italic text-white/90">{part.slice(1, -1)}</em>;
-    return <span key={i}>{part}</span>;
-  });
-}
+const markdownComponents = {
+  p: ({ children, ...props }: React.ComponentPropsWithoutRef<'p'>) => (
+    <p className="mb-2 last:mb-0 leading-relaxed" {...props}>
+      {children}
+    </p>
+  ),
+  strong: ({ children, ...props }: React.ComponentPropsWithoutRef<'strong'>) => (
+    <strong className="font-semibold text-white" {...props}>
+      {children}
+    </strong>
+  ),
+  em: ({ children, ...props }: React.ComponentPropsWithoutRef<'em'>) => (
+    <em className="italic text-white/85" {...props}>
+      {children}
+    </em>
+  ),
+  ul: ({ children, ...props }: React.ComponentPropsWithoutRef<'ul'>) => (
+    <ul className="mb-2 space-y-1.5 last:mb-0" {...props}>
+      {children}
+    </ul>
+  ),
+  ol: ({ children, ...props }: React.ComponentPropsWithoutRef<'ol'>) => (
+    <ol className="mb-2 space-y-1.5 last:mb-0 list-none" {...props}>
+      {children}
+    </ol>
+  ),
+  li: ({ children, ...props }: React.ComponentPropsWithoutRef<'li'>) => (
+    <li className="flex gap-2 leading-relaxed" {...props}>
+      <span className="text-[#C9A84C] flex-shrink-0 font-bold mt-px select-none">›</span>
+      <span>{children}</span>
+    </li>
+  ),
+  h1: ({ children, ...props }: React.ComponentPropsWithoutRef<'h1'>) => (
+    <h1 className="text-white font-semibold text-base mb-1.5 mt-2 first:mt-0" {...props}>
+      {children}
+    </h1>
+  ),
+  h2: ({ children, ...props }: React.ComponentPropsWithoutRef<'h2'>) => (
+    <h2 className="text-white font-semibold text-[13.5px] mb-1.5 mt-2 first:mt-0" {...props}>
+      {children}
+    </h2>
+  ),
+  h3: ({ children, ...props }: React.ComponentPropsWithoutRef<'h3'>) => (
+    <h3 className="text-[#C9A84C] font-semibold text-[13px] mb-1 mt-1.5 first:mt-0" {...props}>
+      {children}
+    </h3>
+  ),
+  a: ({ href, children, ...props }: React.ComponentPropsWithoutRef<'a'>) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[#C9A84C] underline underline-offset-2 hover:text-[#D4B65C] transition-colors"
+      {...props}
+    >
+      {children}
+    </a>
+  ),
+  code: ({
+    children,
+    className,
+    ...props
+  }: React.ComponentPropsWithoutRef<'code'> & { className?: string }) => {
+    const isBlock = Boolean(className);
+    if (isBlock) {
+      return (
+        <code
+          className="block bg-[#0a0a06] border border-[#C9A84C]/10 px-3 py-2 my-2 text-[11.5px] font-mono text-[#C9A84C]/90 overflow-x-auto leading-relaxed"
+          {...props}
+        >
+          {children}
+        </code>
+      );
+    }
+    return (
+      <code
+        className="bg-white/8 text-[#C9A84C]/90 px-1.5 py-0.5 text-[11px] font-mono"
+        {...props}
+      >
+        {children}
+      </code>
+    );
+  },
+  blockquote: ({ children, ...props }: React.ComponentPropsWithoutRef<'blockquote'>) => (
+    <blockquote
+      className="border-l-2 border-[#C9A84C]/40 pl-3 my-2 text-white/60 italic"
+      {...props}
+    >
+      {children}
+    </blockquote>
+  ),
+  hr: ({ ...props }: React.ComponentPropsWithoutRef<'hr'>) => (
+    <hr className="border-[#C9A84C]/15 my-3" {...props} />
+  ),
+};
 
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -161,7 +206,6 @@ export default function ChatWidget() {
 
   function sendPrompt(prompt: string) {
     setInput(prompt);
-    // Directly submit with this value
     const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', content: prompt, ts: Date.now() };
     submitMessage(userMsg);
   }
@@ -213,21 +257,11 @@ export default function ChatWidget() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split('\n')) {
-          if (!line.trim()) continue;
-          let text = line;
-          if (text.startsWith('data: ')) {
-            text = text.slice(6);
-            if (text === '[DONE]') continue;
-          }
-          const m = text.match(/^\d+:(.*)/);
-          if (m) {
-            text = m[1];
-            try { const p = JSON.parse(text); if (typeof p === 'string') text = p; } catch { /* raw */ }
-          }
-          content += text;
-        }
+
+        // toTextStreamResponse() sends plain text — append chunk directly to preserve
+        // all whitespace, newlines, and paragraph separators the AI generates.
+        content += decoder.decode(value, { stream: true });
+
         setMessages(prev =>
           prev.map(msg =>
             msg.id === assistantId ? { ...msg, content } : msg
@@ -326,7 +360,6 @@ export default function ChatWidget() {
                 </motion.svg>
               ) : (
                 <motion.div key="icon" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.2 }} className="flex flex-col items-center gap-0.5">
-                  {/* Concierge / chat icon */}
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-3-3v6M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -399,7 +432,8 @@ export default function ChatWidget() {
             </div>
 
             {/* ── Messages ─────────────────────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0 scroll-smooth"
+            <div
+              className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0 scroll-smooth"
               style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(201,168,76,0.15) transparent' }}
             >
               {visibleMessages.map((msg, idx) => (
@@ -419,7 +453,12 @@ export default function ChatWidget() {
                         <div className="bg-[#0f0f09] border border-[#C9A84C]/10 px-4 py-3 rounded-2xl rounded-tl-sm max-w-[88%] text-[13.5px] text-white/80 font-body leading-relaxed">
                           {msg.content ? (
                             <>
-                              {renderContent(msg.content)}
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={markdownComponents}
+                              >
+                                {msg.content}
+                              </ReactMarkdown>
                               {streamingId === msg.id && (
                                 <motion.span
                                   className="inline-block w-[2px] h-3.5 bg-[#C9A84C] ml-0.5 align-middle"
