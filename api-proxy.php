@@ -41,6 +41,11 @@ if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
     $forwardHeaders[] = 'Authorization: ' . $_SERVER['HTTP_AUTHORIZATION'];
 }
 
+// Forward Cookie header — required for session-based auth (admin panel)
+if (!empty($_SERVER['HTTP_COOKIE'])) {
+    $forwardHeaders[] = 'Cookie: ' . $_SERVER['HTTP_COOKIE'];
+}
+
 // Forward CSRF token header if present
 if (isset($_SERVER['HTTP_X_CSRF_TOKEN'])) {
     $forwardHeaders[] = 'X-CSRF-Token: ' . $_SERVER['HTTP_X_CSRF_TOKEN'];
