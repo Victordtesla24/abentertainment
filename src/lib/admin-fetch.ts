@@ -82,8 +82,11 @@ export async function adminFetch(
     headers.set(AUTH_HEADER, `Bearer ${token}`);
   }
 
-  if (MUTATING_METHODS.has(method) && csrfToken) {
-    headers.set(CSRF_HEADER, csrfToken);
+  // Use in-memory CSRF token; fall back to sessionStorage (survives page refresh
+  // because login stores csrfToken there via setAuthToken when no separate token exists)
+  const effectiveCsrf = csrfToken || getAuthToken();
+  if (MUTATING_METHODS.has(method) && effectiveCsrf) {
+    headers.set(CSRF_HEADER, effectiveCsrf);
   }
 
   return fetch(url, {

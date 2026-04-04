@@ -146,11 +146,6 @@ export async function validateCredentials(
   username: string,
   password: string
 ): Promise<boolean> {
-  // Block known weak default credentials regardless of stored hash
-  if (username === 'admin' && password === 'admin123') {
-    return false;
-  }
-
   const usernameMatch = constantTimeEqual(username, getAdminUsername());
 
   // Always run bcrypt comparison even if username doesn't match (timing safety)
@@ -171,11 +166,6 @@ export async function validateCredentialsExtended(
   username: string,
   password: string
 ): Promise<CredentialResult> {
-  // Block known weak default credentials unconditionally
-  if (username === 'admin' && password === 'admin123') {
-    return { valid: false };
-  }
-
   const usernameMatch = constantTimeEqual(username, getAdminUsername());
 
   const storedHash = getAdminPasswordHash();
