@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSessionToken } from '@/lib/auth';
 import { validateCsrfToken } from '@/lib/csrf';
@@ -20,9 +19,9 @@ type RouteHandler = (request: NextRequest) => Promise<NextResponse> | NextRespon
 
 export function withAuth(handler: RouteHandler): RouteHandler {
   return async (request: NextRequest) => {
-    // Validate session token from cookie
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get(COOKIE_NAME);
+    // Read the session cookie directly from the request object.
+    // This works even with force-static (which only affects cookies() from next/headers).
+    const sessionCookie = request.cookies.get(COOKIE_NAME);
 
     if (!sessionCookie || !validateSessionToken(sessionCookie.value)) {
       return NextResponse.json(
@@ -49,7 +48,7 @@ export function withAuth(handler: RouteHandler): RouteHandler {
       }
 
       // Validate CSRF double-submit cookie token
-      const csrfValid = await validateCsrfToken(request);
+      const csrfValid = validateCsrfToken(request);
       if (!csrfValid) {
         return NextResponse.json(
           { error: 'Forbidden: invalid CSRF token' },

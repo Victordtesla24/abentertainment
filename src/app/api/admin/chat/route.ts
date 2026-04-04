@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
 import { getEvents, getSponsors, getSettings } from '@/lib/data';
 import { buildRateLimitHeaders, checkRateLimit } from '@/lib/redis';
@@ -26,19 +25,14 @@ function getClientIp(request: NextRequest): string {
   return request.headers.get('x-real-ip') || 'unknown';
 }
 
-async function requireAuth() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get(getSessionCookieName());
+function requireAuth(request: NextRequest): boolean {
+  // Read cookie directly from request (works with force-static unlike cookies() from next/headers)
+  const session = request.cookies.get(getSessionCookieName());
   return session ? validateSessionToken(session.value) : false;
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const authed = await requireAuth().catch(() => false);
-    if (!authed) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  } catch {
+  if (!requireAuth(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

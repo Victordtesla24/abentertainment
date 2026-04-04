@@ -1,3 +1,4 @@
+export const dynamic = 'force-static';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   validateCredentials,
@@ -10,7 +11,7 @@ import {
   recordFailedAttempt,
   clearFailedAttempts,
 } from '@/lib/login-protection';
-import { generateCsrfToken } from '@/lib/csrf';
+import { generateCsrfToken, setCsrfCookie } from '@/lib/csrf';
 import { validateOrigin, corsHeaders } from '@/lib/cors';
 import { logAdminAction } from '@/lib/audit';
 
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     try { logAdminAction(username, 'LOGIN_SUCCESS', '/api/admin/auth', ip); } catch { /* audit must not block auth */ }
 
     const sessionToken = createSessionToken();
-    const csrfToken = await generateCsrfToken();
+    const csrfToken = generateCsrfToken();
 
     const response = NextResponse.json(
       { success: true, csrfToken },
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
       maxAge: 24 * 60 * 60,
       path: '/',
     });
+    setCsrfCookie(response, csrfToken);
 
     return response;
   } catch {

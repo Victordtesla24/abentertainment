@@ -1,37 +1,42 @@
-import { cookies } from 'next/headers';
 import { randomBytes, timingSafeEqual } from 'crypto';
+import { NextRequest, NextResponse } from 'next/server';
 
 const CSRF_COOKIE = 'ab-csrf-token';
 const CSRF_HEADER = 'X-CSRF-Token';
 
-export { CSRF_HEADER };
+export { CSRF_COOKIE, CSRF_HEADER };
 
 /**
- * Generate a cryptographically random CSRF token, store it in an HttpOnly
- * cookie, and return the raw value so the caller can include it in the
- * response body for the client to store in memory.
+ * Generate a cryptographically random CSRF token and return it.
+ * The caller is responsible for setting it as a cookie on the response
+ * using response.cookies.set() — this avoids using cookies() from
+ * next/headers which breaks with force-static.
  */
-export async function generateCsrfToken(): Promise<string> {
-  const token = randomBytes(32).toString('hex');
-  const cookieStore = await cookies();
-  cookieStore.set(CSRF_COOKIE, token, {
+export function generateCsrfToken(): string {
+  return randomBytes(32).toString('hex');
+}
+
+/**
+ * Set the CSRF token cookie on a NextResponse (avoids cookies() from next/headers).
+ */
+export function setCsrfCookie(response: NextResponse, token: string): void {
+  response.cookies.set(CSRF_COOKIE, token, {
     httpOnly: true,
     secure: true,
     sameSite: 'strict',
     path: '/api/admin',
     maxAge: 86400,
   });
-  return token;
 }
 
 /**
  * Validate the CSRF token sent in the X-CSRF-Token header against the
  * HttpOnly cookie value using constant-time comparison.
+ * Reads from request.cookies (works with force-static).
  */
-export async function validateCsrfToken(request: Request): Promise<boolean> {
+export function validateCsrfToken(request: NextRequest): boolean {
   const headerToken = request.headers.get(CSRF_HEADER);
-  const cookieStore = await cookies();
-  const cookieToken = cookieStore.get(CSRF_COOKIE)?.value;
+  const cookieToken = request.cookies.get(CSRF_COOKIE)?.value;
 
   if (!headerToken || !cookieToken) return false;
   if (headerToken.length !== cookieToken.length) return false;

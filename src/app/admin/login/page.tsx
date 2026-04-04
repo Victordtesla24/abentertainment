@@ -47,6 +47,12 @@ export default function AdminLoginPage() {
         }
         if (data.csrfToken) {
           setCsrfToken(data.csrfToken);
+          // Store CSRF token as the auth indicator so isAuthenticated() returns true.
+          // The actual session validation uses the httpOnly cookie (set by the server),
+          // but sessionStorage needs a non-null value for the client-side guard.
+          if (!data.token) {
+            setAuthToken(data.csrfToken);
+          }
         }
         router.push('/admin');
       } else if (res.status === 429) {

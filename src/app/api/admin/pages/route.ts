@@ -1,3 +1,4 @@
+export const dynamic = 'force-static';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { getPageTitles, savePageTitles } from '@/lib/data';
