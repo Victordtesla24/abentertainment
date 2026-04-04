@@ -13,6 +13,8 @@ const AVAILABLE_MODELS = [
   { id: 'gpt-4-turbo', label: 'GPT-4 Turbo', description: 'Strong reasoning, large context.' },
   { id: 'claude-opus-4.6', label: 'Claude Opus 4.6', description: 'Top-tier Anthropic model.' },
   { id: 'claude-sonnet-4.6', label: 'Claude Sonnet 4.6', description: 'Fast Anthropic model.' },
+  { id: 'claude-sonnet-4.6-max-thinking', label: 'Claude Sonnet 4.6 (Max Thinking)', description: 'Extended thinking. 1M token context. Best for complex reasoning.' },
+  { id: 'claude-opus-4.6-high-thinking', label: 'Claude Opus 4.6 (High Thinking)', description: 'Extended thinking. Deep analysis and reasoning.' },
   { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', description: 'Ultra-fast Google model.' },
   { id: 'deepseek-v3.2', label: 'DeepSeek V3.2', description: 'Open-weight powerhouse.' },
 ];

@@ -22,6 +22,8 @@ const AVAILABLE_MODELS: ModelOption[] = [
   { id: 'gpt-5.4', label: 'GPT-5.4', description: 'Latest generation. Best-in-class reasoning and accuracy.' },
   { id: 'claude-opus-4.6', label: 'Claude Opus 4.6', description: 'Top-tier Anthropic model. Excellent at complex, nuanced tasks.' },
   { id: 'claude-sonnet-4.6', label: 'Claude Sonnet 4.6', description: 'Fast and capable Anthropic model. Great quality-to-speed ratio.' },
+  { id: 'claude-sonnet-4.6-max-thinking', label: 'Claude Sonnet 4.6 (Max Thinking)', description: 'Extended thinking via OpenRouter. 1M token context. Best for complex reasoning tasks.' },
+  { id: 'claude-opus-4.6-high-thinking', label: 'Claude Opus 4.6 (High Thinking)', description: 'Highest reasoning via OpenRouter. Extended thinking enabled. Best for advanced analysis.' },
   { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', description: 'Ultra-fast Google model. Best for high-throughput, low-latency.' },
   { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro', description: 'Premium Google model. Strong multimodal reasoning.' },
   { id: 'deepseek-v3.2', label: 'DeepSeek V3.2', description: 'Open-weight powerhouse. Strong coding and math performance.' },

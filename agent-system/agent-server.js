@@ -232,6 +232,9 @@ const MODELS = {
   // Premium reasoning
   'claude-opus-4.6': { provider: 'openrouter', client: openrouter, id: 'anthropic/claude-opus-4' },
   'claude-sonnet-4.6': { provider: 'openrouter', client: openrouter, id: 'anthropic/claude-sonnet-4' },
+  // Extended thinking — 1M token context via OpenRouter
+  'claude-sonnet-4.6-max-thinking': { provider: 'openrouter', client: openrouter, id: 'anthropic/claude-sonnet-4-5:thinking', maxTokens: 100000, thinking: true },
+  'claude-opus-4.6-high-thinking': { provider: 'openrouter', client: openrouter, id: 'anthropic/claude-opus-4:thinking', maxTokens: 100000, thinking: true },
   'gpt-5.4': { provider: 'openrouter', client: openrouter, id: 'openai/gpt-5.4' },
   'gpt-5.4-pro': { provider: 'openrouter', client: openrouter, id: 'openai/gpt-5.4-pro' },
   'gemini-3.1-pro': { provider: 'gemini', id: 'gemini-2.5-pro-preview-05-06' },
@@ -253,7 +256,7 @@ const MODELS = {
   'gpt-image-1.5': { provider: 'openai', client: openai, id: 'gpt-image-1' },
 };
 
-const DEFAULT_MODEL = 'gpt-4o-mini';
+const DEFAULT_MODEL = 'claude-sonnet-4.6-max-thinking';
 
 // ─── Agent Tools (8) ─────────────────────────────────────────────────────────
 const TOOLS = [
@@ -699,7 +702,7 @@ When budget allows (<$${COST_LIMIT}), proactively suggest improvements:
 }
 
 // ─── Main Chat Handler with Tool Calling Loop ────────────────────────────────
-async function handleAgentChat(messages, sessionId) {
+async function handleAgentChat(messages, sessionId, modelKey = DEFAULT_MODEL) {
   // Reload workspace context at start of every request (MANDATORY)
   reloadWorkspaceContext();
 
@@ -714,22 +717,22 @@ async function handleAgentChat(messages, sessionId) {
 
   const systemPrompt = buildSystemPrompt();
   const chatMessages = [{ role: 'system', content: systemPrompt }, ...messages.slice(-30)];
-  const modelKey = DEFAULT_MODEL;
   const model = MODELS[modelKey];
 
   // Agent loop — tool calling with max 10 iterations (increased for Step 8 memory updates)
   let response = '';
   for (let i = 0; i < 10; i++) {
-    const limit = checkProviderRateLimit('openai', PROVIDER_LIMITS.openai);
+    const providerName = model.provider === 'openrouter' ? 'openrouter' : 'openai';
+    const limit = checkProviderRateLimit(providerName, PROVIDER_LIMITS[providerName]);
     if (!limit.allowed) {
-      return 'Provider throttle: OpenAI rate limit reached locally. Retry after ' + limit.retryAfterS + 's.';
+      return 'Provider throttle: ' + providerName + ' rate limit reached locally. Retry after ' + limit.retryAfterS + 's.';
     }
     const completion = await model.client.chat.completions.create({
       model: model.id,
       messages: chatMessages,
       tools: TOOLS,
       tool_choice: 'auto',
-      max_tokens: 4000,
+      max_tokens: model.maxTokens || 4000,
     });
 
     const choice = completion.choices[0];
@@ -910,7 +913,7 @@ const server = http.createServer(async (req, res) => {
       if (selectedModel === 'gemini-2.0-flash') {
         response = await chatWithGemini(body.messages);
       } else {
-        response = await handleAgentChat(body.messages, sessionId);
+        response = await handleAgentChat(body.messages, sessionId, selectedModel);
       }
 
       // Reset sleep timer after completing the request (costs are done)
