@@ -1,11 +1,16 @@
 'use client';
 
-import { Suspense, useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { Suspense, useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import Tilt from 'react-parallax-tilt';
 import type { Event } from '@/lib/data';
 import SponsorBanner from '@/components/ui/SponsorBanner';
+
+/** Tiny 1x1 transparent placeholder for blur-up loading. */
+const BLUR_DATA_URL =
+  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMSIgaGVpZ2h0PSIxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMxYTFhMmUiLz48L3N2Zz4=';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -172,36 +177,17 @@ function FilterBar({
 function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }) {
   const badge = getStatusBadge(event);
   const useNextImage = event.image.startsWith('/');
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [tiltStyle, setTiltStyle] = useState<string>('');
-  const prefersReducedMotion = useRef(
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (prefersReducedMotion.current || !cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const dx = (e.clientX - cx) / (rect.width / 2);
-    const dy = (e.clientY - cy) / (rect.height / 2);
-    const rotX = (-dy * 4).toFixed(2);
-    const rotY = (dx * 4).toFixed(2);
-    setTiltStyle(`perspective(800px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateY(-4px)`);
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    setTiltStyle('');
-  }, []);
 
   return (
     <Link href={`/events/${event.slug}`}>
-      <div
-        ref={cardRef}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        style={tiltStyle ? { transform: tiltStyle } : undefined}
-        className={`group relative overflow-hidden bg-[#111111]/50 border border-[#C9A84C]/10 transition-all duration-300 transform-gpu [transform-style:preserve-3d] hover:border-[#C9A84C]/40 hover:shadow-[0_20px_45px_rgba(204,138,28,0.22)] ${
+      <Tilt
+        tiltMaxAngleX={4}
+        tiltMaxAngleY={4}
+        perspective={800}
+        transitionSpeed={400}
+        glareEnable={false}
+        tiltReverse
+        className={`group relative overflow-hidden bg-[#111111]/50 border border-[#C9A84C]/10 transition-all duration-300 hover:border-[#C9A84C]/40 hover:shadow-[0_20px_45px_rgba(204,138,28,0.22)] ${
           isPast ? 'opacity-75 hover:opacity-100' : ''
         }`}
       >
@@ -216,7 +202,7 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
           aria-hidden="true"
         />
 
-        {/* Foil shimmer — champagne/gold streak slides across on hover */}
+        {/* Foil shimmer -- champagne/gold streak slides across on hover */}
         <div
           className="pointer-events-none absolute inset-0 z-10 overflow-hidden"
           aria-hidden="true"
@@ -238,6 +224,8 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
               alt={event.title}
               fill
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              placeholder="blur"
+              blurDataURL={BLUR_DATA_URL}
               className="object-cover transition-transform duration-700 group-hover:scale-110"
             />
           )}
@@ -288,7 +276,7 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
             </span>
           </div>
         </div>
-      </div>
+      </Tilt>
     </Link>
   );
 }
@@ -543,6 +531,9 @@ function EventsContentInner({ events, contactEmail }: EventsContentProps) {
           </div>
         </section>
       )}
+
+      {/* Sponsor marquee footer */}
+      <SponsorBanner />
     </>
   );
 }

@@ -190,6 +190,8 @@ export default function Footer() {
             <Link href="/privacy" className="text-white/50 text-xs font-body hover:text-[#C9A84C] transition-colors duration-300">Privacy Policy</Link>
             <span className="text-white/50">|</span>
             <Link href="/terms" className="text-white/50 text-xs font-body hover:text-[#C9A84C] transition-colors duration-300">Terms of Service</Link>
+            <span className="text-white/50">|</span>
+            <Link href="/admin/login" className="text-white/30 text-[10px] font-body hover:text-[#C9A84C]/70 transition-colors duration-300" aria-label="Admin access">Admin</Link>
           </div>
           <p className="text-white/40 text-xs font-body">Crafted with passion in Melbourne, Australia</p>
         </div>

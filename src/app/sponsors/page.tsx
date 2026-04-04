@@ -65,7 +65,7 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
           <img
             src={sponsor.logo}
             alt={`${sponsor.name} logo`}
-            className="max-h-16 max-w-full object-contain opacity-80 group-hover:opacity-100 transition-opacity duration-300"
+            className="max-h-16 max-w-full object-contain brightness-0 invert opacity-80 group-hover:brightness-100 group-hover:invert-0 group-hover:opacity-100 transition-all duration-300"
           />
         ) : (
           <span className="text-lg font-display font-bold text-[rgba(255,255,255,0.4)] group-hover:text-[#C9A84C] transition-colors duration-300">

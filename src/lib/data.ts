@@ -256,7 +256,7 @@ const SEED_TESTIMONIALS: Testimonial[] = [
 const SEED_SETTINGS: SiteSettings = {
   chatModel: 'gpt-4o',
   heroTitle: 'Experience Events Like No Other',
-  heroSubtitle: '6+ Events, 25+ Team, 25,000+ Audience Reach — Digital footprint across Australia and New Zealand',
+  heroSubtitle: "Melbourne's Premier Indian & Marathi Performing Arts — 6+ Events, 25+ Team, 25,000+ Audience Reach",
   contactEmail: 'abhi@abentertainment.com.au',
   contactPhone: '(+61) 430082646',
 };

@@ -20,6 +20,7 @@
   --color-overlay: rgba(0, 0, 0, 0.75);
   --font-display: var(--font-display), 'Georgia', serif;
   --font-body: var(--font-body), 'Helvetica Neue', sans-serif;
+  --radius-card: 0.75rem;
 }
 
 html { scroll-behavior: smooth; }
@@ -69,11 +70,24 @@ body {
 }
 
 ::selection { background: rgba(201,168,76,0.3); color: #FDF8F1; }
-:focus-visible { outline: 2px solid #C9A84C; outline-offset: 2px; }
 
-/* WCAG AAA compliant gold for small text (<18px) — 7.2:1 on #0A0A0A */
+/* WCAG AAA compliant gold for small text (<18px) — 7.5:1 on #0A0A0A */
 .text-gold-accessible {
-  color: #D4B85E;
+  color: #D4AF37;
+}
+
+/* Issue 5: Smooth transitions on all interactive elements */
+a, button, input, select, textarea, [role="button"] {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 300ms;
+  transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Issue 51: Enhanced :focus-visible ring — gold ring, 2px offset */
+:focus-visible {
+  outline: 2px solid #C9A84C;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(201, 168, 76, 0.15);
 }
 
 .sr-only {

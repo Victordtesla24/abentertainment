@@ -148,7 +148,7 @@ export default function ContactForm() {
                 type="text"
                 {...register('name')}
                 disabled={status === 'submitting'}
-                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:shadow-[inset_0_0_0_1px_rgba(201,168,76,0.15)] transition-all duration-300 disabled:opacity-50"
+                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/40 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/30 transition-all duration-300 disabled:opacity-50"
                 placeholder="Your name"
               />
               {errors.name && (
@@ -167,7 +167,7 @@ export default function ContactForm() {
                 type="email"
                 {...register('email')}
                 disabled={status === 'submitting'}
-                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:shadow-[inset_0_0_0_1px_rgba(201,168,76,0.15)] transition-all duration-300 disabled:opacity-50"
+                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/40 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/30 transition-all duration-300 disabled:opacity-50"
                 placeholder="your@email.com"
               />
               {errors.email && (
@@ -189,7 +189,7 @@ export default function ContactForm() {
                 type="tel"
                 {...register('phone')}
                 disabled={status === 'submitting'}
-                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:shadow-[inset_0_0_0_1px_rgba(201,168,76,0.15)] transition-all duration-300 disabled:opacity-50"
+                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/40 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/30 transition-all duration-300 disabled:opacity-50"
                 placeholder="Your phone number"
               />
               {errors.phone && (
@@ -207,7 +207,7 @@ export default function ContactForm() {
                 id="contact-subject"
                 {...register('subject')}
                 disabled={status === 'submitting'}
-                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body focus:outline-none focus:border-[#C9A84C] focus:shadow-[inset_0_0_0_1px_rgba(201,168,76,0.15)] transition-all duration-300 disabled:opacity-50"
+                className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body focus:outline-none focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/30 transition-all duration-300 disabled:opacity-50"
               >
                 <option value="">Select a topic</option>
                 <option value="event-inquiry">Event Inquiry</option>
@@ -234,7 +234,7 @@ export default function ContactForm() {
               rows={6}
               {...register('message')}
               disabled={status === 'submitting'}
-              className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/20 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:shadow-[inset_0_0_0_1px_rgba(201,168,76,0.15)] transition-all duration-300 resize-vertical disabled:opacity-50"
+              className="w-full px-4 py-3 bg-[#111111]/50 border border-[#C9A84C]/40 text-white font-body placeholder-white/40 focus:outline-none focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/30 transition-all duration-300 resize-vertical disabled:opacity-50"
               placeholder="Tell us about your inquiry..."
             />
             {errors.message && (

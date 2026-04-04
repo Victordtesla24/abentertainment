@@ -2,10 +2,52 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import GoldenTicket from '@/components/GoldenTicket';
 
 import type { Event } from '@/lib/data';
+
+/** Tiny 1x1 dark placeholder for blur-up loading. */
+const BLUR_DATA_URL =
+  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMSIgaGVpZ2h0PSIxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMxYTFhMmUiLz48L3N2Zz4=';
+
+function getStatusBadge(event: Event): { label: string; color: string } | null {
+  const now = new Date();
+  const eventDate = new Date(event.date);
+
+  if (eventDate <= now) return null;
+
+  if (event.ticketStatus === 'sold_out') {
+    return { label: 'Sold Out', color: 'bg-red-600 text-white' };
+  }
+  if (event.ticketStatus === 'selling_fast') {
+    return { label: 'Selling Fast', color: 'bg-amber-500 text-black' };
+  }
+
+  const daysUntilEvent = Math.ceil(
+    (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  );
+  if (daysUntilEvent <= 7) {
+    return { label: 'Selling Fast', color: 'bg-amber-500 text-black' };
+  }
+
+  if (event.updatedAt) {
+    const updatedAt = new Date(event.updatedAt);
+    const daysSinceUpdate = Math.floor(
+      (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysSinceUpdate >= 0 && daysSinceUpdate <= 10) {
+      return { label: 'New Date Added', color: 'bg-[#C9A84C] text-black' };
+    }
+  }
+
+  if (event.ticketStatus === 'available') {
+    return { label: 'On Sale Now', color: 'bg-emerald-500 text-white' };
+  }
+
+  return null;
+}
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
 
@@ -132,18 +174,33 @@ export default function EventsShowcase({ events }: { events: Event[] }) {
             variants={containerVariants}
             key={selectedCategory}
           >
-            {filteredEvents.map((event) => (
+            {filteredEvents.map((event) => {
+              const badge = getStatusBadge(event);
+              const useNextImage = event.image.startsWith('/');
+              return (
               <motion.div key={event.id} variants={cardVariants} className="group">
                 <Link href={`/events/${event.slug}`}>
                   <div className="glass-card hover-shine overflow-hidden hover:shadow-[0_12px_50px_rgba(201,168,76,0.1)]">
                     {/* Image with cinematic overlay */}
                     <div className="relative h-56 overflow-hidden bg-gradient-to-br from-[#111] to-[#0A0A0A]">
-                      {event.image && (
+                      {event.image && useNextImage && (
+                        <Image
+                          src={event.image}
+                          alt={event.title}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          placeholder="blur"
+                          blurDataURL={BLUR_DATA_URL}
+                          className="object-cover transition-all duration-700 group-hover:scale-110 group-hover:brightness-110 saturate-[0.9]"
+                        />
+                      )}
+                      {event.image && !useNextImage && (
                         <img
                           src={event.image}
                           alt={event.title}
                           className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110 group-hover:brightness-110"
                           style={{ filter: 'saturate(0.9)' }}
+                          loading="lazy"
                         />
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/30 to-transparent opacity-80" />
@@ -152,9 +209,10 @@ export default function EventsShowcase({ events }: { events: Event[] }) {
                       <div className="absolute top-4 right-4 px-3 py-1.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-[10px] font-body font-bold uppercase tracking-wider shadow-lg">
                         {event.category}
                       </div>
-                      {event.status === 'upcoming' && (
-                        <div className="absolute top-4 left-4 px-3 py-1.5 bg-white/10 backdrop-blur-md text-white text-[10px] font-body font-bold uppercase tracking-wider border border-white/20">
-                          Upcoming
+                      {/* Dynamic status badge */}
+                      {badge && (
+                        <div className={`absolute top-4 left-4 px-3 py-1.5 text-[10px] font-body font-bold uppercase tracking-wider shadow-lg ${badge.color}`}>
+                          {badge.label}
                         </div>
                       )}
                     </div>
@@ -191,7 +249,8 @@ export default function EventsShowcase({ events }: { events: Event[] }) {
                   </div>
                 </Link>
               </motion.div>
-            ))}
+              );
+            })}
           </motion.div>
         </AnimatePresence>
 

@@ -9,23 +9,28 @@ export default function CookieConsent() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      const consent = document.cookie.includes('cookie_consent=');
-      if (!consent) setIsVisible(true);
+      try {
+        const consent = localStorage.getItem('cookie_consent');
+        if (!consent) setIsVisible(true);
+      } catch {
+        // localStorage unavailable (e.g. private browsing) — show consent
+        setIsVisible(true);
+      }
     }, 2000);
     return () => clearTimeout(timer);
   }, []);
 
-  const acceptCookies = () => {
-    document.cookie =
-      'cookie_consent=accepted; max-age=31536000; path=/; SameSite=Lax';
+  const persistChoice = (choice: 'accepted' | 'declined') => {
+    try {
+      localStorage.setItem('cookie_consent', choice);
+    } catch {
+      // Silently fail if localStorage is unavailable
+    }
     setIsVisible(false);
   };
 
-  const declineCookies = () => {
-    document.cookie =
-      'cookie_consent=declined; max-age=31536000; path=/; SameSite=Lax';
-    setIsVisible(false);
-  };
+  const acceptCookies = () => persistChoice('accepted');
+  const declineCookies = () => persistChoice('declined');
 
   return (
     <AnimatePresence>

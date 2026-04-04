@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <main className="bg-[#0A0A0A] min-h-screen min-h-screen-dynamic">
+    <main className="bg-[#0A0A0A] min-h-screen-dynamic">
       <PageHero
         image="/images/heroes/contact-hero.png"
         badge="Contact"
@@ -47,7 +47,7 @@ export default function ContactPage() {
 
             {/* Contact Info Sidebar — server-rendered for SEO */}
             <aside className="lg:col-span-2 space-y-8">
-              <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-8 space-y-6">
+              <div className="bg-[#111111]/40 border border-[#C9A84C]/40 p-8 space-y-6">
                 <h3 className="text-xl font-display text-[#C9A84C] mb-4">
                   Contact Details
                 </h3>
@@ -89,7 +89,7 @@ export default function ContactPage() {
                 </div>
               </div>
 
-              <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-8">
+              <div className="bg-[#111111]/40 border border-[#C9A84C]/40 p-8">
                 <h3 className="text-xl font-display text-[#C9A84C] mb-4">
                   Office Hours
                 </h3>
@@ -109,7 +109,7 @@ export default function ContactPage() {
                 </div>
               </div>
 
-              <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-8">
+              <div className="bg-[#111111]/40 border border-[#C9A84C]/40 p-8">
                 <h3 className="text-xl font-display text-[#C9A84C] mb-4">
                   Follow Us
                 </h3>
