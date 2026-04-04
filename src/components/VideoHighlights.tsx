@@ -57,7 +57,6 @@ export default function VideoHighlights() {
             preload="metadata"
             playsInline
             loop
-            onEnded={() => setIsPlaying(false)}
           >
             <source src="/video/highlights.mp4" type="video/mp4" />
             <source src="/video/highlights.webm" type="video/webm" />
