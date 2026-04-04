@@ -25,7 +25,7 @@ RewriteRule ^$ out/index.html [L]
 ErrorDocument 404 /out/404.html
 
 # Security: block access to source/build/config files
-<FilesMatch "\.(tsx?|jsx?|mjs|cjs|mts|cts|json|md|yml|yaml|lock|env|local)$">
+<FilesMatch "\.(ts|tsx|jsx|mjs|cjs|mts|cts|json|md|yml|yaml|lock|env|local)$">
   <IfModule mod_authz_core.c>
     Require all denied
   </IfModule>
