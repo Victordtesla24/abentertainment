@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getApiUrl } from '@/lib/api-config';
+import { adminFetch } from '@/lib/admin-fetch';
 import { TelemetryGaugeGrid } from './telemetry/TelemetryGaugeGrid';
 import useSWR from 'swr';
 
@@ -293,8 +294,11 @@ export default function HealthDashboard() {
   const [selectedPage, setSelectedPage] = useState<string | null>(null);
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
   const [showAgentDetail, setShowAgentDetail] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<{ action: string; success: boolean; message: string } | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const actionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     data: swrHealthData,
@@ -425,6 +429,30 @@ export default function HealthDashboard() {
   useEffect(() => { refreshAll(); }, [refreshAll]);
   useEffect(() => { setLoading(swrLoading); }, [swrLoading]);
 
+  const runAction = useCallback(async (action: string) => {
+    setActionLoading(action);
+    setActionResult(null);
+    try {
+      const res = await adminFetch('/api/admin/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      setActionResult({ action, success: res.ok, message: data.message || data.error || (res.ok ? 'Done' : 'Failed') });
+      if (res.ok) {
+        // Refresh health data after successful action
+        setTimeout(() => mutate(), 2000);
+      }
+    } catch {
+      setActionResult({ action, success: false, message: 'Network error — VPS unreachable' });
+    } finally {
+      setActionLoading(null);
+      if (actionTimeoutRef.current) clearTimeout(actionTimeoutRef.current);
+      actionTimeoutRef.current = setTimeout(() => setActionResult(null), 5000);
+    }
+  }, [mutate]);
+
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
@@ -432,6 +460,9 @@ export default function HealthDashboard() {
       }
       if (copyTimeoutRef.current) {
         clearTimeout(copyTimeoutRef.current);
+      }
+      if (actionTimeoutRef.current) {
+        clearTimeout(actionTimeoutRef.current);
       }
     };
   }, []);
@@ -522,6 +553,48 @@ export default function HealthDashboard() {
         </div>
       </div>
 
+      {/* Quick Actions */}
+      <div className="bg-[#111111] border border-[#C9A84C]/10 p-4">
+        <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-3">Quick Actions</p>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: 'restart', label: 'Restart Chatbot', icon: '🔄', desc: 'Restart the AI agent service' },
+            { id: 'clear_cache', label: 'Clear Cache', icon: '🧹', desc: 'Clear server response cache' },
+            { id: 'clear_stats', label: 'Clear Stats', icon: '📊', desc: 'Reset request counters' },
+            { id: 'wake', label: 'Wake Agent', icon: '⏰', desc: 'Force wake the sleeping agent' },
+          ].map(action => (
+            <button
+              key={action.id}
+              onClick={() => runAction(action.id)}
+              disabled={actionLoading !== null}
+              title={action.desc}
+              className={`flex items-center gap-2 px-4 py-2.5 border text-xs font-body transition-all duration-200 ${
+                actionLoading === action.id
+                  ? 'border-[#C9A84C]/40 bg-[#C9A84C]/10 text-[#C9A84C]'
+                  : 'border-white/10 text-white/60 hover:border-[#C9A84C]/30 hover:text-[#C9A84C] hover:bg-[#C9A84C]/5'
+              } disabled:opacity-40`}
+            >
+              <span>{action.icon}</span>
+              <span>{actionLoading === action.id ? 'Running...' : action.label}</span>
+            </button>
+          ))}
+        </div>
+        <AnimatePresence>
+          {actionResult && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              className={`mt-3 px-3 py-2 border text-xs font-body ${
+                actionResult.success
+                  ? 'border-[#22c55e]/20 bg-[#22c55e]/5 text-[#22c55e]'
+                  : 'border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444]'
+              }`}
+            >
+              {actionResult.success ? '✓' : '✗'} {actionResult.message}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* Telemetry Gauges */}
       <TelemetryGaugeGrid
         healthScore={score}
@@ -546,9 +619,9 @@ export default function HealthDashboard() {
       <div className="bg-[#111111] border border-[#C9A84C]/10 p-5">
         <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-4">System Gauges</p>
         <div className="grid grid-cols-3 gap-6">
-          <GaugeChart value={healthData ? 100 : isLocalhost() ? 100 : 0} max={100} label="Server" sublabel={healthData?.server.version || (isLocalhost() ? 'Local dev' : '—')} color={healthData || isLocalhost() ? GREEN : RED} />
+          <GaugeChart value={healthData ? 100 : 0} max={100} label="Server" sublabel={healthData?.server.version || '—'} color={healthData ? GREEN : RED} />
           <GaugeChart value={passedPages} max={PAGES.length} label="Pages" sublabel={`${passedPages} of ${PAGES.length} OK`} color={passedPages === PAGES.length ? GREEN : passedPages >= 7 ? AMBER : RED} />
-          <GaugeChart value={healthData?.modelCount || (isLocalhost() ? 15 : 0)} max={15} label="AI Models" sublabel={`${healthData?.toolCount || (isLocalhost() ? 8 : 0)} tools`} color={GREEN} />
+          <GaugeChart value={healthData?.modelCount || 0} max={15} label="AI Models" sublabel={`${healthData?.toolCount || 0} tools`} color={healthData?.modelCount ? GREEN : AMBER} />
         </div>
       </div>
 
@@ -586,7 +659,7 @@ export default function HealthDashboard() {
                 <div>
                   <p className="text-[9px] font-body uppercase tracking-[0.15em] text-white/30 mb-2">Models ({healthData?.modelCount || 15})</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {(healthData?.models || ['gpt-4o-mini','gemini-2.0-flash','claude-opus-4.6','claude-sonnet-4.6','gpt-5.4','gpt-5.4-pro','gemini-3.1-pro','gpt-5.3-codex','kimi-k2.5','minimax-m2.5','glm-5','deepseek-v3.2','qwen-3.5','perplexity-sonar','gpt-image-1.5']).map(m => (
+                    {(healthData?.models || []).map(m => (
                       <span key={m} className="text-[9px] font-body px-1.5 py-0.5 bg-[#0A0A0A] border border-white/5 text-white/50">{m}</span>
                     ))}
                   </div>
@@ -596,7 +669,7 @@ export default function HealthDashboard() {
                   <div>
                     <p className="text-[9px] font-body uppercase tracking-[0.15em] text-white/30 mb-2">Tools ({healthData?.toolCount || 8})</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {(healthData?.tools || ['search_web','generate_image','create_event','list_events','analyze_code','modify_code','spawn_sub_agent','update_memory']).map(t => (
+                      {(healthData?.tools || []).map(t => (
                         <span key={t} className="text-[9px] font-body px-1.5 py-0.5 bg-[#C9A84C]/5 border border-[#C9A84C]/10 text-[#C9A84C]/60">{t}</span>
                       ))}
                     </div>
@@ -604,7 +677,7 @@ export default function HealthDashboard() {
                   <div>
                     <p className="text-[9px] font-body uppercase tracking-[0.15em] text-white/30 mb-2">API Keys</p>
                     <div className="space-y-1">
-                      {Object.entries(healthData?.apiKeys || { openai: true, openrouter: true, gemini: true, minimax: true }).map(([key, ok]) => (
+                      {Object.entries(healthData?.apiKeys || {}).map(([key, ok]) => (
                         <div key={key} className="flex items-center gap-2">
                           <StatusDot status={ok ? 'pass' : 'fail'} size={5} />
                           <span className="text-[10px] font-body text-white/50 capitalize">{key}</span>
