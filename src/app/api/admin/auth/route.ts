@@ -11,6 +11,9 @@ import {
   recordFailedAttempt,
   clearFailedAttempts,
 } from '@/lib/login-protection';
+import { generateCsrfToken } from '@/lib/csrf';
+import { validateOrigin, corsHeaders } from '@/lib/cors';
+import { logAdminAction } from '@/lib/audit';
 
 function getClientIp(request: NextRequest): string {
   return (
@@ -21,6 +24,15 @@ function getClientIp(request: NextRequest): string {
 }
 
 export async function POST(request: NextRequest) {
+  // CORS origin validation
+  const { valid: originValid, origin } = validateOrigin(request);
+  if (!originValid) {
+    return NextResponse.json(
+      { error: 'Forbidden: invalid origin' },
+      { status: 403, headers: corsHeaders(null) }
+    );
+  }
+
   try {
     const { username, password } = await request.json();
     const ip = getClientIp(request);
@@ -32,26 +44,33 @@ export async function POST(request: NextRequest) {
         { error: 'Too many failed attempts. Please try again later.' },
         {
           status: 429,
-          headers: { 'Retry-After': String(loginCheck.retryAfter) },
+          headers: { ...corsHeaders(origin), 'Retry-After': String(loginCheck.retryAfter) },
         }
       );
     }
 
     if (!(await validateCredentials(username, password))) {
       recordFailedAttempt(ip, username ?? '');
+      try { logAdminAction(username ?? 'unknown', 'LOGIN_FAILED', '/api/admin/auth', ip); } catch { /* audit must not block auth */ }
       return NextResponse.json(
         { error: 'Authentication failed' },
-        { status: 401 }
+        { status: 401, headers: corsHeaders(origin) }
       );
     }
 
-    // Success -- clear rate-limit state and issue cookie
+    // Success -- clear rate-limit state, issue session cookie, and generate CSRF token
     clearFailedAttempts(ip, username);
+    try { logAdminAction(username, 'LOGIN_SUCCESS', '/api/admin/auth', ip); } catch { /* audit must not block auth */ }
 
-    const token = createSessionToken();
-    const response = NextResponse.json({ success: true });
+    const sessionToken = createSessionToken();
+    const csrfToken = await generateCsrfToken();
 
-    response.cookies.set(getSessionCookieName(), token, {
+    const response = NextResponse.json(
+      { success: true, csrfToken },
+      { headers: corsHeaders(origin) }
+    );
+
+    response.cookies.set(getSessionCookieName(), sessionToken, {
       httpOnly: true,
       secure: true,
       sameSite: 'strict',
@@ -63,22 +82,64 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json(
       { error: 'Invalid request' },
-      { status: 400 }
+      { status: 400, headers: corsHeaders(origin) }
     );
   }
 }
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(getSessionCookieName())?.value;
-  if (!token || !validateSessionToken(token)) {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
+  const { valid: originValid, origin } = validateOrigin(request);
+  if (!originValid) {
+    return NextResponse.json(
+      { error: 'Forbidden: invalid origin' },
+      { status: 403 }
+    );
   }
 
-  return NextResponse.json({ authenticated: true });
+  const token = request.cookies.get(getSessionCookieName())?.value;
+  if (!token || !validateSessionToken(token)) {
+    return NextResponse.json(
+      { authenticated: false },
+      { status: 401, headers: corsHeaders(origin) }
+    );
+  }
+
+  return NextResponse.json(
+    { authenticated: true },
+    { headers: corsHeaders(origin) }
+  );
 }
 
-export async function DELETE() {
-  const response = NextResponse.json({ success: true });
+export async function DELETE(request: NextRequest) {
+  const { valid: originValid, origin } = validateOrigin(request);
+  if (!originValid) {
+    return NextResponse.json(
+      { error: 'Forbidden: invalid origin' },
+      { status: 403 }
+    );
+  }
+
+  const ip = getClientIp(request);
+  try { logAdminAction('admin', 'LOGOUT', '/api/admin/auth', ip); } catch { /* audit must not block auth */ }
+
+  const response = NextResponse.json(
+    { success: true },
+    { headers: corsHeaders(origin) }
+  );
   response.cookies.delete(getSessionCookieName());
   return response;
+}
+
+export async function OPTIONS(request: NextRequest) {
+  const { valid: originValid, origin } = validateOrigin(request);
+  if (!originValid) {
+    return new NextResponse(null, { status: 403 });
+  }
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      ...corsHeaders(origin),
+      'Access-Control-Max-Age': '86400',
+    },
+  });
 }

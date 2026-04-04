@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Event } from '@/lib/data';
+import SponsorBanner from '@/components/ui/SponsorBanner';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -313,7 +314,7 @@ function EventsContentFallback() {
       <div className="container-eu">
         <div className="animate-pulse space-y-4">
           <div className="h-10 bg-white/5 rounded w-64" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-80 bg-white/5 rounded" />
             ))}
@@ -489,7 +490,7 @@ function EventsContentInner({ events, contactEmail }: EventsContentProps) {
               Upcoming Events
             </h2>
             <div
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
               role="list"
               aria-label="Upcoming events"
             >
@@ -531,7 +532,7 @@ function EventsContentInner({ events, contactEmail }: EventsContentProps) {
               Past Events
             </h2>
             <div
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
               role="list"
               aria-label="Past events"
             >

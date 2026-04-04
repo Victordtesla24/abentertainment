@@ -1,5 +1,5 @@
 'use client';
-import { getApiUrl } from '@/lib/api-config';
+import { adminFetch } from '@/lib/admin-fetch';
 
 import { useState, useRef, useEffect, useMemo, FormEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -180,7 +180,7 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
     let assistantStreamId: string | null = null;
 
     try {
-      const res = await fetch(getApiUrl('/api/admin/chat'), {
+      const res = await adminFetch('/api/admin/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

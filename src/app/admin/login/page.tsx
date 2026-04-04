@@ -4,6 +4,7 @@ import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { getApiUrl } from '@/lib/api-config';
+import { setCsrfToken } from '@/lib/admin-fetch';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -40,10 +41,14 @@ export default function AdminLoginPage() {
       });
 
       if (res.ok) {
+        const data = await res.json();
+        if (data.csrfToken) {
+          setCsrfToken(data.csrfToken);
+        }
         router.push('/admin');
       } else if (res.status === 429) {
         const retryAfterHeader = res.headers.get('Retry-After');
-        const seconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 60;
+        const seconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 30;
         setRetryAfter(seconds);
         setRateLimited(true);
         setError('');
@@ -122,7 +127,7 @@ export default function AdminLoginPage() {
 
             {rateLimited && (
               <div className="text-yellow-400 text-sm bg-yellow-400/10 px-4 py-3 border border-yellow-400/20 font-body">
-                Too many attempts. Try again in {retryAfter} seconds.
+                Too Many Attempts &mdash; retry in {retryAfter} seconds
               </div>
             )}
 

@@ -1,5 +1,5 @@
 'use client';
-import { getApiUrl } from '@/lib/api-config';
+import { adminFetch } from '@/lib/admin-fetch';
 
 import { useState, useRef, FormEvent } from 'react';
 import Image from 'next/image';
@@ -34,7 +34,7 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
       const dataUrl = reader.result as string;
       setLogoPreview(dataUrl);
       try {
-        const res = await fetch(getApiUrl('/api/admin/settings'), {
+        const res = await adminFetch('/api/admin/settings', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ logoDataUrl: dataUrl, logoFilename: file.name }),
@@ -53,7 +53,7 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
     setSaving(true);
     setMessage('');
     try {
-      const res = await fetch(getApiUrl('/api/admin/settings'), {
+      const res = await adminFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),

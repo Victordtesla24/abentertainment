@@ -3,6 +3,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { getEvents, saveEvents } from '@/lib/data';
 import type { Event } from '@/lib/data';
+import { logAdminAction } from '@/lib/audit';
+
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    '127.0.0.1'
+  );
+}
 
 export const GET = withAuth(async () => {
   const events = await getEvents();
@@ -36,6 +45,8 @@ export const POST = withAuth(async (request: NextRequest) => {
 
     events.push(newEvent);
     await saveEvents(events);
+
+    try { logAdminAction('admin', 'EVENT_CREATE', '/api/admin/events', getClientIp(request), { eventId: newEvent.id, title: newEvent.title }); } catch { /* audit must not block operation */ }
 
     return NextResponse.json({ event: newEvent }, { status: 201 });
   } catch {
@@ -75,6 +86,8 @@ export const PUT = withAuth(async (request: NextRequest) => {
     events[index] = updated;
     await saveEvents(events);
 
+    try { logAdminAction('admin', 'EVENT_UPDATE', '/api/admin/events', getClientIp(request), { eventId: updated.id, title: updated.title }); } catch { /* audit must not block operation */ }
+
     return NextResponse.json({ event: updated });
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
@@ -92,6 +105,9 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     }
 
     await saveEvents(filtered);
+
+    try { logAdminAction('admin', 'EVENT_DELETE', '/api/admin/events', getClientIp(request), { eventId: id }); } catch { /* audit must not block operation */ }
+
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });

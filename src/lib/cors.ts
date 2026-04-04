@@ -4,6 +4,8 @@ const ALLOWED_ORIGINS = [
   'https://api.abentertainment.com.au',
   'http://localhost:3000',
   'http://localhost:3001',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
 ];
 
 export function validateOrigin(request: Request): { valid: boolean; origin: string | null } {

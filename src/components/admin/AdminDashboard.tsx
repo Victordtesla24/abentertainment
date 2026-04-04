@@ -1,5 +1,6 @@
 'use client';
 import { getApiUrl } from '@/lib/api-config';
+import { clearCsrfToken } from '@/lib/admin-fetch';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -39,7 +40,8 @@ export default function AdminDashboard({
   const [activeTab, setActiveTab] = useState<Tab>('health');
 
   async function handleLogout() {
-    await fetch(getApiUrl('/api/admin/auth'), { method: 'DELETE' });
+    await fetch(getApiUrl('/api/admin/auth'), { method: 'DELETE', credentials: 'include' });
+    clearCsrfToken();
     router.push('/admin/login');
     router.refresh();
   }

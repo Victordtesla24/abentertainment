@@ -1,5 +1,5 @@
 'use client';
-import { getApiUrl } from '@/lib/api-config';
+import { adminFetch } from '@/lib/admin-fetch';
 
 import { useState, FormEvent } from 'react';
 import type { Sponsor } from '@/lib/data';
@@ -56,7 +56,7 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
         ? { name, logo, url, tier, description }
         : { id: editing!.id, name, logo, url, tier, description };
 
-      const res = await fetch(getApiUrl('/api/admin/sponsors'), {
+      const res = await adminFetch('/api/admin/sponsors', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -87,7 +87,7 @@ export default function SponsorsManager({ initialSponsors }: SponsorsManagerProp
     if (!confirm('Delete this sponsor?')) return;
 
     try {
-      const res = await fetch(getApiUrl('/api/admin/sponsors'), {
+      const res = await adminFetch('/api/admin/sponsors', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
