@@ -3,7 +3,6 @@ import { withAuth } from '@/lib/with-auth';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 
-export const dynamic = 'force-static';
 
 const DATA_DIR = join(process.cwd(), 'data');
 

@@ -3,7 +3,6 @@ import { withAuth } from '@/lib/with-auth';
 import { writeFile, mkdir } from 'fs/promises';
 import { join, basename, normalize, extname } from 'path';
 
-export const dynamic = 'force-static';
 
 const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg'];
 const MAX_SIZE_BYTES = 20 * 1024 * 1024;
