@@ -8,9 +8,12 @@ const LOGIN_PATH = '/admin/login';
  * Redirects unauthenticated requests to /admin/login.
  *
  * Token signature verification happens server-side in the auth API;
- * middleware validates that a non-expired, well-formed token exists.
+ * this proxy validates that a non-expired, well-formed token exists.
+ *
+ * Renamed from middleware.ts → proxy.ts per Next.js 16.2 migration
+ * (https://nextjs.org/docs/messages/middleware-to-proxy).
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip login page itself to prevent redirect loops

@@ -24,6 +24,10 @@ delete env.ADMIN_USERNAME;
 delete env.ADMIN_PASSWORD_HASH;
 delete env.SESSION_SECRET;
 delete env.SESSION_VERSION;
+// Unset NODE_ENV if shell has it set to a non-standard value (e.g., 'production'
+// inherited from another project). `next dev` expects NODE_ENV=development and
+// will warn otherwise. Leaving it unset lets Next.js set the correct default.
+delete env.NODE_ENV;
 
 const child = spawn('npx', ['next', 'dev'], {
   stdio: 'inherit',

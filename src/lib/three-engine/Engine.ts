@@ -20,7 +20,7 @@ export class ThreeEngine {
   public scene: THREE.Scene;
   public camera: THREE.PerspectiveCamera;
   public renderer!: THREE.WebGLRenderer; // Fallback to WebGL for absolute stability if WebGPURenderer import fails in this env
-  public clock: THREE.Clock;
+  public timer: THREE.Timer;
   private canvas: HTMLCanvasElement;
 
   public postProcessing?: PostProcessingPipeline;
@@ -63,7 +63,9 @@ export class ThreeEngine {
     this.scene.fog = new THREE.FogExp2(0x0a0a0c, 0.015);
 
     this.camera = setupCinematicCamera();
-    this.clock = new THREE.Clock();
+    // Timer replaces the deprecated Clock (THREE r183+). Semantic parity is
+    // preserved via timer.reset() on resume (context-restored / tab-visible).
+    this.timer = new THREE.Timer();
     this.monitor = new FailsafeMonitor();
   }
 
@@ -127,7 +129,8 @@ export class ThreeEngine {
     this.boundContextLostHandler = (event: Event) => {
       event.preventDefault(); // REQUIRED — tells the browser we intend to restore
       this.isContextLost = true;
-      this.clock.stop();
+      // No need to pause the timer — render() is gated by isContextLost and
+      // won't call timer.update() while paused.
       console.warn('[ThreeEngine] WebGL context lost.');
       this.callbacks.onContextLost?.();
     };
@@ -157,7 +160,9 @@ export class ThreeEngine {
       // Rebuild the renderer on the same canvas
       this.rebuildRenderer();
       this.isContextLost = false;
-      this.clock.start();
+      // Reset the timer so the first delta after resume is small rather than
+      // reflecting the entire context-lost duration.
+      this.timer.reset();
       this.callbacks.onContextRestored?.();
     };
 
@@ -218,13 +223,14 @@ export class ThreeEngine {
   private attachVisibilityHandler() {
     this.boundVisibilityChangeHandler = () => {
       if (document.hidden) {
-        // Tab hidden — pause to save GPU/battery
+        // Tab hidden — pause to save GPU/battery.
+        // rAF is paused automatically by the browser, so timer.update() stops.
         this.wasRenderingBeforeHidden = this.isInitialized && !this.isContextLost;
-        this.clock.stop();
       } else {
-        // Tab visible — resume if we were rendering before and context is OK
+        // Tab visible — reset the timer so the first delta after resume is small
+        // rather than reflecting the entire hidden duration.
         if (this.wasRenderingBeforeHidden && !this.isContextLost) {
-          this.clock.start();
+          this.timer.reset();
         }
       }
     };
@@ -439,7 +445,8 @@ export class ThreeEngine {
   public render(scrollProgress: number) {
     if (!this.isInitialized || this.isContextLost) return;
 
-    const delta = this.clock.getDelta();
+    this.timer.update(performance.now());
+    const delta = this.timer.getDelta();
     this.pointerCurrent.lerp(this.pointerTarget, 1 - Math.exp(-delta * 6));
     if (this.interactiveSpotLight && this.spotLightTargetObject) {
       this.interactiveSpotLight.position.x = this.pointerCurrent.x * 8;
