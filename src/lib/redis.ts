@@ -58,6 +58,16 @@ export async function checkRateLimit(
   };
 }
 
+/**
+ * Clear all in-memory rate-limit state. Invoked by the admin clear_cache
+ * action so rate-limit windows reset immediately on request.
+ */
+export function clearRateLimitStore(): number {
+  const cleared = store.size;
+  store.clear();
+  return cleared;
+}
+
 export function buildRateLimitHeaders(
   limit: number,
   remaining: number,

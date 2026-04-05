@@ -16,6 +16,11 @@ import {
 } from '@/lib/data';
 import { buildRateLimitHeaders, checkRateLimit } from '@/lib/redis';
 import { logAdminAction } from '@/lib/audit';
+import {
+  incrementChatRequests,
+  getChatRequestCount,
+  getModuleStartAt,
+} from '@/lib/admin-stats';
 
 // Read the real project version from package.json at module load. No hardcode.
 const PACKAGE_VERSION: string = (() => {
@@ -27,9 +32,55 @@ const PACKAGE_VERSION: string = (() => {
   }
 })();
 
-// Start-time counter for the Next.js route module. Real, incremented per request.
-let totalChatRequests = 0;
-const moduleStartTime = Date.now();
+// Workspace context files (SOUL.md, MEMORY.md, SKILLS.md, HEARTBEAT.md)
+// live in agent-system/workspace/. Read at request time so the admin's
+// HealthDashboard sees the live state, including a failure path with a
+// clear error when the directory is missing rather than silent loaded:false.
+const WORKSPACE_DIR = join(process.cwd(), 'agent-system', 'workspace');
+const EXPECTED_WORKSPACE_FILES = ['SOUL.md', 'MEMORY.md', 'SKILLS.md', 'HEARTBEAT.md'];
+
+function readWorkspaceContext(): {
+  loaded: boolean;
+  dir: string;
+  files: string[];
+  fileCount: number;
+  missing: string[];
+  totalBytes: number;
+  error?: string;
+} {
+  try {
+    const present: string[] = [];
+    const missing: string[] = [];
+    let totalBytes = 0;
+    for (const f of EXPECTED_WORKSPACE_FILES) {
+      try {
+        const contents = readFileSync(join(WORKSPACE_DIR, f), 'utf-8');
+        present.push(f);
+        totalBytes += Buffer.byteLength(contents, 'utf-8');
+      } catch {
+        missing.push(f);
+      }
+    }
+    return {
+      loaded: present.length === EXPECTED_WORKSPACE_FILES.length,
+      dir: WORKSPACE_DIR,
+      files: present,
+      fileCount: present.length,
+      missing,
+      totalBytes,
+    };
+  } catch (err) {
+    return {
+      loaded: false,
+      dir: WORKSPACE_DIR,
+      files: [],
+      fileCount: 0,
+      missing: EXPECTED_WORKSPACE_FILES,
+      totalBytes: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
 
 // Models the OpenAI API key on this account is known to support. Any agent
 // config pointing to a model outside this list is coerced to the default.
@@ -168,7 +219,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  totalChatRequests += 1;
+  incrementChatRequests();
 
   // Parse body once so we can dispatch on `type` before heavier checks.
   const body = await request.json().catch(() => ({}));
@@ -179,9 +230,10 @@ export async function POST(request: NextRequest) {
   if (body?.type === 'health') {
     const memUsage = process.memoryUsage();
     const uptimeSeconds = Math.round(process.uptime());
-    const sinceStart = Math.round((Date.now() - moduleStartTime) / 1000);
+    const sinceStart = Math.round((Date.now() - getModuleStartAt()) / 1000);
     const toolNames = buildTools().map((t) => t.function.name);
     const modelList = [...ALLOWED_OPENAI_MODELS];
+    const workspace = readWorkspaceContext();
     return NextResponse.json({
       type: 'health',
       server: {
@@ -195,7 +247,7 @@ export async function POST(request: NextRequest) {
         agentStatus: 'awake',
         idleSeconds: sinceStart,
         sleepTimeoutSeconds: 0,
-        totalRequests: totalChatRequests,
+        totalRequests: getChatRequestCount(),
         totalSleeps: 0,
         totalWakes: 0,
         productionApproved: process.env.PRODUCTION_APPROVED === 'true',
@@ -206,7 +258,7 @@ export async function POST(request: NextRequest) {
       modelCount: modelList.length,
       tools: toolNames,
       toolCount: toolNames.length,
-      workspace: { loaded: false, files: [], fileCount: 0 },
+      workspace,
       apiKeys: {
         OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
         SESSION_SECRET: !!process.env.SESSION_SECRET,
