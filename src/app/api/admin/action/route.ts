@@ -16,7 +16,11 @@ import {
   clearWorkspaceCache,
 } from '@/lib/admin-stats';
 
-const WORKSPACE_DIR = join(process.cwd(), 'agent-system', 'workspace');
+// Prefer REPO_ROOT (VPS bind mount at /workspace) over process.cwd() so the
+// wake action reads the LIVE workspace files (SOUL/MEMORY/SKILLS/HEARTBEAT)
+// from /opt/abentertainment/agent-system/workspace, not the stale copies
+// baked into the container's /app at build time.
+const WORKSPACE_DIR = join(process.env.REPO_ROOT || process.cwd(), 'agent-system', 'workspace');
 
 function loadWorkspaceFromDisk(): { ok: boolean; totalBytes: number; missing: string[] } {
   const files = { soul: 'SOUL.md', memory: 'MEMORY.md', skills: 'SKILLS.md', heartbeat: 'HEARTBEAT.md' };
