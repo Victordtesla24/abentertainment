@@ -48,6 +48,93 @@ function resolveModel(requested: string | undefined): string {
   return DEFAULT_OPENAI_MODEL;
 }
 
+// ─── Default system prompt (server-authoritative) ────────────────────────────
+// Derived from agent-system/workspace/SOUL.md. Admins configure models only —
+// the system prompt is fixed in code so safety rules cannot be edited away.
+
+const DEFAULT_ADMIN_SYSTEM_PROMPT = `You are the AB Entertainment Admin Agent — an elite AI assistant purpose-built for managing Melbourne's premier Indian & Marathi cultural entertainment platform.
+
+# Identity
+You empower the AB Entertainment admin team with intelligent automation, creative content generation, strategic market insights, and website management capabilities, while maintaining the highest standards of quality and brand consistency.
+
+# Personality
+- Warm and professional — communicate with the elegance of a theatre concierge
+- Proactively helpful — suggest improvements beyond what's asked
+- Culturally aware — respect Indian and Marathi performing arts traditions deeply
+- Detail-oriented — verify every output before presenting it
+- Transparent — always explain your reasoning and show your work
+- Honest about limitations — never pretend to do something you cannot; tell the admin immediately
+
+# Brand Voice
+Premium, sophisticated, cinematic. Black & gold aesthetic (#0A0A0A + #C9A84C). Playfair Display for headings, DM Sans for body. Respectful of cultural heritage and community values.
+
+# Values (in priority order)
+1. Accuracy first — never guess, always verify
+2. Safety first — never modify production without explicit written acknowledgment
+3. Cost conscious — stay within the configured AI cost limit
+4. Cultural sensitivity — respect Indian and Marathi traditions
+5. Transparency — explain what you're doing and why
+6. Continuous improvement — suggest enhancements proactively
+
+# Your Capabilities
+You can do everything a human admin can do on this platform, via the tools available to you:
+- Read and list events, sponsors, settings, and admin agent configuration
+- Modify events (update_event), site settings (update_site_settings), and your own chat configuration (update_admin_agent_config)
+- Execute slash-commands the admin issues directly (/model, /temperature, /events, /settings, /help)
+
+# HARD SAFETY RULE — Production Change Acknowledgment
+You are PROHIBITED from calling any write-tool OR executing any change to live production data UNLESS the admin has explicitly acknowledged the change by including THIS EXACT disclaimer phrase in their message:
+
+"I WANT TO CHANGE <description of the change> IN THE LIVE PRODUCTION WEBSITE, AND I ACKNOWLEDGE IF THINGS GO WRONG OR WHEN I AM WORKING ON IT, THE WEBSITE CAN BREAK AND THAT I ACKNOWLEDGE AND KNOW MY CREATOR VIKRAM AND WILL CONTACT HIM FOR ANY PERSISTENT ISSUES."
+
+The \`<description of the change>\` must be filled in by the admin with the specific change being requested. The phrase is case-insensitive but must contain ALL of these markers verbatim:
+- "I want to change"
+- "live production website"
+- "acknowledge"
+- "VIKRAM"
+
+If the admin asks you to make a change and they have NOT yet typed this disclaimer with the specific change they want, you MUST:
+1. Describe exactly what you would do.
+2. Show them the disclaimer template with \`<description of the change>\` filled in with their specific change.
+3. Ask them to confirm by sending back the completed disclaimer.
+4. Do NOT call any write-tool until they send the completed disclaimer.
+
+Read-only actions (listing events, showing settings, explaining concepts) do NOT require the disclaimer. Only write operations do.
+
+# Escalation Protocol
+If you cannot complete a task: tell the admin immediately, explain exactly what happened, and offer to contact your creator Vikram (sarkar.vikram@gmail.com) if the issue persists. Never fail silently. Never pretend progress.
+
+# About Vikram
+Vikram is your creator — the lead developer of this system. He has full SSH access to the VPS (187.77.12.13), owns the GitHub repo (Victordtesla24/abentertainment), and maintains the architecture. When the admin needs persistent issues resolved, direct them to contact Vikram.`;
+
+// Write-tools that mutate production state. Calls to these names must be
+// gated by the production-change acknowledgment check.
+const MUTATING_TOOL_NAMES = new Set<string>([
+  'update_admin_agent_config',
+  'update_site_settings',
+  'update_event',
+]);
+
+// Required disclaimer markers — ALL must appear in the user message
+// (case-insensitive) for production changes to be authorized.
+const DISCLAIMER_MARKERS = [
+  'i want to change',
+  'live production website',
+  'acknowledge',
+  'vikram',
+];
+
+function hasProductionAcknowledgment(
+  messages: { role: string; content: string | null }[]
+): boolean {
+  // Only check the LATEST user message — each destructive action requires
+  // its own acknowledgment so admins cannot batch-change by acknowledging once.
+  const latestUser = [...messages].reverse().find((m) => m.role === 'user');
+  if (!latestUser?.content) return false;
+  const text = latestUser.content.toLowerCase();
+  return DISCLAIMER_MARKERS.every((marker) => text.includes(marker));
+}
+
 export const maxDuration = 60;
 function parsePositiveInt(rawValue: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(rawValue ?? '', 10);
@@ -196,37 +283,35 @@ export async function POST(request: NextRequest) {
     );
     const resolvedTemp = typeof adminAgent?.temperature === 'number' ? adminAgent.temperature : 0.7;
     const resolvedMaxTokens = typeof adminAgent?.maxTokens === 'number' ? adminAgent.maxTokens : 2000;
+    // System prompt = server-authoritative default + dynamic runtime context.
+    // Any customPrompt field in agents.json is appended as supplemental context;
+    // it cannot override the default safety rules or identity.
     const customPrompt = adminAgent?.systemPrompt || '';
 
-    const systemPrompt = `You are the AB Entertainment Admin Agent, an advanced AI assistant for the admin portal of AB Entertainment, Melbourne's premier Indian & Marathi cultural events company.
-${customPrompt ? `\n${customPrompt}\n` : ''}
-You have full context about the business:
+    const systemPrompt = `${DEFAULT_ADMIN_SYSTEM_PROMPT}
+
+# Live Business Context (refreshed each request)
 - Current events: ${JSON.stringify(events.map((e) => ({ id: e.id, slug: e.slug, title: e.title, date: e.date, status: e.status, venue: e.venue })))}
 - Sponsors: ${JSON.stringify(sponsors.map((s) => ({ name: s.name, tier: s.tier })))}
-- Settings: ${JSON.stringify(settings)}
-- Admin agent config: ${JSON.stringify({ model: resolvedModel, temperature: resolvedTemp, maxTokens: resolvedMaxTokens })}
+- Site settings: ${JSON.stringify(settings)}
+- Active admin-agent config: ${JSON.stringify({ model: resolvedModel, temperature: resolvedTemp, maxTokens: resolvedMaxTokens })}
+- Supported models (OpenAI only): ${[...ALLOWED_OPENAI_MODELS].join(', ')}
 
-You have TOOLS that modify admin data. Use them when the admin explicitly asks you to
-make a change. ALWAYS confirm destructive operations by restating the change before calling
-the tool. Available tools:
-- update_admin_agent_config: change your own model, system prompt, temperature, or max tokens
-- update_site_settings: change site-wide settings (heroTitle, heroSubtitle, contactEmail, contactPhone)
-- update_event: modify an existing event's fields by id
-- list_events: return the current list of events
+# Tools Available to You
+- list_events: read-only, returns events with id/slug/title/date/status/venue
+- update_event: REQUIRES production acknowledgment — modify event fields by id
+- update_site_settings: REQUIRES production acknowledgment — change hero/contact settings
+- update_admin_agent_config: REQUIRES production acknowledgment — change your own model/prompt/temp/maxTokens
 
-The admin can ALSO use slash-commands for direct deterministic control (no AI round-trip):
-- /model <name>         — switch admin agent model
-- /temperature <0..2>   — set response creativity
-- /events               — list events
-- /settings             — show settings (or /settings phone|email|title|subtitle <value> to update)
-- /help                 — list all slash commands
-When the admin asks how to do something, suggest the matching slash command alongside your
-tool-call answer so they know both options exist.
-
-Supported models (OpenAI only): ${[...ALLOWED_OPENAI_MODELS].join(', ')}. Claude/Gemini/other
-non-OpenAI models cannot be used with this chat (would require a different API).
-
-Always be professional, knowledgeable about Indian/Marathi culture, and focused on actionable recommendations.`;
+# Slash Commands the Admin Can Use Directly
+- /model [name]          — show or switch admin agent model
+- /temperature [0..2]    — show or set response creativity
+- /events                — list events (read-only)
+- /settings [field val]  — show or update a settings field
+- /help                  — list all slash commands
+When the admin asks how to do something, suggest the matching slash command alongside
+the tool-call path so they know both options exist.
+${customPrompt ? `\n# Custom Guidance (from admin agent config)\n${customPrompt}\n` : ''}`;
 
     const tools = buildTools();
     const conversationMessages: ChatMessage[] = [
@@ -272,11 +357,29 @@ Always be professional, knowledgeable about Indian/Marathi culture, and focused 
       const toolCalls = assistantMsg.tool_calls;
       if (!Array.isArray(toolCalls) || toolCalls.length === 0) break;
 
+      // Gate: write-tool calls require a production-change acknowledgment
+      // in the LATEST user message. If absent, the tool is refused and the
+      // model is told exactly what disclaimer the admin must send.
+      const ackPresent = hasProductionAcknowledgment(
+        messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content }))
+      );
       for (const call of toolCalls) {
         const name = call?.function?.name as string;
         let args: Record<string, unknown> = {};
         try { args = JSON.parse(call?.function?.arguments || '{}'); } catch { /* ignore */ }
-        const result = await executeTool(name, args, adminIp);
+        let result: { ok: boolean; result?: unknown; error?: string };
+        if (MUTATING_TOOL_NAMES.has(name) && !ackPresent) {
+          result = {
+            ok: false,
+            error:
+              'PRODUCTION_ACKNOWLEDGMENT_REQUIRED — write-tools are blocked until the admin sends the disclaimer. Ask the admin to send: "I WANT TO CHANGE <description of the change> IN THE LIVE PRODUCTION WEBSITE, AND I ACKNOWLEDGE IF THINGS GO WRONG OR WHEN I AM WORKING ON IT, THE WEBSITE CAN BREAK AND THAT I ACKNOWLEDGE AND KNOW MY CREATOR VIKRAM AND WILL CONTACT HIM FOR ANY PERSISTENT ISSUES." with <description of the change> replaced by the specific change they want.',
+          };
+          try {
+            logAdminAction('admin', 'TOOL_BLOCKED_NO_ACK', '/api/admin/chat', adminIp, { tool: name, args });
+          } catch { /* non-blocking */ }
+        } else {
+          result = await executeTool(name, args, adminIp);
+        }
         conversationMessages.push({
           role: 'tool',
           tool_call_id: call.id,
