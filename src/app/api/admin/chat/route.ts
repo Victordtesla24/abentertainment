@@ -140,6 +140,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Slash-command shortcut: when the latest user message is a `/command`,
+    // handle it deterministically without an LLM round-trip. Falls through
+    // to the normal chat flow if no command matches.
+    const lastUser = [...messages].reverse().find((m: { role: string }) => m.role === 'user');
+    const rawText = typeof lastUser?.content === 'string' ? lastUser.content.trim() : '';
+    if (rawText.startsWith('/')) {
+      const slashResponse = await handleSlashCommand(rawText, getClientIp(request));
+      if (slashResponse !== null) {
+        return streamText(slashResponse);
+      }
+    }
+
     const [events, sponsors, settings, agents] = await Promise.all([
       getEvents(),
       getSponsors(),
@@ -171,6 +183,15 @@ the tool. Available tools:
 - update_site_settings: change site-wide settings (heroTitle, heroSubtitle, contactEmail, contactPhone)
 - update_event: modify an existing event's fields by id
 - list_events: return the current list of events
+
+The admin can ALSO use slash-commands for direct deterministic control (no AI round-trip):
+- /model <name>         — switch admin agent model
+- /temperature <0..2>   — set response creativity
+- /events               — list events
+- /settings             — show settings (or /settings phone|email|title|subtitle <value> to update)
+- /help                 — list all slash commands
+When the admin asks how to do something, suggest the matching slash command alongside your
+tool-call answer so they know both options exist.
 
 Supported models (OpenAI only): ${[...ALLOWED_OPENAI_MODELS].join(', ')}. Claude/Gemini/other
 non-OpenAI models cannot be used with this chat (would require a different API).
@@ -474,5 +495,131 @@ async function executeTool(
     }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ─── Slash commands ──────────────────────────────────────────────────────────
+
+/**
+ * Wrap a plain string in a ReadableStream response so slash-command output
+ * matches the streaming contract the chat UI expects from the normal flow.
+ */
+function streamText(text: string): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(text));
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-cache',
+    },
+  });
+}
+
+const SLASH_HELP = `**Slash commands**
+
+- \`/model\` — show the current AI model and list available options
+- \`/model <name>\` — switch the admin agent to a supported OpenAI model
+- \`/temperature <0..2>\` — set response creativity (0 = deterministic, 2 = random)
+- \`/events\` — list all events with id, title, date, status, venue
+- \`/settings\` — show current site settings
+- \`/settings phone <value>\` — set contactPhone
+- \`/settings email <value>\` — set contactEmail
+- \`/help\` — show this message
+
+Supported models: ${[...ALLOWED_OPENAI_MODELS].join(', ')}
+
+Or just ask me in plain English — I can also call these actions as tools.`;
+
+/**
+ * Handle a slash command. Returns the response text, or null if the command
+ * isn't recognised (caller falls through to the normal LLM chat flow).
+ */
+async function handleSlashCommand(raw: string, ip: string): Promise<string | null> {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('/')) return null;
+
+  const [cmdRaw, ...rest] = trimmed.slice(1).split(/\s+/);
+  const cmd = cmdRaw.toLowerCase();
+  const argLine = rest.join(' ').trim();
+
+  switch (cmd) {
+    case 'help':
+    case '?':
+      return SLASH_HELP;
+
+    case 'model': {
+      const agents = await getAgents();
+      const admin = agents.find((a) => a.type === 'admin');
+      if (!argLine) {
+        const current = admin?.model || '(none)';
+        return `Current admin agent model: **${current}**\nAvailable models: ${[...ALLOWED_OPENAI_MODELS].join(', ')}\n\nUse \`/model <name>\` to switch.`;
+      }
+      const requested = argLine.trim();
+      if (!ALLOWED_OPENAI_MODELS.has(requested)) {
+        return `Model \`${requested}\` is not supported. Available: ${[...ALLOWED_OPENAI_MODELS].join(', ')}`;
+      }
+      if (!admin) return 'Admin agent config not found.';
+      const idx = agents.findIndex((a) => a.id === admin.id);
+      agents[idx] = { ...admin, model: requested, updatedAt: new Date().toISOString() };
+      await saveAgents(agents);
+      try { logAdminAction('admin', 'AGENT_UPDATE', '/api/admin/chat', ip, { via: 'slash', field: 'model', value: requested }); } catch { /* non-blocking */ }
+      return `Model updated to **${requested}**. Next message will use it.`;
+    }
+
+    case 'temperature':
+    case 'temp': {
+      const agents = await getAgents();
+      const admin = agents.find((a) => a.type === 'admin');
+      if (!admin) return 'Admin agent config not found.';
+      if (!argLine) {
+        return `Current temperature: **${admin.temperature}**\nUse \`/temperature <0..2>\` to change.`;
+      }
+      const num = Number(argLine);
+      if (!Number.isFinite(num) || num < 0 || num > 2) {
+        return 'Temperature must be a number between 0 and 2.';
+      }
+      const idx = agents.findIndex((a) => a.id === admin.id);
+      agents[idx] = { ...admin, temperature: num, updatedAt: new Date().toISOString() };
+      await saveAgents(agents);
+      try { logAdminAction('admin', 'AGENT_UPDATE', '/api/admin/chat', ip, { via: 'slash', field: 'temperature', value: num }); } catch { /* non-blocking */ }
+      return `Temperature updated to **${num}**.`;
+    }
+
+    case 'events': {
+      const list = await getEvents();
+      if (list.length === 0) return 'No events.';
+      return list
+        .map((e) => `- **${e.title}** (${e.id}) — ${e.date}, ${e.status}, ${e.venue}`)
+        .join('\n');
+    }
+
+    case 'settings': {
+      const current = await getSettings();
+      if (!argLine) {
+        return `**Current settings**\n- heroTitle: ${current.heroTitle || '(empty)'}\n- heroSubtitle: ${current.heroSubtitle || '(empty)'}\n- contactEmail: ${current.contactEmail || '(empty)'}\n- contactPhone: ${current.contactPhone || '(empty)'}\n- chatModel: ${current.chatModel || '(empty)'}\n\nUse \`/settings phone <value>\` or \`/settings email <value>\` to update.`;
+      }
+      const [field, ...valueParts] = argLine.split(/\s+/);
+      const value = valueParts.join(' ').trim();
+      if (!value) return `Usage: \`/settings <field> <value>\` — fields: phone, email, title, subtitle`;
+      const next: SiteSettings = { ...current };
+      switch (field.toLowerCase()) {
+        case 'phone': next.contactPhone = value; break;
+        case 'email': next.contactEmail = value; break;
+        case 'title': next.heroTitle = value; break;
+        case 'subtitle': next.heroSubtitle = value; break;
+        default: return `Unknown settings field: \`${field}\` — supported: phone, email, title, subtitle`;
+      }
+      await saveSettings(next);
+      try { logAdminAction('admin', 'SETTINGS_UPDATE', '/api/admin/chat', ip, { via: 'slash', field, value }); } catch { /* non-blocking */ }
+      return `Settings updated: **${field}** = \`${value}\``;
+    }
+
+    default:
+      return `Unknown command: \`/${cmd}\`. Type \`/help\` for available commands.`;
   }
 }
