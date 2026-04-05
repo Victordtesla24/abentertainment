@@ -62,7 +62,8 @@ export interface Event {
   currency: string;
   status: 'upcoming' | 'live' | 'past';
   ticketStatus: 'available' | 'selling_fast' | 'sold_out';
-  image: string;
+  image: string;        // Main image — used in event cards and as Gallery folder cover
+  heroImage?: string;   // Hero image — used in the Event detail page hero band
   category: string;
   capacity?: number;
   ticketUrl?: string;

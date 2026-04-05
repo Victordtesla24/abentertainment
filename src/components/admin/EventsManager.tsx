@@ -25,6 +25,7 @@ const EMPTY_EVENT: Omit<Event, 'id' | 'createdAt' | 'updatedAt'> = {
   status: 'upcoming',
   ticketStatus: 'available',
   image: '',
+  heroImage: '',
   category: '',
   capacity: 0,
   ticketUrl: '',
@@ -112,6 +113,7 @@ export default function EventsManager({ initialEvents, allSponsors = [] }: Event
       status: event.status,
       ticketStatus: event.ticketStatus,
       image: event.image,
+      heroImage: event.heroImage || '',
       category: event.category,
       capacity: event.capacity || 0,
       ticketUrl: event.ticketUrl || '',
@@ -562,7 +564,7 @@ export default function EventsManager({ initialEvents, allSponsors = [] }: Event
               </select>
             </div>
             <div>
-              <label className="block text-xs text-white/40 mb-1">Image URL</label>
+              <label className="block text-xs text-white/40 mb-1">Main Image URL <span className="text-white/25">(event cards & gallery folder cover)</span></label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -592,6 +594,44 @@ export default function EventsManager({ initialEvents, allSponsors = [] }: Event
                 />
                 <label
                   htmlFor="event-image-upload"
+                  className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors cursor-pointer whitespace-nowrap flex items-center rounded-sm"
+                >
+                  {uploading ? 'Uploading...' : 'Upload File'}
+                </label>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Hero Image URL <span className="text-white/25">(large banner on event detail page — falls back to Main Image)</span></label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={form.heroImage || ''}
+                  onChange={(e) => setForm({ ...form, heroImage: e.target.value })}
+                  placeholder="(optional — leave blank to reuse the Main Image)"
+                  className="flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+                />
+                <input
+                  type="file"
+                  id="event-hero-image-upload"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setUploading(true);
+                    try {
+                      const result = await uploadFile(file, 'events');
+                      setForm((prev) => ({ ...prev, heroImage: result.url }));
+                    } catch (err) {
+                      setMessage(`Error: ${err instanceof Error ? err.message : 'Upload failed'}`);
+                    } finally {
+                      setUploading(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <label
+                  htmlFor="event-hero-image-upload"
                   className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors cursor-pointer whitespace-nowrap flex items-center rounded-sm"
                 >
                   {uploading ? 'Uploading...' : 'Upload File'}

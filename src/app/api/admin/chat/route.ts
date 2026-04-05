@@ -919,7 +919,8 @@ function buildTools() {
             price: { type: 'number' },
             currency: { type: 'string' },
             ticketStatus: { type: 'string', enum: ['available', 'selling_fast', 'sold_out'] },
-            image: { type: 'string', description: 'Public path to event image, e.g. /images/events/monsoon-melodies-hero-1775371409332.png (as returned by generate_image)' },
+            image: { type: 'string', description: 'Main Image — public path, e.g. /images/events/monsoon-melodies-hero-1775371409332.png. Used on event cards and as the Gallery folder cover.' },
+            heroImage: { type: 'string', description: 'Hero Image — public path to a larger banner image shown on the event detail page hero band. Falls back to Main Image if not set.' },
             category: { type: 'string' },
             capacity: { type: 'number' },
           },
@@ -950,6 +951,8 @@ function buildTools() {
             category: { type: 'string' },
             price: { type: 'number' },
             status: { type: 'string', enum: ['upcoming', 'live', 'past'], default: 'upcoming' },
+            image: { type: 'string', description: 'Main Image public path (event cards + Gallery folder cover)' },
+            heroImage: { type: 'string', description: 'Hero Image public path (large banner on event detail page)' },
           },
           required: ['title', 'date', 'venue', 'description'],
         },
@@ -1483,13 +1486,14 @@ ${context ? `# Context\n${context}\n` : ''}`;
           currency: typeof args.currency === 'string' ? args.currency : current.currency,
           ticketStatus: validTicket(args.ticketStatus) || current.ticketStatus,
           image: typeof args.image === 'string' ? args.image : current.image,
+          heroImage: typeof args.heroImage === 'string' ? args.heroImage : current.heroImage,
           category: typeof args.category === 'string' ? args.category : current.category,
           capacity: typeof args.capacity === 'number' ? args.capacity : current.capacity,
         };
         events[idx] = updated;
         await saveEvents(events);
         try { logAdminAction('admin', 'EVENT_UPDATE', '/api/admin/chat', ip, { tool: name, id, fieldsChanged: Object.keys(args).filter(k => k !== 'id') }); } catch { /* non-blocking */ }
-        return { ok: true, result: { id: updated.id, title: updated.title, date: updated.date, status: updated.status, image: updated.image } };
+        return { ok: true, result: { id: updated.id, title: updated.title, date: updated.date, status: updated.status, image: updated.image, heroImage: updated.heroImage } };
       }
       case 'list_events': {
         const events = await getEvents();
@@ -1515,7 +1519,8 @@ ${context ? `# Context\n${context}\n` : ''}`;
           currency: 'AUD',
           status: (args.status === 'live' || args.status === 'past') ? args.status : 'upcoming',
           ticketStatus: 'available',
-          image: '',
+          image: typeof args.image === 'string' ? args.image : '',
+          heroImage: typeof args.heroImage === 'string' ? args.heroImage : undefined,
           category: typeof args.category === 'string' ? args.category : 'cultural',
           createdAt: now,
           updatedAt: now,

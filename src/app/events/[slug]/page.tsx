@@ -104,7 +104,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       <EventSchema event={event} />
 
       <PageHero
-        image={event.image || '/images/heroes/events-hero.png'}
+        image={event.heroImage || event.image || '/images/heroes/events-hero.png'}
         badge={event.category}
         title={event.title}
         subtitle={event.description}
