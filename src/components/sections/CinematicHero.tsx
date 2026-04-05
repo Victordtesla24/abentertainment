@@ -17,7 +17,7 @@ const heroSlides = [
     id: 'slide-1',
     badge: 'Welcome to',
     title: 'AB ENTERTAINMENT',
-    subtitle: "Melbourne's Premier Indian & Marathi Performing Arts Experience",
+    subtitle: "Melbourne's Legendary Indian & Marathi Performing Arts Experience",
     bg: '/images/hero-bg.jpg',
   },
   {
