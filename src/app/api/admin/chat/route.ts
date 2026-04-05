@@ -20,6 +20,11 @@ import {
   incrementChatRequests,
   getChatRequestCount,
   getModuleStartAt,
+  getAgentStatus,
+  isAwake,
+  getAgentUptimeSeconds,
+  getTotalWakes,
+  getTotalSleeps,
 } from '@/lib/admin-stats';
 
 // Read the real project version from package.json at module load. No hardcode.
@@ -219,8 +224,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  incrementChatRequests();
-
   // Parse body once so we can dispatch on `type` before heavier checks.
   const body = await request.json().catch(() => ({}));
 
@@ -228,31 +231,38 @@ export async function POST(request: NextRequest) {
   // runtime telemetry. Every field is a measured value: no placeholders.
   // Zero-cost: no AI calls, no Redis, no events/sponsors load.
   if (body?.type === 'health') {
-    const memUsage = process.memoryUsage();
-    const uptimeSeconds = Math.round(process.uptime());
-    const sinceStart = Math.round((Date.now() - getModuleStartAt()) / 1000);
+    const status = getAgentStatus();
+    const sleeping = status === 'sleeping';
     const toolNames = buildTools().map((t) => t.function.name);
     const modelList = [...ALLOWED_OPENAI_MODELS];
-    const workspace = readWorkspaceContext();
+
+    // When sleeping, report zero memory/uptime and do NOT read workspace
+    // files — the agent is idle and must not appear to consume resources.
+    // Workspace files + real memory only load on wake.
+    const memUsage = sleeping ? { heapUsed: 0, heapTotal: 0 } : process.memoryUsage();
+    const agentUptime = getAgentUptimeSeconds(); // 0 when sleeping
+    const sinceStart = sleeping
+      ? 0
+      : Math.round((Date.now() - getModuleStartAt()) / 1000);
+    const workspace = sleeping
+      ? { loaded: false, dir: '', files: [], fileCount: 0, missing: [], totalBytes: 0 }
+      : readWorkspaceContext();
+
     return NextResponse.json({
       type: 'health',
       server: {
         version: PACKAGE_VERSION,
         nodeVersion: process.version,
-        uptime: uptimeSeconds,
-        // Next.js Node.js runtime does not have a sleep/wake lifecycle — it is
-        // always processing requests when reached via HTTP. Exposing the literal
-        // runtime state keeps the HealthDashboard honest rather than faking
-        // a sleep timeline it does not have.
-        agentStatus: 'awake',
+        uptime: agentUptime,
+        agentStatus: status,
         idleSeconds: sinceStart,
         sleepTimeoutSeconds: 0,
         totalRequests: getChatRequestCount(),
-        totalSleeps: 0,
-        totalWakes: 0,
+        totalSleeps: getTotalSleeps(),
+        totalWakes: getTotalWakes(),
         productionApproved: process.env.PRODUCTION_APPROVED === 'true',
-        memoryMB: Math.round(memUsage.heapUsed / 1024 / 1024),
-        memoryTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024),
+        memoryMB: sleeping ? 0 : Math.round(memUsage.heapUsed / 1024 / 1024),
+        memoryTotalMB: sleeping ? 0 : Math.round(memUsage.heapTotal / 1024 / 1024),
       },
       models: modelList,
       modelCount: modelList.length,
@@ -268,6 +278,25 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   }
+
+  // Non-health requests require the agent to be awake. Chat with a
+  // sleeping agent is refused with a 503 and a clear wake instruction.
+  if (!isAwake()) {
+    return NextResponse.json(
+      {
+        error: 'AGENT_SLEEPING',
+        message:
+          'The admin agent is sleeping. Click "Wake Agent" on the HealthDashboard or POST /api/admin/action {action:"wake"} to wake it. The agent will load workspace files and codebase access on wake.',
+        agentStatus: 'sleeping',
+      },
+      { status: 503 }
+    );
+  }
+
+  // Count this request only now — after health passes through and after
+  // the sleep-gate rejects sleeping-agent calls. The counter reflects
+  // actual chat traffic while awake.
+  incrementChatRequests();
 
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
   if (!OPENAI_KEY) {

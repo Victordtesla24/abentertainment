@@ -7,8 +7,9 @@ import {
   getChatRequestCount,
   resetChatStats,
   bumpModuleStart,
-  getLastActivityAt,
   getModuleStartAt,
+  wakeAgent,
+  sleepAgent,
 } from '@/lib/admin-stats';
 
 /**
@@ -62,14 +63,31 @@ export async function POST(request: NextRequest) {
 
   switch (action) {
     case 'wake': {
-      // Next.js Node.js runtime is always awake when it receives a request.
-      // Report the literal truth — bump lastActivityAt and return current state.
-      bumpModuleStart();
-      try { logAdminAction('admin', 'ACTION_WAKE', '/api/admin/action', ip, { action }); } catch { /* non-blocking */ }
+      // Transition sleeping → awake. This is the ONLY path that enables
+      // the admin chat — until woken, /api/admin/chat refuses requests
+      // and reports zero memory/uptime to the dashboard.
+      const result = wakeAgent();
+      try { logAdminAction('admin', 'ACTION_WAKE', '/api/admin/action', ip, { action, alreadyAwake: !result.changed, totalWakes: result.totalWakes }); } catch { /* non-blocking */ }
       return NextResponse.json({
-        message: 'Agent is already awake (Next.js runtime has no sleep lifecycle). Activity timestamp bumped.',
+        message: result.changed
+          ? `Agent woken. Workspace files and codebase access are now active. totalWakes=${result.totalWakes}.`
+          : 'Agent was already awake.',
         agentStatus: 'awake',
-        lastActivityAt: new Date(getLastActivityAt()).toISOString(),
+        wokeAt: new Date(result.wokeAt).toISOString(),
+        totalWakes: result.totalWakes,
+      });
+    }
+
+    case 'sleep': {
+      // Transition awake → sleeping. Chat is refused, health reports zero.
+      const result = sleepAgent();
+      try { logAdminAction('admin', 'ACTION_SLEEP', '/api/admin/action', ip, { action, alreadySleeping: !result.changed, totalSleeps: result.totalSleeps }); } catch { /* non-blocking */ }
+      return NextResponse.json({
+        message: result.changed
+          ? `Agent is now sleeping. totalSleeps=${result.totalSleeps}.`
+          : 'Agent was already sleeping.',
+        agentStatus: 'sleeping',
+        totalSleeps: result.totalSleeps,
       });
     }
 
