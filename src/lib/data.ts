@@ -11,7 +11,13 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 
 const DATA_DIR = join(process.cwd(), 'data');
-const PUBLIC_DATA_DIR = join(process.cwd(), 'public', 'data');
+// PUBLIC_DATA_DIR writes mirror admin changes to the static-export data
+// directory so client-side fetchers and the next build pick them up. On
+// VPS Docker, REPO_ROOT=/workspace points at the real repo source so the
+// mirror lands in /opt/abentertainment/public/data (host filesystem).
+// On dev, REPO_ROOT is unset so it falls back to process.cwd().
+const REPO_ROOT_FOR_PUBLIC = process.env.REPO_ROOT || process.cwd();
+const PUBLIC_DATA_DIR = join(REPO_ROOT_FOR_PUBLIC, 'public', 'data');
 // Files that must be mirrored to public/data/ after every admin write so
 // client-side fetchers (SearchModal, etc.) AND the next static-export build
 // pick up the admin's change. Covers every website-visible resource: events,

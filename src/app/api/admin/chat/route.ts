@@ -152,10 +152,14 @@ const MUTATING_TOOL_NAMES = new Set<string>([
   'git_commit_and_push',
 ]);
 
-// Repository root is the Node.js cwd (dev: repo root; VPS Docker: /app).
+// Repository root for the admin AI agent's codebase tools.
+// - Dev server: process.cwd() = the local repo root.
+// - VPS Docker: REPO_ROOT=/workspace env var (set in docker-compose) points
+//   at the /opt/abentertainment:/workspace bind mount, so the agent writes
+//   to the real source tree, not the container's built /app assets.
 // Every codebase tool resolves paths relative to this root and refuses
 // traversal outside it.
-const REPO_ROOT = process.cwd();
+const REPO_ROOT = process.env.REPO_ROOT || process.cwd();
 
 function safeRepoPath(userPath: string): string | null {
   if (!userPath || typeof userPath !== 'string') return null;

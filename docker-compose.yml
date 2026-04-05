@@ -7,8 +7,23 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      # Tells the admin AI agent where the repo root lives inside the
+      # container. Codebase + git tools resolve paths against this root.
+      - REPO_ROOT=/workspace
+      - ADMIN_RUNTIME=vps
     volumes:
+      # Persistent data volume (events.json, settings.json, conversations.json,
+      # agents.json, testimonials.json, gallery.json, etc.)
       - app-data:/app/data
+      # Full repo mount — gives the admin AI agent read/write access to the
+      # website codebase + git metadata. The repo lives at /opt/abentertainment
+      # on the VPS host and must be chowned to UID 1001 (nextjs) so the
+      # container user can write to it.
+      - /opt/abentertainment:/workspace
+      # GitHub deploy key + known_hosts mounted read-only so the agent can
+      # git push origin HEAD via SSH without storing credentials in the image.
+      - /root/.ssh/abent_agent_deploy:/home/nextjs/.ssh/id_ed25519:ro
+      - /root/.ssh/known_hosts:/home/nextjs/.ssh/known_hosts:ro
     restart: unless-stopped
     deploy:
       resources:
