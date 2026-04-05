@@ -58,21 +58,90 @@ const PACKAGE_VERSION: string = (() => {
 // into an in-memory cache on wake (see /api/admin/action wake handler).
 // The cache is read here via getWorkspaceCache() — no per-request disk I/O.
 
-// Models the OpenAI API key on this account is known to support. Any agent
-// config pointing to a model outside this list is coerced to the default.
-const ALLOWED_OPENAI_MODELS = new Set([
-  'gpt-4.1',
-  'gpt-4.1-mini',
-  'gpt-4o',
-  'gpt-4o-mini',
-  'gpt-4-turbo',
-  'gpt-3.5-turbo',
-]);
-const DEFAULT_OPENAI_MODEL = 'gpt-4.1-mini';
+// ─── Multi-provider model registry ───────────────────────────────────────────
+// The admin can choose from OpenAI models (billed directly on api.openai.com)
+// or from Anthropic / Google / xAI / DeepSeek / Qwen models routed through
+// OpenRouter. OpenRouter exposes an OpenAI-compatible chat-completions API,
+// so the tool-calling loop and streaming code below is shared across both
+// providers — only the baseUrl, API key, and a couple of headers change.
+// Every model listed here supports `tools` per each provider's public docs
+// and OpenRouter's `/api/v1/models` supported_parameters metadata.
+
+type ProviderId = 'openai' | 'openrouter';
+
+interface ModelEntry {
+  id: string;          // value stored in settings.adminChatModel / agents.model
+  provider: ProviderId;
+  label: string;       // human-readable name for UI / slash commands
+}
+
+const ALLOWED_MODELS: ModelEntry[] = [
+  // OpenAI — direct api.openai.com (requires OPENAI_API_KEY)
+  { id: 'gpt-4.1',                          provider: 'openai',     label: 'GPT-4.1' },
+  { id: 'gpt-4.1-mini',                     provider: 'openai',     label: 'GPT-4.1 Mini' },
+  { id: 'gpt-4o',                           provider: 'openai',     label: 'GPT-4o' },
+  { id: 'gpt-4o-mini',                      provider: 'openai',     label: 'GPT-4o Mini' },
+  { id: 'gpt-4-turbo',                      provider: 'openai',     label: 'GPT-4 Turbo' },
+  { id: 'gpt-3.5-turbo',                    provider: 'openai',     label: 'GPT-3.5 Turbo' },
+  // Anthropic — via OpenRouter (requires OPENROUTER_API_KEY)
+  { id: 'anthropic/claude-opus-4.6',        provider: 'openrouter', label: 'Claude Opus 4.6 (1M ctx)' },
+  { id: 'anthropic/claude-sonnet-4.6',      provider: 'openrouter', label: 'Claude Sonnet 4.6 (1M ctx)' },
+  { id: 'anthropic/claude-opus-4.5',        provider: 'openrouter', label: 'Claude Opus 4.5' },
+  { id: 'anthropic/claude-sonnet-4.5',      provider: 'openrouter', label: 'Claude Sonnet 4.5 (1M ctx)' },
+  { id: 'anthropic/claude-haiku-4.5',       provider: 'openrouter', label: 'Claude Haiku 4.5 (fast)' },
+  // Google — via OpenRouter
+  { id: 'google/gemini-3.1-pro-preview',    provider: 'openrouter', label: 'Gemini 3.1 Pro (preview)' },
+  { id: 'google/gemini-2.5-pro',            provider: 'openrouter', label: 'Gemini 2.5 Pro' },
+  { id: 'google/gemini-3-flash-preview',    provider: 'openrouter', label: 'Gemini 3 Flash (fast)' },
+  // xAI — via OpenRouter
+  { id: 'x-ai/grok-4.20',                   provider: 'openrouter', label: 'Grok 4.20 (2M ctx)' },
+  { id: 'x-ai/grok-4.1-fast',               provider: 'openrouter', label: 'Grok 4.1 Fast (2M ctx)' },
+  // DeepSeek — via OpenRouter
+  { id: 'deepseek/deepseek-v3.2',           provider: 'openrouter', label: 'DeepSeek V3.2 (coding)' },
+  // Qwen — via OpenRouter
+  { id: 'qwen/qwen3-max-thinking',          provider: 'openrouter', label: 'Qwen3 Max Thinking' },
+];
+
+const ALLOWED_MODEL_IDS = new Set(ALLOWED_MODELS.map((m) => m.id));
+const DEFAULT_MODEL = 'gpt-4.1-mini';
+
+interface ProviderConfig {
+  id: ProviderId;
+  baseUrl: string;
+  apiKey: string | undefined;
+  extraHeaders: Record<string, string>;
+}
+
+function getProviderConfig(provider: ProviderId): ProviderConfig {
+  if (provider === 'openrouter') {
+    return {
+      id: 'openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1/chat/completions',
+      apiKey: process.env.OPENROUTER_API_KEY,
+      // OpenRouter requires HTTP-Referer and X-Title for attribution per
+      // https://openrouter.ai/docs/quickstart#request-a-chat-completion.
+      extraHeaders: {
+        'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://abentertainment.com.au',
+        'X-Title': 'AB Entertainment Admin Agent',
+      },
+    };
+  }
+  return {
+    id: 'openai',
+    baseUrl: 'https://api.openai.com/v1/chat/completions',
+    apiKey: process.env.OPENAI_API_KEY,
+    extraHeaders: {},
+  };
+}
 
 function resolveModel(requested: string | undefined): string {
-  if (requested && ALLOWED_OPENAI_MODELS.has(requested)) return requested;
-  return DEFAULT_OPENAI_MODEL;
+  if (requested && ALLOWED_MODEL_IDS.has(requested)) return requested;
+  return DEFAULT_MODEL;
+}
+
+function resolveProviderForModel(modelId: string): ProviderConfig {
+  const entry = ALLOWED_MODELS.find((m) => m.id === modelId);
+  return getProviderConfig(entry ? entry.provider : 'openai');
 }
 
 // ─── Default system prompt (server-authoritative) ────────────────────────────
@@ -238,7 +307,7 @@ export async function POST(request: NextRequest) {
     const status = getAgentStatus();
     const sleeping = status === 'sleeping';
     const toolNames = buildTools().map((t) => t.function.name);
-    const modelList = [...ALLOWED_OPENAI_MODELS];
+    const modelList = [...ALLOWED_MODEL_IDS];
     const autoSleep = getAutoSleepStatus();
 
     // When sleeping, report zero memory/uptime and do NOT read workspace
@@ -295,6 +364,7 @@ export async function POST(request: NextRequest) {
       workspace,
       apiKeys: {
         OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+        OPENROUTER_API_KEY: !!process.env.OPENROUTER_API_KEY,
         SESSION_SECRET: !!process.env.SESSION_SECRET,
       },
       costLimit: Number(process.env.AI_COST_LIMIT) || 0,
@@ -326,13 +396,10 @@ export async function POST(request: NextRequest) {
   // actual chat traffic while awake.
   incrementChatRequests();
 
-  const OPENAI_KEY = process.env.OPENAI_API_KEY;
-  if (!OPENAI_KEY) {
-    return NextResponse.json(
-      { error: 'OpenAI API key not configured' },
-      { status: 503 }
-    );
-  }
+  // The API key this request needs depends on the model the admin has
+  // picked in Settings (some models live on api.openai.com, others route
+  // through OpenRouter). We defer the key check until after model
+  // resolution, below.
 
   try {
     const clientIp = getClientIp(request);
@@ -384,12 +451,23 @@ export async function POST(request: NextRequest) {
 
     // Source of truth priority: settings.adminChatModel → settings.chatModel → agent.model.
     // SettingsManager is the admin-facing UI, so whatever the admin saves there
-    // must win. Non-OpenAI model names are coerced to the default so the OpenAI
-    // API call works.
+    // must win. Model ids outside ALLOWED_MODEL_IDS are coerced to the default
+    // so the downstream API call always targets a supported model.
     const adminAgent = agents.find((a) => a.type === 'admin') || null;
     const resolvedModel = resolveModel(
       settings.adminChatModel || settings.chatModel || adminAgent?.model
     );
+    const resolvedProvider = resolveProviderForModel(resolvedModel);
+    if (!resolvedProvider.apiKey) {
+      const keyName = resolvedProvider.id === 'openrouter' ? 'OPENROUTER_API_KEY' : 'OPENAI_API_KEY';
+      return NextResponse.json(
+        {
+          error: `${keyName} not configured`,
+          message: `The admin picked model "${resolvedModel}" which routes through the ${resolvedProvider.id} provider, but ${keyName} is not set on this server. Set ${keyName} in the VPS env or pick an OpenAI model in Settings.`,
+        },
+        { status: 503 }
+      );
+    }
     const resolvedTemp = typeof adminAgent?.temperature === 'number' ? adminAgent.temperature : 0.7;
     const resolvedMaxTokens = typeof adminAgent?.maxTokens === 'number' ? adminAgent.maxTokens : 2000;
     // System prompt = server-authoritative default + dynamic runtime context.
@@ -428,8 +506,8 @@ ${workspaceSection}
 - Current events: ${JSON.stringify(events.map((e) => ({ id: e.id, slug: e.slug, title: e.title, date: e.date, status: e.status, venue: e.venue })))}
 - Sponsors: ${JSON.stringify(sponsors.map((s) => ({ name: s.name, tier: s.tier })))}
 - Site settings: ${JSON.stringify(settings)}
-- Active admin-agent config: ${JSON.stringify({ model: resolvedModel, temperature: resolvedTemp, maxTokens: resolvedMaxTokens })}
-- Supported models (OpenAI only): ${[...ALLOWED_OPENAI_MODELS].join(', ')}
+- Active admin-agent config: ${JSON.stringify({ model: resolvedModel, provider: resolvedProvider.id, temperature: resolvedTemp, maxTokens: resolvedMaxTokens })}
+- Supported models: ${[...ALLOWED_MODEL_IDS].join(', ')}
 
 # Tools Available to You
 
@@ -475,14 +553,22 @@ ${customPrompt ? `\n# Custom Guidance (from admin agent config)\n${customPrompt}
     // Run the tool-call resolution loop up to 5 iterations. Each iteration
     // appends the assistant's tool_calls + tool results so the next call has
     // full context. When the model stops requesting tools, break and stream.
+    //
+    // The request targets the provider resolved from the admin's selected
+    // model — api.openai.com for direct-OpenAI ids or openrouter.ai for
+    // Anthropic/Google/xAI/DeepSeek/Qwen ids. Both speak the same
+    // OpenAI-compatible chat-completions wire format, so only the URL,
+    // bearer key, and OpenRouter attribution headers differ.
     const adminIp = getClientIp(request);
+    const providerHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${resolvedProvider.apiKey}`,
+      ...resolvedProvider.extraHeaders,
+    };
     for (let iter = 0; iter < 5; iter++) {
-      const toolResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      const toolResponse = await fetch(resolvedProvider.baseUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${OPENAI_KEY}`,
-        },
+        headers: providerHeaders,
         body: JSON.stringify({
           model: resolvedModel,
           messages: conversationMessages,
@@ -495,7 +581,7 @@ ${customPrompt ? `\n# Custom Guidance (from admin agent config)\n${customPrompt}
 
       if (!toolResponse.ok) {
         const errorText = await toolResponse.text();
-        console.error('OpenAI tool-resolution error:', errorText);
+        console.error(`[${resolvedProvider.id}] tool-resolution error:`, errorText);
         return NextResponse.json({ error: 'AI service error' }, { status: 502 });
       }
 
@@ -539,12 +625,10 @@ ${customPrompt ? `\n# Custom Guidance (from admin agent config)\n${customPrompt}
     }
 
     // Final streaming pass — produces the user-facing message after tools.
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Targets the same provider endpoint as the tool-resolution loop above.
+    const response = await fetch(resolvedProvider.baseUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${OPENAI_KEY}`,
-      },
+      headers: providerHeaders,
       body: JSON.stringify({
         model: resolvedModel,
         messages: conversationMessages,
@@ -556,7 +640,7 @@ ${customPrompt ? `\n# Custom Guidance (from admin agent config)\n${customPrompt}
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', errorText);
+      console.error(`[${resolvedProvider.id}] streaming error:`, errorText);
       return NextResponse.json(
         { error: 'AI service error' },
         { status: 502 }
@@ -651,7 +735,7 @@ function buildTools() {
         parameters: {
           type: 'object',
           properties: {
-            model: { type: 'string', description: 'OpenAI model name', enum: [...ALLOWED_OPENAI_MODELS] },
+            model: { type: 'string', description: 'Admin chat model id (OpenAI direct or OpenRouter-routed)', enum: [...ALLOWED_MODEL_IDS] },
             systemPrompt: { type: 'string', description: 'Custom system prompt appended to the default' },
             temperature: { type: 'number', minimum: 0, maximum: 2, description: '0 = deterministic, 2 = very random' },
             maxTokens: { type: 'integer', minimum: 256, maximum: 16000 },
@@ -978,7 +1062,7 @@ async function executeTool(
         if (idx === -1) return { ok: false, error: 'Admin agent not found' };
         const current = agents[idx];
         const requestedModel = typeof args.model === 'string' ? args.model : current.model;
-        const effectiveModel = ALLOWED_OPENAI_MODELS.has(requestedModel) ? requestedModel : current.model;
+        const effectiveModel = ALLOWED_MODEL_IDS.has(requestedModel) ? requestedModel : current.model;
         const updated: AgentConfig = {
           ...current,
           model: effectiveModel,
@@ -991,7 +1075,7 @@ async function executeTool(
         await saveAgents(agents);
         // Mirror the model into site settings so SettingsManager stays in sync
         // with the chat-agent's active model.
-        if (typeof args.model === 'string' && ALLOWED_OPENAI_MODELS.has(requestedModel)) {
+        if (typeof args.model === 'string' && ALLOWED_MODEL_IDS.has(requestedModel)) {
           const settings = await getSettings();
           await saveSettings({ ...settings, adminChatModel: effectiveModel, chatModel: effectiveModel });
         }
@@ -1309,7 +1393,7 @@ function streamText(text: string): Response {
 const SLASH_HELP = `**Slash commands**
 
 - \`/model\` — show the current AI model and list available options
-- \`/model <name>\` — switch the admin agent to a supported OpenAI model
+- \`/model <name>\` — switch the admin agent to a supported model (OpenAI direct or OpenRouter-routed)
 - \`/temperature <0..2>\` — set response creativity (0 = deterministic, 2 = random)
 - \`/events\` — list all events with id, title, date, status, venue
 - \`/settings\` — show current site settings
@@ -1317,7 +1401,7 @@ const SLASH_HELP = `**Slash commands**
 - \`/settings email <value>\` — set contactEmail
 - \`/help\` — show this message
 
-Supported models: ${[...ALLOWED_OPENAI_MODELS].join(', ')}
+Supported models: ${[...ALLOWED_MODEL_IDS].join(', ')}
 
 Or just ask me in plain English — I can also call these actions as tools.`;
 
@@ -1343,11 +1427,11 @@ async function handleSlashCommand(raw: string, ip: string): Promise<string | nul
       const admin = agents.find((a) => a.type === 'admin');
       const effective = settings.adminChatModel || settings.chatModel || admin?.model || '(none)';
       if (!argLine) {
-        return `Current admin chat model: **${effective}**\nAvailable models: ${[...ALLOWED_OPENAI_MODELS].join(', ')}\n\nUse \`/model <name>\` to switch.`;
+        return `Current admin chat model: **${effective}**\nAvailable models: ${[...ALLOWED_MODEL_IDS].join(', ')}\n\nUse \`/model <name>\` to switch.`;
       }
       const requested = argLine.trim();
-      if (!ALLOWED_OPENAI_MODELS.has(requested)) {
-        return `Model \`${requested}\` is not supported. Available: ${[...ALLOWED_OPENAI_MODELS].join(', ')}`;
+      if (!ALLOWED_MODEL_IDS.has(requested)) {
+        return `Model \`${requested}\` is not supported. Available: ${[...ALLOWED_MODEL_IDS].join(', ')}`;
       }
       // Dual-write: settings.adminChatModel AND settings.chatModel AND agent.model
       // so every downstream reader stays in sync with one user action.

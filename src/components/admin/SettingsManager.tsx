@@ -15,17 +15,41 @@ interface ModelOption {
   description: string;
 }
 
-// Must match ALLOWED_OPENAI_MODELS in src/app/api/admin/chat/route.ts. The
-// chat route calls the OpenAI API directly, so any model outside this list
-// would be silently coerced to the default and the admin's selection would
-// not take effect.
+// Must match ALLOWED_MODELS in src/app/api/admin/chat/route.ts. Model ids
+// prefixed with a provider slug (e.g. "anthropic/…", "google/…") are routed
+// through OpenRouter; unprefixed "gpt-*" ids go directly to api.openai.com.
+// Any id not in this list is silently coerced to the chat-route default and
+// the admin's selection would not take effect.
+//
+// Every model below supports tool calling — required for the admin agent's
+// CRUD operations on events, sponsors, testimonials, site settings, and the
+// codebase. List curated from OpenRouter's /api/v1/models endpoint filtered
+// by supported_parameters.tools.
 const AVAILABLE_MODELS: ModelOption[] = [
-  { id: 'gpt-4.1', label: 'GPT-4.1', description: 'Flagship reasoning model. Highest accuracy and tool-calling quality.' },
-  { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', description: 'Fast, cost-efficient. Default for admin agent tasks.' },
-  { id: 'gpt-4o', label: 'GPT-4o', description: 'Balanced quality and speed. Strong multimodal capabilities.' },
-  { id: 'gpt-4o-mini', label: 'GPT-4o Mini', description: 'Fastest option. Lowest cost, good for simple interactions.' },
-  { id: 'gpt-4-turbo', label: 'GPT-4 Turbo', description: 'Strong reasoning with large context window.' },
-  { id: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', description: 'Economical option for high-volume simple interactions.' },
+  // OpenAI — direct api.openai.com (requires OPENAI_API_KEY)
+  { id: 'gpt-4.1',                          label: 'GPT-4.1 (OpenAI)',                 description: 'Flagship OpenAI reasoning model. Best accuracy + tool-calling quality.' },
+  { id: 'gpt-4.1-mini',                     label: 'GPT-4.1 Mini (OpenAI)',            description: 'Fast, cost-efficient. Default for admin agent tasks.' },
+  { id: 'gpt-4o',                           label: 'GPT-4o (OpenAI)',                  description: 'Balanced quality + speed. Strong multimodal.' },
+  { id: 'gpt-4o-mini',                      label: 'GPT-4o Mini (OpenAI)',             description: 'Fastest + cheapest OpenAI. Good for simple interactions.' },
+  { id: 'gpt-4-turbo',                      label: 'GPT-4 Turbo (OpenAI)',             description: 'Strong reasoning, large context window.' },
+  { id: 'gpt-3.5-turbo',                    label: 'GPT-3.5 Turbo (OpenAI)',           description: 'Economical option for high-volume simple tasks.' },
+  // Anthropic — via OpenRouter (requires OPENROUTER_API_KEY)
+  { id: 'anthropic/claude-opus-4.6',        label: 'Claude Opus 4.6 (Anthropic, 1M ctx)',  description: 'Anthropic flagship. Deepest reasoning, 1M context window.' },
+  { id: 'anthropic/claude-sonnet-4.6',      label: 'Claude Sonnet 4.6 (Anthropic, 1M ctx)', description: 'Anthropic balanced. Excellent quality-to-speed ratio, 1M context.' },
+  { id: 'anthropic/claude-opus-4.5',        label: 'Claude Opus 4.5 (Anthropic)',      description: 'Prior-gen Anthropic flagship. 200K context.' },
+  { id: 'anthropic/claude-sonnet-4.5',      label: 'Claude Sonnet 4.5 (Anthropic, 1M ctx)', description: 'Prior-gen Anthropic balanced, 1M context.' },
+  { id: 'anthropic/claude-haiku-4.5',       label: 'Claude Haiku 4.5 (Anthropic, fast)',   description: 'Fastest Anthropic. Low latency, 200K context.' },
+  // Google — via OpenRouter
+  { id: 'google/gemini-3.1-pro-preview',    label: 'Gemini 3.1 Pro (Google, preview)', description: 'Latest Google flagship. Strong multimodal reasoning, 1M context.' },
+  { id: 'google/gemini-2.5-pro',            label: 'Gemini 2.5 Pro (Google, stable)',  description: 'Stable Google flagship. 1M context, strong tool use.' },
+  { id: 'google/gemini-3-flash-preview',    label: 'Gemini 3 Flash (Google, fast)',    description: 'Fast Google model. Low cost, 1M context.' },
+  // xAI — via OpenRouter
+  { id: 'x-ai/grok-4.20',                   label: 'Grok 4.20 (xAI, 2M ctx)',          description: 'Latest xAI flagship. 2M context window.' },
+  { id: 'x-ai/grok-4.1-fast',               label: 'Grok 4.1 Fast (xAI, 2M ctx)',      description: 'Fast xAI model. 2M context, low cost.' },
+  // DeepSeek — via OpenRouter
+  { id: 'deepseek/deepseek-v3.2',           label: 'DeepSeek V3.2 (open weights)',     description: 'Strong coding and math. 164K context.' },
+  // Qwen — via OpenRouter
+  { id: 'qwen/qwen3-max-thinking',          label: 'Qwen3 Max Thinking (Alibaba)',     description: 'Deep reasoning model. Multilingual, 262K context.' },
 ];
 
 interface PageTitleEntry {
