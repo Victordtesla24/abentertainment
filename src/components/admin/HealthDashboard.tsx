@@ -125,7 +125,10 @@ function healthScore(data: HealthData | null, pages: PageCheck[]): number {
   if (!data) return 0;
   let score = 0;
   if (data.server.version) score += 25;
-  if (data.workspace.loaded) score += 15;
+  // Workspace: loaded while awake = full credit. When sleeping the cache is
+  // intentionally cleared (per spec: zero idle resources), so credit the
+  // points rather than penalising an expected state.
+  if (data.workspace.loaded || data.server.agentStatus === 'sleeping') score += 15;
   const keyCount = Object.values(data.apiKeys).filter(Boolean).length;
   score += Math.round((keyCount / 4) * 15);
   const passedPages = pages.filter(p => p.status === 'pass').length;
@@ -373,12 +376,15 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
     }
 
     if (data) {
-      if (!data.workspace.loaded) {
+      // Workspace cache is INTENTIONALLY cleared while the agent is sleeping
+      // (the cache lives only when the agent is awake so idle memory = 0).
+      // Only flag as critical when the agent is awake AND the cache is empty.
+      if (data.server.agentStatus === 'awake' && !data.workspace.loaded) {
         found.push({
           id: 'workspace', severity: 'critical',
           title: 'Workspace Context Files Not Loaded',
-          description: 'SOUL, MEMORY, HEARTBEAT, or SKILLS files are missing. The agent will not have company knowledge.',
-          fix: 'Verify workspace files exist in the agent directory. Re-upload SOUL, MEMORY, HEARTBEAT, and SKILLS files if missing.',
+          description: 'SOUL, MEMORY, HEARTBEAT, or SKILLS files failed to load on wake. The agent will not have company knowledge.',
+          fix: 'Verify workspace files exist in agent-system/workspace/. Re-upload SOUL.md, MEMORY.md, HEARTBEAT.md, SKILLS.md if missing.',
           aiPrompt: 'Your workspace context files are not loading. Check which files are present and verify the path.',
         });
       }
@@ -733,13 +739,27 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
               </div>
               {/* Workspace files */}
               <div className="mt-4 pt-3 border-t border-white/5">
-                <p className="text-[9px] font-body uppercase tracking-[0.15em] text-white/30 mb-2">Workspace Context</p>
+                <p className="text-[9px] font-body uppercase tracking-[0.15em] text-white/30 mb-2">
+                  Workspace Context
+                  {healthData?.server?.agentStatus === 'sleeping' && (
+                    <span className="ml-2 text-[9px] font-body normal-case tracking-normal text-white/35">· cache released while sleeping (loads on wake)</span>
+                  )}
+                </p>
                 <div className="grid grid-cols-4 gap-2">
                   {['SOUL.md', 'MEMORY.md', 'HEARTBEAT.md', 'SKILLS.md'].map(file => {
+                    const isSleeping = healthData?.server?.agentStatus === 'sleeping';
                     const loaded = healthData?.workspace.files.includes(file) ?? true;
+                    // When sleeping, show a neutral "cached-on-wake" state,
+                    // not a red failure — the cache was deliberately cleared.
+                    const cssClasses = isSleeping
+                      ? 'bg-[#0A0A0A] border-white/10 opacity-60'
+                      : loaded
+                        ? 'bg-[#0A0A0A] border-[#22c55e]/15'
+                        : 'bg-[#1a0500] border-[#ef4444]/15';
+                    const dotStatus = isSleeping ? 'sleeping' : loaded ? 'pass' : 'fail';
                     return (
-                      <div key={file} className={`p-2 border text-center ${loaded ? 'bg-[#0A0A0A] border-[#22c55e]/15' : 'bg-[#1a0500] border-[#ef4444]/15'}`}>
-                        <StatusDot status={loaded ? 'pass' : 'fail'} size={5} />
+                      <div key={file} className={`p-2 border text-center ${cssClasses}`}>
+                        <StatusDot status={dotStatus} size={5} />
                         <p className="text-[10px] font-body text-white/50 mt-1">{file}</p>
                       </div>
                     );
