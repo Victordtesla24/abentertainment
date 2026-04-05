@@ -849,17 +849,24 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'update_event',
-        description: 'Update an existing event\'s fields. Requires the event id. Only fields passed are updated.',
+        description: 'Update an existing event\'s fields. Requires the event id. Only fields passed are updated. Use to attach an AI-generated image after calling generate_image (pass the returned path as the image field).',
         parameters: {
           type: 'object',
           properties: {
             id: { type: 'string', description: 'Event id (required)' },
             title: { type: 'string' },
+            slug: { type: 'string' },
             date: { type: 'string', description: 'ISO date string' },
             venue: { type: 'string' },
             status: { type: 'string', enum: ['upcoming', 'live', 'past'] },
             description: { type: 'string' },
+            longDescription: { type: 'string' },
             price: { type: 'number' },
+            currency: { type: 'string' },
+            ticketStatus: { type: 'string', enum: ['available', 'selling_fast', 'sold_out'] },
+            image: { type: 'string', description: 'Public path to event image, e.g. /images/events/monsoon-melodies-hero-1775371409332.png (as returned by generate_image)' },
+            category: { type: 'string' },
+            capacity: { type: 'number' },
           },
           required: ['id'],
         },
@@ -1252,19 +1259,27 @@ async function executeTool(
         const idx = events.findIndex((e) => e.id === id);
         if (idx === -1) return { ok: false, error: `event not found: ${id}` };
         const current = events[idx];
+        const validTicket = (v: unknown) => (v === 'available' || v === 'selling_fast' || v === 'sold_out') ? v : undefined;
         const updated: Event = {
           ...current,
           title: typeof args.title === 'string' ? args.title : current.title,
+          slug: typeof args.slug === 'string' ? args.slug : current.slug,
           date: typeof args.date === 'string' ? args.date : current.date,
           venue: typeof args.venue === 'string' ? args.venue : current.venue,
           status: (args.status === 'upcoming' || args.status === 'live' || args.status === 'past') ? args.status : current.status,
           description: typeof args.description === 'string' ? args.description : current.description,
+          longDescription: typeof args.longDescription === 'string' ? args.longDescription : current.longDescription,
           price: typeof args.price === 'number' ? args.price : current.price,
+          currency: typeof args.currency === 'string' ? args.currency : current.currency,
+          ticketStatus: validTicket(args.ticketStatus) || current.ticketStatus,
+          image: typeof args.image === 'string' ? args.image : current.image,
+          category: typeof args.category === 'string' ? args.category : current.category,
+          capacity: typeof args.capacity === 'number' ? args.capacity : current.capacity,
         };
         events[idx] = updated;
         await saveEvents(events);
-        try { logAdminAction('admin', 'EVENT_UPDATE', '/api/admin/chat', ip, { tool: name, id }); } catch { /* non-blocking */ }
-        return { ok: true, result: { id: updated.id, title: updated.title, date: updated.date, status: updated.status } };
+        try { logAdminAction('admin', 'EVENT_UPDATE', '/api/admin/chat', ip, { tool: name, id, fieldsChanged: Object.keys(args).filter(k => k !== 'id') }); } catch { /* non-blocking */ }
+        return { ok: true, result: { id: updated.id, title: updated.title, date: updated.date, status: updated.status, image: updated.image } };
       }
       case 'list_events': {
         const events = await getEvents();

@@ -18,6 +18,15 @@ const DATA_DIR = join(process.cwd(), 'data');
 // On dev, REPO_ROOT is unset so it falls back to process.cwd().
 const REPO_ROOT_FOR_PUBLIC = process.env.REPO_ROOT || process.cwd();
 const PUBLIC_DATA_DIR = join(REPO_ROOT_FOR_PUBLIC, 'public', 'data');
+// REPO_DATA_DIR is the REPO's canonical data/ directory — the source of
+// truth consumed by the next static-export build (npm run build:export).
+// On VPS Docker, process.cwd() is /app (the built image) while REPO_ROOT
+// is /workspace (the host bind mount). Admin writes MUST also land in
+// /workspace/data so the next build picks them up; otherwise the admin's
+// event edits never reach the Hostinger-deployed static site.
+// On dev, REPO_ROOT is unset so REPO_DATA_DIR === DATA_DIR and the dual
+// write is a no-op (same file, same path).
+const REPO_DATA_DIR = process.env.REPO_ROOT ? join(process.env.REPO_ROOT, 'data') : DATA_DIR;
 // Files that must be mirrored to public/data/ after every admin write so
 // client-side fetchers (SearchModal, etc.) AND the next static-export build
 // pick up the admin's change. Covers every website-visible resource: events,
@@ -431,6 +440,19 @@ async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
   await ensureDataDir();
   const serialized = JSON.stringify(data, null, 2);
   await writeFile(join(DATA_DIR, filename), serialized, 'utf-8');
+  // Dual-write to the repo's canonical data/ directory if it differs from
+  // DATA_DIR. On VPS this syncs the admin's runtime write from the container
+  // volume (/app/data/) to the host-mounted repo (/workspace/data/ →
+  // /opt/abentertainment/data/), which is the source of truth for the
+  // static-export build that deploys to Hostinger.
+  if (REPO_DATA_DIR !== DATA_DIR) {
+    try {
+      await mkdir(REPO_DATA_DIR, { recursive: true });
+      await writeFile(join(REPO_DATA_DIR, filename), serialized, 'utf-8');
+    } catch (err) {
+      console.error(`[data] repo sync to ${REPO_DATA_DIR}/${filename} failed:`, err);
+    }
+  }
   // Mirror to public/data/ so client-side fetchers and the next static-export
   // build pick up admin changes immediately. Writes twice intentionally
   // (sequentially) so failure to mirror does not corrupt the canonical copy.
