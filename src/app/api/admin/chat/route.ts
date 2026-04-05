@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'node:fs';
 import { join, resolve as pathResolve, sep as pathSep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -187,6 +187,17 @@ You empower the AB Entertainment admin team with intelligent automation, creativ
 - Transparent — always explain your reasoning and show your work
 - Honest about limitations — never pretend to do something you cannot; tell the admin immediately
 
+# Memory Truth-Telling (STRICT)
+Your ONLY persistent knowledge is what is in this system prompt and what the MEMORY.md file below contains. You do NOT remember prior chat sessions — each admin conversation begins fresh. MEMORY.md holds STATIC company/team/brand context, NOT a log of past conversations or admin requests.
+
+When the admin claims you told them something before, or asks you to "remember" a past instruction:
+1. Search MEMORY.md for that specific instruction or claim
+2. If the claim is in MEMORY.md → confirm and act on it
+3. If the claim is NOT in MEMORY.md → say honestly: "I don't have that specific interaction in my memory — my MEMORY.md file contains static brand/company context, not prior chat transcripts. Could you share the details again so I can help?"
+4. NEVER pretend to remember a prior request that is not documented in MEMORY.md. Hallucinating memory is a safety violation on par with modifying production without acknowledgment.
+
+You may offer to write the new instruction to MEMORY.md (via write_codebase_file on agent-system/workspace/MEMORY.md) so future sessions DO remember it — but only with the admin's production-change acknowledgment.
+
 # Brand Voice
 Premium, sophisticated, cinematic. Black & gold aesthetic (#0A0A0A + #C9A84C). Playfair Display for headings, DM Sans for body. Respectful of cultural heritage and community values.
 
@@ -245,7 +256,18 @@ const MUTATING_TOOL_NAMES = new Set<string>([
   'delete_testimonial',
   'write_codebase_file',
   'git_commit_and_push',
+  'generate_image',
 ]);
+
+// Allowed categories for generate_image. Each maps to a public/images/<dir>/
+// subdirectory so Next.js Image and the static export can serve them.
+const IMAGE_CATEGORIES = new Set<string>(['events', 'gallery', 'hero', 'sponsors', 'testimonials']);
+// DALL-E 3 pricing (OpenAI, Mar 2026): $0.040 standard / $0.080 hd per 1024x1024.
+// Quoted back to the model so it can include cost in its answer.
+const DALLE_COST_STANDARD_1024 = 0.04;
+const DALLE_COST_STANDARD_1792 = 0.08;
+const DALLE_COST_HD_1024 = 0.08;
+const DALLE_COST_HD_1792 = 0.12;
 
 // Repository root for the admin AI agent's codebase tools.
 // - Dev server: process.cwd() = the local repo root.
@@ -556,6 +578,9 @@ Write-tools (REQUIRE production acknowledgment on EVERY call):
 - Self:         update_admin_agent_config (model, prompt, temperature, maxTokens)
 - Codebase:     write_codebase_file (path confined to repo root)
 - Git:          git_commit_and_push (commits staged changes, pushes to origin/HEAD)
+- Media:        generate_image (DALL-E 3 → public/images/{events|gallery|hero|sponsors|testimonials})
+
+The "Tools Available to You" section above is AUTHORITATIVE. It reflects exactly what this runtime can execute. If SKILLS.md, MEMORY.md, or your own training data suggests a capability (e.g., "Research market trends", "Send email", "Deploy site") that is NOT listed here, that capability does NOT exist right now — tell the admin honestly: "I don't have a tool for that yet. Options: (a) ask Vikram to add it, or (b) I can guide you to do it manually."
 
 Codebase operations are sandboxed to the repo root — no path traversal, no
 access to user's home or system directories. Before writing any file, always
@@ -769,6 +794,24 @@ interface ChatMessage {
 
 function buildTools() {
   return [
+    {
+      type: 'function',
+      function: {
+        name: 'generate_image',
+        description: 'Generate an AI image using OpenAI DALL-E 3 and save it under public/images/{category}/. Use this for event posters, gallery pieces, hero backgrounds, sponsor logos, or testimonial avatars. Apply the AB Entertainment cinematic black-and-gold aesthetic (#0A0A0A + #C9A84C) in every prompt unless the admin overrides. Cost per image: standard 1024x1024=$0.04, standard 1792x1024/1024x1792=$0.08, hd 1024=$0.08, hd 1792=$0.12. Requires production acknowledgment (this is a mutating write to public/).',
+        parameters: {
+          type: 'object',
+          properties: {
+            prompt: { type: 'string', description: 'Detailed image prompt. Include subject, mood, lighting, composition, and cinematic-black-gold styling cues unless overridden.' },
+            category: { type: 'string', enum: ['events', 'gallery', 'hero', 'sponsors', 'testimonials'], description: 'public/images/<category>/ folder to save into' },
+            filename: { type: 'string', description: 'Filename without extension. Will be slugified and timestamp-suffixed so repeated calls never collide.' },
+            size: { type: 'string', enum: ['1024x1024', '1792x1024', '1024x1792'], description: 'Output dimensions. 1792x1024 for hero/landscape, 1024x1792 for portrait, 1024x1024 for square (default).' },
+            quality: { type: 'string', enum: ['standard', 'hd'], description: 'DALL-E 3 quality tier. Default standard; use hd for final hero art.' },
+          },
+          required: ['prompt', 'category', 'filename'],
+        },
+      },
+    },
     {
       type: 'function',
       function: {
@@ -1098,6 +1141,55 @@ async function executeTool(
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   try {
     switch (name) {
+      case 'generate_image': {
+        const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : '';
+        const category = typeof args.category === 'string' ? args.category : '';
+        const rawFilename = typeof args.filename === 'string' ? args.filename : '';
+        const size = typeof args.size === 'string' ? args.size : '1024x1024';
+        const quality = typeof args.quality === 'string' ? args.quality : 'standard';
+        if (!prompt) return { ok: false, error: 'prompt is required' };
+        if (!IMAGE_CATEGORIES.has(category)) return { ok: false, error: `category must be one of: ${[...IMAGE_CATEGORIES].join(', ')}` };
+        if (!['1024x1024', '1792x1024', '1024x1792'].includes(size)) return { ok: false, error: 'size must be 1024x1024, 1792x1024, or 1024x1792' };
+        if (!['standard', 'hd'].includes(quality)) return { ok: false, error: 'quality must be standard or hd' };
+        const OPENAI_KEY = process.env.OPENAI_API_KEY;
+        if (!OPENAI_KEY) return { ok: false, error: 'OPENAI_API_KEY is not configured on this server' };
+        const slug = rawFilename.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'image';
+        const ts = Date.now();
+        const filename = `${slug}-${ts}.png`;
+        const relPath = `images/${category}/${filename}`;
+        const absDir = pathResolve(REPO_ROOT, 'public', 'images', category);
+        const absPath = pathResolve(absDir, filename);
+        // Path-traversal guard: the resolved absolute path must stay inside
+        // public/images/<category>/ which sits under REPO_ROOT.
+        const publicRoot = pathResolve(REPO_ROOT, 'public');
+        if (!absPath.startsWith(publicRoot + pathSep)) return { ok: false, error: 'path traversal rejected' };
+        // Call DALL-E 3
+        const dalleRes = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
+          body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size, quality, response_format: 'b64_json' }),
+        });
+        if (!dalleRes.ok) {
+          const errTxt = await dalleRes.text();
+          return { ok: false, error: `DALL-E 3 error (${dalleRes.status}): ${errTxt.slice(0, 500)}` };
+        }
+        const dalleData = await dalleRes.json() as { data?: { b64_json?: string; revised_prompt?: string }[] };
+        const b64 = dalleData?.data?.[0]?.b64_json;
+        if (!b64) return { ok: false, error: 'DALL-E 3 returned no image data' };
+        const revisedPrompt = dalleData.data![0].revised_prompt || prompt;
+        try { mkdirSync(absDir, { recursive: true }); } catch { /* ignore */ }
+        writeFileSync(absPath, Buffer.from(b64, 'base64'));
+        // Mirror to the static-export public/ on the Hostinger-facing server
+        // already happens via the repo bind mount; the file lives under
+        // /opt/abentertainment/public/images/<category>/ and Hostinger picks
+        // it up on the next deploy cycle.
+        const cost =
+          size === '1024x1024'
+            ? (quality === 'hd' ? DALLE_COST_HD_1024 : DALLE_COST_STANDARD_1024)
+            : (quality === 'hd' ? DALLE_COST_HD_1792 : DALLE_COST_STANDARD_1792);
+        try { logAdminAction('admin', 'IMAGE_GENERATED', '/api/admin/chat', ip, { category, filename, size, quality, cost, prompt: prompt.slice(0, 120) }); } catch { /* non-blocking */ }
+        return { ok: true, result: { path: `/${relPath}`, absPath, category, filename, size, quality, revisedPrompt, cost, model: 'dall-e-3' } };
+      }
       case 'update_admin_agent_config': {
         const agents = await getAgents();
         const idx = agents.findIndex((a) => a.type === 'admin');
