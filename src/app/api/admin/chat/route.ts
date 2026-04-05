@@ -25,6 +25,9 @@ import {
   getAgentUptimeSeconds,
   getTotalWakes,
   getTotalSleeps,
+  getAutoSleepStatus,
+  checkAutoSleep,
+  getWorkspaceCache,
 } from '@/lib/admin-stats';
 
 // Read the real project version from package.json at module load. No hardcode.
@@ -37,55 +40,9 @@ const PACKAGE_VERSION: string = (() => {
   }
 })();
 
-// Workspace context files (SOUL.md, MEMORY.md, SKILLS.md, HEARTBEAT.md)
-// live in agent-system/workspace/. Read at request time so the admin's
-// HealthDashboard sees the live state, including a failure path with a
-// clear error when the directory is missing rather than silent loaded:false.
-const WORKSPACE_DIR = join(process.cwd(), 'agent-system', 'workspace');
-const EXPECTED_WORKSPACE_FILES = ['SOUL.md', 'MEMORY.md', 'SKILLS.md', 'HEARTBEAT.md'];
-
-function readWorkspaceContext(): {
-  loaded: boolean;
-  dir: string;
-  files: string[];
-  fileCount: number;
-  missing: string[];
-  totalBytes: number;
-  error?: string;
-} {
-  try {
-    const present: string[] = [];
-    const missing: string[] = [];
-    let totalBytes = 0;
-    for (const f of EXPECTED_WORKSPACE_FILES) {
-      try {
-        const contents = readFileSync(join(WORKSPACE_DIR, f), 'utf-8');
-        present.push(f);
-        totalBytes += Buffer.byteLength(contents, 'utf-8');
-      } catch {
-        missing.push(f);
-      }
-    }
-    return {
-      loaded: present.length === EXPECTED_WORKSPACE_FILES.length,
-      dir: WORKSPACE_DIR,
-      files: present,
-      fileCount: present.length,
-      missing,
-      totalBytes,
-    };
-  } catch (err) {
-    return {
-      loaded: false,
-      dir: WORKSPACE_DIR,
-      files: [],
-      fileCount: 0,
-      missing: EXPECTED_WORKSPACE_FILES,
-      totalBytes: 0,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
+// Workspace files (SOUL.md, MEMORY.md, SKILLS.md, HEARTBEAT.md) are loaded
+// into an in-memory cache on wake (see /api/admin/action wake handler).
+// The cache is read here via getWorkspaceCache() — no per-request disk I/O.
 
 // Models the OpenAI API key on this account is known to support. Any agent
 // config pointing to a model outside this list is coerced to the default.
@@ -231,10 +188,16 @@ export async function POST(request: NextRequest) {
   // runtime telemetry. Every field is a measured value: no placeholders.
   // Zero-cost: no AI calls, no Redis, no events/sponsors load.
   if (body?.type === 'health') {
+    // Auto-sleep check runs on every health poll. If the agent has been
+    // idle past the 2-minute threshold, this transitions awake→sleeping
+    // and the rest of this response already reflects the new state.
+    checkAutoSleep();
+
     const status = getAgentStatus();
     const sleeping = status === 'sleeping';
     const toolNames = buildTools().map((t) => t.function.name);
     const modelList = [...ALLOWED_OPENAI_MODELS];
+    const autoSleep = getAutoSleepStatus();
 
     // When sleeping, report zero memory/uptime and do NOT read workspace
     // files — the agent is idle and must not appear to consume resources.
@@ -244,9 +207,20 @@ export async function POST(request: NextRequest) {
     const sinceStart = sleeping
       ? 0
       : Math.round((Date.now() - getModuleStartAt()) / 1000);
-    const workspace = sleeping
+    // Workspace context comes from the in-memory cache populated on wake.
+    // When sleeping the cache is cleared so we report the empty state.
+    const wsCache = getWorkspaceCache();
+    const workspace = sleeping || !wsCache
       ? { loaded: false, dir: '', files: [], fileCount: 0, missing: [], totalBytes: 0 }
-      : readWorkspaceContext();
+      : {
+          loaded: true,
+          dir: join(process.cwd(), 'agent-system', 'workspace'),
+          files: ['SOUL.md', 'MEMORY.md', 'SKILLS.md', 'HEARTBEAT.md'],
+          fileCount: 4,
+          missing: [],
+          totalBytes: wsCache.totalBytes,
+          loadedAt: new Date(wsCache.loadedAt).toISOString(),
+        };
 
     return NextResponse.json({
       type: 'health',
@@ -255,8 +229,8 @@ export async function POST(request: NextRequest) {
         nodeVersion: process.version,
         uptime: agentUptime,
         agentStatus: status,
-        idleSeconds: sinceStart,
-        sleepTimeoutSeconds: 0,
+        idleSeconds: Math.round(autoSleep.idleMs / 1000),
+        sleepTimeoutSeconds: Math.round(autoSleep.thresholdMs / 1000),
         totalRequests: getChatRequestCount(),
         totalSleeps: getTotalSleeps(),
         totalWakes: getTotalWakes(),
@@ -264,6 +238,14 @@ export async function POST(request: NextRequest) {
         memoryMB: sleeping ? 0 : Math.round(memUsage.heapUsed / 1024 / 1024),
         memoryTotalMB: sleeping ? 0 : Math.round(memUsage.heapTotal / 1024 / 1024),
       },
+      autoSleep: {
+        enabled: autoSleep.enabled,
+        warningActive: autoSleep.warningActive,
+        secondsUntilSleep: autoSleep.secondsUntilSleep,
+        thresholdSeconds: Math.round(autoSleep.thresholdMs / 1000),
+        warningStartsAtSeconds: Math.round(autoSleep.warningMs / 1000),
+      },
+      _moduleUptimeSeconds: sinceStart,
       models: modelList,
       modelCount: modelList.length,
       tools: toolNames,
@@ -278,6 +260,10 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   }
+
+  // Run the auto-sleep check before serving chat too — otherwise a
+  // chat request arriving exactly at 121s would still be accepted.
+  checkAutoSleep();
 
   // Non-health requests require the agent to be awake. Chat with a
   // sleeping agent is refused with a 503 and a clear wake instruction.
@@ -369,7 +355,32 @@ export async function POST(request: NextRequest) {
     // it cannot override the default safety rules or identity.
     const customPrompt = adminAgent?.systemPrompt || '';
 
+    // Workspace cache: loaded into memory on wake. Contains SOUL.md (your
+    // identity), MEMORY.md (your persistent memory of past admin sessions),
+    // SKILLS.md (capabilities), and HEARTBEAT.md (runtime status from last
+    // tick). Injected into the system prompt so every chat starts with
+    // full context and can continue where the admin left off.
+    const wsCache = getWorkspaceCache();
+    const workspaceSection = wsCache
+      ? `# Workspace Files (loaded into your memory on wake)
+
+## SOUL.md — who you are
+${wsCache.soul}
+
+## MEMORY.md — persistent memory across sessions (review before answering)
+${wsCache.memory}
+
+## SKILLS.md — what you can do
+${wsCache.skills}
+
+## HEARTBEAT.md — last-known runtime status
+${wsCache.heartbeat}
+`
+      : '# Workspace Files\n(cache miss — continue with best-effort context)\n';
+
     const systemPrompt = `${DEFAULT_ADMIN_SYSTEM_PROMPT}
+
+${workspaceSection}
 
 # Live Business Context (refreshed each request)
 - Current events: ${JSON.stringify(events.map((e) => ({ id: e.id, slug: e.slug, title: e.title, date: e.date, status: e.status, venue: e.venue })))}

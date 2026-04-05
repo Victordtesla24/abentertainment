@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
 import { logAdminAction } from '@/lib/audit';
 import { clearRateLimitStore } from '@/lib/redis';
@@ -10,7 +12,37 @@ import {
   getModuleStartAt,
   wakeAgent,
   sleepAgent,
+  setWorkspaceCache,
+  clearWorkspaceCache,
 } from '@/lib/admin-stats';
+
+const WORKSPACE_DIR = join(process.cwd(), 'agent-system', 'workspace');
+
+function loadWorkspaceFromDisk(): { ok: boolean; totalBytes: number; missing: string[] } {
+  const files = { soul: 'SOUL.md', memory: 'MEMORY.md', skills: 'SKILLS.md', heartbeat: 'HEARTBEAT.md' };
+  const missing: string[] = [];
+  const contents: Record<string, string> = {};
+  let totalBytes = 0;
+  for (const [key, filename] of Object.entries(files)) {
+    try {
+      const body = readFileSync(join(WORKSPACE_DIR, filename), 'utf-8');
+      contents[key] = body;
+      totalBytes += Buffer.byteLength(body, 'utf-8');
+    } catch {
+      missing.push(filename);
+      contents[key] = '';
+    }
+  }
+  setWorkspaceCache({
+    soul: contents.soul,
+    memory: contents.memory,
+    skills: contents.skills,
+    heartbeat: contents.heartbeat,
+    loadedAt: Date.now(),
+    totalBytes,
+  });
+  return { ok: missing.length === 0, totalBytes, missing };
+}
 
 /**
  * Admin control-plane actions for the chat/agent runtime. Each action is a
@@ -67,24 +99,32 @@ export async function POST(request: NextRequest) {
       // the admin chat — until woken, /api/admin/chat refuses requests
       // and reports zero memory/uptime to the dashboard.
       const result = wakeAgent();
-      try { logAdminAction('admin', 'ACTION_WAKE', '/api/admin/action', ip, { action, alreadyAwake: !result.changed, totalWakes: result.totalWakes }); } catch { /* non-blocking */ }
+      // Load workspace files (SOUL.md, MEMORY.md, SKILLS.md, HEARTBEAT.md)
+      // into the in-memory cache so every chat request gets the full
+      // context without re-reading disk. This makes the "review and
+      // continue where you left off" promise real.
+      const wsLoad = loadWorkspaceFromDisk();
+      try { logAdminAction('admin', 'ACTION_WAKE', '/api/admin/action', ip, { action, alreadyAwake: !result.changed, totalWakes: result.totalWakes, workspaceBytes: wsLoad.totalBytes, workspaceMissing: wsLoad.missing }); } catch { /* non-blocking */ }
       return NextResponse.json({
         message: result.changed
-          ? `Agent woken. Workspace files and codebase access are now active. totalWakes=${result.totalWakes}.`
-          : 'Agent was already awake.',
+          ? `Agent woken. Workspace loaded (${wsLoad.totalBytes} bytes across SOUL/MEMORY/SKILLS/HEARTBEAT${wsLoad.missing.length ? `, missing: ${wsLoad.missing.join(',')}` : ''}). totalWakes=${result.totalWakes}.`
+          : `Agent was already awake. Workspace cache refreshed (${wsLoad.totalBytes} bytes).`,
         agentStatus: 'awake',
         wokeAt: new Date(result.wokeAt).toISOString(),
         totalWakes: result.totalWakes,
+        workspace: { totalBytes: wsLoad.totalBytes, missing: wsLoad.missing, loaded: wsLoad.ok },
       });
     }
 
     case 'sleep': {
-      // Transition awake → sleeping. Chat is refused, health reports zero.
+      // Transition awake → sleeping. Chat is refused, health reports zero,
+      // and the workspace cache is dropped so memory returns to idle.
       const result = sleepAgent();
+      clearWorkspaceCache();
       try { logAdminAction('admin', 'ACTION_SLEEP', '/api/admin/action', ip, { action, alreadySleeping: !result.changed, totalSleeps: result.totalSleeps }); } catch { /* non-blocking */ }
       return NextResponse.json({
         message: result.changed
-          ? `Agent is now sleeping. totalSleeps=${result.totalSleeps}.`
+          ? `Agent is now sleeping. Workspace cache cleared. totalSleeps=${result.totalSleeps}.`
           : 'Agent was already sleeping.',
         agentStatus: 'sleeping',
         totalSleeps: result.totalSleeps,

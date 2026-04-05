@@ -13,6 +13,21 @@
 
 export type AgentStatus = 'sleeping' | 'awake';
 
+// Auto-sleep timing. After 2min of inactivity the agent returns to sleep.
+// The 30-second warning starts 90s into the idle window and is shown via
+// the health endpoint's autoSleep.warningActive flag.
+export const AUTO_SLEEP_IDLE_MS = 120_000;
+export const AUTO_SLEEP_WARNING_MS = 90_000;
+
+export interface WorkspaceCache {
+  soul: string;
+  memory: string;
+  skills: string;
+  heartbeat: string;
+  loadedAt: number;
+  totalBytes: number;
+}
+
 let chatRequestCount = 0;
 let lastActivityAt = Date.now();
 let moduleStartAt = Date.now();
@@ -22,6 +37,11 @@ let agentStatus: AgentStatus = 'sleeping';
 let wokeAt: number | null = null;
 let totalWakes = 0;
 let totalSleeps = 0;
+
+// Workspace cache — populated on wake with real file contents, cleared on
+// sleep. The admin agent's system prompt reads from this cache so every
+// wake gives the agent full context from SOUL.md, MEMORY.md, etc.
+let workspaceCache: WorkspaceCache | null = null;
 
 export function incrementChatRequests(): void {
   chatRequestCount += 1;
@@ -113,4 +133,79 @@ export function getTotalWakes(): number {
 
 export function getTotalSleeps(): number {
   return totalSleeps;
+}
+
+// ─── Auto-sleep (inactivity timer) ───────────────────────────────────────────
+
+export interface AutoSleepStatus {
+  enabled: boolean;
+  idleMs: number;
+  thresholdMs: number;
+  warningMs: number;
+  warningActive: boolean;
+  secondsUntilSleep: number;
+}
+
+export function getAutoSleepStatus(): AutoSleepStatus {
+  const idleMs = Math.max(0, Date.now() - lastActivityAt);
+  const warningActive =
+    agentStatus === 'awake' &&
+    idleMs >= AUTO_SLEEP_WARNING_MS &&
+    idleMs < AUTO_SLEEP_IDLE_MS;
+  const secondsUntilSleep =
+    agentStatus === 'awake'
+      ? Math.max(0, Math.ceil((AUTO_SLEEP_IDLE_MS - idleMs) / 1000))
+      : 0;
+  return {
+    enabled: true,
+    idleMs,
+    thresholdMs: AUTO_SLEEP_IDLE_MS,
+    warningMs: AUTO_SLEEP_WARNING_MS,
+    warningActive,
+    secondsUntilSleep,
+  };
+}
+
+/**
+ * If the agent is awake AND idle ≥ threshold, transition to sleeping.
+ * Safe to call from any read path (e.g. health endpoint polling); the
+ * transition is idempotent. Returns true when a transition happened so
+ * the caller can clear any cached state that should not survive sleep.
+ */
+export function checkAutoSleep(): boolean {
+  if (agentStatus !== 'awake') return false;
+  const idleMs = Date.now() - lastActivityAt;
+  if (idleMs >= AUTO_SLEEP_IDLE_MS) {
+    sleepAgent();
+    workspaceCache = null;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Bump lastActivityAt WITHOUT incrementing chatRequestCount. Used by slash
+ * commands and health pings (when awake) to keep the agent from auto-sleeping
+ * during active admin use that doesn't route through incrementChatRequests.
+ */
+export function markActivity(): void {
+  lastActivityAt = Date.now();
+}
+
+// ─── Workspace cache ─────────────────────────────────────────────────────────
+
+export function setWorkspaceCache(cache: WorkspaceCache): void {
+  workspaceCache = cache;
+}
+
+export function getWorkspaceCache(): WorkspaceCache | null {
+  return workspaceCache;
+}
+
+export function clearWorkspaceCache(): void {
+  workspaceCache = null;
+}
+
+export function hasWorkspaceCache(): boolean {
+  return workspaceCache !== null;
 }

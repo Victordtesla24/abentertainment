@@ -56,6 +56,13 @@ interface HealthData {
   costLimit: number;
   developer: string;
   timestamp: string;
+  autoSleep?: {
+    enabled: boolean;
+    warningActive: boolean;
+    secondsUntilSleep: number;
+    thresholdSeconds: number;
+    warningStartsAtSeconds: number;
+  };
 }
 
 interface PageCheck {
@@ -560,6 +567,11 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
           {fetchError && (
             <p className="text-[11px] font-body text-[#f59e0b] mt-1">
               Data may be stale — last successful fetch was at {lastRefresh.toLocaleTimeString()}
+            </p>
+          )}
+          {healthData?.autoSleep?.warningActive && (
+            <p className="text-[11px] font-body text-[#f59e0b] mt-1">
+              💤 Due to inactivity, the AI agent is preparing to go to bed in <strong>{healthData.autoSleep.secondsUntilSleep}s</strong>. If you want him to stay back and help you, let him know in the next 30 sec — or when you're ready, click "Wake Agent" to rouse him, freshen him up, and get full workspace context loaded.
             </p>
           )}
         </div>
