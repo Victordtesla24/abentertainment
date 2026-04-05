@@ -33,7 +33,12 @@ const AVAILABLE_MODELS: ModelOption[] = [
   { id: 'gpt-4o-mini',                      label: 'GPT-4o Mini (OpenAI)',             description: 'Fastest + cheapest OpenAI. Good for simple interactions.' },
   { id: 'gpt-4-turbo',                      label: 'GPT-4 Turbo (OpenAI)',             description: 'Strong reasoning, large context window.' },
   { id: 'gpt-3.5-turbo',                    label: 'GPT-3.5 Turbo (OpenAI)',           description: 'Economical option for high-volume simple tasks.' },
-  // Anthropic — via OpenRouter (requires OPENROUTER_API_KEY)
+  // Claude 4.6 with extended thinking — via OpenRouter (requires OPENROUTER_API_KEY)
+  { id: 'anthropic/claude-opus-4.6:thinking-max',    label: 'Claude Opus 4.6 (Max Thinking, 1M ctx)',    description: 'Anthropic flagship + max thinking budget (32K reasoning tokens). Deepest analysis.' },
+  { id: 'anthropic/claude-opus-4.6:thinking-high',   label: 'Claude Opus 4.6 (High Thinking, 1M ctx)',   description: 'Anthropic flagship + high thinking effort (~80% of max_tokens as reasoning).' },
+  { id: 'anthropic/claude-sonnet-4.6:thinking-max',  label: 'Claude Sonnet 4.6 (Max Thinking, 1M ctx)',  description: 'Anthropic balanced + max thinking budget. Strong reasoning at lower cost.' },
+  { id: 'anthropic/claude-sonnet-4.6:thinking-high', label: 'Claude Sonnet 4.6 (High Thinking, 1M ctx)', description: 'Anthropic balanced + high thinking effort. Great quality-to-speed ratio.' },
+  // Anthropic — base variants (no thinking)
   { id: 'anthropic/claude-opus-4.6',        label: 'Claude Opus 4.6 (Anthropic, 1M ctx)',  description: 'Anthropic flagship. Deepest reasoning, 1M context window.' },
   { id: 'anthropic/claude-sonnet-4.6',      label: 'Claude Sonnet 4.6 (Anthropic, 1M ctx)', description: 'Anthropic balanced. Excellent quality-to-speed ratio, 1M context.' },
   { id: 'anthropic/claude-opus-4.5',        label: 'Claude Opus 4.5 (Anthropic)',      description: 'Prior-gen Anthropic flagship. 200K context.' },

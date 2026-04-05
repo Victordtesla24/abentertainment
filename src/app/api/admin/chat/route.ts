@@ -69,10 +69,24 @@ const PACKAGE_VERSION: string = (() => {
 
 type ProviderId = 'openai' | 'openrouter';
 
+// Reasoning config for models that support extended thinking / reasoning
+// (Anthropic Claude 4.6, some Gemini, Qwen thinking variants). OpenRouter
+// forwards this to the upstream provider using the provider's own thinking
+// semantics — see https://openrouter.ai/docs/use-cases/reasoning-tokens.
+//   - effort:"high" ≈ 80% of max_tokens as thinking budget
+//   - max_tokens: explicit thinking-token budget (overrides effort)
+interface ReasoningConfig {
+  effort?: 'low' | 'medium' | 'high';
+  max_tokens?: number;
+}
+
 interface ModelEntry {
-  id: string;          // value stored in settings.adminChatModel / agents.model
+  id: string;              // value stored in settings.adminChatModel / agents.model
   provider: ProviderId;
-  label: string;       // human-readable name for UI / slash commands
+  label: string;           // human-readable name for UI / slash commands
+  apiModelId?: string;     // wire-level model id sent to provider (defaults to id)
+  reasoning?: ReasoningConfig; // if set, enables extended thinking on the request
+  extraBody?: Record<string, unknown>; // provider-specific body fields
 }
 
 const ALLOWED_MODELS: ModelEntry[] = [
@@ -83,7 +97,15 @@ const ALLOWED_MODELS: ModelEntry[] = [
   { id: 'gpt-4o-mini',                      provider: 'openai',     label: 'GPT-4o Mini' },
   { id: 'gpt-4-turbo',                      provider: 'openai',     label: 'GPT-4 Turbo' },
   { id: 'gpt-3.5-turbo',                    provider: 'openai',     label: 'GPT-3.5 Turbo' },
-  // Anthropic — via OpenRouter (requires OPENROUTER_API_KEY)
+  // Anthropic Claude 4.6 with extended thinking (via OpenRouter).
+  // All Claude 4.6 models natively ship with a 1M-token context window.
+  // High Thinking  = reasoning.effort:"high" (≈80% of max_tokens as thinking)
+  // Max  Thinking  = reasoning.max_tokens:32000 (explicit large budget)
+  { id: 'anthropic/claude-opus-4.6:thinking-max',   provider: 'openrouter', label: 'Claude Opus 4.6 (Max Thinking, 1M ctx)',    apiModelId: 'anthropic/claude-opus-4.6',   reasoning: { max_tokens: 32000 } },
+  { id: 'anthropic/claude-opus-4.6:thinking-high',  provider: 'openrouter', label: 'Claude Opus 4.6 (High Thinking, 1M ctx)',   apiModelId: 'anthropic/claude-opus-4.6',   reasoning: { effort: 'high' } },
+  { id: 'anthropic/claude-sonnet-4.6:thinking-max', provider: 'openrouter', label: 'Claude Sonnet 4.6 (Max Thinking, 1M ctx)',  apiModelId: 'anthropic/claude-sonnet-4.6', reasoning: { max_tokens: 32000 } },
+  { id: 'anthropic/claude-sonnet-4.6:thinking-high',provider: 'openrouter', label: 'Claude Sonnet 4.6 (High Thinking, 1M ctx)', apiModelId: 'anthropic/claude-sonnet-4.6', reasoning: { effort: 'high' } },
+  // Anthropic — base variants (no thinking) via OpenRouter
   { id: 'anthropic/claude-opus-4.6',        provider: 'openrouter', label: 'Claude Opus 4.6 (1M ctx)' },
   { id: 'anthropic/claude-sonnet-4.6',      provider: 'openrouter', label: 'Claude Sonnet 4.6 (1M ctx)' },
   { id: 'anthropic/claude-opus-4.5',        provider: 'openrouter', label: 'Claude Opus 4.5' },
@@ -137,6 +159,10 @@ function getProviderConfig(provider: ProviderId): ProviderConfig {
 function resolveModel(requested: string | undefined): string {
   if (requested && ALLOWED_MODEL_IDS.has(requested)) return requested;
   return DEFAULT_MODEL;
+}
+
+function resolveModelEntry(modelId: string): ModelEntry {
+  return ALLOWED_MODELS.find((m) => m.id === modelId) || ALLOWED_MODELS[1]; // default gpt-4.1-mini
 }
 
 function resolveProviderForModel(modelId: string): ProviderConfig {
@@ -457,6 +483,11 @@ export async function POST(request: NextRequest) {
     const resolvedModel = resolveModel(
       settings.adminChatModel || settings.chatModel || adminAgent?.model
     );
+    const resolvedEntry = resolveModelEntry(resolvedModel);
+    // apiModelId is set for synthetic ids (e.g. "claude-opus-4.6:thinking-max")
+    // that map to a real OpenRouter model plus a reasoning config. The wire
+    // payload sends the real id so OpenRouter can route correctly.
+    const wireModelId = resolvedEntry.apiModelId || resolvedModel;
     const resolvedProvider = resolveProviderForModel(resolvedModel);
     if (!resolvedProvider.apiKey) {
       const keyName = resolvedProvider.id === 'openrouter' ? 'OPENROUTER_API_KEY' : 'OPENAI_API_KEY';
@@ -565,17 +596,29 @@ ${customPrompt ? `\n# Custom Guidance (from admin agent config)\n${customPrompt}
       Authorization: `Bearer ${resolvedProvider.apiKey}`,
       ...resolvedProvider.extraHeaders,
     };
+    // Build the common request body once. `reasoning` is only added when the
+    // resolved model entry enables extended thinking (Claude 4.6 high/max
+    // thinking variants) — OpenRouter forwards it to Anthropic's thinking API.
+    const commonBody: Record<string, unknown> = {
+      model: wireModelId,
+      messages: conversationMessages,
+      max_tokens: resolvedMaxTokens,
+      temperature: resolvedTemp,
+    };
+    if (resolvedEntry.reasoning) {
+      commonBody.reasoning = resolvedEntry.reasoning;
+    }
+    if (resolvedEntry.extraBody) {
+      Object.assign(commonBody, resolvedEntry.extraBody);
+    }
     for (let iter = 0; iter < 5; iter++) {
       const toolResponse = await fetch(resolvedProvider.baseUrl, {
         method: 'POST',
         headers: providerHeaders,
         body: JSON.stringify({
-          model: resolvedModel,
-          messages: conversationMessages,
+          ...commonBody,
           tools,
           tool_choice: 'auto',
-          max_tokens: resolvedMaxTokens,
-          temperature: resolvedTemp,
         }),
       });
 
@@ -626,15 +669,14 @@ ${customPrompt ? `\n# Custom Guidance (from admin agent config)\n${customPrompt}
 
     // Final streaming pass — produces the user-facing message after tools.
     // Targets the same provider endpoint as the tool-resolution loop above.
+    // Includes the same `reasoning` config so the streamed answer also uses
+    // extended thinking when the admin picked a thinking variant.
     const response = await fetch(resolvedProvider.baseUrl, {
       method: 'POST',
       headers: providerHeaders,
       body: JSON.stringify({
-        model: resolvedModel,
-        messages: conversationMessages,
+        ...commonBody,
         stream: true,
-        max_tokens: resolvedMaxTokens,
-        temperature: resolvedTemp,
       }),
     });
 
