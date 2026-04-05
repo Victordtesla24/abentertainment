@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { join, resolve as pathResolve, sep as pathSep } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileP = promisify(execFile);
 import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
 import {
   getEvents,
@@ -144,7 +148,23 @@ const MUTATING_TOOL_NAMES = new Set<string>([
   'create_testimonial',
   'update_testimonial',
   'delete_testimonial',
+  'write_codebase_file',
+  'git_commit_and_push',
 ]);
+
+// Repository root is the Node.js cwd (dev: repo root; VPS Docker: /app).
+// Every codebase tool resolves paths relative to this root and refuses
+// traversal outside it.
+const REPO_ROOT = process.cwd();
+
+function safeRepoPath(userPath: string): string | null {
+  if (!userPath || typeof userPath !== 'string') return null;
+  const clean = userPath.replace(/^\/+/, '').replace(/\\/g, '/');
+  if (clean.includes('..')) return null;
+  const resolved = pathResolve(REPO_ROOT, clean);
+  if (!resolved.startsWith(REPO_ROOT + pathSep) && resolved !== REPO_ROOT) return null;
+  return resolved;
+}
 
 // Required disclaimer markers — ALL must appear in the user message
 // (case-insensitive) for production changes to be authorized.
@@ -410,8 +430,10 @@ ${workspaceSection}
 # Tools Available to You
 
 Read-only (no acknowledgment required):
-- list_events, list_sponsors, list_testimonials
-- list_gallery, list_videos, list_hero_images, list_timeline, list_page_titles
+- Data:     list_events, list_sponsors, list_testimonials
+- Data:     list_gallery, list_videos, list_hero_images, list_timeline, list_page_titles
+- Codebase: list_codebase, read_codebase_file
+- Git:      git_status, git_diff
 
 Write-tools (REQUIRE production acknowledgment on EVERY call):
 - Events:       create_event, update_event, delete_event
@@ -419,6 +441,13 @@ Write-tools (REQUIRE production acknowledgment on EVERY call):
 - Testimonials: create_testimonial, update_testimonial, delete_testimonial
 - Site:         update_site_settings (hero copy, contact email/phone)
 - Self:         update_admin_agent_config (model, prompt, temperature, maxTokens)
+- Codebase:     write_codebase_file (path confined to repo root)
+- Git:          git_commit_and_push (commits staged changes, pushes to origin/HEAD)
+
+Codebase operations are sandboxed to the repo root — no path traversal, no
+access to user's home or system directories. Before writing any file, always
+read the current version first (read_codebase_file), show the admin the
+diff you plan to make, and ask for the disclaimer acknowledgment.
 
 # Slash Commands the Admin Can Use Directly
 - /model [name]          — show or switch admin agent model
@@ -856,6 +885,79 @@ function buildTools() {
         parameters: { type: 'object', properties: {} },
       },
     },
+    {
+      type: 'function',
+      function: {
+        name: 'list_codebase',
+        description: 'List files + subdirectories at a codebase path (relative to repo root). Read-only. Use to navigate the project.',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Relative path from repo root. Empty string = root.', default: '' },
+          },
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'read_codebase_file',
+        description: 'Read a single file from the codebase (relative to repo root). Read-only. Max 100KB per call.',
+        parameters: {
+          type: 'object',
+          properties: { path: { type: 'string', description: 'Relative file path' } },
+          required: ['path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'write_codebase_file',
+        description: 'Write (create or overwrite) a file in the codebase. REQUIRES production acknowledgment. Paths confined to the repo root.',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Relative file path from repo root' },
+            content: { type: 'string', description: 'Full file content' },
+          },
+          required: ['path', 'content'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'git_status',
+        description: 'Show the current git status (porcelain) for the repo. Read-only.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'git_diff',
+        description: 'Show the git diff for a file or the entire working tree. Read-only. Truncated at 50KB.',
+        parameters: {
+          type: 'object',
+          properties: { path: { type: 'string', description: 'Optional: limit diff to this file/dir' } },
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'git_commit_and_push',
+        description: 'Stage all changes, commit with the supplied message, and push to origin. REQUIRES production acknowledgment. Use sparingly and always explain what is being committed first.',
+        parameters: {
+          type: 'object',
+          properties: {
+            message: { type: 'string', description: 'Conventional commit message (e.g., "fix(admin): correct sponsor tier validation")' },
+          },
+          required: ['message'],
+        },
+      },
+    },
   ];
 }
 
@@ -1092,6 +1194,83 @@ async function executeTool(
       case 'list_page_titles': {
         const pages = await getPageTitles();
         return { ok: true, result: pages };
+      }
+      case 'list_codebase': {
+        const rel = typeof args.path === 'string' ? args.path : '';
+        const full = safeRepoPath(rel);
+        if (!full) return { ok: false, error: 'path outside repo root or invalid' };
+        const entries = readdirSync(full, { withFileTypes: true });
+        // Skip noisy directories that clutter agent context
+        const skip = new Set(['node_modules', '.next', '.git', 'out']);
+        const result = entries
+          .filter((e) => !skip.has(e.name))
+          .map((e) => ({ name: e.name, type: e.isDirectory() ? 'dir' : 'file' }))
+          .sort((a, b) => (a.type !== b.type ? (a.type === 'dir' ? -1 : 1) : a.name.localeCompare(b.name)));
+        return { ok: true, result: { path: rel || '.', entries: result } };
+      }
+      case 'read_codebase_file': {
+        const rel = typeof args.path === 'string' ? args.path : '';
+        const full = safeRepoPath(rel);
+        if (!full) return { ok: false, error: 'path outside repo root or invalid' };
+        const st = statSync(full);
+        if (!st.isFile()) return { ok: false, error: 'path is not a file' };
+        if (st.size > 100 * 1024) return { ok: false, error: `file too large (${st.size} bytes, max 100KB)` };
+        const content = readFileSync(full, 'utf-8');
+        return { ok: true, result: { path: rel, bytes: st.size, content } };
+      }
+      case 'write_codebase_file': {
+        const rel = typeof args.path === 'string' ? args.path : '';
+        const content = typeof args.content === 'string' ? args.content : '';
+        const full = safeRepoPath(rel);
+        if (!full) return { ok: false, error: 'path outside repo root or invalid' };
+        if (content.length > 500 * 1024) return { ok: false, error: 'content too large (max 500KB)' };
+        writeFileSync(full, content, 'utf-8');
+        try { logAdminAction('admin', 'CODEBASE_WRITE', '/api/admin/chat', ip, { tool: name, path: rel, bytes: content.length }); } catch { /* non-blocking */ }
+        return { ok: true, result: { path: rel, bytes: content.length } };
+      }
+      case 'git_status': {
+        try {
+          const { stdout } = await execFileP('git', ['status', '--porcelain=v1', '-b'], { cwd: REPO_ROOT });
+          return { ok: true, result: { status: stdout } };
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : String(err) };
+        }
+      }
+      case 'git_diff': {
+        const rel = typeof args.path === 'string' ? args.path : '';
+        const gitArgs = ['diff', '--no-color'];
+        if (rel) {
+          const full = safeRepoPath(rel);
+          if (!full) return { ok: false, error: 'path outside repo root or invalid' };
+          gitArgs.push('--', rel);
+        }
+        try {
+          const { stdout } = await execFileP('git', gitArgs, { cwd: REPO_ROOT, maxBuffer: 60 * 1024 });
+          const truncated = stdout.length > 50 * 1024;
+          return { ok: true, result: { diff: stdout.slice(0, 50 * 1024), truncated } };
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : String(err) };
+        }
+      }
+      case 'git_commit_and_push': {
+        const message = typeof args.message === 'string' ? args.message.trim() : '';
+        if (!message) return { ok: false, error: 'message is required' };
+        try {
+          const { stdout: status } = await execFileP('git', ['status', '--porcelain'], { cwd: REPO_ROOT });
+          if (!status.trim()) return { ok: false, error: 'nothing to commit — working tree clean' };
+          await execFileP('git', ['add', '-A'], { cwd: REPO_ROOT });
+          const { stdout: commitOut } = await execFileP(
+            'git',
+            ['commit', '-m', message, '-m', 'Co-Authored-By: AB Admin Agent <agent@abentertainment.com.au>'],
+            { cwd: REPO_ROOT }
+          );
+          const { stdout: pushOut, stderr: pushErr } = await execFileP('git', ['push', 'origin', 'HEAD'], { cwd: REPO_ROOT });
+          try { logAdminAction('admin', 'GIT_COMMIT_PUSH', '/api/admin/chat', ip, { tool: name, message }); } catch { /* non-blocking */ }
+          return { ok: true, result: { committed: commitOut, pushed: (pushOut || pushErr).slice(0, 4000) } };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return { ok: false, error: msg.slice(0, 2000) };
+        }
       }
       default:
         return { ok: false, error: `unknown tool: ${name}` };
