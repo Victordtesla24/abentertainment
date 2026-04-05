@@ -262,12 +262,14 @@ const MUTATING_TOOL_NAMES = new Set<string>([
 // Allowed categories for generate_image. Each maps to a public/images/<dir>/
 // subdirectory so Next.js Image and the static export can serve them.
 const IMAGE_CATEGORIES = new Set<string>(['events', 'gallery', 'hero', 'sponsors', 'testimonials']);
-// DALL-E 3 pricing (OpenAI, Mar 2026): $0.040 standard / $0.080 hd per 1024x1024.
-// Quoted back to the model so it can include cost in its answer.
-const DALLE_COST_STANDARD_1024 = 0.04;
-const DALLE_COST_STANDARD_1792 = 0.08;
-const DALLE_COST_HD_1024 = 0.08;
-const DALLE_COST_HD_1792 = 0.12;
+// Image-generation via OpenRouter's Gemini 2.5 Flash Image model. Chosen
+// because (a) OpenRouter's chat-completions endpoint returns images as a
+// base64 data URL in choices[0].message.images[0].image_url.url using the
+// same wire format as other models, (b) this project's OpenAI key currently
+// has no DALL-E 3 / gpt-image-1 access, and (c) upstream cost is ~$0.039
+// per generated image regardless of aspect ratio.
+const OPENROUTER_IMAGE_MODEL = 'google/gemini-2.5-flash-image';
+const OPENROUTER_IMAGE_COST = 0.04; // conservative ceiling, reported to admin
 
 // Repository root for the admin AI agent's codebase tools.
 // - Dev server: process.cwd() = the local repo root.
@@ -798,15 +800,14 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'generate_image',
-        description: 'Generate an AI image using OpenAI DALL-E 3 and save it under public/images/{category}/. Use this for event posters, gallery pieces, hero backgrounds, sponsor logos, or testimonial avatars. Apply the AB Entertainment cinematic black-and-gold aesthetic (#0A0A0A + #C9A84C) in every prompt unless the admin overrides. Cost per image: standard 1024x1024=$0.04, standard 1792x1024/1024x1792=$0.08, hd 1024=$0.08, hd 1792=$0.12. Requires production acknowledgment (this is a mutating write to public/).',
+        description: 'Generate an AI image via OpenRouter (google/gemini-2.5-flash-image) and save it under public/images/{category}/. Use this for event posters, gallery pieces, hero backgrounds, sponsor logos, or testimonial avatars. Apply the AB Entertainment cinematic black-and-gold aesthetic (#0A0A0A + #C9A84C) in every prompt unless the admin overrides. Cost per image: ~$0.04. Requires production acknowledgment (this is a mutating write to public/).',
         parameters: {
           type: 'object',
           properties: {
             prompt: { type: 'string', description: 'Detailed image prompt. Include subject, mood, lighting, composition, and cinematic-black-gold styling cues unless overridden.' },
             category: { type: 'string', enum: ['events', 'gallery', 'hero', 'sponsors', 'testimonials'], description: 'public/images/<category>/ folder to save into' },
             filename: { type: 'string', description: 'Filename without extension. Will be slugified and timestamp-suffixed so repeated calls never collide.' },
-            size: { type: 'string', enum: ['1024x1024', '1792x1024', '1024x1792'], description: 'Output dimensions. 1792x1024 for hero/landscape, 1024x1792 for portrait, 1024x1024 for square (default).' },
-            quality: { type: 'string', enum: ['standard', 'hd'], description: 'DALL-E 3 quality tier. Default standard; use hd for final hero art.' },
+            aspect: { type: 'string', enum: ['square', 'landscape', 'portrait'], description: 'Aspect ratio hint passed in the prompt. square=1:1 (default), landscape=16:9 for hero, portrait=9:16 for posters.' },
           },
           required: ['prompt', 'category', 'filename'],
         },
@@ -1145,14 +1146,12 @@ async function executeTool(
         const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : '';
         const category = typeof args.category === 'string' ? args.category : '';
         const rawFilename = typeof args.filename === 'string' ? args.filename : '';
-        const size = typeof args.size === 'string' ? args.size : '1024x1024';
-        const quality = typeof args.quality === 'string' ? args.quality : 'standard';
+        const aspect = typeof args.aspect === 'string' ? args.aspect : 'square';
         if (!prompt) return { ok: false, error: 'prompt is required' };
         if (!IMAGE_CATEGORIES.has(category)) return { ok: false, error: `category must be one of: ${[...IMAGE_CATEGORIES].join(', ')}` };
-        if (!['1024x1024', '1792x1024', '1024x1792'].includes(size)) return { ok: false, error: 'size must be 1024x1024, 1792x1024, or 1024x1792' };
-        if (!['standard', 'hd'].includes(quality)) return { ok: false, error: 'quality must be standard or hd' };
-        const OPENAI_KEY = process.env.OPENAI_API_KEY;
-        if (!OPENAI_KEY) return { ok: false, error: 'OPENAI_API_KEY is not configured on this server' };
+        if (!['square', 'landscape', 'portrait'].includes(aspect)) return { ok: false, error: 'aspect must be square, landscape, or portrait' };
+        const OR_KEY = process.env.OPENROUTER_API_KEY;
+        if (!OR_KEY) return { ok: false, error: 'OPENROUTER_API_KEY is not configured on this server' };
         const slug = rawFilename.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'image';
         const ts = Date.now();
         const filename = `${slug}-${ts}.png`;
@@ -1163,32 +1162,49 @@ async function executeTool(
         // public/images/<category>/ which sits under REPO_ROOT.
         const publicRoot = pathResolve(REPO_ROOT, 'public');
         if (!absPath.startsWith(publicRoot + pathSep)) return { ok: false, error: 'path traversal rejected' };
-        // Call DALL-E 3
-        const dalleRes = await fetch('https://api.openai.com/v1/images/generations', {
+        // Build a prompt that includes the aspect-ratio hint. Gemini image
+        // models don't accept a separate size param; the aspect is conveyed
+        // via the prompt text.
+        const aspectHint = aspect === 'landscape' ? '16:9 landscape composition' : aspect === 'portrait' ? '9:16 portrait composition' : '1:1 square composition';
+        const fullPrompt = `${prompt}\n\nRender in ${aspectHint}. Output a high-resolution, web-ready image (PNG).`;
+        const imgRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
-          body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size, quality, response_format: 'b64_json' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${OR_KEY}`,
+            'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://abentertainment.com.au',
+            'X-Title': 'AB Entertainment Admin Agent',
+          },
+          body: JSON.stringify({
+            model: OPENROUTER_IMAGE_MODEL,
+            messages: [{ role: 'user', content: fullPrompt }],
+            modalities: ['image', 'text'],
+          }),
         });
-        if (!dalleRes.ok) {
-          const errTxt = await dalleRes.text();
-          return { ok: false, error: `DALL-E 3 error (${dalleRes.status}): ${errTxt.slice(0, 500)}` };
+        if (!imgRes.ok) {
+          const errTxt = await imgRes.text();
+          return { ok: false, error: `Image API error (${imgRes.status}): ${errTxt.slice(0, 500)}` };
         }
-        const dalleData = await dalleRes.json() as { data?: { b64_json?: string; revised_prompt?: string }[] };
-        const b64 = dalleData?.data?.[0]?.b64_json;
-        if (!b64) return { ok: false, error: 'DALL-E 3 returned no image data' };
-        const revisedPrompt = dalleData.data![0].revised_prompt || prompt;
+        type OpenRouterImageResponse = {
+          choices?: {
+            message?: {
+              images?: { image_url?: { url?: string } }[];
+            };
+          }[];
+          usage?: { cost?: number };
+        };
+        const imgData = await imgRes.json() as OpenRouterImageResponse;
+        const dataUrl = imgData?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+        if (!dataUrl || typeof dataUrl !== 'string') return { ok: false, error: 'Image API returned no image data' };
+        // Extract base64 from data URL: "data:image/png;base64,iVBORw0K..."
+        const commaIdx = dataUrl.indexOf(',');
+        if (commaIdx < 0) return { ok: false, error: 'malformed image data URL' };
+        const b64 = dataUrl.slice(commaIdx + 1);
         try { mkdirSync(absDir, { recursive: true }); } catch { /* ignore */ }
         writeFileSync(absPath, Buffer.from(b64, 'base64'));
-        // Mirror to the static-export public/ on the Hostinger-facing server
-        // already happens via the repo bind mount; the file lives under
-        // /opt/abentertainment/public/images/<category>/ and Hostinger picks
-        // it up on the next deploy cycle.
-        const cost =
-          size === '1024x1024'
-            ? (quality === 'hd' ? DALLE_COST_HD_1024 : DALLE_COST_STANDARD_1024)
-            : (quality === 'hd' ? DALLE_COST_HD_1792 : DALLE_COST_STANDARD_1792);
-        try { logAdminAction('admin', 'IMAGE_GENERATED', '/api/admin/chat', ip, { category, filename, size, quality, cost, prompt: prompt.slice(0, 120) }); } catch { /* non-blocking */ }
-        return { ok: true, result: { path: `/${relPath}`, absPath, category, filename, size, quality, revisedPrompt, cost, model: 'dall-e-3' } };
+        const actualCost = typeof imgData?.usage?.cost === 'number' ? imgData.usage.cost : OPENROUTER_IMAGE_COST;
+        try { logAdminAction('admin', 'IMAGE_GENERATED', '/api/admin/chat', ip, { category, filename, aspect, cost: actualCost, prompt: prompt.slice(0, 120) }); } catch { /* non-blocking */ }
+        return { ok: true, result: { path: `/${relPath}`, absPath, category, filename, aspect, cost: actualCost, model: OPENROUTER_IMAGE_MODEL } };
       }
       case 'update_admin_agent_config': {
         const agents = await getAgents();
