@@ -694,6 +694,27 @@ ${customPrompt ? `\n# Custom Guidance (from admin agent config)\n${customPrompt}
       }
     }
 
+    // Short-circuit: if the tool-resolution loop already produced an
+    // assistant message with user-facing content (i.e. no more tool_calls
+    // were requested), that message IS the final answer. Making another
+    // streaming round-trip is wasteful AND fails on providers like Azure
+    // that reject "assistant message prefill" — the streaming request
+    // would be sent with the assistant's own reply at the tail of the
+    // conversation, which Azure interprets as a prefill attempt.
+    // Instead, stream the already-received content directly back to the
+    // client in the same SSE shape the client-side parser expects.
+    const lastMsg = conversationMessages[conversationMessages.length - 1];
+    const isAssistantFinal =
+      typeof lastMsg === 'object' &&
+      lastMsg !== null &&
+      (lastMsg as { role?: string }).role === 'assistant' &&
+      typeof (lastMsg as { content?: string }).content === 'string' &&
+      !((lastMsg as { tool_calls?: unknown[] }).tool_calls?.length);
+    if (isAssistantFinal) {
+      const finalText = (lastMsg as { content: string }).content;
+      return streamText(finalText);
+    }
+
     // Final streaming pass — produces the user-facing message after tools.
     // Targets the same provider endpoint as the tool-resolution loop above.
     // Includes the same `reasoning` config so the streamed answer also uses
