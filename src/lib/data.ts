@@ -12,11 +12,24 @@ import { join } from 'path';
 
 const DATA_DIR = join(process.cwd(), 'data');
 const PUBLIC_DATA_DIR = join(process.cwd(), 'public', 'data');
-// Files that also need to be mirrored to public/data/ so client-side fetchers
-// (SearchModal, static export bundler, etc.) see the same data the admin
-// console writes. Config-only files (agents, conversations, settings) are
-// NOT mirrored — they should not be publicly readable.
-const PUBLIC_MIRRORED = new Set<string>(['events.json']);
+// Files that must be mirrored to public/data/ after every admin write so
+// client-side fetchers (SearchModal, etc.) AND the next static-export build
+// pick up the admin's change. Covers every website-visible resource: events,
+// sponsors, gallery, videos, hero banners, timeline, testimonials, page
+// titles, and site settings (hero copy, contact info). Admin-internal files
+// (agents.json = model/prompt config, conversations.json = chat history)
+// are NOT mirrored — they must not be publicly readable.
+const PUBLIC_MIRRORED = new Set<string>([
+  'events.json',
+  'sponsors.json',
+  'gallery.json',
+  'videos.json',
+  'hero-images.json',
+  'timeline.json',
+  'testimonials.json',
+  'pages.json',
+  'settings.json',
+]);
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
