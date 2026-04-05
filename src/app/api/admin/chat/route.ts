@@ -10,7 +10,17 @@ import {
   getAgents,
   saveAgents,
   saveEvents,
+  saveSponsors,
+  getTestimonials,
+  saveTestimonials,
+  getGalleryImages,
+  getVideos,
+  getHeroImages,
+  getTimeline,
+  getPageTitles,
   type Event,
+  type Sponsor,
+  type Testimonial,
   type SiteSettings,
   type AgentConfig,
 } from '@/lib/data';
@@ -126,6 +136,14 @@ const MUTATING_TOOL_NAMES = new Set<string>([
   'update_admin_agent_config',
   'update_site_settings',
   'update_event',
+  'create_event',
+  'delete_event',
+  'create_sponsor',
+  'update_sponsor',
+  'delete_sponsor',
+  'create_testimonial',
+  'update_testimonial',
+  'delete_testimonial',
 ]);
 
 // Required disclaimer markers — ALL must appear in the user message
@@ -390,10 +408,17 @@ ${workspaceSection}
 - Supported models (OpenAI only): ${[...ALLOWED_OPENAI_MODELS].join(', ')}
 
 # Tools Available to You
-- list_events: read-only, returns events with id/slug/title/date/status/venue
-- update_event: REQUIRES production acknowledgment — modify event fields by id
-- update_site_settings: REQUIRES production acknowledgment — change hero/contact settings
-- update_admin_agent_config: REQUIRES production acknowledgment — change your own model/prompt/temp/maxTokens
+
+Read-only (no acknowledgment required):
+- list_events, list_sponsors, list_testimonials
+- list_gallery, list_videos, list_hero_images, list_timeline, list_page_titles
+
+Write-tools (REQUIRE production acknowledgment on EVERY call):
+- Events:       create_event, update_event, delete_event
+- Sponsors:     create_sponsor, update_sponsor, delete_sponsor
+- Testimonials: create_testimonial, update_testimonial, delete_testimonial
+- Site:         update_site_settings (hero copy, contact email/phone)
+- Self:         update_admin_agent_config (model, prompt, temperature, maxTokens)
 
 # Slash Commands the Admin Can Use Directly
 - /model [name]          — show or switch admin agent model
@@ -645,6 +670,192 @@ function buildTools() {
         parameters: { type: 'object', properties: {} },
       },
     },
+    {
+      type: 'function',
+      function: {
+        name: 'create_event',
+        description: 'Create a new event. REQUIRES production acknowledgment. Returns the new event id/slug.',
+        parameters: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            date: { type: 'string', description: 'ISO date string' },
+            venue: { type: 'string' },
+            description: { type: 'string' },
+            category: { type: 'string' },
+            price: { type: 'number' },
+            status: { type: 'string', enum: ['upcoming', 'live', 'past'], default: 'upcoming' },
+          },
+          required: ['title', 'date', 'venue', 'description'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'delete_event',
+        description: 'Delete an event by id. REQUIRES production acknowledgment. Cannot be undone from the chat.',
+        parameters: {
+          type: 'object',
+          properties: { id: { type: 'string', description: 'Event id' } },
+          required: ['id'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'list_sponsors',
+        description: 'Return the current sponsors with id, name, tier, url.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'create_sponsor',
+        description: 'Add a new sponsor. REQUIRES production acknowledgment.',
+        parameters: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            logo: { type: 'string', description: 'Image URL or path under /images/sponsors/' },
+            url: { type: 'string', description: "Sponsor's website URL" },
+            tier: { type: 'string', enum: ['platinum', 'gold', 'silver', 'bronze'] },
+            description: { type: 'string' },
+          },
+          required: ['name', 'tier'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'update_sponsor',
+        description: 'Update an existing sponsor by id. REQUIRES production acknowledgment.',
+        parameters: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            logo: { type: 'string' },
+            url: { type: 'string' },
+            tier: { type: 'string', enum: ['platinum', 'gold', 'silver', 'bronze'] },
+            description: { type: 'string' },
+          },
+          required: ['id'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'delete_sponsor',
+        description: 'Remove a sponsor by id. REQUIRES production acknowledgment.',
+        parameters: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'list_testimonials',
+        description: 'Return the current testimonials with id, name, role, rating, quote.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'create_testimonial',
+        description: 'Add a new testimonial. REQUIRES production acknowledgment.',
+        parameters: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            role: { type: 'string', description: "Attendee's role/context" },
+            quote: { type: 'string' },
+            rating: { type: 'integer', minimum: 1, maximum: 5 },
+            avatar: { type: 'string', description: 'Avatar image URL (optional)' },
+          },
+          required: ['name', 'role', 'quote', 'rating'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'update_testimonial',
+        description: 'Update an existing testimonial by id. REQUIRES production acknowledgment.',
+        parameters: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            role: { type: 'string' },
+            quote: { type: 'string' },
+            rating: { type: 'integer', minimum: 1, maximum: 5 },
+            avatar: { type: 'string' },
+          },
+          required: ['id'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'delete_testimonial',
+        description: 'Remove a testimonial by id. REQUIRES production acknowledgment.',
+        parameters: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'list_gallery',
+        description: 'Return gallery images with id, src, alt, category, eventId.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'list_videos',
+        description: 'Return videos with id, url, title, eventId.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'list_hero_images',
+        description: 'Return hero banner images.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'list_timeline',
+        description: 'Return timeline chapters for the About page.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'list_page_titles',
+        description: 'Return all page titles with slug and title.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
   ];
 }
 
@@ -721,6 +932,166 @@ async function executeTool(
           ok: true,
           result: events.map((e) => ({ id: e.id, slug: e.slug, title: e.title, date: e.date, status: e.status, venue: e.venue })),
         };
+      }
+      case 'create_event': {
+        const events = await getEvents();
+        const title = String(args.title || '').trim();
+        if (!title) return { ok: false, error: 'title is required' };
+        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const now = new Date().toISOString();
+        const newEvent: Event = {
+          id: `evt-${slug}-${Date.now()}`,
+          slug,
+          title,
+          date: String(args.date || now),
+          venue: String(args.venue || ''),
+          description: String(args.description || ''),
+          price: typeof args.price === 'number' ? args.price : 0,
+          currency: 'AUD',
+          status: (args.status === 'live' || args.status === 'past') ? args.status : 'upcoming',
+          ticketStatus: 'available',
+          image: '',
+          category: typeof args.category === 'string' ? args.category : 'cultural',
+          createdAt: now,
+          updatedAt: now,
+        };
+        events.push(newEvent);
+        await saveEvents(events);
+        try { logAdminAction('admin', 'EVENT_CREATE', '/api/admin/chat', ip, { tool: name, id: newEvent.id, title }); } catch { /* non-blocking */ }
+        return { ok: true, result: { id: newEvent.id, slug: newEvent.slug, title: newEvent.title } };
+      }
+      case 'delete_event': {
+        const id = typeof args.id === 'string' ? args.id : '';
+        if (!id) return { ok: false, error: 'id is required' };
+        const events = await getEvents();
+        const filtered = events.filter((e) => e.id !== id);
+        if (filtered.length === events.length) return { ok: false, error: `event not found: ${id}` };
+        await saveEvents(filtered);
+        try { logAdminAction('admin', 'EVENT_DELETE', '/api/admin/chat', ip, { tool: name, id }); } catch { /* non-blocking */ }
+        return { ok: true, result: { id, remaining: filtered.length } };
+      }
+      case 'list_sponsors': {
+        const sponsors = await getSponsors();
+        return { ok: true, result: sponsors.map((s) => ({ id: s.id, name: s.name, tier: s.tier, url: s.url })) };
+      }
+      case 'create_sponsor': {
+        const sponsors = await getSponsors();
+        const tier = (args.tier === 'platinum' || args.tier === 'gold' || args.tier === 'silver' || args.tier === 'bronze') ? args.tier : 'silver';
+        const newSponsor: Sponsor = {
+          id: `sp-${Date.now()}`,
+          name: String(args.name || '').trim(),
+          logo: typeof args.logo === 'string' ? args.logo : '',
+          url: typeof args.url === 'string' ? args.url : '#',
+          tier,
+          description: typeof args.description === 'string' ? args.description : '',
+          createdAt: new Date().toISOString(),
+        };
+        if (!newSponsor.name) return { ok: false, error: 'name is required' };
+        sponsors.push(newSponsor);
+        await saveSponsors(sponsors);
+        try { logAdminAction('admin', 'SPONSOR_CREATE', '/api/admin/chat', ip, { tool: name, id: newSponsor.id, name: newSponsor.name }); } catch { /* non-blocking */ }
+        return { ok: true, result: { id: newSponsor.id, name: newSponsor.name, tier: newSponsor.tier } };
+      }
+      case 'update_sponsor': {
+        const id = typeof args.id === 'string' ? args.id : '';
+        if (!id) return { ok: false, error: 'id is required' };
+        const sponsors = await getSponsors();
+        const idx = sponsors.findIndex((s) => s.id === id);
+        if (idx === -1) return { ok: false, error: `sponsor not found: ${id}` };
+        const current = sponsors[idx];
+        const tier = (args.tier === 'platinum' || args.tier === 'gold' || args.tier === 'silver' || args.tier === 'bronze') ? args.tier : current.tier;
+        sponsors[idx] = {
+          ...current,
+          name: typeof args.name === 'string' ? args.name : current.name,
+          logo: typeof args.logo === 'string' ? args.logo : current.logo,
+          url: typeof args.url === 'string' ? args.url : current.url,
+          tier,
+          description: typeof args.description === 'string' ? args.description : current.description,
+        };
+        await saveSponsors(sponsors);
+        try { logAdminAction('admin', 'SPONSOR_UPDATE', '/api/admin/chat', ip, { tool: name, id }); } catch { /* non-blocking */ }
+        return { ok: true, result: { id, name: sponsors[idx].name, tier: sponsors[idx].tier } };
+      }
+      case 'delete_sponsor': {
+        const id = typeof args.id === 'string' ? args.id : '';
+        if (!id) return { ok: false, error: 'id is required' };
+        const sponsors = await getSponsors();
+        const filtered = sponsors.filter((s) => s.id !== id);
+        if (filtered.length === sponsors.length) return { ok: false, error: `sponsor not found: ${id}` };
+        await saveSponsors(filtered);
+        try { logAdminAction('admin', 'SPONSOR_DELETE', '/api/admin/chat', ip, { tool: name, id }); } catch { /* non-blocking */ }
+        return { ok: true, result: { id, remaining: filtered.length } };
+      }
+      case 'list_testimonials': {
+        const list = await getTestimonials();
+        return { ok: true, result: list.map((t) => ({ id: t.id, name: t.name, role: t.role, rating: t.rating, quote: t.quote })) };
+      }
+      case 'create_testimonial': {
+        const list = await getTestimonials();
+        const rating = (typeof args.rating === 'number' && args.rating >= 1 && args.rating <= 5) ? args.rating as 1 | 2 | 3 | 4 | 5 : 5;
+        const newItem: Testimonial = {
+          id: `test-${Date.now()}`,
+          name: String(args.name || '').trim(),
+          role: String(args.role || '').trim(),
+          quote: String(args.quote || '').trim(),
+          rating,
+          avatar: typeof args.avatar === 'string' ? args.avatar : undefined,
+        };
+        if (!newItem.name || !newItem.quote) return { ok: false, error: 'name and quote are required' };
+        list.push(newItem);
+        await saveTestimonials(list);
+        try { logAdminAction('admin', 'TESTIMONIAL_CREATE', '/api/admin/chat', ip, { tool: name, id: newItem.id }); } catch { /* non-blocking */ }
+        return { ok: true, result: { id: newItem.id, name: newItem.name, rating: newItem.rating } };
+      }
+      case 'update_testimonial': {
+        const id = typeof args.id === 'string' ? args.id : '';
+        if (!id) return { ok: false, error: 'id is required' };
+        const list = await getTestimonials();
+        const idx = list.findIndex((t) => t.id === id);
+        if (idx === -1) return { ok: false, error: `testimonial not found: ${id}` };
+        const current = list[idx];
+        const rating = (typeof args.rating === 'number' && args.rating >= 1 && args.rating <= 5) ? args.rating as 1 | 2 | 3 | 4 | 5 : current.rating;
+        list[idx] = {
+          ...current,
+          name: typeof args.name === 'string' ? args.name : current.name,
+          role: typeof args.role === 'string' ? args.role : current.role,
+          quote: typeof args.quote === 'string' ? args.quote : current.quote,
+          rating,
+          avatar: typeof args.avatar === 'string' ? args.avatar : current.avatar,
+        };
+        await saveTestimonials(list);
+        try { logAdminAction('admin', 'TESTIMONIAL_UPDATE', '/api/admin/chat', ip, { tool: name, id }); } catch { /* non-blocking */ }
+        return { ok: true, result: { id, name: list[idx].name } };
+      }
+      case 'delete_testimonial': {
+        const id = typeof args.id === 'string' ? args.id : '';
+        if (!id) return { ok: false, error: 'id is required' };
+        const list = await getTestimonials();
+        const filtered = list.filter((t) => t.id !== id);
+        if (filtered.length === list.length) return { ok: false, error: `testimonial not found: ${id}` };
+        await saveTestimonials(filtered);
+        try { logAdminAction('admin', 'TESTIMONIAL_DELETE', '/api/admin/chat', ip, { tool: name, id }); } catch { /* non-blocking */ }
+        return { ok: true, result: { id, remaining: filtered.length } };
+      }
+      case 'list_gallery': {
+        const images = await getGalleryImages();
+        return { ok: true, result: images.map((g) => ({ id: g.id, src: g.src, alt: g.alt, category: g.category, eventId: g.eventId })) };
+      }
+      case 'list_videos': {
+        const videos = await getVideos();
+        return { ok: true, result: videos };
+      }
+      case 'list_hero_images': {
+        const heroes = await getHeroImages();
+        return { ok: true, result: heroes };
+      }
+      case 'list_timeline': {
+        const chapters = await getTimeline();
+        return { ok: true, result: chapters };
+      }
+      case 'list_page_titles': {
+        const pages = await getPageTitles();
+        return { ok: true, result: pages };
       }
       default:
         return { ok: false, error: `unknown tool: ${name}` };
