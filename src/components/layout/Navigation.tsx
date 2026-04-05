@@ -32,8 +32,6 @@ export function Navigation() {
   const { scrollY } = useScroll();
   const pathname = usePathname();
 
-  if (pathname.startsWith('/admin')) return null;
-
   const navBg = useTransform(scrollY, [0, 40, 120], ['rgba(0,0,0,0)', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.92)']);
   const navBlur = useTransform(scrollY, [0, 40, 120], ['blur(0px)', 'blur(10px)', 'blur(24px)']);
   const navBorder = useTransform(scrollY, [0, 120], ['rgba(201,168,76,0)', 'rgba(201,168,76,0.1)']);
@@ -55,6 +53,10 @@ export function Navigation() {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [toggleSearch]);
+
+  // Admin routes hide the public navigation. Guard AFTER all hooks to preserve
+  // hook order across renders (Rules of Hooks: same hooks, same order, every render).
+  if (pathname.startsWith('/admin')) return null;
 
   const isActive = (href: string) => pathname === href;
 
