@@ -15,7 +15,20 @@ const PUBLIC_DATA_DIR = join(process.cwd(), 'public', 'data');
 async function main() {
   await mkdir(PUBLIC_DATA_DIR, { recursive: true });
 
-  const files = ['events.json'];
+  // Must stay in sync with PUBLIC_MIRRORED in src/lib/data.ts — every file
+  // an admin edit touches needs to land in public/data/ before the static
+  // export is built, otherwise the deployed site serves stale data.
+  const files = [
+    'events.json',
+    'sponsors.json',
+    'gallery.json',
+    'videos.json',
+    'hero-images.json',
+    'timeline.json',
+    'testimonials.json',
+    'pages.json',
+    'settings.json',
+  ];
 
   for (const file of files) {
     try {
