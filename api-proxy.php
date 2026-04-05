@@ -80,7 +80,7 @@ curl_setopt_array($ch, [
     CURLOPT_MAXREDIRS => 3,
 ]);
 
-if ($requestBody && in_array($method, ['POST', 'PUT', 'PATCH'])) {
+if ($requestBody && in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'])) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, $requestBody);
 }
 
