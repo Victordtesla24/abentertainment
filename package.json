@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint src/",
     "test": "playwright test",
-    "test:ui": "playwright test --ui"
+    "test:ui": "playwright test --ui",
+    "build:export": "node scripts/build-static-export.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",
