@@ -74,3 +74,7 @@ agent-system/node_modules/
 /tmp/
 /temp/
 /.cache/
+
+# build:export stash (orphan safety — if SIGKILL/power-loss leaves this behind,
+# the next build run auto-recovers it; ignore here so it can't be committed)
+/.admin-routes-stashed-during-export/
