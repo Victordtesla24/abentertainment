@@ -4,8 +4,9 @@
     {
       "name": "dev",
       "runtimeExecutable": "/opt/homebrew/bin/node",
-      "runtimeArgs": ["/opt/homebrew/bin/npx", "next", "dev"],
+      "runtimeArgs": ["scripts/dev-with-clean-env.mjs"],
       "port": 3000,
+      "autoPort": false,
       "env": {
         "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
       }
