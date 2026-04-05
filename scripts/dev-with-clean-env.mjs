@@ -29,7 +29,19 @@ delete env.SESSION_VERSION;
 // will warn otherwise. Leaving it unset lets Next.js set the correct default.
 delete env.NODE_ENV;
 
-const child = spawn('npx', ['next', 'dev'], {
+// Use --webpack (not Turbopack) for dev. Reason: Turbopack's findRootLockFile
+// walks UPWARD from the launch directory looking for a lockfile to anchor
+// workspace detection. It finds a stray /Users/vics-macbook-pro/claude/General-Work/
+// package.json + package-lock.json (one level above this repo) and tries to
+// resolve tailwindcss / postcss / everything from the non-existent parent
+// node_modules, crashing the dev server in a tight loop that hangs the system.
+// The turbopack.root config in next.config.ts is applied TOO LATE to prevent
+// this (workspace discovery runs before config is read in next dev, though
+// next build honors it correctly). Webpack's resolution walks DOWN from the
+// entry files, so it does not hit this issue. `npm run build:export` still
+// uses Turbopack (next build path) and works correctly.
+// See: https://github.com/vercel/next.js/issues/82356
+const child = spawn('npx', ['next', 'dev', '--webpack'], {
   stdio: 'inherit',
   env,
 });
