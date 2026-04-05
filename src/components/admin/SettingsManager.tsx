@@ -15,19 +15,17 @@ interface ModelOption {
   description: string;
 }
 
+// Must match ALLOWED_OPENAI_MODELS in src/app/api/admin/chat/route.ts. The
+// chat route calls the OpenAI API directly, so any model outside this list
+// would be silently coerced to the default and the admin's selection would
+// not take effect.
 const AVAILABLE_MODELS: ModelOption[] = [
-  { id: 'gpt-4o', label: 'GPT-4o', description: 'High quality, balanced speed. Great default choice.' },
-  { id: 'gpt-4o-mini', label: 'GPT-4o Mini', description: 'Fastest OpenAI option. Lower cost, good for simple tasks.' },
+  { id: 'gpt-4.1', label: 'GPT-4.1', description: 'Flagship reasoning model. Highest accuracy and tool-calling quality.' },
+  { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', description: 'Fast, cost-efficient. Default for admin agent tasks.' },
+  { id: 'gpt-4o', label: 'GPT-4o', description: 'Balanced quality and speed. Strong multimodal capabilities.' },
+  { id: 'gpt-4o-mini', label: 'GPT-4o Mini', description: 'Fastest option. Lowest cost, good for simple interactions.' },
   { id: 'gpt-4-turbo', label: 'GPT-4 Turbo', description: 'Strong reasoning with large context window.' },
-  { id: 'gpt-5.4', label: 'GPT-5.4', description: 'Latest generation. Best-in-class reasoning and accuracy.' },
-  { id: 'claude-opus-4.6', label: 'Claude Opus 4.6', description: 'Top-tier Anthropic model. Excellent at complex, nuanced tasks.' },
-  { id: 'claude-sonnet-4.6', label: 'Claude Sonnet 4.6', description: 'Fast and capable Anthropic model. Great quality-to-speed ratio.' },
-  { id: 'claude-sonnet-4.6-max-thinking', label: 'Claude Sonnet 4.6 (Max Thinking)', description: 'Extended thinking via OpenRouter. 1M token context. Best for complex reasoning tasks.' },
-  { id: 'claude-opus-4.6-high-thinking', label: 'Claude Opus 4.6 (High Thinking)', description: 'Highest reasoning via OpenRouter. Extended thinking enabled. Best for advanced analysis.' },
-  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', description: 'Ultra-fast Google model. Best for high-throughput, low-latency.' },
-  { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro', description: 'Premium Google model. Strong multimodal reasoning.' },
-  { id: 'deepseek-v3.2', label: 'DeepSeek V3.2', description: 'Open-weight powerhouse. Strong coding and math performance.' },
-  { id: 'qwen-3.5', label: 'Qwen 3.5', description: 'Multilingual specialist. Excellent for diverse language support.' },
+  { id: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', description: 'Economical option for high-volume simple interactions.' },
 ];
 
 interface PageTitleEntry {
@@ -70,6 +68,29 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
       } catch { /* use defaults */ }
     }
     loadPageTitles();
+  }, []);
+
+  // If the loaded settings contain a model id the admin chat route can no
+  // longer serve (e.g., a legacy Claude/Gemini entry from an older UI),
+  // normalize it to the chat default once so the in-memory state matches
+  // what a subsequent Save will persist, and the selector stays in sync.
+  useEffect(() => {
+    const hasValid = (id: string | undefined) => !!id && AVAILABLE_MODELS.some(m => m.id === id);
+    const adminRaw = settings.adminChatModel || settings.chatModel;
+    const customerRaw = settings.customerChatModel || settings.chatModel;
+    const chatRaw = settings.chatModel;
+    const needsAdmin = !hasValid(adminRaw);
+    const needsCustomer = !hasValid(customerRaw);
+    const needsChat = !hasValid(chatRaw);
+    if (needsAdmin || needsCustomer || needsChat) {
+      setSettings(prev => ({
+        ...prev,
+        ...(needsAdmin ? { adminChatModel: 'gpt-4.1-mini' } : {}),
+        ...(needsCustomer ? { customerChatModel: 'gpt-4.1-mini' } : {}),
+        ...(needsChat ? { chatModel: 'gpt-4.1-mini' } : {}),
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleLogoSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -166,7 +187,14 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
     fieldKey: 'adminChatModel' | 'customerChatModel',
     fallbackField: 'chatModel'
   ) {
-    const currentValue = settings[fieldKey] || settings[fallbackField] || 'gpt-4o';
+    // If the stored value is not one of the models the admin chat route
+    // supports (e.g., a legacy Claude/Gemini id left over from an earlier
+    // UI revision), fall back to the chat route's default so the dropdown
+    // always shows a valid selection that matches what the chat will use.
+    // The mount-time useEffect above normalizes the underlying state in
+    // step, so a subsequent Save will persist the valid value.
+    const rawValue = settings[fieldKey] || settings[fallbackField] || 'gpt-4.1-mini';
+    const currentValue = AVAILABLE_MODELS.some(m => m.id === rawValue) ? rawValue : 'gpt-4.1-mini';
     const currentModel = AVAILABLE_MODELS.find(m => m.id === currentValue);
     return (
       <div>
