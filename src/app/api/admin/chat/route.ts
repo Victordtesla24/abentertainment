@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
       ? { loaded: false, dir: '', files: [], fileCount: 0, missing: [], totalBytes: 0 }
       : {
           loaded: true,
-          dir: join(process.cwd(), 'agent-system', 'workspace'),
+          dir: join(REPO_ROOT, 'agent-system', 'workspace'),
           files: ['SOUL.md', 'MEMORY.md', 'SKILLS.md', 'HEARTBEAT.md'],
           fileCount: 4,
           missing: [],
