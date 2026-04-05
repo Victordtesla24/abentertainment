@@ -4,6 +4,11 @@ import { withAuth } from '@/lib/with-auth';
 import { getSponsors, saveSponsors } from '@/lib/data';
 import type { Sponsor } from '@/lib/data';
 
+export const GET = withAuth(async () => {
+  const sponsors = await getSponsors();
+  return NextResponse.json({ sponsors });
+});
+
 export const POST = withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();

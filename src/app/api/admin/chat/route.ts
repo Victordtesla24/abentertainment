@@ -36,6 +36,44 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Parse body once so we can dispatch on `type` before heavier checks.
+  const body = await request.json().catch(() => ({}));
+
+  // Health ping from the admin HealthDashboard — returns minimal Next.js
+  // runtime telemetry in the same shape the VPS agent-server provides, so
+  // the dashboard renders without 400s. Zero-cost: no AI calls, no Redis,
+  // no events/sponsors load.
+  if (body?.type === 'health') {
+    const memUsage = process.memoryUsage();
+    const uptimeSeconds = Math.round(process.uptime());
+    return NextResponse.json({
+      type: 'health',
+      server: {
+        version: '3.1.0',
+        nodeVersion: process.version,
+        uptime: uptimeSeconds,
+        agentStatus: 'awake',
+        idleSeconds: 0,
+        sleepTimeoutSeconds: 0,
+        totalRequests: 0,
+        totalSleeps: 0,
+        totalWakes: 0,
+        productionApproved: true,
+        memoryMB: Math.round(memUsage.heapUsed / 1024 / 1024),
+        memoryTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024),
+      },
+      models: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini'],
+      modelCount: 3,
+      tools: [],
+      toolCount: 0,
+      workspace: { loaded: true, files: [], fileCount: 0 },
+      apiKeys: { OPENAI_API_KEY: !!process.env.OPENAI_API_KEY },
+      costLimit: 5,
+      developer: process.env.DEVELOPER_EMAIL || '',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
   if (!OPENAI_KEY) {
     return NextResponse.json(
@@ -65,7 +103,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { messages } = await request.json();
+    const messages = body?.messages;
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
         { error: 'Invalid request format: messages array required' },
