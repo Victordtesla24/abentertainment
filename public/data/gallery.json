@@ -1,0 +1,29 @@
+[
+  {
+    "id": "img-1775373866698",
+    "src": "/images/gallery/stage-lights-golden-hour-1775373752700.png",
+    "alt": "Theatre stage with golden spotlights",
+    "category": "hero",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-05T07:24:26.698Z"
+  },
+  {
+    "id": "img-1775373867727",
+    "src": "/images/gallery/indian-classical-instruments-1775373786782.png",
+    "alt": "Classical Indian instruments",
+    "category": "background",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-05T07:24:27.727Z"
+  },
+  {
+    "id": "img-1775373868881",
+    "src": "/images/gallery/marathi-cultural-textiles-1775373800663.png",
+    "alt": "Marathi paithani silk",
+    "category": "background",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-05T07:24:28.881Z"
+  }
+]
