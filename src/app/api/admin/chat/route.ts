@@ -571,6 +571,8 @@ Read-only (no acknowledgment required):
 - Data:     list_gallery, list_videos, list_hero_images, list_timeline, list_page_titles
 - Codebase: list_codebase, read_codebase_file
 - Git:      git_status, git_diff
+- Research: search_web (Perplexity Sonar quick / deep via OpenRouter)
+- Delegate: spawn_sub_agent (Claude Opus 4.6 Max Thinking 1M orchestrator, read-only tools)
 
 Write-tools (REQUIRE production acknowledgment on EVERY call):
 - Events:       create_event, update_event, delete_event
@@ -817,6 +819,38 @@ interface ChatMessage {
 
 function buildTools() {
   return [
+    {
+      type: 'function',
+      function: {
+        name: 'search_web',
+        description: 'Search the live web via Perplexity Sonar (through OpenRouter). Use this for market research, competitor analysis, current pricing, recent news, and any question whose answer lives outside the repo or MEMORY.md. Read-only — no production acknowledgment required. Returns the search result text plus the model-level cost.',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'The search query or research question. Be specific and include relevant entities (dates, locations, categories).' },
+            mode: { type: 'string', enum: ['quick', 'deep'], description: 'quick = perplexity/sonar (fast, ~$0.005/call). deep = perplexity/sonar-deep-research (longer reasoning over multiple sources, ~$0.01-0.05/call). Default quick.' },
+            max_tokens: { type: 'integer', minimum: 256, maximum: 8000, description: 'Upper bound on the response length. Default 1200 for quick, 4000 for deep.' },
+          },
+          required: ['query'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'spawn_sub_agent',
+        description: 'Delegate a focused sub-task to an orchestrator agent powered by Claude Opus 4.6 (Max Thinking, 1M ctx) via OpenRouter. The sub-agent gets its own tool-calling loop with READ-ONLY tools (list_events, list_sponsors, list_testimonials, list_gallery, list_videos, list_hero_images, list_timeline, list_page_titles, list_codebase, read_codebase_file, git_status, git_diff, search_web). Use for multi-step research, codebase investigation, or synthesis tasks that would benefit from extended thinking and autonomous tool use. Read-only by design — cannot mutate production data. Returns the sub-agent\'s final answer.',
+        parameters: {
+          type: 'object',
+          properties: {
+            task: { type: 'string', description: 'Clear, self-contained task description. Include any required context the sub-agent needs, since it does not share memory with you.' },
+            context: { type: 'string', description: 'Optional extra context (file paths, event ids, prior findings) to seed the sub-agent' },
+            max_iterations: { type: 'integer', minimum: 1, maximum: 8, description: 'Max tool-call rounds for the sub-agent. Default 5.' },
+          },
+          required: ['task'],
+        },
+      },
+    },
     {
       type: 'function',
       function: {
@@ -1170,6 +1204,161 @@ async function executeTool(
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   try {
     switch (name) {
+      case 'search_web': {
+        const query = typeof args.query === 'string' ? args.query.trim() : '';
+        const mode = args.mode === 'deep' ? 'deep' : 'quick';
+        const defaultMaxTokens = mode === 'deep' ? 4000 : 1200;
+        const maxTokens = typeof args.max_tokens === 'number' && args.max_tokens >= 256 && args.max_tokens <= 8000
+          ? Math.floor(args.max_tokens)
+          : defaultMaxTokens;
+        if (!query) return { ok: false, error: 'query is required' };
+        const OR_KEY = process.env.OPENROUTER_API_KEY;
+        if (!OR_KEY) return { ok: false, error: 'OPENROUTER_API_KEY is not configured on this server' };
+        const model = mode === 'deep' ? 'perplexity/sonar-deep-research' : 'perplexity/sonar';
+        const searchRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${OR_KEY}`,
+            'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://abentertainment.com.au',
+            'X-Title': 'AB Entertainment Admin Agent',
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: query }],
+            max_tokens: maxTokens,
+          }),
+        });
+        if (!searchRes.ok) {
+          const errTxt = await searchRes.text();
+          return { ok: false, error: `search_web error (${searchRes.status}): ${errTxt.slice(0, 500)}` };
+        }
+        type PerplexityResponse = {
+          choices?: { message?: { content?: string | null } }[];
+          citations?: unknown[];
+          usage?: { cost?: number; total_tokens?: number };
+        };
+        const searchData = await searchRes.json() as PerplexityResponse;
+        const content = searchData?.choices?.[0]?.message?.content || '';
+        const cost = typeof searchData?.usage?.cost === 'number' ? searchData.usage.cost : 0;
+        const tokens = typeof searchData?.usage?.total_tokens === 'number' ? searchData.usage.total_tokens : 0;
+        const citations = Array.isArray(searchData?.citations) ? searchData.citations : [];
+        try { logAdminAction('admin', 'SEARCH_WEB', '/api/admin/chat', ip, { mode, model, query: query.slice(0, 120), cost, tokens }); } catch { /* non-blocking */ }
+        return {
+          ok: true,
+          result: {
+            mode,
+            model,
+            content,
+            citations,
+            cost,
+            tokens,
+          },
+        };
+      }
+      case 'spawn_sub_agent': {
+        const task = typeof args.task === 'string' ? args.task.trim() : '';
+        const context = typeof args.context === 'string' ? args.context : '';
+        const maxIterations = typeof args.max_iterations === 'number' && args.max_iterations >= 1 && args.max_iterations <= 8
+          ? Math.floor(args.max_iterations)
+          : 5;
+        if (!task) return { ok: false, error: 'task is required' };
+        const OR_KEY = process.env.OPENROUTER_API_KEY;
+        if (!OR_KEY) return { ok: false, error: 'OPENROUTER_API_KEY is not configured on this server' };
+        // Orchestrator: Claude Opus 4.6 with Max Thinking (reasoning.max_tokens=32000)
+        // routed via OpenRouter. This is a READ-ONLY sub-agent — it gets the
+        // full read-only tool surface plus search_web, but no mutating tools.
+        const subSystemPrompt = `You are a read-only research and synthesis sub-agent for the AB Entertainment Admin Agent. Your parent agent delegated a focused task to you. Use the available read-only tools to answer, then reply with a single concise final answer (no more tool calls). Do NOT attempt any mutating operation — you have no access to writes. Stay on task.
+
+# Task
+${task}
+
+${context ? `# Context\n${context}\n` : ''}`;
+        const readOnlyTools = buildTools().filter((t) => {
+          const n = t.function.name;
+          return (
+            n.startsWith('list_') ||
+            n === 'read_codebase_file' ||
+            n === 'git_status' ||
+            n === 'git_diff' ||
+            n === 'search_web'
+          );
+        });
+        const subHeaders: Record<string, string> = {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${OR_KEY}`,
+          'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://abentertainment.com.au',
+          'X-Title': 'AB Entertainment Admin Agent (sub-agent)',
+        };
+        const subMessages: ChatMessage[] = [
+          { role: 'system', content: subSystemPrompt },
+          { role: 'user', content: task },
+        ];
+        const subBody = {
+          model: 'anthropic/claude-opus-4.6',
+          messages: subMessages,
+          max_tokens: 8000,
+          temperature: 0.3,
+          reasoning: { max_tokens: 32000 },
+        };
+        let finalContent = '';
+        const toolTrace: { name: string; ok: boolean }[] = [];
+        let totalCost = 0;
+        for (let iter = 0; iter < maxIterations; iter++) {
+          const subRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: subHeaders,
+            body: JSON.stringify({ ...subBody, messages: subMessages, tools: readOnlyTools, tool_choice: 'auto' }),
+          });
+          if (!subRes.ok) {
+            const errTxt = await subRes.text();
+            return { ok: false, error: `sub-agent error iter=${iter} (${subRes.status}): ${errTxt.slice(0, 400)}` };
+          }
+          type OrchestratorResponse = {
+            choices?: { message?: { role?: string; content?: string | null; tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[] } }[];
+            usage?: { cost?: number };
+          };
+          const subData = await subRes.json() as OrchestratorResponse;
+          totalCost += typeof subData?.usage?.cost === 'number' ? subData.usage.cost : 0;
+          const msg = subData?.choices?.[0]?.message;
+          if (!msg) break;
+          subMessages.push(msg as ChatMessage);
+          const toolCalls = msg.tool_calls || [];
+          if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+            finalContent = typeof msg.content === 'string' ? msg.content : '';
+            break;
+          }
+          for (const call of toolCalls) {
+            const toolName = call?.function?.name || '';
+            let toolArgs: Record<string, unknown> = {};
+            try { toolArgs = JSON.parse(call?.function?.arguments || '{}'); } catch { /* ignore */ }
+            // Hard gate: sub-agent can ONLY call read-only tools
+            const allowed = readOnlyTools.some((t) => t.function.name === toolName);
+            let subResult: { ok: boolean; result?: unknown; error?: string };
+            if (!allowed) {
+              subResult = { ok: false, error: `sub-agent denied: ${toolName} is not in the read-only tool set` };
+            } else {
+              subResult = await executeTool(toolName, toolArgs, ip);
+            }
+            toolTrace.push({ name: toolName, ok: subResult.ok });
+            subMessages.push({
+              role: 'tool',
+              tool_call_id: call?.id || '',
+              content: JSON.stringify(subResult),
+            } as ChatMessage);
+          }
+        }
+        try { logAdminAction('admin', 'SPAWN_SUB_AGENT', '/api/admin/chat', ip, { task: task.slice(0, 120), toolTrace, totalCost, iterations: toolTrace.length }); } catch { /* non-blocking */ }
+        return {
+          ok: true,
+          result: {
+            orchestratorModel: 'anthropic/claude-opus-4.6 (Max Thinking, 1M ctx)',
+            finalAnswer: finalContent || '(sub-agent produced no final answer within iteration limit)',
+            toolTrace,
+            totalCost,
+          },
+        };
+      }
       case 'generate_image': {
         const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : '';
         const category = typeof args.category === 'string' ? args.category : '';
