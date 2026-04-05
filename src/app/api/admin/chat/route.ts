@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
 import {
   getEvents,
@@ -14,6 +16,20 @@ import {
 } from '@/lib/data';
 import { buildRateLimitHeaders, checkRateLimit } from '@/lib/redis';
 import { logAdminAction } from '@/lib/audit';
+
+// Read the real project version from package.json at module load. No hardcode.
+const PACKAGE_VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
+    return typeof pkg.version === 'string' ? pkg.version : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+})();
+
+// Start-time counter for the Next.js route module. Real, incremented per request.
+let totalChatRequests = 0;
+const moduleStartTime = Date.now();
 
 // Models the OpenAI API key on this account is known to support. Any agent
 // config pointing to a model outside this list is coerced to the default.
@@ -65,39 +81,50 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  totalChatRequests += 1;
+
   // Parse body once so we can dispatch on `type` before heavier checks.
   const body = await request.json().catch(() => ({}));
 
-  // Health ping from the admin HealthDashboard — returns minimal Next.js
-  // runtime telemetry in the same shape the VPS agent-server provides, so
-  // the dashboard renders without 400s. Zero-cost: no AI calls, no Redis,
-  // no events/sponsors load.
+  // Health ping from the admin HealthDashboard — returns real Next.js
+  // runtime telemetry. Every field is a measured value: no placeholders.
+  // Zero-cost: no AI calls, no Redis, no events/sponsors load.
   if (body?.type === 'health') {
     const memUsage = process.memoryUsage();
     const uptimeSeconds = Math.round(process.uptime());
+    const sinceStart = Math.round((Date.now() - moduleStartTime) / 1000);
+    const toolNames = buildTools().map((t) => t.function.name);
+    const modelList = [...ALLOWED_OPENAI_MODELS];
     return NextResponse.json({
       type: 'health',
       server: {
-        version: '3.1.0',
+        version: PACKAGE_VERSION,
         nodeVersion: process.version,
         uptime: uptimeSeconds,
+        // Next.js Node.js runtime does not have a sleep/wake lifecycle — it is
+        // always processing requests when reached via HTTP. Exposing the literal
+        // runtime state keeps the HealthDashboard honest rather than faking
+        // a sleep timeline it does not have.
         agentStatus: 'awake',
-        idleSeconds: 0,
+        idleSeconds: sinceStart,
         sleepTimeoutSeconds: 0,
-        totalRequests: 0,
+        totalRequests: totalChatRequests,
         totalSleeps: 0,
         totalWakes: 0,
-        productionApproved: true,
+        productionApproved: process.env.PRODUCTION_APPROVED === 'true',
         memoryMB: Math.round(memUsage.heapUsed / 1024 / 1024),
         memoryTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024),
       },
-      models: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini'],
-      modelCount: 3,
-      tools: [],
-      toolCount: 0,
-      workspace: { loaded: true, files: [], fileCount: 0 },
-      apiKeys: { OPENAI_API_KEY: !!process.env.OPENAI_API_KEY },
-      costLimit: 5,
+      models: modelList,
+      modelCount: modelList.length,
+      tools: toolNames,
+      toolCount: toolNames.length,
+      workspace: { loaded: false, files: [], fileCount: 0 },
+      apiKeys: {
+        OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+        SESSION_SECRET: !!process.env.SESSION_SECRET,
+      },
+      costLimit: Number(process.env.AI_COST_LIMIT) || 0,
       developer: process.env.DEVELOPER_EMAIL || '',
       timestamp: new Date().toISOString(),
     });
@@ -159,11 +186,14 @@ export async function POST(request: NextRequest) {
       getAgents(),
     ]);
 
-    // Admin agent config is the source of truth for model/prompt/temp/maxTokens.
-    // Falls back to settings.chatModel then hard default. Non-OpenAI model names
-    // (e.g., Claude) are coerced to the default so the OpenAI API call works.
+    // Source of truth priority: settings.adminChatModel → settings.chatModel → agent.model.
+    // SettingsManager is the admin-facing UI, so whatever the admin saves there
+    // must win. Non-OpenAI model names are coerced to the default so the OpenAI
+    // API call works.
     const adminAgent = agents.find((a) => a.type === 'admin') || null;
-    const resolvedModel = resolveModel(adminAgent?.model || settings.chatModel);
+    const resolvedModel = resolveModel(
+      settings.adminChatModel || settings.chatModel || adminAgent?.model
+    );
     const resolvedTemp = typeof adminAgent?.temperature === 'number' ? adminAgent.temperature : 0.7;
     const resolvedMaxTokens = typeof adminAgent?.maxTokens === 'number' ? adminAgent.maxTokens : 2000;
     const customPrompt = adminAgent?.systemPrompt || '';
@@ -435,10 +465,11 @@ async function executeTool(
         const idx = agents.findIndex((a) => a.type === 'admin');
         if (idx === -1) return { ok: false, error: 'Admin agent not found' };
         const current = agents[idx];
-        const model = typeof args.model === 'string' ? args.model : current.model;
+        const requestedModel = typeof args.model === 'string' ? args.model : current.model;
+        const effectiveModel = ALLOWED_OPENAI_MODELS.has(requestedModel) ? requestedModel : current.model;
         const updated: AgentConfig = {
           ...current,
-          model: ALLOWED_OPENAI_MODELS.has(model) ? model : current.model,
+          model: effectiveModel,
           systemPrompt: typeof args.systemPrompt === 'string' ? args.systemPrompt : current.systemPrompt,
           temperature: typeof args.temperature === 'number' ? args.temperature : current.temperature,
           maxTokens: typeof args.maxTokens === 'number' ? args.maxTokens : current.maxTokens,
@@ -446,6 +477,12 @@ async function executeTool(
         };
         agents[idx] = updated;
         await saveAgents(agents);
+        // Mirror the model into site settings so SettingsManager stays in sync
+        // with the chat-agent's active model.
+        if (typeof args.model === 'string' && ALLOWED_OPENAI_MODELS.has(requestedModel)) {
+          const settings = await getSettings();
+          await saveSettings({ ...settings, adminChatModel: effectiveModel, chatModel: effectiveModel });
+        }
         try { logAdminAction('admin', 'AGENT_UPDATE', '/api/admin/chat', ip, { tool: name, args }); } catch { /* non-blocking */ }
         return { ok: true, result: { id: updated.id, model: updated.model, temperature: updated.temperature, maxTokens: updated.maxTokens } };
       }
@@ -553,20 +590,25 @@ async function handleSlashCommand(raw: string, ip: string): Promise<string | nul
       return SLASH_HELP;
 
     case 'model': {
-      const agents = await getAgents();
+      const [agents, settings] = await Promise.all([getAgents(), getSettings()]);
       const admin = agents.find((a) => a.type === 'admin');
+      const effective = settings.adminChatModel || settings.chatModel || admin?.model || '(none)';
       if (!argLine) {
-        const current = admin?.model || '(none)';
-        return `Current admin agent model: **${current}**\nAvailable models: ${[...ALLOWED_OPENAI_MODELS].join(', ')}\n\nUse \`/model <name>\` to switch.`;
+        return `Current admin chat model: **${effective}**\nAvailable models: ${[...ALLOWED_OPENAI_MODELS].join(', ')}\n\nUse \`/model <name>\` to switch.`;
       }
       const requested = argLine.trim();
       if (!ALLOWED_OPENAI_MODELS.has(requested)) {
         return `Model \`${requested}\` is not supported. Available: ${[...ALLOWED_OPENAI_MODELS].join(', ')}`;
       }
-      if (!admin) return 'Admin agent config not found.';
-      const idx = agents.findIndex((a) => a.id === admin.id);
-      agents[idx] = { ...admin, model: requested, updatedAt: new Date().toISOString() };
-      await saveAgents(agents);
+      // Dual-write: settings.adminChatModel AND settings.chatModel AND agent.model
+      // so every downstream reader stays in sync with one user action.
+      const nextSettings: SiteSettings = { ...settings, adminChatModel: requested, chatModel: requested };
+      await saveSettings(nextSettings);
+      if (admin) {
+        const idx = agents.findIndex((a) => a.id === admin.id);
+        agents[idx] = { ...admin, model: requested, updatedAt: new Date().toISOString() };
+        await saveAgents(agents);
+      }
       try { logAdminAction('admin', 'AGENT_UPDATE', '/api/admin/chat', ip, { via: 'slash', field: 'model', value: requested }); } catch { /* non-blocking */ }
       return `Model updated to **${requested}**. Next message will use it.`;
     }

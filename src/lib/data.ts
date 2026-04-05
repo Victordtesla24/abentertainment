@@ -11,6 +11,12 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 
 const DATA_DIR = join(process.cwd(), 'data');
+const PUBLIC_DATA_DIR = join(process.cwd(), 'public', 'data');
+// Files that also need to be mirrored to public/data/ so client-side fetchers
+// (SearchModal, static export bundler, etc.) see the same data the admin
+// console writes. Config-only files (agents, conversations, settings) are
+// NOT mirrored — they should not be publicly readable.
+const PUBLIC_MIRRORED = new Set<string>(['events.json']);
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -404,8 +410,20 @@ function normalizeEvent(event: Event | (Event & { ticketStatus?: Event['ticketSt
 
 async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
   await ensureDataDir();
-  const filepath = join(DATA_DIR, filename);
-  await writeFile(filepath, JSON.stringify(data, null, 2), 'utf-8');
+  const serialized = JSON.stringify(data, null, 2);
+  await writeFile(join(DATA_DIR, filename), serialized, 'utf-8');
+  // Mirror to public/data/ so client-side fetchers and the next static-export
+  // build pick up admin changes immediately. Writes twice intentionally
+  // (sequentially) so failure to mirror does not corrupt the canonical copy.
+  if (PUBLIC_MIRRORED.has(filename)) {
+    try {
+      await mkdir(PUBLIC_DATA_DIR, { recursive: true });
+      await writeFile(join(PUBLIC_DATA_DIR, filename), serialized, 'utf-8');
+    } catch (err) {
+      // Mirror failure is non-fatal: canonical data/ write already succeeded.
+      console.error(`[data] mirror to public/data/${filename} failed:`, err);
+    }
+  }
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────

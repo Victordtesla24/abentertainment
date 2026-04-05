@@ -14,7 +14,8 @@
     "category": "Theatre",
     "capacity": 800,
     "createdAt": "2024-12-01T00:00:00Z",
-    "updatedAt": "2024-12-01T00:00:00Z"
+    "updatedAt": "2024-12-01T00:00:00Z",
+    "ticketStatus": "sold_out"
   },
   {
     "id": "evt-arya-ambekar-concert",
@@ -31,7 +32,8 @@
     "category": "Concert",
     "capacity": 2400,
     "createdAt": "2025-01-15T00:00:00Z",
-    "updatedAt": "2025-01-15T00:00:00Z"
+    "updatedAt": "2025-01-15T00:00:00Z",
+    "ticketStatus": "sold_out"
   },
   {
     "id": "evt-shikayla-gelo-ek",
@@ -48,7 +50,8 @@
     "category": "Comedy",
     "capacity": 1000,
     "createdAt": "2025-02-01T00:00:00Z",
-    "updatedAt": "2025-02-01T00:00:00Z"
+    "updatedAt": "2025-02-01T00:00:00Z",
+    "ticketStatus": "available"
   },
   {
     "id": "evt-varvarche-vadhu-var",
@@ -65,7 +68,8 @@
     "category": "Drama",
     "capacity": 600,
     "createdAt": "2025-03-01T00:00:00Z",
-    "updatedAt": "2025-03-01T00:00:00Z"
+    "updatedAt": "2025-03-01T00:00:00Z",
+    "ticketStatus": "available"
   },
   {
     "id": "evt-swaranirmiti-2026",
@@ -81,7 +85,8 @@
     "category": "Classical Music",
     "capacity": 2400,
     "createdAt": "2025-03-15T00:00:00Z",
-    "updatedAt": "2025-03-15T00:00:00Z"
+    "updatedAt": "2025-03-15T00:00:00Z",
+    "ticketStatus": "available"
   },
   {
     "id": "evt-diwali-spectacular-2026",
@@ -97,6 +102,7 @@
     "category": "Festival",
     "capacity": 3000,
     "createdAt": "2025-03-15T00:00:00Z",
-    "updatedAt": "2025-03-15T00:00:00Z"
+    "updatedAt": "2025-03-15T00:00:00Z",
+    "ticketStatus": "available"
   }
 ]
