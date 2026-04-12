@@ -125,6 +125,24 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  // Image health check — detect broken images that won't render on the public site
+  const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const checkImages = async () => {
+      const broken = new Set<string>();
+      for (const img of images) {
+        if (!img.src) { broken.add(img.id); continue; }
+        try {
+          const res = await fetch(img.src, { method: 'HEAD' });
+          if (!res.ok) broken.add(img.id);
+        } catch { broken.add(img.id); }
+      }
+      setBrokenImages(broken);
+    };
+    if (images.length > 0) checkImages();
+  }, [images]);
+
   function showMessage(msg: string) {
     setMessage(msg);
     setTimeout(() => setMessage(''), 3000);
@@ -540,6 +558,14 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
         </div>
       ))}
 
+      {/* Broken image warning */}
+      {brokenImages.size > 0 && (
+        <div className="mb-4 px-4 py-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] font-body">
+          <span className="font-semibold">{brokenImages.size} image{brokenImages.size > 1 ? 's' : ''} hidden on the public website</span>
+          <span className="text-amber-400/60"> — the image file is missing or inaccessible. Re-upload the image or delete the broken entry.</span>
+        </div>
+      )}
+
       {/* Custom Uploads (editable) */}
       {filteredCustomImages.length > 0 && (
         <div className="mb-6">
@@ -601,7 +627,7 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
 
                     {/* Image preview - click to edit */}
                     <div
-                      className="aspect-[4/3] bg-[#0A0A0A] flex items-center justify-center overflow-hidden cursor-pointer"
+                      className="aspect-[4/3] bg-[#0A0A0A] flex items-center justify-center overflow-hidden cursor-pointer relative"
                       onClick={() => !isEditing && startEditing(image)}
                       title="Click to edit"
                     >
@@ -609,6 +635,12 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
                         <img src={image.src} alt={image.alt} className="w-full h-full object-cover" loading="lazy" />
                       ) : (
                         <span className="text-white/20 text-xs font-body">No image</span>
+                      )}
+                      {brokenImages.has(image.id) && (
+                        <div className="absolute inset-0 bg-red-900/40 flex flex-col items-center justify-center p-3">
+                          <span className="text-red-400 text-[10px] font-body font-semibold mb-1">Hidden on website</span>
+                          <span className="text-red-400/70 text-[9px] font-body text-center">Image file missing — re-upload or delete</span>
+                        </div>
                       )}
                     </div>
 
