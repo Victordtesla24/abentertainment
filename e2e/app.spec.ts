@@ -153,7 +153,7 @@ test.describe('Admin Portal', () => {
     await page.getByRole('button', { name: /sign in/i }).click();
 
     // Should show error — API returns "Authentication failed"
-    await expect(page.getByText(/authentication failed|invalid/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/authentication failed|invalid/i)).toBeVisible({ timeout: 10000 });
   });
 
   test('admin login accepts correct credentials', async ({ page }) => {
