@@ -283,6 +283,21 @@ export function CinematicHero() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [heroReady, setHeroReady] = useState(false);
+  const [slides, setSlides] = useState(heroSlides);
+
+  // Fetch live hero settings so admin changes appear without rebuild
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.heroTitle) return;
+        setSlides(prev => prev.map((s, i) => i === 0
+          ? { ...s, subtitle: data.heroSubtitle || s.subtitle }
+          : s
+        ));
+      })
+      .catch(() => {});
+  }, []);
 
   const { scrollY } = useScroll();
   const parallaxBg = useTransform(scrollY, [0, 800], [0, -150]);
@@ -297,12 +312,12 @@ export function CinematicHero() {
   const handleDotKeyDown = useCallback((e: React.KeyboardEvent, index: number) => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       e.preventDefault();
-      const next = (index + 1) % heroSlides.length;
+      const next = (index + 1) % slides.length;
       goToSlide(next);
       (e.currentTarget.parentElement?.children[next] as HTMLElement)?.focus();
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
       e.preventDefault();
-      const prev = (index - 1 + heroSlides.length) % heroSlides.length;
+      const prev = (index - 1 + slides.length) % slides.length;
       goToSlide(prev);
       (e.currentTarget.parentElement?.children[prev] as HTMLElement)?.focus();
     }
@@ -311,7 +326,7 @@ export function CinematicHero() {
   useEffect(() => {
     if (isPaused) return;
     const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, SLIDE_DURATION);
     return () => clearInterval(interval);
   }, [isPaused]);
@@ -373,7 +388,7 @@ export function CinematicHero() {
         {/* Image slideshow fallback — visible when video not available */}
         <AnimatePresence mode="sync">
           <motion.div
-            key={heroSlides[currentSlide].bg + currentSlide}
+            key={slides[currentSlide].bg + currentSlide}
             className="absolute inset-0"
             initial={{ opacity: 0, scale: 1.15 }}
             animate={{ opacity: 1, scale: 1.0 }}
@@ -381,7 +396,7 @@ export function CinematicHero() {
             transition={{ duration: 2.2, ease: EASE }}
           >
             <img
-              src={heroSlides[currentSlide].bg}
+              src={slides[currentSlide].bg}
               alt=""
               aria-hidden="true"
               width={1920}
@@ -455,7 +470,7 @@ export function CinematicHero() {
               className="mb-6"
             >
               <span className="inline-block px-6 py-2.5 bg-gradient-to-r from-[#C9A84C]/10 via-[#C9A84C]/20 to-[#C9A84C]/10 border border-[#C9A84C]/25 text-[#C9A84C] text-sm md:text-base font-body font-medium tracking-[0.2em] uppercase backdrop-blur-md">
-                {heroSlides[currentSlide].badge}
+                {slides[currentSlide].badge}
               </span>
             </motion.div>
 
@@ -466,7 +481,7 @@ export function CinematicHero() {
               className="text-5xl md:text-7xl lg:text-[6rem] xl:text-[7.5rem] font-black leading-[0.88] tracking-tight uppercase mb-7"
               style={{ fontFamily: 'var(--font-display), Georgia, serif' }}
             >
-              <span className="gold-shimmer">{heroSlides[currentSlide].title}</span>
+              <span className="gold-shimmer">{slides[currentSlide].title}</span>
             </motion.h1>
 
             <motion.div
@@ -486,7 +501,7 @@ export function CinematicHero() {
               transition={{ duration: 0.8, delay: 0.8, ease: EASE }}
               className="text-lg md:text-xl lg:text-2xl text-white/70 font-body font-light tracking-wide max-w-2xl mx-auto"
             >
-              {heroSlides[currentSlide].subtitle}
+              {slides[currentSlide].subtitle}
             </motion.p>
           </motion.div>
         </AnimatePresence>
@@ -520,7 +535,7 @@ export function CinematicHero() {
           transition={{ delay: 1.4 }}
           className="mt-14 flex gap-3 items-center"
         >
-          {heroSlides.map((_, index) => (
+          {slides.map((_, index) => (
             <button
               key={index}
               onClick={() => goToSlide(index)}
