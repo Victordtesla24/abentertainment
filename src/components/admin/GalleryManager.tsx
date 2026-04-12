@@ -8,6 +8,7 @@ import type { GalleryImage, Event } from '@/lib/data';
 interface GalleryManagerProps {
   initialGallery: GalleryImage[];
   allEvents?: Event[];
+  initialSiteImageOverrides?: Record<string, { alt?: string; src?: string }>;
 }
 
 // All images that exist on the website, organized by category
@@ -96,7 +97,7 @@ function escapeCsvField(field: string): string {
   return field;
 }
 
-export default function GalleryManager({ initialGallery, allEvents }: GalleryManagerProps) {
+export default function GalleryManager({ initialGallery, allEvents, initialSiteImageOverrides }: GalleryManagerProps) {
   const [images, setImages] = useState<GalleryImage[]>(initialGallery);
   const [creating, setCreating] = useState(false);
   const [src, setSrc] = useState('');
@@ -114,8 +115,8 @@ export default function GalleryManager({ initialGallery, allEvents }: GalleryMan
   const [editCategory, setEditCategory] = useState('');
   const [editSaving, setEditSaving] = useState(false);
 
-  // Site image edit state
-  const [siteImageEdits, setSiteImageEdits] = useState<Record<string, { alt?: string; src?: string }>>({});
+  // Site image edit state — initialized from persisted overrides
+  const [siteImageEdits, setSiteImageEdits] = useState<Record<string, { alt?: string; src?: string }>>(initialSiteImageOverrides || {});
   const [editingSiteImage, setEditingSiteImage] = useState<string | null>(null);
   const [editSiteSrc, setEditSiteSrc] = useState('');
   const [editSiteAlt, setEditSiteAlt] = useState('');
@@ -127,6 +128,22 @@ export default function GalleryManager({ initialGallery, allEvents }: GalleryMan
   function showMessage(msg: string) {
     setMessage(msg);
     setTimeout(() => setMessage(''), 3000);
+  }
+
+  /** Persist site image overrides to settings.json via the settings API. */
+  async function saveSiteImageOverrides(overrides: Record<string, { alt?: string; src?: string }>) {
+    try {
+      const settingsRes = await adminFetch('/api/admin/settings');
+      if (!settingsRes.ok) return;
+      const { settings } = await settingsRes.json();
+      await adminFetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...settings, siteImageOverrides: overrides }),
+      });
+    } catch {
+      // Non-fatal — local state already updated, will retry on next save
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -220,44 +237,55 @@ export default function GalleryManager({ initialGallery, allEvents }: GalleryMan
   // --- Reorder Images ---
   const handleMoveUp = useCallback(async (index: number) => {
     if (index <= 0) return;
+    const current = images[index];
+    const above = images[index - 1];
     setImages((prev) => {
       const next = [...prev];
       [next[index - 1], next[index]] = [next[index], next[index - 1]];
       return next;
     });
-    // Persist new order
     try {
-      const reordered = [...images];
-      [reordered[index - 1], reordered[index]] = [reordered[index], reordered[index - 1]];
-      const orderPayload = reordered.map((img, i) => ({ id: img.id, order: i }));
-      await adminFetch('/api/admin/gallery/reorder', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: orderPayload }),
-      });
+      await Promise.all([
+        adminFetch('/api/admin/gallery', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: current.id, order: index - 1 }),
+        }),
+        adminFetch('/api/admin/gallery', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: above.id, order: index }),
+        }),
+      ]);
     } catch {
-      // Order was already updated in local state; silent fail for persistence
+      // Order was already updated in local state
     }
   }, [images]);
 
   const handleMoveDown = useCallback(async (index: number) => {
     if (index >= images.length - 1) return;
+    const current = images[index];
+    const below = images[index + 1];
     setImages((prev) => {
       const next = [...prev];
       [next[index], next[index + 1]] = [next[index + 1], next[index]];
       return next;
     });
     try {
-      const reordered = [...images];
-      [reordered[index], reordered[index + 1]] = [reordered[index + 1], reordered[index]];
-      const orderPayload = reordered.map((img, i) => ({ id: img.id, order: i }));
-      await adminFetch('/api/admin/gallery/reorder', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: orderPayload }),
-      });
+      await Promise.all([
+        adminFetch('/api/admin/gallery', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: current.id, order: index + 1 }),
+        }),
+        adminFetch('/api/admin/gallery', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: below.id, order: index }),
+        }),
+      ]);
     } catch {
-      // silent fail
+      // Order was already updated in local state
     }
   }, [images]);
 
@@ -491,7 +519,7 @@ export default function GalleryManager({ initialGallery, allEvents }: GalleryMan
                         <input type="text" value={editSiteSrc} onChange={(e) => setEditSiteSrc(e.target.value)} className="w-full px-2 py-1.5 bg-[#111111] border border-[#C9A84C]/20 text-white text-[11px] font-body focus:outline-none focus:border-[#C9A84C]/50" />
                       </div>
                       <div className="flex gap-2 pt-1">
-                        <button onClick={() => { setSiteImageEdits(prev => ({ ...prev, [image.src]: { alt: editSiteAlt, src: editSiteSrc } })); setEditingSiteImage(null); showMessage('Image updated'); }} className="flex-1 px-3 py-1.5 bg-[#C9A84C] text-black text-[10px] font-body font-semibold hover:bg-[#D4B65C] transition-colors">Save</button>
+                        <button onClick={() => { const updated = { ...siteImageEdits, [image.src]: { alt: editSiteAlt, src: editSiteSrc } }; setSiteImageEdits(updated); setEditingSiteImage(null); saveSiteImageOverrides(updated); showMessage('Image updated'); }} className="flex-1 px-3 py-1.5 bg-[#C9A84C] text-black text-[10px] font-body font-semibold hover:bg-[#D4B65C] transition-colors">Save</button>
                         <button onClick={() => setEditingSiteImage(null)} className="flex-1 px-3 py-1.5 border border-white/20 text-white/40 text-[10px] font-body hover:text-white transition-colors">Cancel</button>
                       </div>
                     </div>
@@ -501,7 +529,7 @@ export default function GalleryManager({ initialGallery, allEvents }: GalleryMan
                       <p className="text-white/25 text-[9px] font-body mt-0.5 truncate">{siteImageEdits[image.src]?.src || image.src}</p>
                       <div className="flex items-center gap-1 mt-2 pt-2 border-t border-white/5">
                         <button onClick={() => { setEditingSiteImage(image.src); setEditSiteAlt(siteImageEdits[image.src]?.alt || image.alt); setEditSiteSrc(siteImageEdits[image.src]?.src || image.src); }} className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-[#C9A84C] hover:border-[#C9A84C]/30 transition-colors">Edit</button>
-                        <button onClick={() => { setSiteImageEdits(prev => ({ ...prev, [image.src]: { ...prev[image.src], src: '' } })); showMessage('Image marked for replacement'); }} className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-[#C9A84C] hover:border-[#C9A84C]/30 transition-colors">Replace</button>
+                        <button onClick={() => { const updated = { ...siteImageEdits, [image.src]: { ...siteImageEdits[image.src], src: '' } }; setSiteImageEdits(updated); saveSiteImageOverrides(updated); showMessage('Image marked for replacement'); }} className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-[#C9A84C] hover:border-[#C9A84C]/30 transition-colors">Replace</button>
                       </div>
                     </div>
                   )}

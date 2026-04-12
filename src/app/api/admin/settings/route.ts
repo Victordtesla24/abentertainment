@@ -25,6 +25,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
       contactEmail: typeof body.contactEmail === 'string' ? body.contactEmail : current.contactEmail,
       contactPhone: typeof body.contactPhone === 'string' ? body.contactPhone : current.contactPhone,
       pageTitles: Array.isArray(body.pageTitles) ? body.pageTitles : current.pageTitles,
+      siteImageOverrides: body.siteImageOverrides !== undefined ? body.siteImageOverrides : current.siteImageOverrides,
     };
     await saveSettings(merged);
 

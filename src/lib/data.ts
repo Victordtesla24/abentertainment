@@ -121,6 +121,7 @@ export interface SiteSettings {
   contactEmail: string;
   contactPhone: string;
   pageTitles?: PageTitle[];
+  siteImageOverrides?: Record<string, { alt?: string; src?: string }>;
 }
 
 export interface AgentConfig {

@@ -257,7 +257,7 @@ export default function AdminDashboard({
           {activeTab === 'health' && <HealthDashboard events={initialEvents} sponsors={initialSponsors} />}
           {activeTab === 'events' && <EventsManager initialEvents={initialEvents} allSponsors={initialSponsors} />}
           {activeTab === 'sponsors' && <SponsorsManager initialSponsors={initialSponsors} allEvents={initialEvents} />}
-          {activeTab === 'gallery' && <GalleryManager initialGallery={initialGallery} allEvents={initialEvents} />}
+          {activeTab === 'gallery' && <GalleryManager initialGallery={initialGallery} allEvents={initialEvents} initialSiteImageOverrides={initialSettings.siteImageOverrides} />}
           {activeTab === 'heroes' && <HeroImageManager initialImages={initialHeroImages} />}
           {activeTab === 'videos' && <VideoManager initialVideos={initialVideos} events={initialEvents} />}
           {activeTab === 'timeline' && <TimelineManager initialChapters={initialTimeline} />}
