@@ -1,4 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_TEST_PASSWORD ?? 'admin123';
@@ -58,9 +60,19 @@ test.describe('Public Pages', () => {
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
   });
 
-  test('gallery page loads', async ({ page }) => {
+  test('gallery page loads with images', async ({ page }) => {
     await page.goto('/gallery');
     await expect(page).toHaveTitle(/Gallery/);
+
+    // At least one gallery image should be visible
+    const images = page.locator('img[alt]');
+    await expect(images.first()).toBeVisible({ timeout: 10000 });
+
+    // No gallery content image should have placeholder alt text
+    // Scoped to the gallery content section (excludes hero/navigation images)
+    const gallerySection = page.locator('section').filter({ hasText: /Other Moments|Upcoming Events|Past Events/ });
+    const placeholderAlts = gallerySection.locator('img[alt="test"], img[alt="TODO"]');
+    await expect(placeholderAlts).toHaveCount(0);
   });
 
   test('sponsors page loads', async ({ page }) => {
@@ -322,4 +334,26 @@ test.describe('Visual Architecture (eventsunleashed clone)', () => {
     );
     expect(criticalErrors).toHaveLength(0);
   });
+});
+
+// ─── Data Integrity ─────────────────────────────────────────────────────────
+
+test.describe('Data Integrity', () => {
+  const dataFiles = ['gallery.json', 'events.json', 'sponsors.json'];
+
+  for (const file of dataFiles) {
+    test(`data/${file} and public/data/${file} are in sync`, () => {
+      const dataPath = join(process.cwd(), 'data', file);
+      const publicPath = join(process.cwd(), 'public', 'data', file);
+      let dataContent: string, publicContent: string;
+      try {
+        dataContent = readFileSync(dataPath, 'utf-8');
+        publicContent = readFileSync(publicPath, 'utf-8');
+      } catch {
+        // If either file doesn't exist, skip — seed data may not have been written yet
+        return;
+      }
+      expect(dataContent).toBe(publicContent);
+    });
+  }
 });

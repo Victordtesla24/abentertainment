@@ -116,10 +116,30 @@ function readData(filename, fallback) {
   return fallback;
 }
 
+// Files that must be mirrored to public/data/ after every write so
+// client-side fetchers and the next static-export build pick up changes.
+// Matches the PUBLIC_MIRRORED set in src/lib/data.ts.
+const PUBLIC_MIRRORED = new Set([
+  'events.json', 'sponsors.json', 'gallery.json', 'videos.json',
+  'hero-images.json', 'timeline.json', 'testimonials.json', 'pages.json', 'settings.json',
+]);
+const PUBLIC_DATA_DIR = path.join(WORKSPACE_DIR, 'public', 'data');
+
 function writeData(filename, data) {
   ensureDir(DATA_DIR);
+  const serialized = JSON.stringify(data, null, 2);
   const fp = path.join(DATA_DIR, filename);
-  fs.writeFileSync(fp, JSON.stringify(data, null, 2), 'utf-8');
+  fs.writeFileSync(fp, serialized, 'utf-8');
+  // Mirror to public/data/ so client-side fetchers and the next
+  // static-export build pick up admin changes immediately.
+  if (PUBLIC_MIRRORED.has(filename)) {
+    try {
+      ensureDir(PUBLIC_DATA_DIR);
+      fs.writeFileSync(path.join(PUBLIC_DATA_DIR, filename), serialized, 'utf-8');
+    } catch (err) {
+      console.error(`[data] mirror to public/data/${filename} failed:`, err.message);
+    }
+  }
 }
 
 // HMAC-signed stateless tokens — survive server restarts, no in-memory state needed
@@ -258,7 +278,7 @@ const MODELS = {
 
 const DEFAULT_MODEL = 'claude-sonnet-4.6-max-thinking';
 
-// ─── Agent Tools (8) ─────────────────────────────────────────────────────────
+// ─── Agent Tools (13) ────────────────────────────────────────────────────────
 const TOOLS = [
   {
     type: 'function',
@@ -372,6 +392,86 @@ const TOOLS = [
           mode: { type: 'string', enum: ['append', 'replace'], description: 'Whether to append to section or replace it', default: 'append' },
         },
         required: ['filename', 'section', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_gallery',
+      description: 'List all gallery images, optionally filtered by eventId.',
+      parameters: {
+        type: 'object',
+        properties: {
+          eventId: { type: 'string', description: 'Optional event ID to filter images by' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_gallery_image',
+      description: 'Add a new image to the gallery.',
+      parameters: {
+        type: 'object',
+        properties: {
+          src: { type: 'string', description: 'Image URL path (e.g. /images/gallery/photo.jpg)' },
+          alt: { type: 'string', description: 'Descriptive alt text for the image' },
+          category: { type: 'string', description: 'Image category (hero, background, event)', default: 'event' },
+          eventId: { type: 'string', description: 'Optional event ID to associate this image with' },
+          width: { type: 'number', description: 'Image width in pixels', default: 1200 },
+          height: { type: 'number', description: 'Image height in pixels', default: 800 },
+        },
+        required: ['src', 'alt'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_gallery_image',
+      description: 'Update an existing gallery image by ID.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Gallery image ID to update' },
+          alt: { type: 'string', description: 'New alt text' },
+          category: { type: 'string', description: 'New category' },
+          eventId: { type: 'string', description: 'New event ID association' },
+          order: { type: 'number', description: 'New sort order position' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_gallery_image',
+      description: 'Delete a gallery image by ID.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Gallery image ID to delete' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'upload_file',
+      description: 'Upload a file (base64-encoded) to the server. Returns the public URL path.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filename: { type: 'string', description: 'Original filename with extension (e.g. photo.jpg)' },
+          data: { type: 'string', description: 'Base64-encoded file content' },
+          folder: { type: 'string', description: 'Upload subfolder (e.g. gallery, events)', default: 'gallery' },
+        },
+        required: ['filename', 'data'],
       },
     },
   },
@@ -579,6 +679,69 @@ async function executeTool(name, args, sessionId) {
       }
     }
 
+    case 'list_gallery': {
+      let images = readData('gallery.json', []);
+      if (args.eventId) images = images.filter(i => i.eventId === args.eventId);
+      if (images.length === 0) return 'No gallery images found.';
+      return JSON.stringify(images, null, 2);
+    }
+
+    case 'add_gallery_image': {
+      const images = readData('gallery.json', []);
+      const img = {
+        id: `img-${Date.now()}`,
+        src: args.src || '',
+        alt: args.alt || '',
+        eventId: args.eventId || null,
+        category: args.category || 'event',
+        width: Number(args.width) || 1200,
+        height: Number(args.height) || 800,
+        order: images.length,
+        createdAt: new Date().toISOString(),
+      };
+      images.push(img);
+      writeData('gallery.json', images);
+      return 'Gallery image added: ' + JSON.stringify(img, null, 2);
+    }
+
+    case 'update_gallery_image': {
+      const images = readData('gallery.json', []);
+      const idx = images.findIndex(i => i.id === args.id);
+      if (idx === -1) return 'Error: Gallery image not found with ID: ' + args.id;
+      const { id, ...updates } = args;
+      images[idx] = { ...images[idx], ...updates };
+      writeData('gallery.json', images);
+      return 'Gallery image updated: ' + JSON.stringify(images[idx], null, 2);
+    }
+
+    case 'delete_gallery_image': {
+      let images = readData('gallery.json', []);
+      const before = images.length;
+      images = images.filter(i => i.id !== args.id);
+      if (images.length === before) return 'Error: Gallery image not found with ID: ' + args.id;
+      writeData('gallery.json', images);
+      return 'Gallery image deleted: ' + args.id;
+    }
+
+    case 'upload_file': {
+      try {
+        const ext = path.extname(args.filename).toLowerCase();
+        const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg'];
+        if (!ALLOWED_EXTS.includes(ext)) return 'Error: File type not allowed. Allowed: ' + ALLOWED_EXTS.join(', ');
+        if (args.data.length > 20 * 1024 * 1024 * 4 / 3) return 'Error: File too large (max 20 MB)';
+        const folder = (args.folder || 'gallery').replace(/[^a-zA-Z0-9._\-/]/g, '_');
+        const uploadDir = path.join(UPLOADS_DIR, folder);
+        const safe = path.basename(args.filename).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const finalName = `${Date.now()}-${safe}`;
+        ensureDir(uploadDir);
+        fs.writeFileSync(path.join(uploadDir, finalName), Buffer.from(args.data, 'base64'));
+        const publicUrl = `/uploads/${folder}/${finalName}`;
+        return 'File uploaded: ' + publicUrl;
+      } catch (e) {
+        return 'Upload error: ' + e.message;
+      }
+    }
+
     default:
       return 'Unknown tool: ' + name;
   }
@@ -674,11 +837,16 @@ Step 8 (ORCHESTRATOR OWNS): UPDATE MEMORY & PRESENT
   END OF WORKFLOW
 ═══════════════════════════════════════════════════════════════════════════
 
-AVAILABLE TOOLS (8):
+AVAILABLE TOOLS (13):
 - search_web: Deep research using Perplexity Sonar AI
 - generate_image: Create images with AI (UHD quality)
 - create_event: Create new events in the system
 - list_events: View all events
+- list_gallery: View all gallery images (optionally filter by eventId)
+- add_gallery_image: Add a new image to the gallery (src, alt, category, eventId)
+- update_gallery_image: Update gallery image metadata by ID (alt, category, eventId, order)
+- delete_gallery_image: Remove a gallery image by ID
+- upload_file: Upload a base64-encoded image file to the server (returns public URL)
 - analyze_code: Read website source code files (READ-ONLY)
 - modify_code: Modify code (REQUIRES admin approval phrase)
 - spawn_sub_agent: Delegate tasks to specialized AI models
