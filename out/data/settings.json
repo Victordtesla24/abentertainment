@@ -1,8 +1,9 @@
 {
   "chatModel": "gpt-4.1",
-  "adminChatModel": "anthropic/claude-sonnet-4.6:thinking-high",
+  "adminChatModel": "gpt-4.1",
   "heroTitle": "Melbourne's Legendary Cultural Events",
   "heroSubtitle": "Melbourne's Premier Indian & Marathi Performing Arts",
   "contactEmail": "abhi@abentertainment.com.au",
-  "contactPhone": "(+61) 430082646"
+  "contactPhone": "(+61) 430082646",
+  "siteImageOverrides": {}
 }
