@@ -521,10 +521,10 @@ export function CinematicHero() {
             <div className="absolute inset-0 bg-gradient-to-r from-[#D4B65C] via-[#E8D5A3] to-[#D4B65C] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           </Link>
           <Link
-            href="/events"
+            href="/contact"
             className="group px-10 py-4 border border-white/20 text-white text-sm uppercase tracking-[0.15em] font-body font-medium hover:border-[#C9A84C]/50 hover:text-[#C9A84C] transition-all duration-500 backdrop-blur-sm hover:shadow-[0_0_30px_rgba(201,168,76,0.15)]"
           >
-            Buy Tickets
+            Contact Us
           </Link>
         </motion.div>
 

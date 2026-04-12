@@ -1,9 +1,9 @@
 'use client';
 import { getApiUrl } from '@/lib/api-config';
-import { clearCsrfToken, clearAuthToken } from '@/lib/admin-fetch';
+import { clearCsrfToken, clearAuthToken, adminFetch } from '@/lib/admin-fetch';
 import Image from 'next/image';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Event, Sponsor, GalleryImage, SiteSettings, Video, HeroImage, TimelineChapter, Testimonial } from '@/lib/data';
 import EventsManager from './EventsManager';
@@ -117,6 +117,38 @@ export default function AdminDashboard({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('health');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [events, setEvents] = useState(initialEvents);
+  const [sponsors, setSponsors] = useState(initialSponsors);
+  const [gallery, setGallery] = useState(initialGallery);
+  const [settings, setSettings] = useState(initialSettings);
+  const [videos, setVideos] = useState(initialVideos);
+  const [heroImages, setHeroImages] = useState(initialHeroImages);
+  const [timeline, setTimeline] = useState(initialTimeline);
+  const [testimonials, setTestimonials] = useState(initialTestimonials);
+
+  // Refresh data when switching tabs so externally-added items appear
+  const refreshData = useCallback(async () => {
+    const [evtRes, spRes, galRes, setRes, vidRes, heroRes, tlRes, testRes] = await Promise.allSettled([
+      adminFetch('/api/admin/events').then(r => r.ok ? r.json() : null),
+      adminFetch('/api/admin/sponsors').then(r => r.ok ? r.json() : null),
+      adminFetch('/api/admin/gallery').then(r => r.ok ? r.json() : null),
+      adminFetch('/api/admin/settings').then(r => r.ok ? r.json() : null),
+      adminFetch('/api/admin/videos').then(r => r.ok ? r.json() : null),
+      adminFetch('/api/admin/hero-images').then(r => r.ok ? r.json() : null),
+      adminFetch('/api/admin/timeline').then(r => r.ok ? r.json() : null),
+      adminFetch('/api/admin/testimonials').then(r => r.ok ? r.json() : null),
+    ]);
+    if (evtRes.status === 'fulfilled' && evtRes.value?.events) setEvents(evtRes.value.events);
+    if (spRes.status === 'fulfilled' && spRes.value?.sponsors) setSponsors(spRes.value.sponsors);
+    if (galRes.status === 'fulfilled' && galRes.value?.images) setGallery(galRes.value.images);
+    if (setRes.status === 'fulfilled' && setRes.value?.settings) setSettings(setRes.value.settings);
+    if (vidRes.status === 'fulfilled' && vidRes.value?.videos) setVideos(vidRes.value.videos);
+    if (heroRes.status === 'fulfilled' && heroRes.value?.images) setHeroImages(heroRes.value.images);
+    if (tlRes.status === 'fulfilled' && tlRes.value?.chapters) setTimeline(tlRes.value.chapters);
+    if (testRes.status === 'fulfilled' && testRes.value?.testimonials) setTestimonials(testRes.value.testimonials);
+  }, []);
+
+  useEffect(() => { refreshData(); }, [activeTab, refreshData]);
 
   async function handleLogout() {
     await fetch(getApiUrl('/api/admin/auth'), { method: 'DELETE', credentials: 'include' });
@@ -254,15 +286,15 @@ export default function AdminDashboard({
 
         {/* Page Content */}
         <div className="p-8">
-          {activeTab === 'health' && <HealthDashboard events={initialEvents} sponsors={initialSponsors} />}
-          {activeTab === 'events' && <EventsManager initialEvents={initialEvents} allSponsors={initialSponsors} />}
-          {activeTab === 'sponsors' && <SponsorsManager initialSponsors={initialSponsors} allEvents={initialEvents} />}
-          {activeTab === 'gallery' && <GalleryManager initialGallery={initialGallery} allEvents={initialEvents} initialSiteImageOverrides={initialSettings.siteImageOverrides} />}
-          {activeTab === 'heroes' && <HeroImageManager initialImages={initialHeroImages} />}
-          {activeTab === 'videos' && <VideoManager initialVideos={initialVideos} events={initialEvents} />}
-          {activeTab === 'timeline' && <TimelineManager initialChapters={initialTimeline} />}
-          {activeTab === 'testimonials' && <TestimonialsManager initialTestimonials={initialTestimonials} />}
-          {activeTab === 'settings' && <SettingsManager initialSettings={initialSettings} />}
+          {activeTab === 'health' && <HealthDashboard events={events} sponsors={sponsors} />}
+          {activeTab === 'events' && <EventsManager initialEvents={events} allSponsors={sponsors} />}
+          {activeTab === 'sponsors' && <SponsorsManager initialSponsors={sponsors} allEvents={events} />}
+          {activeTab === 'gallery' && <GalleryManager initialGallery={gallery} allEvents={events} initialSiteImageOverrides={settings.siteImageOverrides} />}
+          {activeTab === 'heroes' && <HeroImageManager initialImages={heroImages} />}
+          {activeTab === 'videos' && <VideoManager initialVideos={videos} events={events} />}
+          {activeTab === 'timeline' && <TimelineManager initialChapters={timeline} />}
+          {activeTab === 'testimonials' && <TestimonialsManager initialTestimonials={testimonials} />}
+          {activeTab === 'settings' && <SettingsManager initialSettings={settings} />}
           {activeTab === 'ai' && <AdminChatbot activeTab={activeTab} />}
           {activeTab === 'conversations' && <AgentConversations />}
         </div>
