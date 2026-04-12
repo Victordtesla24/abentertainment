@@ -14,7 +14,7 @@ $VPS_HOST = 'http://187.77.12.13:3000';
 
 // Get the API path from the query parameter set by .htaccess rewrite
 $apiPath = isset($_GET['__path']) ? $_GET['__path'] : '';
-$validPath = $apiPath && (strpos($apiPath, '/api/') === 0 || strpos($apiPath, '/uploads/') === 0);
+$validPath = $apiPath && (strpos($apiPath, '/api/') === 0 || strpos($apiPath, '/uploads/') === 0 || strpos($apiPath, '/events/') === 0);
 if (!$validPath) {
     http_response_code(400);
     header('Content-Type: application/json');
