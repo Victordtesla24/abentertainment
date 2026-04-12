@@ -2,7 +2,7 @@
 import { adminFetch } from '@/lib/admin-fetch';
 import { uploadFile } from '@/lib/upload-helper';
 
-import { useState, useCallback, FormEvent } from 'react';
+import { useState, useCallback, useEffect, FormEvent } from 'react';
 import type { GalleryImage, Event } from '@/lib/data';
 
 interface GalleryManagerProps {
