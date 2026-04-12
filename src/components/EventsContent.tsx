@@ -313,9 +313,18 @@ function EventsContentFallback() {
   );
 }
 
-function EventsContentInner({ events, contactEmail }: EventsContentProps) {
+function EventsContentInner({ events: initialEvents, contactEmail }: EventsContentProps) {
+  const [events, setEvents] = useState<Event[]>(initialEvents);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Fetch live data from VPS so admin changes appear without a rebuild
+  useEffect(() => {
+    fetch('/api/events')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (Array.isArray(data) && data.length > 0) setEvents(data); })
+      .catch(() => {});
+  }, []);
 
   // Read initial filter state from URL params
   const [category, setCategory] = useState(searchParams.get('category') || '');
