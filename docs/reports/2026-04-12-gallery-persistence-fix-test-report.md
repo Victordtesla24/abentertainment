@@ -95,24 +95,35 @@
 | Sponsors page renders | Tier groups with sponsor cards | Screenshot confirmed | PASS |
 | Admin login page renders | Username/Password form + Sign In button | Confirmed via read_page | PASS |
 
-### API Deployment (VPS Docker)
+### API Deployment (VPS Docker — rebuilt)
 
 | Test | Expected | Actual | Status |
 |------|----------|--------|--------|
-| Admin login (POST /api/admin/auth) | 200 + csrfToken | 200 `{"success":true,"csrfToken":"84f2..."}` | PASS |
+| Admin login (POST /api/admin/auth) | 200 + csrfToken | 200 `{"success":true,"csrfToken":"c685..."}` | PASS |
 | Gallery GET | 200 + images array | 200, 3 images returned | PASS |
-| Gallery PUT | 200 + updated image | **405** — VPS Docker container not yet rebuilt | PENDING |
+| Gallery PUT (edit image) | 200 + updated image | 200 `{"image":{"alt":"PROD VERIFIED: Golden Stage Lights","category":"promotional",...}}` | PASS |
+| Gallery PUT persistence | Updated alt/category in GET | Confirmed: `alt="PROD VERIFIED: Golden Stage Lights" cat=promotional` | PASS |
+| Gallery PUT revert | 200 + original values | 200, reverted to original alt/category | PASS |
+| Site image override save | 200 via settings PUT | 200 `{"success":true}` | PASS |
+| Site image override persistence | Override in settings GET | Confirmed: `{"/images/hero-bg.jpg": {"alt": "Production test override"}}` | PASS |
+| Override cleanup | 200, reset to empty | 200 `{"success":true}` | PASS |
 
-### VPS Rebuild Required
+### Public Pages Intact (Visual Evidence)
 
-The API route changes (gallery PUT handler, settings merge) require the VPS Docker container to be rebuilt:
+| Page | URL | Title | Status |
+|------|-----|-------|--------|
+| Homepage | abentertainment.com.au | AB Entertainment | PASS — hero, nav, particles rendering |
+| About | abentertainment.com.au/about/ | About \| AB Entertainment | PASS — hero banner, content sections |
+| Events | abentertainment.com.au/events/ | Events \| AB Entertainment | PASS — hero, filters, Upcoming Events cards |
+| Gallery | abentertainment.com.au/gallery/ | Gallery \| AB Entertainment | PASS — event folders, images |
+| Sponsors | abentertainment.com.au/sponsors/ | Sponsors \| AB Entertainment | PASS — tier groups, sponsor cards |
+| Contact | abentertainment.com.au/contact/ | Contact \| AB Entertainment | PASS — hero, contact form |
+| Admin Login | abentertainment.com.au/admin/login | AB Entertainment | PASS — login form renders |
 
-```bash
-ssh root@<VPS_IP>
-cd /opt/abentertainment
-git pull origin main
-docker compose build
-docker compose up -d
+### VPS Docker Rebuild Log
+
 ```
-
-The frontend changes (GalleryManager component, site image override loading) are already live on Hostinger.
+git pull origin main      → Fast-forward dd6af2d..6e49d96 (177 files)
+docker compose build      → Image abentertainment-app Built (51.6s build)
+docker compose up -d      → Container Recreated + Started
+```
