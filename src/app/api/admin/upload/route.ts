@@ -27,7 +27,7 @@ export const POST = withAuth(async (request: NextRequest) => {
       return NextResponse.json({ error: 'File too large (max 20 MB)' }, { status: 400 });
     }
 
-    const uploadsRoot = join(process.cwd(), 'public', 'uploads');
+    const uploadsRoot = join(process.env.REPO_ROOT || process.cwd(), 'public', 'uploads');
     const safeFolder = normalize(folder).replace(/^(\.\.[/\\])+/, '').replace(/[^a-zA-Z0-9._\-/]/g, '_') || 'general';
     const uploadDir = join(uploadsRoot, safeFolder);
     if (!uploadDir.startsWith(uploadsRoot)) {

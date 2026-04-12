@@ -31,7 +31,7 @@ export async function GET(
     return NextResponse.json({ error: 'File type not allowed' }, { status: 400 });
   }
 
-  const fullPath = join(process.cwd(), 'public', 'uploads', filePath);
+  const fullPath = join(process.env.REPO_ROOT || process.cwd(), 'public', 'uploads', filePath);
 
   try {
     const buffer = await readFile(fullPath);
