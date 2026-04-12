@@ -22,7 +22,15 @@ if (!$validPath) {
     exit;
 }
 
-$targetUrl = $VPS_HOST . $apiPath;
+// Sanitize path: only allow safe URL characters (letters, digits, hyphens, underscores, slashes, dots)
+// Prevents cURL "URL rejected: Malformed input to a URL function" on newer cURL 7.78+/8.x
+$apiPath = preg_replace('/[^a-zA-Z0-9\-_\.\/]/', '', $apiPath);
+
+// Forward original query parameters (minus the internal __path rewrite param)
+$queryParams = $_GET;
+unset($queryParams['__path']);
+$queryString = http_build_query($queryParams);
+$targetUrl = $VPS_HOST . $apiPath . ($queryString ? '?' . $queryString : '');
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Read request body for POST/PUT/PATCH/DELETE
@@ -110,6 +118,10 @@ foreach (explode("\r\n", $responseHeaders) as $headerLine) {
         header($headerLine, false);
     }
 }
+
+// Prevent browser/CDN caching of API responses so admin changes appear immediately
+header('Cache-Control: no-store, no-cache, must-revalidate');
+header('Pragma: no-cache');
 
 // Set CORS headers for the proxied response
 header('Access-Control-Allow-Origin: https://abentertainment.com.au');

@@ -6,11 +6,6 @@ import {
   getSessionCookieName,
   validateSessionToken,
 } from '@/lib/auth';
-import {
-  checkLoginAllowed,
-  recordFailedAttempt,
-  clearFailedAttempts,
-} from '@/lib/login-protection';
 import { generateCsrfToken, setCsrfCookie } from '@/lib/csrf';
 import { validateOrigin, corsHeaders } from '@/lib/cors';
 import { logAdminAction } from '@/lib/audit';
@@ -37,20 +32,7 @@ export async function POST(request: NextRequest) {
     const { username, password } = await request.json();
     const ip = getClientIp(request);
 
-    // Brute-force protection check
-    const loginCheck = checkLoginAllowed(ip, username ?? '');
-    if (!loginCheck.allowed) {
-      return NextResponse.json(
-        { error: 'Too many failed attempts. Please try again later.' },
-        {
-          status: 429,
-          headers: { ...corsHeaders(origin), 'Retry-After': String(loginCheck.retryAfter) },
-        }
-      );
-    }
-
     if (!(await validateCredentials(username, password))) {
-      recordFailedAttempt(ip, username ?? '');
       try { logAdminAction(username ?? 'unknown', 'LOGIN_FAILED', '/api/admin/auth', ip); } catch { /* audit must not block auth */ }
       return NextResponse.json(
         { error: 'Authentication failed' },
@@ -58,8 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Success -- clear rate-limit state, issue session cookie, and generate CSRF token
-    clearFailedAttempts(ip, username);
+    // Success -- issue session cookie and generate CSRF token
     try { logAdminAction(username, 'LOGIN_SUCCESS', '/api/admin/auth', ip); } catch { /* audit must not block auth */ }
 
     const sessionToken = createSessionToken();

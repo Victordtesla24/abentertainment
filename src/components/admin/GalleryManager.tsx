@@ -103,6 +103,7 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
   const [src, setSrc] = useState('');
   const [alt, setAlt] = useState('');
   const [category, setCategory] = useState('event');
+  const [eventId, setEventId] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -113,6 +114,7 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAlt, setEditAlt] = useState('');
   const [editCategory, setEditCategory] = useState('');
+  const [editEventId, setEditEventId] = useState('');
   const [editSaving, setEditSaving] = useState(false);
 
   // Site image edit state — initialized from persisted overrides
@@ -173,7 +175,7 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
       const res = await adminFetch('/api/admin/gallery', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ src, alt, category, width: 1200, height: 800 }),
+        body: JSON.stringify({ src, alt, category, eventId: eventId || undefined, width: 1200, height: 800 }),
       });
 
       if (!res.ok) throw new Error('Failed to add image');
@@ -182,6 +184,7 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
       setImages((prev) => [...prev, data.image]);
       setSrc('');
       setAlt('');
+      setEventId('');
       setCreating(false);
       showMessage('Image added');
     } catch (err) {
@@ -219,12 +222,14 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
     setEditingId(image.id);
     setEditAlt(image.alt);
     setEditCategory(image.category);
+    setEditEventId(image.eventId || '');
   }
 
   function cancelEditing() {
     setEditingId(null);
     setEditAlt('');
     setEditCategory('');
+    setEditEventId('');
   }
 
   async function handleEditSave(id: string) {
@@ -233,14 +238,14 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
       const res = await adminFetch('/api/admin/gallery', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, alt: editAlt, category: editCategory }),
+        body: JSON.stringify({ id, alt: editAlt, category: editCategory, eventId: editEventId || null }),
       });
 
       if (!res.ok) throw new Error('Failed to update image');
 
       setImages((prev) =>
         prev.map((img) =>
-          img.id === id ? { ...img, alt: editAlt, category: editCategory } : img
+          img.id === id ? { ...img, alt: editAlt, category: editCategory, eventId: editEventId || undefined } : img
         )
       );
       cancelEditing();
@@ -472,6 +477,17 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
                 <option value="promotional">Promotional</option>
               </select>
             </div>
+            {allEvents && allEvents.length > 0 && (
+              <div>
+                <label className="block text-[10px] font-body uppercase tracking-wider text-white/35 mb-1">Assign to Event</label>
+                <select value={eventId} onChange={(e) => setEventId(e.target.value)} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/15 text-white text-sm font-body focus:outline-none focus:border-[#C9A84C]/40">
+                  <option value="">No event (uncategorised)</option>
+                  {allEvents.map((ev) => (
+                    <option key={ev.id} value={ev.id}>{ev.title}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="md:col-span-2 flex gap-3 pt-2">
               <button type="submit" disabled={saving} className="px-6 py-2 bg-[#C9A84C] text-black text-sm font-body font-semibold hover:bg-[#D4B65C] disabled:opacity-50">
                 {saving ? 'Adding...' : 'Add Image'}
@@ -670,6 +686,21 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
                             <option value="promotional">Promotional</option>
                           </select>
                         </div>
+                        {allEvents && allEvents.length > 0 && (
+                          <div>
+                            <label className="block text-[9px] font-body uppercase tracking-wider text-white/35 mb-0.5">Event</label>
+                            <select
+                              value={editEventId}
+                              onChange={(e) => setEditEventId(e.target.value)}
+                              className="w-full px-2 py-1.5 bg-[#111111] border border-[#C9A84C]/20 text-white text-[11px] font-body focus:outline-none focus:border-[#C9A84C]/50"
+                            >
+                              <option value="">No event (uncategorised)</option>
+                              {allEvents.map((ev) => (
+                                <option key={ev.id} value={ev.id}>{ev.title}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                         <div className="flex gap-2 pt-1">
                           <button
                             onClick={() => handleEditSave(image.id)}
