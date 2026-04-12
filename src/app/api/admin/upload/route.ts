@@ -39,7 +39,7 @@ export const POST = withAuth(async (request: NextRequest) => {
     await mkdir(uploadDir, { recursive: true });
     await writeFile(join(uploadDir, finalName), buffer);
 
-    return NextResponse.json({ url: `/uploads/${safeFolder}/${finalName}`, filename: finalName });
+    return NextResponse.json({ url: `/api/uploads/${safeFolder}/${finalName}`, filename: finalName });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Upload failed';
     return NextResponse.json({ error: message }, { status: 500 });
