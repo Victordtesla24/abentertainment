@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -73,8 +73,17 @@ function formatDate(dateString: string): string {
   return date.toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export default function EventsShowcase({ events }: { events: Event[] }) {
+export default function EventsShowcase({ events: initialEvents }: { events: Event[] }) {
+  const [events, setEvents] = useState<Event[]>(initialEvents);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  // Fetch live data so admin changes appear without a rebuild
+  useEffect(() => {
+    fetch('/api/events')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (Array.isArray(data) && data.length > 0) setEvents(data); })
+      .catch(() => {});
+  }, []);
 
   // Featured event: next upcoming event for the Golden Ticket
   const featuredEvent = useMemo(() => {

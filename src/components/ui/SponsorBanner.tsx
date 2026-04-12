@@ -1,10 +1,7 @@
 'use client';
 
-/**
- * Sponsor data — single source of truth.
- * Matches SEED_SPONSORS in data.ts (used at build time for server pages).
- * This client component needs its own copy since it can't import from data.ts (server-only fs).
- */
+import { useState, useEffect } from 'react';
+
 interface SponsorItem {
   name: string;
   logo: string;
@@ -12,7 +9,7 @@ interface SponsorItem {
   tier: string;
 }
 
-const SPONSORS: SponsorItem[] = [
+const FALLBACK_SPONSORS: SponsorItem[] = [
   { name: 'Melbourne Arts Council', logo: '/images/sponsors/mac.png', url: 'https://www.melbourne.vic.gov.au', tier: 'platinum' },
   { name: 'Victorian Multicultural Commission', logo: '/images/sponsors/vmc.png', url: 'https://www.multiculturalcommission.vic.gov.au', tier: 'gold' },
   { name: 'SBS Australia', logo: '/images/sponsors/sbs.png', url: 'https://www.sbs.com.au', tier: 'gold' },
@@ -20,8 +17,17 @@ const SPONSORS: SponsorItem[] = [
 ];
 
 export default function SponsorBanner() {
+  const [sponsors, setSponsors] = useState<SponsorItem[]>(FALLBACK_SPONSORS);
+
+  useEffect(() => {
+    fetch('/api/sponsors')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (Array.isArray(data) && data.length > 0) setSponsors(data); })
+      .catch(() => {});
+  }, []);
+
   // Double for seamless CSS animation loop (horizontal marquee)
-  const marqueeItems = [...SPONSORS, ...SPONSORS];
+  const marqueeItems = [...sponsors, ...sponsors];
 
   return (
     <div aria-label="Our sponsors" className="w-full bg-[#0A0A0A] border-b border-[#C9A84C]/10 overflow-hidden">
