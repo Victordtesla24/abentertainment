@@ -122,6 +122,7 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
   const [editingSiteImage, setEditingSiteImage] = useState<string | null>(null);
   const [editSiteSrc, setEditSiteSrc] = useState('');
   const [editSiteAlt, setEditSiteAlt] = useState('');
+  const [editSiteEventId, setEditSiteEventId] = useState('');
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -552,8 +553,41 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
                         <label className="block text-[9px] font-body uppercase tracking-wider text-white/35 mb-0.5">Image URL</label>
                         <input type="text" value={editSiteSrc} onChange={(e) => setEditSiteSrc(e.target.value)} className="w-full px-2 py-1.5 bg-[#111111] border border-[#C9A84C]/20 text-white text-[11px] font-body focus:outline-none focus:border-[#C9A84C]/50" />
                       </div>
+                      {allEvents && allEvents.length > 0 && (
+                        <div>
+                          <label className="block text-[9px] font-body uppercase tracking-wider text-white/35 mb-0.5">Event</label>
+                          <select
+                            value={editSiteEventId}
+                            onChange={(e) => setEditSiteEventId(e.target.value)}
+                            className="w-full px-2 py-1.5 bg-[#111111] border border-[#C9A84C]/20 text-white text-[11px] font-body focus:outline-none focus:border-[#C9A84C]/50"
+                          >
+                            <option value="">No event (uncategorised)</option>
+                            {allEvents.map((ev) => (
+                              <option key={ev.id} value={ev.id}>{ev.title}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <div className="flex gap-2 pt-1">
-                        <button onClick={() => { const updated = { ...siteImageEdits, [image.src]: { alt: editSiteAlt, src: editSiteSrc } }; setSiteImageEdits(updated); setEditingSiteImage(null); saveSiteImageOverrides(updated); showMessage('Image updated'); }} className="flex-1 px-3 py-1.5 bg-[#C9A84C] text-black text-[10px] font-body font-semibold hover:bg-[#D4B65C] transition-colors">Save</button>
+                        <button onClick={async () => {
+                          const updated = { ...siteImageEdits, [image.src]: { alt: editSiteAlt, src: editSiteSrc } };
+                          setSiteImageEdits(updated);
+                          setEditingSiteImage(null);
+                          saveSiteImageOverrides(updated);
+                          // If event assigned, create/update a gallery entry so it appears on the public gallery page
+                          if (editSiteEventId) {
+                            const imgSrc = editSiteSrc || image.src;
+                            const existing = images.find(g => g.src === imgSrc);
+                            if (existing) {
+                              await adminFetch('/api/admin/gallery', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: existing.id, eventId: editSiteEventId, alt: editSiteAlt || image.alt }) });
+                              setImages(prev => prev.map(g => g.id === existing.id ? { ...g, eventId: editSiteEventId, alt: editSiteAlt || image.alt } : g));
+                            } else {
+                              const res = await adminFetch('/api/admin/gallery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ src: imgSrc, alt: editSiteAlt || image.alt, category: group.category, eventId: editSiteEventId, width: 1200, height: 800 }) });
+                              if (res.ok) { const data = await res.json(); setImages(prev => [...prev, data.image]); }
+                            }
+                          }
+                          showMessage('Image updated');
+                        }} className="flex-1 px-3 py-1.5 bg-[#C9A84C] text-black text-[10px] font-body font-semibold hover:bg-[#D4B65C] transition-colors">Save</button>
                         <button onClick={() => setEditingSiteImage(null)} className="flex-1 px-3 py-1.5 border border-white/20 text-white/40 text-[10px] font-body hover:text-white transition-colors">Cancel</button>
                       </div>
                     </div>
@@ -562,7 +596,7 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
                       <p className="text-white text-[11px] font-body font-medium truncate">{siteImageEdits[image.src]?.alt || image.alt}</p>
                       <p className="text-white/25 text-[9px] font-body mt-0.5 truncate">{siteImageEdits[image.src]?.src || image.src}</p>
                       <div className="flex items-center gap-1 mt-2 pt-2 border-t border-white/5">
-                        <button onClick={() => { setEditingSiteImage(image.src); setEditSiteAlt(siteImageEdits[image.src]?.alt || image.alt); setEditSiteSrc(siteImageEdits[image.src]?.src || image.src); }} className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-[#C9A84C] hover:border-[#C9A84C]/30 transition-colors">Edit</button>
+                        <button onClick={() => { setEditingSiteImage(image.src); setEditSiteAlt(siteImageEdits[image.src]?.alt || image.alt); setEditSiteSrc(siteImageEdits[image.src]?.src || image.src); setEditSiteEventId(images.find(g => g.src === image.src)?.eventId || ''); }} className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-[#C9A84C] hover:border-[#C9A84C]/30 transition-colors">Edit</button>
                         <button onClick={() => { const updated = { ...siteImageEdits, [image.src]: { ...siteImageEdits[image.src], src: '' } }; setSiteImageEdits(updated); saveSiteImageOverrides(updated); showMessage('Image marked for replacement'); }} className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-[#C9A84C] hover:border-[#C9A84C]/30 transition-colors">Replace</button>
                       </div>
                     </div>
