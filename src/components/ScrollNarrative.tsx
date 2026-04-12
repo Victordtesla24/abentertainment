@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -24,7 +24,7 @@ interface NarrativeSlide {
   backgroundImage?: string;
 }
 
-const NARRATIVE_SLIDES: NarrativeSlide[] = [
+const FALLBACK_SLIDES: NarrativeSlide[] = [
   {
     id: 'origins',
     preTitle: 'Chapter I',
@@ -57,6 +57,27 @@ const NARRATIVE_SLIDES: NarrativeSlide[] = [
 export default function ScrollNarrative() {
   const containerRef = useRef<HTMLDivElement>(null);
   const slidesRef = useRef<(HTMLDivElement | null)[]>([]);
+  const [slides, setSlides] = useState<NarrativeSlide[]>(FALLBACK_SLIDES);
+
+  // Fetch live timeline data from admin
+  useEffect(() => {
+    fetch('/api/timeline')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setSlides(data.map((ch: { id: string; preTitle: string; title: string; body: string; statValue?: string; statLabel?: string; accent: string; backgroundImage?: string }) => ({
+            id: ch.id,
+            preTitle: ch.preTitle,
+            title: ch.title,
+            body: ch.body,
+            stat: ch.statValue ? { value: ch.statValue, label: ch.statLabel || '' } : undefined,
+            accent: ch.accent,
+            backgroundImage: ch.backgroundImage,
+          })));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -210,7 +231,7 @@ export default function ScrollNarrative() {
       </div>
 
       {/* Narrative Slides */}
-      {NARRATIVE_SLIDES.map((slide, index) => (
+      {slides.map((slide, index) => (
         <div
           key={slide.id}
           ref={(el) => { slidesRef.current[index] = el; }}

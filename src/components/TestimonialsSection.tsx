@@ -13,7 +13,7 @@ interface Testimonial {
   event: string;
 }
 
-const TESTIMONIALS: Testimonial[] = [
+const FALLBACK_TESTIMONIALS: Testimonial[] = [
   { id: 'test-1', name: 'Priya Sharma', role: 'Event Attendee', quote: 'AB Entertainment transformed my understanding of Marathi theatre. The production quality rivals anything I\'ve seen in Mumbai. Absolutely world-class.', rating: 5, image: '/images/team/vrushali-deshpande.jpg', event: 'Punha Sahi re Sahi' },
   { id: 'test-2', name: 'Rajesh Kulkarni', role: 'Community Leader', quote: 'They don\'t just organize events -- they create cultural experiences. Every detail from lighting to sound is meticulously crafted. A gem for Melbourne\'s Indian community.', rating: 5, image: '/images/team/abhijit-kadam.jpg', event: 'Shyamachi Aai' },
   { id: 'test-3', name: 'Sneha Deshmukh', role: 'Regular Patron', quote: 'I\'ve attended every AB Entertainment show for the past three years. The consistency of quality and the passion behind every performance is truly inspiring.', rating: 5, image: '/images/team/vrushali-deshpande.jpg', event: 'Sankarshan via Spruha' },
@@ -61,22 +61,31 @@ const slideVariants = {
 };
 
 export function TestimonialsSection() {
+  const [testimonials, setTestimonials] = useState<Testimonial[]>(FALLBACK_TESTIMONIALS);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
+  // Fetch live testimonials from admin
+  useEffect(() => {
+    fetch('/api/testimonials')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (Array.isArray(data) && data.length > 0) setTestimonials(data); })
+      .catch(() => {});
+  }, []);
+
   const paginate = (newDirection: number) => {
     setDirection(newDirection);
-    setCurrentIndex((prev) => (prev + newDirection + TESTIMONIALS.length) % TESTIMONIALS.length);
+    setCurrentIndex((prev) => (prev + newDirection + testimonials.length) % testimonials.length);
   };
 
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || testimonials.length === 0) return;
     const timer = setTimeout(() => paginate(1), 6000);
     return () => clearTimeout(timer);
-  }, [currentIndex, isPaused]);
+  }, [currentIndex, isPaused, testimonials.length]);
 
-  const current = TESTIMONIALS[currentIndex];
+  const current = testimonials[currentIndex % testimonials.length];
 
   return (
     <section className="relative py-28 bg-[#0A0A0A] overflow-hidden">
@@ -158,7 +167,7 @@ export function TestimonialsSection() {
 
           {/* Indicators */}
           <div className="flex justify-center gap-2.5 mt-10">
-            {TESTIMONIALS.map((_, index) => (
+            {testimonials.map((_, index) => (
               <button
                 key={index}
                 onClick={() => { setDirection(index > currentIndex ? 1 : -1); setCurrentIndex(index); }}

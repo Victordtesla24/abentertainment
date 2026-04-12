@@ -35,6 +35,12 @@ RewriteRule ^(.*)$ out/$1 [L]
 RewriteCond %{DOCUMENT_ROOT}/out/$1/index.html -f
 RewriteRule ^(.*?)/?$ out/$1/index.html [L]
 
+# Fallback: event detail pages created after the last build don't have static HTML.
+# Proxy to VPS which renders them dynamically with live data.
+RewriteCond %{REQUEST_URI} ^/events/[^/]+/?$ [NC]
+RewriteCond %{DOCUMENT_ROOT}/out/events/%1/index.html !-f
+RewriteRule ^events/(.+?)/?$ api-proxy.php?__path=/events/$1 [QSA,L]
+
 # Root URL fallback → serve out/index.html
 RewriteCond %{REQUEST_URI} ^/$
 RewriteRule ^$ out/index.html [L]

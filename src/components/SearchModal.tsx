@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import Fuse, { type IFuseOptions, type FuseResult } from 'fuse.js';
 import FocusTrap from 'focus-trap-react';
-import eventsData from '../../data/events.json';
+// Bundled fallback for offline/build-time; live data fetched from API on open
+let eventsDataFallback: unknown[] = [];
+try { eventsDataFallback = require('../../data/events.json'); } catch { /* static import may fail in some contexts */ }
 
 interface SearchableEvent {
   id: string;
@@ -55,10 +57,16 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [results, setResults] = useState<FuseResult<SearchableEvent>[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Load events data from bundled JSON (works in static export)
+  // Fetch live events from API, fall back to bundled JSON
   useEffect(() => {
     if (!isOpen || events.length > 0) return;
-    setEvents(eventsData as unknown as SearchableEvent[]);
+    fetch('/api/events')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) setEvents(data as SearchableEvent[]);
+        else setEvents(eventsDataFallback as unknown as SearchableEvent[]);
+      })
+      .catch(() => setEvents(eventsDataFallback as unknown as SearchableEvent[]));
   }, [isOpen, events.length]);
 
   // Search with Fuse.js
