@@ -333,7 +333,6 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
         saveConversation(messages);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function exportConversation(format: 'json' | 'text') {

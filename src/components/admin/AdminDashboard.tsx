@@ -287,10 +287,10 @@ export default function AdminDashboard({
         {/* Page Content */}
         <div className="p-8">
           {activeTab === 'health' && <HealthDashboard events={events} sponsors={sponsors} />}
-          {activeTab === 'events' && <EventsManager initialEvents={events} allSponsors={sponsors} />}
-          {activeTab === 'sponsors' && <SponsorsManager initialSponsors={sponsors} allEvents={events} />}
-          {activeTab === 'gallery' && <GalleryManager initialGallery={gallery} allEvents={events} initialSiteImageOverrides={settings.siteImageOverrides} />}
-          {activeTab === 'heroes' && <HeroImageManager initialImages={heroImages} />}
+          {activeTab === 'events' && <EventsManager initialEvents={events} allSponsors={sponsors} allGallery={gallery} />}
+          {activeTab === 'sponsors' && <SponsorsManager initialSponsors={sponsors} allEvents={events} allGallery={gallery} />}
+          {activeTab === 'gallery' && <GalleryManager initialGallery={gallery} allEvents={events} allSponsors={sponsors} allHeroImages={heroImages} initialSiteImageOverrides={settings.siteImageOverrides} />}
+          {activeTab === 'heroes' && <HeroImageManager initialImages={heroImages} allGallery={gallery} />}
           {activeTab === 'videos' && <VideoManager initialVideos={videos} events={events} />}
           {activeTab === 'timeline' && <TimelineManager initialChapters={timeline} />}
           {activeTab === 'testimonials' && <TestimonialsManager initialTestimonials={testimonials} />}

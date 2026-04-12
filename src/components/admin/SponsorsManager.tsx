@@ -3,14 +3,17 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { uploadFile } from '@/lib/upload-helper';
 
 import { useState, useMemo, FormEvent } from 'react';
-import type { Sponsor, Event } from '@/lib/data';
+import type { Sponsor, Event, GalleryImage } from '@/lib/data';
+import GalleryPicker from './GalleryPicker';
 
 interface SponsorsManagerProps {
   initialSponsors: Sponsor[];
   allEvents?: Event[];
+  allGallery?: GalleryImage[];
 }
 
-export default function SponsorsManager({ initialSponsors, allEvents }: SponsorsManagerProps) {
+export default function SponsorsManager({ initialSponsors, allEvents, allGallery = [] }: SponsorsManagerProps) {
+  const [showGalleryPicker, setShowGalleryPicker] = useState(false);
   const [sponsors, setSponsors] = useState<Sponsor[]>(
     () => [...initialSponsors].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   );
@@ -339,6 +342,15 @@ export default function SponsorsManager({ initialSponsors, allEvents }: Sponsors
                 >
                   {uploading ? 'Uploading...' : 'Upload File'}
                 </label>
+                {allGallery.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowGalleryPicker(true)}
+                    className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors whitespace-nowrap flex items-center rounded-sm"
+                  >
+                    Gallery
+                  </button>
+                )}
               </div>
             </div>
             <div>
@@ -500,6 +512,18 @@ export default function SponsorsManager({ initialSponsors, allEvents }: Sponsors
           )}
         </div>
       </div>
+
+      {showGalleryPicker && (
+        <GalleryPicker
+          images={allGallery}
+          title="Select Sponsor Logo from Gallery"
+          onSelect={(img) => {
+            setLogo(img.src);
+            setShowGalleryPicker(false);
+          }}
+          onClose={() => setShowGalleryPicker(false)}
+        />
+      )}
     </div>
   );
 }

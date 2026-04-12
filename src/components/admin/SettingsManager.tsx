@@ -119,7 +119,6 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
         ...(needsChat ? { chatModel: 'gpt-4.1-mini' } : {}),
       }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleLogoSelect(e: React.ChangeEvent<HTMLInputElement>) {

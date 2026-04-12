@@ -3,11 +3,13 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { uploadFile } from '@/lib/upload-helper';
 
 import { useState, useCallback, useEffect, FormEvent } from 'react';
-import type { GalleryImage, Event } from '@/lib/data';
+import type { GalleryImage, Event, Sponsor, HeroImage } from '@/lib/data';
 
 interface GalleryManagerProps {
   initialGallery: GalleryImage[];
   allEvents?: Event[];
+  allSponsors?: Sponsor[];
+  allHeroImages?: HeroImage[];
   initialSiteImageOverrides?: Record<string, { alt?: string; src?: string }>;
 }
 
@@ -97,7 +99,7 @@ function escapeCsvField(field: string): string {
   return field;
 }
 
-export default function GalleryManager({ initialGallery, allEvents, initialSiteImageOverrides }: GalleryManagerProps) {
+export default function GalleryManager({ initialGallery, allEvents, allSponsors, initialSiteImageOverrides }: GalleryManagerProps) {
   const [images, setImages] = useState<GalleryImage[]>(initialGallery);
   const [creating, setCreating] = useState(false);
   const [src, setSrc] = useState('');
@@ -123,6 +125,11 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
   const [editSiteSrc, setEditSiteSrc] = useState('');
   const [editSiteAlt, setEditSiteAlt] = useState('');
   const [editSiteEventId, setEditSiteEventId] = useState('');
+
+  // Assign-to state
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [assignTarget, setAssignTarget] = useState<string>('');
+  const [assignSaving, setAssignSaving] = useState(false);
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -355,6 +362,73 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
       setMessage(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setBulkDeleting(false);
+    }
+  }
+
+  // --- Assign image to entity ---
+  async function handleAssign(imageId: string, target: string) {
+    const image = images.find(img => img.id === imageId);
+    if (!image || !target) return;
+    setAssignSaving(true);
+
+    try {
+      // Parse target: "event-image:evt-id", "event-hero:evt-id", "sponsor:sp-id", "hero:Page", "background:chapter-id"
+      const [type, entityId] = target.split(':');
+
+      if (type === 'event-image' && entityId) {
+        // Set this gallery image's src as the event's main image
+        const res = await adminFetch('/api/admin/events', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: entityId, image: image.src }),
+        });
+        if (!res.ok) throw new Error('Failed to assign');
+        // Also tag this gallery image to the event
+        await adminFetch('/api/admin/gallery', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: imageId, eventId: entityId }),
+        });
+        setImages(prev => prev.map(img => img.id === imageId ? { ...img, eventId: entityId } : img));
+        showMessage('Image assigned as event main image');
+      } else if (type === 'event-hero' && entityId) {
+        const res = await adminFetch('/api/admin/events', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: entityId, heroImage: image.src }),
+        });
+        if (!res.ok) throw new Error('Failed to assign');
+        await adminFetch('/api/admin/gallery', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: imageId, eventId: entityId }),
+        });
+        setImages(prev => prev.map(img => img.id === imageId ? { ...img, eventId: entityId } : img));
+        showMessage('Image assigned as event hero image');
+      } else if (type === 'sponsor' && entityId) {
+        const res = await adminFetch('/api/admin/sponsors', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: entityId, logo: image.src }),
+        });
+        if (!res.ok) throw new Error('Failed to assign');
+        showMessage('Image assigned as sponsor logo');
+      } else if (type === 'hero' && entityId) {
+        // Create a new hero image entry for the specified page
+        const res = await adminFetch('/api/admin/hero-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ src: image.src, alt: image.alt, page: entityId }),
+        });
+        if (!res.ok) throw new Error('Failed to assign');
+        showMessage(`Image assigned as ${entityId} page hero`);
+      }
+    } catch (err) {
+      setMessage(`Error: ${err instanceof Error ? err.message : 'Assignment failed'}`);
+    } finally {
+      setAssignSaving(false);
+      setAssigningId(null);
+      setAssignTarget('');
     }
   }
 
@@ -765,13 +839,20 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
                         <p className="text-white/25 text-[9px] font-body mt-0.5">{image.category}</p>
 
                         {/* Action buttons row */}
-                        <div className="flex items-center gap-1 mt-2 pt-2 border-t border-white/5">
+                        <div className="flex items-center gap-1 mt-2 pt-2 border-t border-white/5 flex-wrap">
                           <button
                             onClick={() => startEditing(image)}
                             className="px-2 py-1 text-[9px] font-body text-white/40 border border-white/10 hover:text-[#C9A84C] hover:border-[#C9A84C]/30 transition-colors"
                             title="Edit"
                           >
                             Edit
+                          </button>
+                          <button
+                            onClick={() => setAssigningId(assigningId === image.id ? null : image.id)}
+                            className={`px-2 py-1 text-[9px] font-body border transition-colors ${assigningId === image.id ? 'text-[#C9A84C] border-[#C9A84C]/30 bg-[#C9A84C]/10' : 'text-white/40 border-white/10 hover:text-[#C9A84C] hover:border-[#C9A84C]/30'}`}
+                            title="Assign to event, sponsor, or hero"
+                          >
+                            Assign
                           </button>
                           <button
                             onClick={() => handleMoveUp(realIndex)}
@@ -797,6 +878,60 @@ export default function GalleryManager({ initialGallery, allEvents, initialSiteI
                             Delete
                           </button>
                         </div>
+
+                        {/* Assign-to dropdown */}
+                        {assigningId === image.id && (
+                          <div className="mt-2 p-2.5 bg-[#0A0A0A] border border-[#C9A84C]/20 space-y-2">
+                            <select
+                              value={assignTarget}
+                              onChange={e => setAssignTarget(e.target.value)}
+                              className="w-full px-2 py-1.5 bg-[#111111] border border-[#C9A84C]/20 text-white text-[10px] font-body focus:outline-none focus:border-[#C9A84C]/50"
+                            >
+                              <option value="">Select target...</option>
+                              {allEvents && allEvents.length > 0 && (
+                                <optgroup label="Event — Main Image">
+                                  {allEvents.map(ev => (
+                                    <option key={`ei-${ev.id}`} value={`event-image:${ev.id}`}>{ev.title}</option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {allEvents && allEvents.length > 0 && (
+                                <optgroup label="Event — Hero Image">
+                                  {allEvents.map(ev => (
+                                    <option key={`eh-${ev.id}`} value={`event-hero:${ev.id}`}>{ev.title}</option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {allSponsors && allSponsors.length > 0 && (
+                                <optgroup label="Sponsor — Logo">
+                                  {allSponsors.map(sp => (
+                                    <option key={`sp-${sp.id}`} value={`sponsor:${sp.id}`}>{sp.name}</option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              <optgroup label="Page — Hero Image">
+                                {['Home', 'About', 'Events', 'Gallery', 'Sponsors', 'Contact'].map(p => (
+                                  <option key={`hero-${p}`} value={`hero:${p}`}>{p} Page</option>
+                                ))}
+                              </optgroup>
+                            </select>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleAssign(image.id, assignTarget)}
+                                disabled={!assignTarget || assignSaving}
+                                className="flex-1 px-2 py-1 bg-[#C9A84C] text-black text-[9px] font-body font-semibold hover:bg-[#D4B65C] disabled:opacity-40 transition-colors"
+                              >
+                                {assignSaving ? 'Assigning...' : 'Assign'}
+                              </button>
+                              <button
+                                onClick={() => { setAssigningId(null); setAssignTarget(''); }}
+                                className="flex-1 px-2 py-1 border border-white/20 text-white/40 text-[9px] font-body hover:text-white transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

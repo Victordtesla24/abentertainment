@@ -5,10 +5,12 @@ import { uploadFile } from '@/lib/upload-helper';
 
 import { useState, useRef, useEffect, useCallback, FormEvent, useMemo } from 'react';
 import type { Event, GalleryImage, Sponsor } from '@/lib/data';
+import GalleryPicker from './GalleryPicker';
 
 interface EventsManagerProps {
   initialEvents: Event[];
   allSponsors?: Sponsor[];
+  allGallery?: GalleryImage[];
 }
 
 const EMPTY_EVENT: Omit<Event, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -43,7 +45,7 @@ function escapeCsvField(value: string): string {
   return value;
 }
 
-export default function EventsManager({ initialEvents, allSponsors = [] }: EventsManagerProps) {
+export default function EventsManager({ initialEvents, allSponsors = [], allGallery = [] }: EventsManagerProps) {
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [editing, setEditing] = useState<Event | null>(null);
   const [creating, setCreating] = useState(false);
@@ -58,6 +60,7 @@ export default function EventsManager({ initialEvents, allSponsors = [] }: Event
   const [addingImageToEvent, setAddingImageToEvent] = useState<string | null>(null);
   const [newImageSrc, setNewImageSrc] = useState('');
   const [newImageAlt, setNewImageAlt] = useState('');
+  const [galleryPickerTarget, setGalleryPickerTarget] = useState<'image' | 'heroImage' | null>(null);
 
   const sortedEvents = useMemo(() => {
     return [...events].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -598,6 +601,15 @@ export default function EventsManager({ initialEvents, allSponsors = [] }: Event
                 >
                   {uploading ? 'Uploading...' : 'Upload File'}
                 </label>
+                {allGallery.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setGalleryPickerTarget('image')}
+                    className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors whitespace-nowrap flex items-center rounded-sm"
+                  >
+                    Gallery
+                  </button>
+                )}
               </div>
             </div>
             <div>
@@ -636,6 +648,15 @@ export default function EventsManager({ initialEvents, allSponsors = [] }: Event
                 >
                   {uploading ? 'Uploading...' : 'Upload File'}
                 </label>
+                {allGallery.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setGalleryPickerTarget('heroImage')}
+                    className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors whitespace-nowrap flex items-center rounded-sm"
+                  >
+                    Gallery
+                  </button>
+                )}
               </div>
             </div>
             <div>
@@ -871,6 +892,18 @@ export default function EventsManager({ initialEvents, allSponsors = [] }: Event
           />
         )}
       </div>
+
+      {galleryPickerTarget && (
+        <GalleryPicker
+          images={allGallery}
+          title={galleryPickerTarget === 'image' ? 'Select Main Image from Gallery' : 'Select Hero Image from Gallery'}
+          onSelect={(img) => {
+            setForm(prev => ({ ...prev, [galleryPickerTarget]: img.src }));
+            setGalleryPickerTarget(null);
+          }}
+          onClose={() => setGalleryPickerTarget(null)}
+        />
+      )}
     </div>
   );
 }

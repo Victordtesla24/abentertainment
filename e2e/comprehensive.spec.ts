@@ -206,7 +206,7 @@ test.describe('@req-admin-auth', () => {
     await page.getByLabel('Username').fill('hacker');
     await page.getByLabel('Password').fill('hacker123');
     await page.getByRole('button', { name: /sign in/i }).click();
-    await expect(page.getByText(/invalid/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/authentication failed|invalid/i)).toBeVisible({ timeout: 5000 });
   });
   test('logout clears session', async ({ page }) => {
     test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');

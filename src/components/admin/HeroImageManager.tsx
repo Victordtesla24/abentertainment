@@ -3,10 +3,12 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { uploadFile } from '@/lib/upload-helper';
 
 import { useState, useCallback, FormEvent } from 'react';
-import type { HeroImage } from '@/lib/data';
+import type { HeroImage, GalleryImage } from '@/lib/data';
+import GalleryPicker from './GalleryPicker';
 
 interface HeroImageManagerProps {
   initialImages: HeroImage[];
+  allGallery?: GalleryImage[];
 }
 
 const PAGES = ['Home', 'About', 'Events', 'Gallery', 'Sponsors', 'Contact'];
@@ -18,7 +20,7 @@ function escapeCsvField(field: string): string {
   return field;
 }
 
-export default function HeroImageManager({ initialImages }: HeroImageManagerProps) {
+export default function HeroImageManager({ initialImages, allGallery = [] }: HeroImageManagerProps) {
   const [images, setImages] = useState<HeroImage[]>(initialImages);
   const [creating, setCreating] = useState(false);
   const [src, setSrc] = useState('');
@@ -27,6 +29,7 @@ export default function HeroImageManager({ initialImages }: HeroImageManagerProp
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [showGalleryPicker, setShowGalleryPicker] = useState(false);
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -284,6 +287,15 @@ export default function HeroImageManager({ initialImages }: HeroImageManagerProp
                 >
                   {uploading ? 'Uploading...' : 'Upload File'}
                 </label>
+                {allGallery.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowGalleryPicker(true)}
+                    className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors whitespace-nowrap flex items-center rounded-sm"
+                  >
+                    Gallery
+                  </button>
+                )}
               </div>
             </div>
             <div>
@@ -453,6 +465,19 @@ export default function HeroImageManager({ initialImages }: HeroImageManagerProp
         <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-8 text-center">
           <p className="text-white/40 text-sm font-body">No hero images yet. Click &quot;+ Add Hero Image&quot; to create one.</p>
         </div>
+      )}
+
+      {showGalleryPicker && (
+        <GalleryPicker
+          images={allGallery}
+          title="Select Hero Image from Gallery"
+          onSelect={(img) => {
+            setSrc(img.src);
+            if (!alt) setAlt(img.alt);
+            setShowGalleryPicker(false);
+          }}
+          onClose={() => setShowGalleryPicker(false)}
+        />
       )}
     </div>
   );

@@ -22,7 +22,7 @@ export default function AgentConversations({ agentId }: AgentConversationsProps)
 
   useEffect(() => {
     fetchConversations();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   async function fetchConversations() {
     setLoading(true);
