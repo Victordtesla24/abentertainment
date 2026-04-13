@@ -19,10 +19,11 @@ const FALLBACK_SPONSORS: SponsorItem[] = [
 export default function SponsorBanner() {
   const [sponsors, setSponsors] = useState<SponsorItem[]>(FALLBACK_SPONSORS);
 
+  // Fetch live sponsors. Accept empty arrays so deletions reflect immediately.
   useEffect(() => {
     fetch('/api/sponsors')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (Array.isArray(data) && data.length > 0) setSponsors(data); })
+      .then(data => { if (Array.isArray(data)) setSponsors(data); })
       .catch(() => {});
   }, []);
 

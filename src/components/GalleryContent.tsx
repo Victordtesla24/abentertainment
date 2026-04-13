@@ -90,14 +90,16 @@ export default function GalleryContent({ initialImages, initialEvents }: Gallery
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>(initialImages);
   const [events, setEvents] = useState<Event[]>(initialEvents);
 
-  // Fetch live data from VPS so admin changes appear without a rebuild
+  // Fetch live data from VPS so admin changes appear without a rebuild.
+  // IMPORTANT: Accept empty arrays — if admin removed all items, the public
+  // page must reflect that rather than showing stale SSR data.
   useEffect(() => {
     Promise.all([
       fetch('/api/gallery').then(r => r.ok ? r.json() : null),
       fetch('/api/events').then(r => r.ok ? r.json() : null),
     ]).then(([imgs, evts]) => {
-      if (Array.isArray(imgs) && imgs.length > 0) setGalleryImages(imgs);
-      if (Array.isArray(evts) && evts.length > 0) setEvents(evts);
+      if (Array.isArray(imgs)) setGalleryImages(imgs);
+      if (Array.isArray(evts)) setEvents(evts);
     }).catch(() => {});
   }, []);
 

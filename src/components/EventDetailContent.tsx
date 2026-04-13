@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import CountdownTimer from '@/components/ui/CountdownTimer';
-import type { Event } from '@/lib/data';
+import GalleryLightbox from '@/components/ui/GalleryLightbox';
+import type { Event, GalleryImage } from '@/lib/data';
+
+type LightboxImage = { src: string; alt: string; title?: string };
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -27,10 +30,34 @@ function formatTime(dateString: string): string {
   });
 }
 
+/**
+ * Build lightbox images for an event: hero image, event poster, then all
+ * gallery images assigned to this event via eventId. Deduplicates by src.
+ */
+function buildEventGalleryImages(event: Event, galleryImages: GalleryImage[]): LightboxImage[] {
+  const out: LightboxImage[] = [];
+  const seen = new Set<string>();
+  const add = (src: string | undefined, alt: string, title?: string) => {
+    if (!src || seen.has(src)) return;
+    seen.add(src);
+    out.push({ src, alt, title });
+  };
+  // Include the event hero and poster images first
+  add(event.heroImage, `${event.title} — Hero`, event.category);
+  add(event.image, event.title, event.category);
+  // Then all gallery images assigned to this event
+  for (const g of galleryImages) {
+    add(g.src, g.alt || event.title, g.category || event.category);
+  }
+  return out;
+}
+
 export default function EventDetailContent({ event: initialEvent }: { event: Event }) {
   const [event, setEvent] = useState<Event>(initialEvent);
+  const [galleryImages, setGalleryImages] = useState<LightboxImage[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(true);
 
-  // Fetch live data so admin changes appear without a rebuild
+  // Fetch live event data so admin changes appear without a rebuild
   useEffect(() => {
     fetch('/api/events')
       .then(r => r.ok ? r.json() : null)
@@ -41,6 +68,23 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
       })
       .catch(() => {});
   }, [initialEvent.slug]);
+
+  // Fetch gallery images linked to this event via eventId
+  useEffect(() => {
+    if (!event.id) {
+      setGalleryLoading(false);
+      return;
+    }
+    fetch(`/api/gallery?eventId=${encodeURIComponent(event.id)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const imgs: GalleryImage[] = Array.isArray(data) ? data : (data?.images || []);
+        const lightbox = buildEventGalleryImages(event, imgs);
+        setGalleryImages(lightbox);
+      })
+      .catch(() => {})
+      .finally(() => setGalleryLoading(false));
+  }, [event]);
 
   const isPast = new Date(event.date) <= new Date();
 
@@ -85,6 +129,30 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
                 <img src={event.image} alt={event.title} className="w-full h-auto object-cover" />
               </div>
             )}
+
+            {/* ── Event Gallery Section ── */}
+            {!galleryLoading && galleryImages.length > 0 && (
+              <div className="mt-12" id="gallery">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-1 h-8 bg-[#C9A84C]" />
+                  <h2 className="text-2xl font-display font-bold text-white">
+                    Event Gallery
+                  </h2>
+                  <span className="text-[#C9A84C]/60 text-sm font-body">
+                    {galleryImages.length} {galleryImages.length === 1 ? 'photo' : 'photos'}
+                  </span>
+                </div>
+                <GalleryLightbox images={galleryImages} />
+              </div>
+            )}
+
+            {!galleryLoading && galleryImages.length === 0 && isPast && (
+              <div className="mt-12 bg-[#111111]/30 border border-[#C9A84C]/10 p-8 text-center">
+                <p className="text-white/40 font-body text-sm">
+                  No gallery photos have been added for this event yet.
+                </p>
+              </div>
+            )}
           </div>
 
           <aside className="space-y-6">
@@ -120,6 +188,23 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
 
               {!isPast && <CountdownTimer targetDate={event.date} />}
             </div>
+
+            {/* Quick link to gallery section when photos exist */}
+            {galleryImages.length > 0 && (
+              <a
+                href="#gallery"
+                className="block bg-[#111111]/40 border border-[#C9A84C]/10 p-6 text-center hover:border-[#C9A84C]/30 transition-all duration-300 group"
+              >
+                <div className="flex items-center justify-center gap-3">
+                  <svg className="w-5 h-5 text-[#C9A84C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-[#C9A84C] font-body font-semibold text-sm uppercase tracking-wider group-hover:text-white transition-colors duration-300">
+                    View Gallery ({galleryImages.length})
+                  </span>
+                </div>
+              </a>
+            )}
 
             {!isPast && (
               <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-8 text-center">

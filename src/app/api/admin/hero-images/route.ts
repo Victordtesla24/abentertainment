@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { getHeroImages, saveHeroImages } from '@/lib/data';
+import { revalidateHeroImages } from '@/lib/revalidate';
 import type { HeroImage } from '@/lib/data';
 import { logAdminAction } from '@/lib/audit';
 
@@ -35,6 +36,7 @@ export const POST = withAuth(async (request: NextRequest) => {
 
     images.push(newImage);
     await saveHeroImages(images);
+    revalidateHeroImages();
 
     try { logAdminAction('admin', 'HERO_IMAGE_CREATE', '/api/admin/hero-images', getClientIp(request), { imageId: newImage.id, page: newImage.page }); } catch { /* audit must not block operation */ }
 
@@ -65,6 +67,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
 
     images[index] = updated;
     await saveHeroImages(images);
+    revalidateHeroImages();
 
     try { logAdminAction('admin', 'HERO_IMAGE_UPDATE', '/api/admin/hero-images', getClientIp(request), { imageId: updated.id, page: updated.page }); } catch { /* audit must not block operation */ }
 
@@ -85,6 +88,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     }
 
     await saveHeroImages(filtered);
+    revalidateHeroImages();
 
     try { logAdminAction('admin', 'HERO_IMAGE_DELETE', '/api/admin/hero-images', getClientIp(request), { imageId: id }); } catch { /* audit must not block operation */ }
 

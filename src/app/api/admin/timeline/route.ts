@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { getTimeline, saveTimeline } from '@/lib/data';
+import { revalidateTimeline } from '@/lib/revalidate';
 import type { TimelineChapter } from '@/lib/data';
 import { logAdminAction } from '@/lib/audit';
 
@@ -38,6 +39,7 @@ export const POST = withAuth(async (request: NextRequest) => {
 
     chapters.push(newChapter);
     await saveTimeline(chapters);
+    revalidateTimeline();
 
     try { logAdminAction('admin', 'TIMELINE_CREATE', '/api/admin/timeline', getClientIp(request), { chapterId: newChapter.id, title: newChapter.title }); } catch { /* audit must not block operation */ }
 
@@ -54,6 +56,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
     // Bulk update (reorder)
     if (Array.isArray(body.chapters)) {
       await saveTimeline(body.chapters);
+      revalidateTimeline();
       try { logAdminAction('admin', 'TIMELINE_REORDER', '/api/admin/timeline', getClientIp(request), { count: body.chapters.length }); } catch { /* audit must not block operation */ }
       return NextResponse.json({ chapters: body.chapters });
     }
@@ -80,6 +83,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
 
     chapters[index] = updated;
     await saveTimeline(chapters);
+    revalidateTimeline();
 
     try { logAdminAction('admin', 'TIMELINE_UPDATE', '/api/admin/timeline', getClientIp(request), { chapterId: updated.id, title: updated.title }); } catch { /* audit must not block operation */ }
 
@@ -102,6 +106,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     // Re-index order after deletion
     const reordered = filtered.map((c, i) => ({ ...c, order: i }));
     await saveTimeline(reordered);
+    revalidateTimeline();
 
     try { logAdminAction('admin', 'TIMELINE_DELETE', '/api/admin/timeline', getClientIp(request), { chapterId: id }); } catch { /* audit must not block operation */ }
 

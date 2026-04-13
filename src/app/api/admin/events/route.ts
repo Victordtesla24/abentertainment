@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { getEvents, saveEvents } from '@/lib/data';
+import { revalidateEvents } from '@/lib/revalidate';
 import type { Event } from '@/lib/data';
 import { logAdminAction } from '@/lib/audit';
 
@@ -45,6 +46,7 @@ export const POST = withAuth(async (request: NextRequest) => {
 
     events.push(newEvent);
     await saveEvents(events);
+    revalidateEvents();
 
     try { logAdminAction('admin', 'EVENT_CREATE', '/api/admin/events', getClientIp(request), { eventId: newEvent.id, title: newEvent.title }); } catch { /* audit must not block operation */ }
 
@@ -93,6 +95,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
 
     events[index] = updated;
     await saveEvents(events);
+    revalidateEvents();
 
     try { logAdminAction('admin', 'EVENT_UPDATE', '/api/admin/events', getClientIp(request), { eventId: updated.id, title: updated.title }); } catch { /* audit must not block operation */ }
 
@@ -113,6 +116,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     }
 
     await saveEvents(filtered);
+    revalidateEvents();
 
     try { logAdminAction('admin', 'EVENT_DELETE', '/api/admin/events', getClientIp(request), { eventId: id }); } catch { /* audit must not block operation */ }
 

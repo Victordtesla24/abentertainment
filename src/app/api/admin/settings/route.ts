@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { getSettings, saveSettings, getAgents, saveAgents } from '@/lib/data';
+import { revalidateSettings } from '@/lib/revalidate';
 
 export const GET = withAuth(async () => {
   const settings = await getSettings();
@@ -28,6 +29,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
       siteImageOverrides: body.siteImageOverrides !== undefined ? body.siteImageOverrides : current.siteImageOverrides,
     };
     await saveSettings(merged);
+    revalidateSettings();
 
     // Sync admin chat model → admin agent config so every reader stays aligned.
     // adminChatModel wins, falls back to chatModel. If neither changed, skip.

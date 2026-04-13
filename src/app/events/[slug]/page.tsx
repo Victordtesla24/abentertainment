@@ -5,7 +5,11 @@ import PageHero from '@/components/ui/PageHero';
 import EventSchema from '@/components/EventSchema';
 import EventDetailContent from '@/components/EventDetailContent';
 
-export const dynamic = 'force-static';
+// Removed force-static: in standalone (VPS) mode, pages pre-rendered via
+// generateStaticParams can still be re-rendered dynamically. The client-side
+// EventDetailContent fetches live data on mount so admin changes appear
+// immediately regardless of server cache state. For static export, Next.js
+// uses generateStaticParams and the client-side fetch goes through api-proxy.
 
 // ---------------------------------------------------------------------------
 // Static params — required for static export

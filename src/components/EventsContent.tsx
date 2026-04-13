@@ -318,11 +318,13 @@ function EventsContentInner({ events: initialEvents, contactEmail }: EventsConte
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Fetch live data from VPS so admin changes appear without a rebuild
+  // Fetch live data from VPS so admin changes appear without a rebuild.
+  // IMPORTANT: Accept empty arrays — if admin removed all events, the public
+  // page must reflect that rather than showing stale SSR data.
   useEffect(() => {
     fetch('/api/events')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (Array.isArray(data) && data.length > 0) setEvents(data); })
+      .then(data => { if (Array.isArray(data)) setEvents(data); })
       .catch(() => {});
   }, []);
 

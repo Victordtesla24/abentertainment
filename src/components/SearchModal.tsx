@@ -63,7 +63,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
     fetch('/api/events')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (Array.isArray(data) && data.length > 0) setEvents(data as SearchableEvent[]);
+        if (Array.isArray(data)) setEvents(data as SearchableEvent[]);
         else setEvents(eventsDataFallback as unknown as SearchableEvent[]);
       })
       .catch(() => setEvents(eventsDataFallback as unknown as SearchableEvent[]));

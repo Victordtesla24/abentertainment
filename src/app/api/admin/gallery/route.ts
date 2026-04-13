@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { getGalleryImages, saveGalleryImages } from '@/lib/data';
+import { revalidateGallery } from '@/lib/revalidate';
 import type { GalleryImage } from '@/lib/data';
 
 export const GET = withAuth(async (request: NextRequest) => {
@@ -36,6 +37,7 @@ export const POST = withAuth(async (request: NextRequest) => {
 
     images.push(newImage);
     await saveGalleryImages(images);
+    revalidateGallery();
 
     return NextResponse.json({ image: newImage }, { status: 201 });
   } catch {
@@ -66,6 +68,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
     if (body.order !== undefined) images[index].order = body.order;
 
     await saveGalleryImages(images);
+    revalidateGallery();
     return NextResponse.json({ image: images[index] });
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
@@ -83,6 +86,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     }
 
     await saveGalleryImages(filtered);
+    revalidateGallery();
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });

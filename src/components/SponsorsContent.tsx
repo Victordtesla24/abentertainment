@@ -71,10 +71,13 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 export default function SponsorsContent({ initialSponsors }: { initialSponsors: Sponsor[] }) {
   const [sponsors, setSponsors] = useState<Sponsor[]>(initialSponsors);
 
+  // Fetch live data from VPS so admin changes appear without a rebuild.
+  // IMPORTANT: Accept empty arrays — if admin removed all sponsors, the public
+  // page must reflect that rather than showing stale SSR data.
   useEffect(() => {
     fetch('/api/sponsors')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (Array.isArray(data) && data.length > 0) setSponsors(data); })
+      .then(data => { if (Array.isArray(data)) setSponsors(data); })
       .catch(() => {});
   }, []);
 

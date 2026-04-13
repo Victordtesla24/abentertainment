@@ -36,10 +36,10 @@ RewriteCond %{DOCUMENT_ROOT}/out/$1/index.html -f
 RewriteRule ^(.*?)/?$ out/$1/index.html [L]
 
 # Fallback: event detail pages created after the last build don't have static HTML.
-# Proxy to VPS which renders them dynamically with live data.
+# Serve the client-side event viewer page which fetches event data from the API.
+# The viewer extracts the slug from the browser URL pathname (/events/<slug>).
 # Placed after the static-file rules so known events serve from out/ (fast).
-# No trailing slash — VPS standalone mode issues 308 redirect for trailing slashes.
-RewriteRule ^events/([^/]+)/?$ api-proxy.php?__path=/events/$1 [QSA,L]
+RewriteRule ^events/([^/]+)/?$ out/events/view/index.html [QSA,L]
 
 # Root URL fallback → serve out/index.html
 RewriteCond %{REQUEST_URI} ^/$

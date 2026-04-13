@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { getVideos, saveVideos } from '@/lib/data';
+import { revalidateVideos } from '@/lib/revalidate';
 import type { Video } from '@/lib/data';
 import { logAdminAction } from '@/lib/audit';
 
@@ -38,6 +39,7 @@ export const POST = withAuth(async (request: NextRequest) => {
 
     videos.push(newVideo);
     await saveVideos(videos);
+    revalidateVideos();
 
     try { logAdminAction('admin', 'VIDEO_CREATE', '/api/admin/videos', getClientIp(request), { videoId: newVideo.id, title: newVideo.title }); } catch { /* audit must not block operation */ }
 
@@ -71,6 +73,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
 
     videos[index] = updated;
     await saveVideos(videos);
+    revalidateVideos();
 
     try { logAdminAction('admin', 'VIDEO_UPDATE', '/api/admin/videos', getClientIp(request), { videoId: updated.id, title: updated.title }); } catch { /* audit must not block operation */ }
 
@@ -91,6 +94,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     }
 
     await saveVideos(filtered);
+    revalidateVideos();
 
     try { logAdminAction('admin', 'VIDEO_DELETE', '/api/admin/videos', getClientIp(request), { videoId: id }); } catch { /* audit must not block operation */ }
 

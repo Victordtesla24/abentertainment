@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { getTestimonials, saveTestimonials } from '@/lib/data';
+import { revalidateTestimonials } from '@/lib/revalidate';
 import type { Testimonial } from '@/lib/data';
 import { logAdminAction } from '@/lib/audit';
 
@@ -31,6 +32,7 @@ export const POST = withAuth(async (request: NextRequest) => {
     };
     testimonials.push(newTestimonial);
     await saveTestimonials(testimonials);
+    revalidateTestimonials();
     try { logAdminAction('admin', 'TESTIMONIAL_CREATE', '/api/admin/testimonials', getClientIp(request), { id: newTestimonial.id }); } catch {}
     return NextResponse.json({ testimonial: newTestimonial }, { status: 201 });
   } catch {
@@ -54,6 +56,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
     };
     testimonials[index] = updated;
     await saveTestimonials(testimonials);
+    revalidateTestimonials();
     try { logAdminAction('admin', 'TESTIMONIAL_UPDATE', '/api/admin/testimonials', getClientIp(request), { id: updated.id }); } catch {}
     return NextResponse.json({ testimonial: updated });
   } catch {
@@ -68,6 +71,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     const filtered = testimonials.filter(t => t.id !== id);
     if (filtered.length === testimonials.length) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     await saveTestimonials(filtered);
+    revalidateTestimonials();
     try { logAdminAction('admin', 'TESTIMONIAL_DELETE', '/api/admin/testimonials', getClientIp(request), { id }); } catch {}
     return NextResponse.json({ success: true });
   } catch {

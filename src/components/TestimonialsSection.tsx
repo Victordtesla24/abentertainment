@@ -66,11 +66,11 @@ export function TestimonialsSection() {
   const [direction, setDirection] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Fetch live testimonials from admin
+  // Fetch live testimonials from admin. Accept empty arrays so deletions reflect.
   useEffect(() => {
     fetch('/api/testimonials')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (Array.isArray(data) && data.length > 0) setTestimonials(data); })
+      .then(data => { if (Array.isArray(data)) setTestimonials(data); })
       .catch(() => {});
   }, []);
 

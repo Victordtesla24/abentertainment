@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { getPageTitles, savePageTitles } from '@/lib/data';
+import { revalidateAll } from '@/lib/revalidate';
 import type { PageTitle } from '@/lib/data';
 import { logAdminAction } from '@/lib/audit';
 
@@ -36,6 +37,7 @@ export const POST = withAuth(async (request: NextRequest) => {
 
     pages.push(newPage);
     await savePageTitles(pages);
+    revalidateAll();
 
     try { logAdminAction('admin', 'PAGE_CREATE', '/api/admin/pages', getClientIp(request), { slug: newPage.slug, title: newPage.title }); } catch { /* audit must not block operation */ }
 
@@ -63,6 +65,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
 
     pages[index] = updated;
     await savePageTitles(pages);
+    revalidateAll();
 
     try { logAdminAction('admin', 'PAGE_UPDATE', '/api/admin/pages', getClientIp(request), { slug: updated.slug, title: updated.title }); } catch { /* audit must not block operation */ }
 
@@ -83,6 +86,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     }
 
     await savePageTitles(filtered);
+    revalidateAll();
 
     try { logAdminAction('admin', 'PAGE_DELETE', '/api/admin/pages', getClientIp(request), { slug }); } catch { /* audit must not block operation */ }
 

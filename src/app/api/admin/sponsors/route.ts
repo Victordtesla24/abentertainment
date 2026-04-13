@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { getSponsors, saveSponsors } from '@/lib/data';
+import { revalidateSponsors } from '@/lib/revalidate';
 import type { Sponsor } from '@/lib/data';
 
 export const GET = withAuth(async () => {
@@ -26,6 +27,7 @@ export const POST = withAuth(async (request: NextRequest) => {
 
     sponsors.push(newSponsor);
     await saveSponsors(sponsors);
+    revalidateSponsors();
 
     return NextResponse.json({ sponsor: newSponsor }, { status: 201 });
   } catch {
@@ -53,6 +55,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
     };
 
     await saveSponsors(sponsors);
+    revalidateSponsors();
     return NextResponse.json({ sponsor: sponsors[index] });
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
@@ -70,6 +73,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     }
 
     await saveSponsors(filtered);
+    revalidateSponsors();
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });

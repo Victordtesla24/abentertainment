@@ -77,11 +77,12 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  // Fetch live data so admin changes appear without a rebuild
+  // Fetch live data so admin changes appear without a rebuild.
+  // Accept empty arrays so deletions are reflected immediately.
   useEffect(() => {
     fetch('/api/events')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (Array.isArray(data) && data.length > 0) setEvents(data); })
+      .then(data => { if (Array.isArray(data)) setEvents(data); })
       .catch(() => {});
   }, []);
 

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { Metadata } from 'next';
 import { getEvents } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
