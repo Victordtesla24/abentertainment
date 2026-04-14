@@ -93,7 +93,11 @@ async function optimizeImage(filePath) {
   if (!metadata.width) return;
 
   for (const width of RESPONSIVE_WIDTHS) {
-    if (width >= metadata.width) continue; // Don't upscale
+    // When the source image is narrower than the requested responsive width,
+    // we still emit the variant — capped at the source width — so OptimizedImage's
+    // srcSet entries always resolve to a real file. Without this, browsers
+    // selecting the larger srcSet candidate at certain viewports get a 404.
+    const targetWidth = Math.min(width, metadata.width);
 
     const resizedName = `${name}-${width}w`;
 
@@ -102,7 +106,7 @@ async function optimizeImage(filePath) {
     if (!(await fileExists(resizedAvif))) {
       try {
         await sharp(filePath)
-          .resize(width)
+          .resize(targetWidth)
           .avif({ quality: QUALITY_AVIF, effort: 5 })
           .toFile(resizedAvif);
         console.log(`  ✓ ${width}w AVIF: ${relDir}/${resizedName}.avif`);
@@ -116,7 +120,7 @@ async function optimizeImage(filePath) {
     if (!(await fileExists(resizedWebp))) {
       try {
         await sharp(filePath)
-          .resize(width)
+          .resize(targetWidth)
           .webp({ quality: QUALITY_WEBP, effort: 6 })
           .toFile(resizedWebp);
         console.log(`  ✓ ${width}w WebP: ${relDir}/${resizedName}.webp`);
@@ -130,7 +134,7 @@ async function optimizeImage(filePath) {
     if (!(await fileExists(resizedJpeg))) {
       try {
         await sharp(filePath)
-          .resize(width)
+          .resize(targetWidth)
           .jpeg({ quality: QUALITY_JPEG })
           .toFile(resizedJpeg);
         console.log(`  ✓ ${width}w JPEG: ${relDir}/${resizedName}${ext}`);
