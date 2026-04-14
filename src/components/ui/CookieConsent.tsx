@@ -40,7 +40,7 @@ export default function CookieConsent() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.95 }}
           transition={{ duration: 0.35, ease: [0.25, 1, 0.5, 1] }}
-          className="fixed bottom-6 right-6 z-[900] max-w-sm"
+          className="fixed bottom-[8rem] right-6 z-[1000] max-w-sm"
           role="dialog"
           aria-label="Cookie consent"
         >

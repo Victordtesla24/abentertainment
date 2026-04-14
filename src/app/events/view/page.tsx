@@ -26,7 +26,7 @@ export const metadata: Metadata = {
  */
 export default function DynamicEventPage() {
   return (
-    <main className="bg-[#0A0A0A]">
+    <div className="bg-[#0A0A0A]">
       <Suspense
         fallback={
           <section className="py-16 md:py-20">
@@ -52,6 +52,6 @@ export default function DynamicEventPage() {
       >
         <DynamicEventViewer />
       </Suspense>
-    </main>
+    </div>
   );
 }

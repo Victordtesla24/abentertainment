@@ -197,8 +197,14 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
     if (idx <= 0) return;
 
     const above = sorted[idx - 1];
-    const currentOrder = event.order ?? 0;
-    const aboveOrder = above.order ?? 0;
+    // When both items share the same order (e.g. both undefined/0), assign
+    // distinct values so the swap is meaningful.
+    let currentOrder = event.order ?? idx;
+    let aboveOrder = above.order ?? (idx - 1);
+    if (currentOrder === aboveOrder) {
+      currentOrder = idx;
+      aboveOrder = idx - 1;
+    }
 
     try {
       const [res1, res2] = await Promise.all([
@@ -234,8 +240,14 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
     if (idx < 0 || idx >= sorted.length - 1) return;
 
     const below = sorted[idx + 1];
-    const currentOrder = event.order ?? 0;
-    const belowOrder = below.order ?? 0;
+    // When both items share the same order (e.g. both undefined/0), assign
+    // distinct values so the swap is meaningful.
+    let currentOrder = event.order ?? idx;
+    let belowOrder = below.order ?? (idx + 1);
+    if (currentOrder === belowOrder) {
+      currentOrder = idx;
+      belowOrder = idx + 1;
+    }
 
     try {
       const [res1, res2] = await Promise.all([

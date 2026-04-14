@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import CountdownTimer from '@/components/ui/CountdownTimer';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
+import { getApiUrl } from '@/lib/api-config';
 import type { Event, GalleryImage } from '@/lib/data';
 
 type LightboxImage = { src: string; alt: string; title?: string };
@@ -59,7 +60,7 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
 
   // Fetch live event data so admin changes appear without a rebuild
   useEffect(() => {
-    fetch('/api/events')
+    fetch(getApiUrl('/api/events'))
       .then(r => r.ok ? r.json() : null)
       .then(events => {
         if (!Array.isArray(events)) return;
@@ -75,7 +76,7 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
       setGalleryLoading(false);
       return;
     }
-    fetch(`/api/gallery?eventId=${encodeURIComponent(event.id)}`)
+    fetch(getApiUrl(`/api/gallery?eventId=${encodeURIComponent(event.id)}`))
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         const imgs: GalleryImage[] = Array.isArray(data) ? data : (data?.images || []);

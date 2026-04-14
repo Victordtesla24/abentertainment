@@ -33,7 +33,7 @@ export default async function EventsPage() {
   }
 
   return (
-    <main className="bg-[#0A0A0A]">
+    <div className="bg-[#0A0A0A]">
       {/* Structured Data for Events */}
       {events.length > 0 && (
         <script
@@ -94,6 +94,6 @@ export default async function EventsPage() {
 
       {/* Client-side interactive content with filtering */}
       <EventsContent events={events} contactEmail={SITE_CONFIG.contact.email} />
-    </main>
+    </div>
   );
 }

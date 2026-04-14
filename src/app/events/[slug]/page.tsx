@@ -70,7 +70,7 @@ export default async function EventDetailPage({ params }: PageProps) {
   }
 
   return (
-    <main className="bg-[#0A0A0A]">
+    <div className="bg-[#0A0A0A]">
       <EventSchema event={event} />
       <PageHero
         image={event.heroImage || event.image || '/images/heroes/events-hero.png'}
@@ -79,6 +79,6 @@ export default async function EventDetailPage({ params }: PageProps) {
         subtitle={event.description}
       />
       <EventDetailContent event={event} />
-    </main>
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
+import { getApiUrl } from '@/lib/api-config';
 import type { Event, GalleryImage } from '@/lib/data';
 
 type LightboxImage = { src: string; alt: string; title?: string };
@@ -144,7 +145,7 @@ export default function DynamicEventViewer() {
       return;
     }
 
-    fetch('/api/events')
+    fetch(getApiUrl('/api/events'))
       .then(r => r.ok ? r.json() : null)
       .then(events => {
         if (!Array.isArray(events)) {
@@ -162,7 +163,7 @@ export default function DynamicEventViewer() {
         setEvent(found);
 
         // Fetch gallery images for this event
-        return fetch(`/api/gallery?eventId=${encodeURIComponent(found.id)}`)
+        return fetch(getApiUrl(`/api/gallery?eventId=${encodeURIComponent(found.id)}`))
           .then(r => r.ok ? r.json() : [])
           .then(data => {
             const imgs: GalleryImage[] = Array.isArray(data) ? data : [];
