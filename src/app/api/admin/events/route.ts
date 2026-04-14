@@ -14,6 +14,17 @@ function getClientIp(request: NextRequest): string {
   );
 }
 
+/** Normalise a slug: always lowercase, alphanumeric, hyphen-separated. */
+function normalizeSlug(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 export const GET = withAuth(async () => {
   const events = await getEvents();
   return NextResponse.json({ events });
@@ -27,7 +38,10 @@ export const POST = withAuth(async (request: NextRequest) => {
     const newEvent: Event = {
       id: `evt-${Date.now()}`,
       title: body.title,
-      slug: body.slug || body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      // Always normalise the slug on the server so admin-entered values
+      // (which may contain uppercase or special characters) are guaranteed
+      // to be URL-safe and match the static-export routing.
+      slug: normalizeSlug(body.slug || body.title || ''),
       date: body.date,
       venue: body.venue,
       description: body.description,
@@ -69,7 +83,9 @@ export const PUT = withAuth(async (request: NextRequest) => {
     const updated: Event = {
       ...events[index],
       title: body.title ?? events[index].title,
-      slug: body.slug ?? events[index].slug,
+      // Normalise slug on update too — prevents admin from saving a slug
+      // containing uppercase or unsafe characters.
+      slug: body.slug !== undefined ? normalizeSlug(body.slug) : events[index].slug,
       date: body.date ?? events[index].date,
       venue: body.venue ?? events[index].venue,
       description: body.description ?? events[index].description,

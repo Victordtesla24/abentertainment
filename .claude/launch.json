@@ -10,6 +10,12 @@
       "env": {
         "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
       }
+    },
+    {
+      "name": "static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["http-server", "out", "-p", "3100", "-c-1", "--cors"],
+      "port": 3100
     }
   ]
 }

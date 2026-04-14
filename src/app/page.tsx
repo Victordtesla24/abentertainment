@@ -1,5 +1,3 @@
-export const dynamic = 'force-dynamic';
-
 import { Metadata } from 'next';
 import { CinematicHero } from '@/components/sections/CinematicHero';
 import { IntroSection } from '@/components/sections/IntroSection';

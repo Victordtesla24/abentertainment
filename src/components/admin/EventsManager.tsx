@@ -45,11 +45,24 @@ function escapeCsvField(value: string): string {
   return value;
 }
 
+/** Slugify a title: lowercase, hyphen-separated, alphanumeric only. */
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 export default function EventsManager({ initialEvents, allSponsors = [], allGallery = [] }: EventsManagerProps) {
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [editing, setEditing] = useState<Event | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY_EVENT);
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -97,6 +110,8 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
     setEditing(null);
     setCreating(true);
     setForm(EMPTY_EVENT);
+    setSlugTouched(false);
+    setShowAdvanced(false);
   }
 
   function startEdit(event: Event) {
@@ -126,12 +141,17 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
       ticketRevenue: event.ticketRevenue || 0,
       order: event.order || 0,
     });
+    // Editing existing event: slug is already set, don't auto-regenerate
+    setSlugTouched(true);
+    setShowAdvanced(false);
   }
 
   function cancelForm() {
     setEditing(null);
     setCreating(false);
     setForm(EMPTY_EVENT);
+    setSlugTouched(false);
+    setShowAdvanced(false);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -191,90 +211,40 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
     }
   }
 
+  async function reorderSwap(aId: string, bId: string) {
+    try {
+      const res = await adminFetch('/api/admin/events/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aId, bId }),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Reorder failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      if (Array.isArray(data.events)) {
+        setEvents(data.events);
+      }
+    } catch (err) {
+      setMessage(`Error: ${err instanceof Error ? err.message : 'Failed to reorder'}`);
+    }
+  }
+
   async function handleMoveUp(event: Event) {
     const sorted = [...events].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const idx = sorted.findIndex((ev) => ev.id === event.id);
     if (idx <= 0) return;
-
-    const above = sorted[idx - 1];
-    // When both items share the same order (e.g. both undefined/0), assign
-    // distinct values so the swap is meaningful.
-    let currentOrder = event.order ?? idx;
-    let aboveOrder = above.order ?? (idx - 1);
-    if (currentOrder === aboveOrder) {
-      currentOrder = idx;
-      aboveOrder = idx - 1;
-    }
-
-    try {
-      const [res1, res2] = await Promise.all([
-        adminFetch('/api/admin/events', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: event.id, order: aboveOrder }),
-        }),
-        adminFetch('/api/admin/events', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: above.id, order: currentOrder }),
-        }),
-      ]);
-
-      if (!res1.ok || !res2.ok) throw new Error('Failed to reorder');
-
-      setEvents((prev) =>
-        prev.map((ev) => {
-          if (ev.id === event.id) return { ...ev, order: aboveOrder };
-          if (ev.id === above.id) return { ...ev, order: currentOrder };
-          return ev;
-        })
-      );
-    } catch (err) {
-      setMessage(`Error: ${err instanceof Error ? err.message : 'Failed to reorder'}`);
-    }
+    await reorderSwap(event.id, sorted[idx - 1].id);
   }
 
   async function handleMoveDown(event: Event) {
     const sorted = [...events].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const idx = sorted.findIndex((ev) => ev.id === event.id);
     if (idx < 0 || idx >= sorted.length - 1) return;
-
-    const below = sorted[idx + 1];
-    // When both items share the same order (e.g. both undefined/0), assign
-    // distinct values so the swap is meaningful.
-    let currentOrder = event.order ?? idx;
-    let belowOrder = below.order ?? (idx + 1);
-    if (currentOrder === belowOrder) {
-      currentOrder = idx;
-      belowOrder = idx + 1;
-    }
-
-    try {
-      const [res1, res2] = await Promise.all([
-        adminFetch('/api/admin/events', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: event.id, order: belowOrder }),
-        }),
-        adminFetch('/api/admin/events', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: below.id, order: currentOrder }),
-        }),
-      ]);
-
-      if (!res1.ok || !res2.ok) throw new Error('Failed to reorder');
-
-      setEvents((prev) =>
-        prev.map((ev) => {
-          if (ev.id === event.id) return { ...ev, order: belowOrder };
-          if (ev.id === below.id) return { ...ev, order: currentOrder };
-          return ev;
-        })
-      );
-    } catch (err) {
-      setMessage(`Error: ${err instanceof Error ? err.message : 'Failed to reorder'}`);
-    }
+    await reorderSwap(event.id, sorted[idx + 1].id);
   }
 
   async function fetchEventImages(eventId: string) {
@@ -447,118 +417,100 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
 
       {showForm && (
         <div className="mb-8 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-6">
-          <h3 className="text-lg font-display font-semibold text-[#C9A84C] mb-4">
+          <h3 className="text-lg font-display font-semibold text-[#C9A84C] mb-1">
             {creating ? 'Create Event' : `Edit: ${editing!.title}`}
           </h3>
+          <p className="text-[11px] text-white/40 font-body mb-5">
+            Only title, date, venue, description, and category are required. Everything else is optional — show advanced options for the full field set.
+          </p>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Title</label>
+            {/* ── Essentials ─────────────────────────────────────────────── */}
+            <div className="md:col-span-2">
+              <label className="block text-xs text-[#C9A84C] mb-1 font-semibold">Title *</label>
               <input
                 type="text"
                 value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                onChange={(e) => {
+                  const title = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    title,
+                    // Auto-generate slug from title unless user manually edited it
+                    slug: slugTouched ? prev.slug : slugify(title),
+                  }));
+                }}
                 required
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
+                placeholder="e.g. Diwali Spectacular 2026"
+                title="Public-facing event title shown on cards, hero sections, and SEO metadata."
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
               />
+              <p className="text-[10px] text-white/30 mt-1 font-body">The public name of the event. Slug is auto-generated from this.</p>
             </div>
             <div>
-              <label className="block text-xs text-white/40 mb-1">Slug</label>
-              <input
-                type="text"
-                value={form.slug}
-                onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                required
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Date</label>
+              <label className="block text-xs text-[#C9A84C] mb-1 font-semibold">Date *</label>
               <input
                 type="date"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
                 required
+                title="The day the event takes place. Used to sort upcoming vs past events."
                 className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               />
             </div>
             <div>
-              <label className="block text-xs text-white/40 mb-1">Venue</label>
-              <input
-                type="text"
-                value={form.venue}
-                onChange={(e) => setForm({ ...form, venue: e.target.value })}
-                required
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs text-white/40 mb-1">Description</label>
-              <textarea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                required
-                rows={3}
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none"
-              />
-              <p className="text-[9px] text-[#C9A84C]/40 mt-1 font-body">Tip: Use structured fields below for better formatting.</p>
-            </div>
-            {/* Structured content fields — Hook / Details / Cast */}
-            <div className="md:col-span-2">
-              <label className="block text-xs text-white/40 mb-1">Event Hook / One-liner</label>
-              <input
-                type="text"
-                maxLength={120}
-                value={form.hook}
-                onChange={(e) => setForm({ ...form, hook: e.target.value })}
-                placeholder="A compelling one-liner for the event (max 120 chars)"
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs text-white/40 mb-1">Full Description</label>
-              <textarea
-                rows={4}
-                value={form.longDescription}
-                onChange={(e) => setForm({ ...form, longDescription: e.target.value })}
-                placeholder="Detailed event description for the event page"
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none placeholder-white/20"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs text-white/40 mb-1">Cast / Performers</label>
-              <textarea
-                rows={3}
-                value={form.cast}
-                onChange={(e) => setForm({ ...form, cast: e.target.value })}
-                placeholder="List the cast and performers for this event"
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none placeholder-white/20"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Price (AUD)</label>
-              <input
-                type="number"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-                min={0}
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Category</label>
+              <label className="block text-xs text-[#C9A84C] mb-1 font-semibold">Category *</label>
               <input
                 type="text"
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 required
+                placeholder="e.g. Concert, Theatre, Festival"
+                title="Short label shown as a badge on event cards (e.g. Concert, Theatre, Festival)."
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs text-[#C9A84C] mb-1 font-semibold">Venue *</label>
+              <input
+                type="text"
+                value={form.venue}
+                onChange={(e) => setForm({ ...form, venue: e.target.value })}
+                required
+                placeholder="e.g. Hamer Hall, Arts Centre Melbourne"
+                title="Venue name + location. Shown on the event detail page."
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs text-[#C9A84C] mb-1 font-semibold">Description *</label>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                required
+                rows={3}
+                placeholder="A short (1-2 sentence) description shown on event cards and detail pages."
+                title="Short summary of the event. Appears on event cards, meta descriptions, and the detail page intro."
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none placeholder-white/20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-white/60 mb-1">Price (AUD)</label>
+              <input
+                type="number"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+                min={0}
+                placeholder="0"
+                title="Starting price for a ticket in Australian dollars. Leave as 0 for free events."
                 className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               />
             </div>
             <div>
-              <label className="block text-xs text-white/40 mb-1">Status</label>
+              <label className="block text-xs text-white/60 mb-1">Status</label>
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value as Event['status'] })}
+                title="Event lifecycle status. Controls whether the event is shown under Upcoming or Past."
                 className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
               >
                 <option value="upcoming">Upcoming</option>
@@ -566,26 +518,18 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
                 <option value="past">Past</option>
               </select>
             </div>
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Ticket Status</label>
-              <select
-                value={form.ticketStatus}
-                onChange={(e) => setForm({ ...form, ticketStatus: e.target.value as Event['ticketStatus'] })}
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
-              >
-                <option value="available">Available</option>
-                <option value="selling_fast">Selling Fast</option>
-                <option value="sold_out">Sold Out</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Main Image URL <span className="text-white/25">(event cards & gallery folder cover)</span></label>
+
+            {/* ── Main Image (always visible — most common optional field) ── */}
+            <div className="md:col-span-2">
+              <label className="block text-xs text-white/60 mb-1">Main Image</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={form.image}
                   onChange={(e) => setForm({ ...form, image: e.target.value })}
-                  className="flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
+                  placeholder="Upload a file or paste an image URL"
+                  title="Primary event image used on event cards and as a fallback for the hero banner."
+                  className="flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
                 />
                 <input
                   type="file"
@@ -624,114 +568,205 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
                 )}
               </div>
             </div>
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Hero Image URL <span className="text-white/25">(large banner on event detail page — falls back to Main Image)</span></label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={form.heroImage || ''}
-                  onChange={(e) => setForm({ ...form, heroImage: e.target.value })}
-                  placeholder="(optional — leave blank to reuse the Main Image)"
-                  className="flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
-                />
-                <input
-                  type="file"
-                  id="event-hero-image-upload"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setUploading(true);
-                    try {
-                      const result = await uploadFile(file, 'events');
-                      setForm((prev) => ({ ...prev, heroImage: result.url }));
-                    } catch (err) {
-                      setMessage(`Error: ${err instanceof Error ? err.message : 'Upload failed'}`);
-                    } finally {
-                      setUploading(false);
-                      e.target.value = '';
-                    }
-                  }}
-                />
-                <label
-                  htmlFor="event-hero-image-upload"
-                  className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors cursor-pointer whitespace-nowrap flex items-center rounded-sm"
-                >
-                  {uploading ? 'Uploading...' : 'Upload File'}
-                </label>
-                {allGallery.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setGalleryPickerTarget('heroImage')}
-                    className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors whitespace-nowrap flex items-center rounded-sm"
+
+            {/* ── Advanced toggle ────────────────────────────────────────── */}
+            <div className="md:col-span-2 border-t border-[#C9A84C]/15 pt-4 mt-2">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="flex items-center gap-2 text-xs text-[#C9A84C] hover:text-[#D4B65C] transition-colors font-semibold"
+                aria-expanded={showAdvanced}
+              >
+                <span className="inline-block w-3">{showAdvanced ? '▼' : '▶'}</span>
+                {showAdvanced ? 'Hide advanced options' : 'Show advanced options'}
+                <span className="text-white/30 font-normal">
+                  (slug, hero image, long description, cast, tickets, videos)
+                </span>
+              </button>
+            </div>
+
+            {/* ── Advanced section ───────────────────────────────────────── */}
+            {showAdvanced && (
+              <>
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Slug</label>
+                  <input
+                    type="text"
+                    value={form.slug}
+                    onChange={(e) => {
+                      setSlugTouched(true);
+                      setForm({ ...form, slug: slugify(e.target.value) });
+                    }}
+                    placeholder="auto-generated-from-title"
+                    title="URL-safe identifier used in the event page URL (e.g. /events/your-slug). Auto-generated from the title — only change if you need a custom URL."
+                    className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+                  />
+                  <p className="text-[10px] text-white/30 mt-1 font-body">Auto-generated from Title. Edit only if you need a custom URL.</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Ticket Status</label>
+                  <select
+                    value={form.ticketStatus}
+                    onChange={(e) => setForm({ ...form, ticketStatus: e.target.value as Event['ticketStatus'] })}
+                    title="Ticket availability badge shown on event cards."
+                    className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
                   >
-                    Gallery
-                  </button>
-                )}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Ticket URL</label>
-              <input
-                type="text"
-                value={form.ticketUrl}
-                onChange={(e) => setForm({ ...form, ticketUrl: e.target.value })}
-                placeholder="https://..."
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
-              />
-            </div>
-            {/* Ticket Sales & Video Fields */}
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Tickets Sold</label>
-              <input
-                type="number"
-                value={form.ticketsSold}
-                onChange={(e) => setForm({ ...form, ticketsSold: Number(e.target.value) })}
-                min={0}
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Ticket Revenue (AUD)</label>
-              <input
-                type="number"
-                value={form.ticketRevenue}
-                onChange={(e) => setForm({ ...form, ticketRevenue: Number(e.target.value) })}
-                min={0}
-                step="0.01"
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Promo Video URL</label>
-              <input
-                type="text"
-                value={form.videoUrl}
-                onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
-                placeholder="https://youtube.com/..."
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Featured Video URL</label>
-              <input
-                type="text"
-                value={form.featuredVideo}
-                onChange={(e) => setForm({ ...form, featuredVideo: e.target.value })}
-                placeholder="https://youtube.com/..."
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-white/40 mb-1">Display Order</label>
-              <input
-                type="number"
-                value={form.order}
-                onChange={(e) => setForm({ ...form, order: Number(e.target.value) })}
-                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
-              />
-            </div>
+                    <option value="available">Available</option>
+                    <option value="selling_fast">Selling Fast</option>
+                    <option value="sold_out">Sold Out</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-white/60 mb-1">Event Hook / One-liner</label>
+                  <input
+                    type="text"
+                    maxLength={120}
+                    value={form.hook}
+                    onChange={(e) => setForm({ ...form, hook: e.target.value })}
+                    placeholder="A compelling one-liner (max 120 chars)"
+                    title="Short, punchy tagline used at the top of the event detail page. Keeps the listing focused."
+                    className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-white/60 mb-1">Full Description</label>
+                  <textarea
+                    rows={4}
+                    value={form.longDescription}
+                    onChange={(e) => setForm({ ...form, longDescription: e.target.value })}
+                    placeholder="Detailed event description for the event page"
+                    title="Longer description rendered on the event detail page. Supports multi-paragraph text."
+                    className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none placeholder-white/20"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-white/60 mb-1">Cast / Performers</label>
+                  <textarea
+                    rows={3}
+                    value={form.cast}
+                    onChange={(e) => setForm({ ...form, cast: e.target.value })}
+                    placeholder="List the cast and performers for this event"
+                    title="Comma- or newline-separated list of performers, shown on the event detail page."
+                    className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] resize-none placeholder-white/20"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-white/60 mb-1">Hero Image</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={form.heroImage || ''}
+                      onChange={(e) => setForm({ ...form, heroImage: e.target.value })}
+                      placeholder="Optional — leave blank to reuse the Main Image"
+                      title="Large banner image displayed behind the hero section on the event detail page. Falls back to Main Image if blank."
+                      className="flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+                    />
+                    <input
+                      type="file"
+                      id="event-hero-image-upload"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setUploading(true);
+                        try {
+                          const result = await uploadFile(file, 'events');
+                          setForm((prev) => ({ ...prev, heroImage: result.url }));
+                        } catch (err) {
+                          setMessage(`Error: ${err instanceof Error ? err.message : 'Upload failed'}`);
+                        } finally {
+                          setUploading(false);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="event-hero-image-upload"
+                      className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors cursor-pointer whitespace-nowrap flex items-center rounded-sm"
+                    >
+                      {uploading ? 'Uploading...' : 'Upload File'}
+                    </label>
+                    {allGallery.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setGalleryPickerTarget('heroImage')}
+                        className="text-[11px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors whitespace-nowrap flex items-center rounded-sm"
+                      >
+                        Gallery
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-white/60 mb-1">Ticket URL</label>
+                  <input
+                    type="text"
+                    value={form.ticketUrl}
+                    onChange={(e) => setForm({ ...form, ticketUrl: e.target.value })}
+                    placeholder="https://example.com/tickets/..."
+                    title="External ticketing link. If set, the 'Get Tickets' button on the event detail page links here."
+                    className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Tickets Sold</label>
+                  <input
+                    type="number"
+                    value={form.ticketsSold}
+                    onChange={(e) => setForm({ ...form, ticketsSold: Number(e.target.value) })}
+                    min={0}
+                    title="Internal metric: number of tickets sold so far. Used only in the admin revenue summary."
+                    className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Ticket Revenue (AUD)</label>
+                  <input
+                    type="number"
+                    value={form.ticketRevenue}
+                    onChange={(e) => setForm({ ...form, ticketRevenue: Number(e.target.value) })}
+                    min={0}
+                    step="0.01"
+                    title="Internal metric: total revenue from ticket sales in AUD. Used only in the admin revenue summary."
+                    className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Promo Video URL</label>
+                  <input
+                    type="text"
+                    value={form.videoUrl}
+                    onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
+                    placeholder="https://youtube.com/..."
+                    title="YouTube or video URL for a short promo clip linked from the event detail page."
+                    className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Featured Video URL</label>
+                  <input
+                    type="text"
+                    value={form.featuredVideo}
+                    onChange={(e) => setForm({ ...form, featuredVideo: e.target.value })}
+                    placeholder="https://youtube.com/..."
+                    title="Featured video embedded on the event detail page (e.g. a full trailer or highlight reel)."
+                    className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Display Order</label>
+                  <input
+                    type="number"
+                    value={form.order}
+                    onChange={(e) => setForm({ ...form, order: Number(e.target.value) })}
+                    title="Manual sort position. Lower numbers show first. You can also use the up/down arrows in the events table to reorder."
+                    className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
+                  />
+                </div>
+              </>
+            )}
+
             <div className="md:col-span-2 flex gap-3 pt-2">
               <button
                 type="submit"

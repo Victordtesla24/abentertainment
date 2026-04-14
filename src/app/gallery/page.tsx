@@ -1,5 +1,3 @@
-export const dynamic = 'force-dynamic';
-
 import { Metadata } from 'next';
 import { getGalleryImages, getEvents } from '@/lib/data';
 import PageHero from '@/components/ui/PageHero';
