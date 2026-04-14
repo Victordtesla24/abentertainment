@@ -80,7 +80,11 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         const imgs: GalleryImage[] = Array.isArray(data) ? data : (data?.images || []);
-        const lightbox = buildEventGalleryImages(event, imgs);
+        // Defensive client-side filter: server may not honor eventId query
+        // param if the deployed build is stale, so always re-filter here to
+        // guarantee only this event's images are shown.
+        const own = imgs.filter((img) => img.eventId === event.id);
+        const lightbox = buildEventGalleryImages(event, own);
         setGalleryImages(lightbox);
       })
       .catch(() => {})

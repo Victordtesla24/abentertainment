@@ -167,7 +167,11 @@ export default function DynamicEventViewer() {
           .then(r => r.ok ? r.json() : [])
           .then(data => {
             const imgs: GalleryImage[] = Array.isArray(data) ? data : [];
-            const lightbox = buildEventGalleryImages(found, imgs);
+            // Defensive client-side filter: server may not honor eventId query
+            // param if the deployed build is stale, so always re-filter here to
+            // guarantee only this event's images are shown.
+            const own = imgs.filter((img) => img.eventId === found.id);
+            const lightbox = buildEventGalleryImages(found, own);
             setGalleryImages(lightbox);
           });
       })
