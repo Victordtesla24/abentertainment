@@ -211,7 +211,19 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
     }
   }
 
-  async function reorderSwap(aId: string, bId: string) {
+  /**
+   * Swap the order of two events. Uses the atomic /api/admin/events/reorder
+   * endpoint when available on the VPS. Falls back to sequential PUTs against
+   * /api/admin/events so the feature keeps working even when the VPS still
+   * runs the previous build without the reorder endpoint.
+   *
+   * Sequential (not parallel) PUTs are critical: the VPS serialises JSON file
+   * writes by request, so the second PUT always reads the updated state from
+   * the first. Firing both with Promise.all reintroduces a read-modify-write
+   * race that makes one change silently overwrite the other.
+   */
+  async function reorderSwap(aId: string, bId: string, aNextOrder: number, bNextOrder: number) {
+    // Prefer the atomic endpoint — single transaction, no races.
     try {
       const res = await adminFetch('/api/admin/events/reorder', {
         method: 'POST',
@@ -219,32 +231,95 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
         body: JSON.stringify({ aId, bId }),
       });
 
-      if (!res.ok) {
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.events)) setEvents(data.events);
+        return;
+      }
+
+      // 404 means the VPS is still on the previous build — fall through to
+      // the sequential PUT fallback so admins aren't blocked.
+      if (res.status !== 404) {
         const errBody = await res.json().catch(() => ({}));
         throw new Error(errBody.error || `Reorder failed (${res.status})`);
       }
-
-      const data = await res.json();
-      if (Array.isArray(data.events)) {
-        setEvents(data.events);
+    } catch (err) {
+      // Network error on the atomic endpoint → still try the fallback.
+      if (err instanceof Error && !err.message.includes('Reorder failed')) {
+        // swallow and continue to fallback
+      } else {
+        setMessage(`Error: ${err instanceof Error ? err.message : 'Failed to reorder'}`);
+        return;
       }
+    }
+
+    // Fallback: sequential PUTs to the existing /api/admin/events endpoint.
+    try {
+      const res1 = await adminFetch('/api/admin/events', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: aId, order: aNextOrder }),
+      });
+      if (!res1.ok) throw new Error(`Reorder failed (${res1.status})`);
+
+      const res2 = await adminFetch('/api/admin/events', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: bId, order: bNextOrder }),
+      });
+      if (!res2.ok) throw new Error(`Reorder failed (${res2.status})`);
+
+      setEvents((prev) =>
+        prev.map((ev) => {
+          if (ev.id === aId) return { ...ev, order: aNextOrder };
+          if (ev.id === bId) return { ...ev, order: bNextOrder };
+          return ev;
+        })
+      );
     } catch (err) {
       setMessage(`Error: ${err instanceof Error ? err.message : 'Failed to reorder'}`);
     }
+  }
+
+  /**
+   * Compute a fresh order value for each position so that every event gets
+   * a distinct, monotonically-increasing order. This normalises events that
+   * were created before the `order` field existed (and all default to 0),
+   * which is the root cause of swaps being no-ops on legacy data.
+   */
+  function normalizedOrderFor(idx: number, sorted: Event[]): number {
+    const raw = sorted[idx]?.order;
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw !== 0) return raw;
+    return idx;
   }
 
   async function handleMoveUp(event: Event) {
     const sorted = [...events].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const idx = sorted.findIndex((ev) => ev.id === event.id);
     if (idx <= 0) return;
-    await reorderSwap(event.id, sorted[idx - 1].id);
+    const above = sorted[idx - 1];
+    // Compute target orders: event takes above's slot, above takes event's slot.
+    let eventOrder = normalizedOrderFor(idx, sorted);
+    let aboveOrder = normalizedOrderFor(idx - 1, sorted);
+    if (eventOrder === aboveOrder) {
+      eventOrder = idx;
+      aboveOrder = idx - 1;
+    }
+    await reorderSwap(event.id, above.id, aboveOrder, eventOrder);
   }
 
   async function handleMoveDown(event: Event) {
     const sorted = [...events].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const idx = sorted.findIndex((ev) => ev.id === event.id);
     if (idx < 0 || idx >= sorted.length - 1) return;
-    await reorderSwap(event.id, sorted[idx + 1].id);
+    const below = sorted[idx + 1];
+    let eventOrder = normalizedOrderFor(idx, sorted);
+    let belowOrder = normalizedOrderFor(idx + 1, sorted);
+    if (eventOrder === belowOrder) {
+      eventOrder = idx;
+      belowOrder = idx + 1;
+    }
+    await reorderSwap(event.id, below.id, belowOrder, eventOrder);
   }
 
   async function fetchEventImages(eventId: string) {
