@@ -28,6 +28,7 @@ function formatTime(dateString: string): string {
     return '';
   }
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) return ''; // e.g. a malformed 'TBA'/'TBD' string from data
   return date.toLocaleTimeString('en-AU', {
     hour: 'numeric',
     minute: '2-digit',

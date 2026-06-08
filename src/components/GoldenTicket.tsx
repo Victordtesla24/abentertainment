@@ -34,9 +34,13 @@ function formatTime(dateString: string): string {
   // UTC midnight and would otherwise render a misleading local time (e.g.
   // "11:00 am" in Melbourne) the admin never entered.
   if (!dateString.includes('T')) return '';
-  return new Date(dateString).toLocaleTimeString('en-AU', {
-    hour: '2-digit',
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return ''; // e.g. a malformed 'TBA'/'TBD' string from data
+  // 12-hour to match the event detail pages (EventDetailContent/DynamicEventViewer).
+  return date.toLocaleTimeString('en-AU', {
+    hour: 'numeric',
     minute: '2-digit',
+    hour12: true,
   });
 }
 

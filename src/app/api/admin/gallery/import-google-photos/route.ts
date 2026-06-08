@@ -35,17 +35,38 @@ const ALLOWED_HOSTS = new Set(['photos.app.goo.gl', 'photos.google.com']);
 // embedded photo URLs to non-browser / minimal user agents.
 const BROWSER_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-const MAX_PHOTOS = 200; // safety cap so one album can't flood the gallery
-const DOWNLOAD_CONCURRENCY = 4;
+const MAX_PHOTOS = 150; // safety cap so one album can't flood the gallery
+const DOWNLOAD_CONCURRENCY = 5;
 const WEB_SIZE = '=w2400'; // bounded high-res (orig can be 20MP+); '=s0' = originals
 const PER_IMAGE_TIMEOUT_MS = 20_000;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024; // per-image cap (mirrors the upload route's bound)
+// Stop scheduling downloads after this so we ALWAYS respond before the 60s
+// Hostinger PHP proxy / route maxDuration hard-abort. Otherwise the proxy
+// returns a false 502 while the route keeps persisting rows → the admin
+// re-imports and creates duplicates.
+const IMPORT_DEADLINE_MS = 50_000;
+
+function isAllowedHost(hostname: string): boolean {
+  return ALLOWED_HOSTS.has(hostname);
+}
 
 function isAllowedAlbumUrl(raw: string): boolean {
   try {
     const u = new URL(raw);
-    return u.protocol === 'https:' && ALLOWED_HOSTS.has(u.hostname);
+    return u.protocol === 'https:' && isAllowedHost(u.hostname);
   } catch {
     return false;
+  }
+}
+
+/** Pick a file extension from the download's content-type so a PNG/WebP isn't mislabeled as .jpg (it would break under the nosniff header on the serving route). */
+function extFromContentType(contentType: string | null): string {
+  switch ((contentType || '').split(';')[0].trim().toLowerCase()) {
+    case 'image/png': return '.png';
+    case 'image/webp': return '.webp';
+    case 'image/gif': return '.gif';
+    case 'image/avif': return '.avif';
+    default: return '.jpg';
   }
 }
 
@@ -97,6 +118,13 @@ export const POST = withAuth(async (request: NextRequest) => {
       headers: { 'User-Agent': BROWSER_UA, 'Accept-Language': 'en-US,en;q=0.9' },
       signal: AbortSignal.timeout(15_000),
     });
+    // Re-validate the FINAL host after redirects (the goo.gl shortlink follows to
+    // photos.google.com) — the initial allowlist check can't cover a redirect target.
+    try {
+      if (!isAllowedHost(new URL(res.url).hostname)) {
+        return NextResponse.json({ error: 'The album link redirected to an unexpected host.' }, { status: 400 });
+      }
+    } catch { /* res.url is always parseable */ }
     if (!res.ok) {
       return NextResponse.json(
         { error: `Google Photos returned HTTP ${res.status}. Make sure the album link is public.` },
@@ -149,16 +177,21 @@ export const POST = withAuth(async (request: NextRequest) => {
   }
 
   const stamp = Date.now();
+  const deadline = stamp + IMPORT_DEADLINE_MS;
   const downloaded = await runWithConcurrency(selected, DOWNLOAD_CONCURRENCY, async (base, i) => {
+    // Out of time budget — skip the rest so we respond before the 60s proxy abort.
+    if (Date.now() > deadline) return null;
     try {
       const res = await fetch(`${base}${WEB_SIZE}`, {
         headers: { 'User-Agent': BROWSER_UA },
         signal: AbortSignal.timeout(PER_IMAGE_TIMEOUT_MS),
       });
       if (!res.ok) return null;
+      // Bound memory: skip an image that declares (or turns out to be) too large.
+      if (Number(res.headers.get('content-length') || 0) > MAX_IMAGE_BYTES) return null;
       const buffer = Buffer.from(await res.arrayBuffer());
-      if (buffer.length === 0) return null;
-      const filename = `${stamp}-gphotos-${i + 1}.jpg`;
+      if (buffer.length === 0 || buffer.length > MAX_IMAGE_BYTES) return null;
+      const filename = `${stamp}-gphotos-${i + 1}${extFromContentType(res.headers.get('content-type'))}`;
       await writeFile(join(uploadDir, filename), buffer);
       const d = dims.get(base);
       return {
@@ -196,6 +229,7 @@ export const POST = withAuth(async (request: NextRequest) => {
 
   // 5) Optionally set the event's cover image if it doesn't have one yet.
   let eventUpdated = false;
+  let coverSrc: string | undefined;
   if (eventId && body.setEventCover !== false) {
     const events = await getEvents();
     const idx = events.findIndex((e) => e.id === eventId);
@@ -217,6 +251,7 @@ export const POST = withAuth(async (request: NextRequest) => {
         await saveEvents(events);
         revalidateEvents();
         eventUpdated = true;
+        coverSrc = cover;
       }
     }
   }
@@ -224,8 +259,10 @@ export const POST = withAuth(async (request: NextRequest) => {
   return NextResponse.json({
     imported: created.length,
     found: bases.length,
-    skipped: selected.length - ok.length,
+    skipped: selected.length - ok.length,  // photos that failed to download
+    truncated: Math.max(0, bases.length - selected.length), // photos beyond MAX_PHOTOS not attempted
     eventUpdated,
+    coverSrc,
     images: created,
   });
 });
