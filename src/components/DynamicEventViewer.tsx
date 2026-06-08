@@ -228,13 +228,13 @@ export default function DynamicEventViewer() {
     <>
       {/* Hero Section */}
       <section className="relative w-full h-[40vh] md:h-[50vh] overflow-hidden">
-        {(event.heroImage || event.image) && (
-          <img
-            src={event.heroImage || event.image}
-            alt={event.title}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        )}
+        {/* Fall back to the default events hero so an event without its own
+            image still shows a branded band instead of a blank/dark hero. */}
+        <img
+          src={event.heroImage || event.image || '/images/heroes/events-hero.png'}
+          alt={event.title}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-black/90" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/40" />
 

@@ -173,6 +173,11 @@ function FilterBar({
 function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }) {
   const badge = getStatusBadge(event);
   const useNextImage = event.image.startsWith('/');
+  // Upcoming events show the FULL poster (object-contain, no hover zoom that
+  // would re-crop it); past events stay cropped thumbnails.
+  const imageFit = isPast
+    ? 'object-cover transition-transform duration-700 group-hover:scale-110'
+    : 'object-contain';
 
   return (
     <Link href={`/events/${event.slug}`}>
@@ -213,7 +218,7 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
         </div>
 
         {/* Image */}
-        <div className="relative h-52 overflow-hidden bg-gradient-to-br from-[#111111] to-[#0A0A0A]">
+        <div className={`relative ${isPast ? 'h-52' : 'h-64'} overflow-hidden bg-gradient-to-br from-[#111111] to-[#0A0A0A]`}>
           {event.image && useNextImage && (
             <Image
               src={event.image}
@@ -222,16 +227,25 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               placeholder="blur"
               blurDataURL={BLUR_DATA_URL}
-              className="object-cover transition-transform duration-700 group-hover:scale-110"
+              className={imageFit}
             />
           )}
           {event.image && !useNextImage && (
             <img
               src={event.image}
               alt={event.title}
-              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+              className={`h-full w-full ${imageFit}`}
               loading="lazy"
             />
+          )}
+          {/* Branded placeholder when an event has no image yet — avoids a blank box. */}
+          {!event.image && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 select-none" aria-hidden="true">
+              <span className="font-display font-bold text-4xl text-[#C9A84C]/25">AB</span>
+              <span className="text-[10px] uppercase tracking-[0.25em] font-body text-[#C9A84C]/30">
+                {event.category || 'Entertainment'}
+              </span>
+            </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent opacity-60" />
 
