@@ -26,6 +26,7 @@ function formatTime(dateString: string): string {
   // Never fabricate one; the caller hides the Time row when this returns ''.
   if (!dateString.includes('T')) return '';
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) return ''; // e.g. a malformed 'TBA'/'TBD' string from data
   return date.toLocaleTimeString('en-AU', {
     hour: 'numeric',
     minute: '2-digit',

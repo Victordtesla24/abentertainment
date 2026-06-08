@@ -46,13 +46,8 @@ function getStatusBadge(event: Event): { label: string; color: string } {
     return { label: 'Live Now', color: 'bg-red-500 text-white' };
   }
 
-  // Time-driven urgency as deterministic fallback when ticket inventory is unavailable.
-  const daysUntilEvent = Math.ceil(
-    (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-  );
-  if (daysUntilEvent <= 7) {
-    return { label: 'Selling Fast', color: 'bg-amber-500 text-black' };
-  }
+  // NOTE: no date-proximity "Selling Fast" — urgency claims must come from real
+  // admin-set ticketStatus, not be fabricated from how soon the event is.
 
   // Recently updated events get a freshness indicator.
   if (event.updatedAt) {

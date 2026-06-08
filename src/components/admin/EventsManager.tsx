@@ -381,13 +381,20 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
         return;
       }
       const imported = data.imported ?? 0;
-      setAlbumStatus(`Imported ${imported} photo${imported === 1 ? '' : 's'}${data.eventUpdated ? ' and set the event cover' : ''}.`);
+      const notes: string[] = [];
+      if (data.skipped) notes.push(`${data.skipped} failed to download`);
+      if (data.truncated) notes.push(`${data.truncated} skipped (album over the import cap)`);
+      setAlbumStatus(
+        `Imported ${imported} photo${imported === 1 ? '' : 's'}${data.eventUpdated ? ', set the event cover' : ''}` +
+        `${notes.length ? ` — ${notes.join(', ')}` : ''}.`,
+      );
       setAlbumUrl('');
       await fetchEventImages(eventId);
-      const firstSrc: string | undefined = data.images?.[0]?.src;
-      if (data.eventUpdated && firstSrc) {
+      // Use the cover the SERVER actually persisted (not an inferred images[0]).
+      const cover: string | undefined = data.coverSrc;
+      if (data.eventUpdated && cover) {
         setEvents(prev => prev.map(e =>
-          e.id === eventId ? { ...e, image: e.image || firstSrc, heroImage: e.heroImage || firstSrc } : e,
+          e.id === eventId ? { ...e, image: e.image || cover, heroImage: e.heroImage || cover } : e,
         ));
       }
     } catch {

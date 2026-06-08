@@ -168,18 +168,22 @@ export default function GalleryManager({ initialGallery, allEvents, allSponsors,
   const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    let cancelled = false;
     const checkImages = async () => {
       const broken = new Set<string>();
       for (const img of images) {
+        if (cancelled) return; // a newer images change superseded this pass
         if (!img.src) { broken.add(img.id); continue; }
         try {
           const res = await fetch(img.src, { method: 'HEAD' });
           if (!res.ok) broken.add(img.id);
         } catch { broken.add(img.id); }
       }
-      setBrokenImages(broken);
+      // Don't let a stale, late-resolving pass overwrite a newer one's result.
+      if (!cancelled) setBrokenImages(broken);
     };
     if (images.length > 0) checkImages();
+    return () => { cancelled = true; };
   }, [images]);
 
   function showMessage(msg: string) {
@@ -240,10 +244,12 @@ export default function GalleryManager({ initialGallery, allEvents, allSponsors,
     const eventTitle = bulkEventId ? (allEvents?.find((e) => e.id === bulkEventId)?.title || 'Event image') : 'Gallery image';
     setBulkUploading(true);
     setMessage('');
-    let done = 0;
+    const added: GalleryImage[] = [];
     let failed = 0;
+    let firstReason = '';
     setBulkProgress(`0 / ${list.length}`);
-    for (const file of list) {
+    for (let i = 0; i < list.length; i++) {
+      const file = list[i];
       try {
         const up = await uploadFile(file, 'gallery');
         const res = await adminFetch('/api/admin/gallery', {
@@ -260,20 +266,24 @@ export default function GalleryManager({ initialGallery, allEvents, allSponsors,
         });
         if (res.ok) {
           const data = await res.json();
-          setImages((prev) => [...prev, data.image]);
+          added.push(data.image);
         } else {
           failed++;
+          if (!firstReason) firstReason = (await res.json().catch(() => ({}))).error || `HTTP ${res.status}`;
         }
-      } catch {
+      } catch (err) {
         failed++;
+        if (!firstReason) firstReason = err instanceof Error ? err.message : 'upload failed';
       }
-      done++;
-      setBulkProgress(`${done} / ${list.length}`);
+      setBulkProgress(`${i + 1} / ${list.length}`);
     }
+    // Single state update at the end — appending per-file would re-trigger the
+    // broken-image health check O(n) times over a growing list.
+    if (added.length) setImages((prev) => [...prev, ...added]);
     setBulkUploading(false);
     setBulkProgress('');
     setBulkOpen(false);
-    showMessage(`Bulk upload: ${done - failed} added${failed ? `, ${failed} failed` : ''}.`);
+    showMessage(`Bulk upload: ${added.length} added${failed ? `, ${failed} failed${firstReason ? ` (${firstReason})` : ''}` : ''}.`);
   }
 
   async function handleDelete(id: string) {

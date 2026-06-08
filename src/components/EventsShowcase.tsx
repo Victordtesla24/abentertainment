@@ -26,12 +26,8 @@ function getStatusBadge(event: Event): { label: string; color: string } | null {
     return { label: 'Selling Fast', color: 'bg-amber-500 text-black' };
   }
 
-  const daysUntilEvent = Math.ceil(
-    (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-  );
-  if (daysUntilEvent <= 7) {
-    return { label: 'Selling Fast', color: 'bg-amber-500 text-black' };
-  }
+  // NOTE: no date-proximity "Selling Fast" — urgency must come from real
+  // admin-set ticketStatus, not be fabricated from how soon the event is.
 
   if (event.updatedAt) {
     const updatedAt = new Date(event.updatedAt);
