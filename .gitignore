@@ -59,6 +59,10 @@ public/video/*.MP3
 # Source data
 /scraped-data/
 
+# Contact form submissions — contain PII, must never be committed or served
+data/contact-submissions.json
+public/data/contact-submissions.json
+
 # Agent system Docker volumes
 agent-system/.env
 agent-system/node_modules/

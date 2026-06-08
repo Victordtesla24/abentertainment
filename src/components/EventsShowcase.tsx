@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import GoldenTicket from '@/components/GoldenTicket';
+import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
 import type { Event } from '@/lib/data';
 
@@ -77,14 +78,15 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  // Fetch live data so admin changes appear without a rebuild.
-  // Accept empty arrays so deletions are reflected immediately.
-  useEffect(() => {
+  // Fetch live data so admin changes appear without a rebuild, and keep polling
+  // so an idle visitor sees them too. Accept empty arrays so deletions reflect.
+  const loadEvents = () => {
     fetch('/api/events')
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (Array.isArray(data)) setEvents(data); })
       .catch(() => {});
-  }, []);
+  };
+  usePolledRefresh(loadEvents);
 
   // Featured event: next upcoming event for the Golden Ticket
   const featuredEvent = useMemo(() => {

@@ -7,7 +7,7 @@
  *   `next dev` admin panel workflows.
  */
 
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, writeFile, mkdir, rename } from 'fs/promises';
 import { join } from 'path';
 
 const DATA_DIR = join(process.cwd(), 'data');
@@ -144,6 +144,18 @@ export interface AgentConversation {
   messages: { role: 'user' | 'assistant'; content: string; timestamp: string }[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ContactSubmission {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  subject?: string;
+  message: string;
+  eventInterest?: string;
+  ip?: string;
+  createdAt: string;
 }
 
 export interface Video {
@@ -409,20 +421,58 @@ const SEED_PAGES: PageTitle[] = [
 
 // ─── Data Access Functions ───────────────────────────────────────────────────
 
-async function ensureDataDir(): Promise<void> {
-  try {
-    await mkdir(DATA_DIR, { recursive: true });
-  } catch {
-    // Directory already exists
-  }
+/**
+ * Per-canonical-filename write serialization. The VPS runs a single Node
+ * process; without this, two concurrent admin mutations on the same entity
+ * (e.g. an admin edit racing the AI chat tool) can interleave their writes.
+ * Each writeJsonFile call chains onto the previous write of the same file so
+ * the read-from-disk → atomic-rename sequence never overlaps for one file.
+ * The stored tail never rejects, so one failed write does not break the chain.
+ */
+const fileWriteLocks = new Map<string, Promise<unknown>>();
+
+function withFileLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const previous = fileWriteLocks.get(key) ?? Promise.resolve();
+  // Run fn after the previous write settles, regardless of its outcome.
+  const next = previous.then(fn, fn);
+  fileWriteLocks.set(key, next.then(
+    () => undefined,
+    () => undefined,
+  ));
+  return next;
+}
+
+/**
+ * Atomically write a file: write to a temp sibling then rename over the target.
+ * rename(2) is atomic on the same filesystem, so a reader sees either the
+ * complete old file or the complete new file — never a truncated half-write.
+ * The temp file MUST live in the SAME directory as the target (not /tmp) so
+ * the rename does not cross a filesystem boundary and EXDEV-fail — on the VPS
+ * REPO_DATA_DIR is a bind mount distinct from DATA_DIR.
+ */
+async function atomicWrite(dir: string, filename: string, data: string): Promise<void> {
+  await mkdir(dir, { recursive: true });
+  const target = join(dir, filename);
+  const tmp = join(dir, `.${filename}.tmp`);
+  await writeFile(tmp, data, 'utf-8');
+  await rename(tmp, target);
 }
 
 async function readJsonFile<T>(filename: string, fallback: T): Promise<T> {
+  const filepath = join(DATA_DIR, filename);
   try {
-    const filepath = join(DATA_DIR, filename);
     const content = await readFile(filepath, 'utf-8');
     return JSON.parse(content) as T;
-  } catch {
+  } catch (err) {
+    // ENOENT is expected on first run (file not created yet) — the seed
+    // fallback is the correct response and needs no noise. ANY other error
+    // (corrupt/half-written JSON, permission denied, I/O error) means the
+    // file exists but is unreadable, and silently serving seed demo data
+    // would be a catastrophic-yet-invisible regression. Log loudly so the
+    // failure is observable in VPS logs instead of vanishing.
+    if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+      console.error(`[data] read of ${filename} failed — serving fallback:`, err);
+    }
     return fallback;
   }
 }
@@ -439,34 +489,37 @@ function normalizeEvent(event: Event | (Event & { ticketStatus?: Event['ticketSt
 }
 
 async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
-  await ensureDataDir();
   const serialized = JSON.stringify(data, null, 2);
-  await writeFile(join(DATA_DIR, filename), serialized, 'utf-8');
-  // Dual-write to the repo's canonical data/ directory if it differs from
-  // DATA_DIR. On VPS this syncs the admin's runtime write from the container
-  // volume (/app/data/) to the host-mounted repo (/workspace/data/ →
-  // /opt/abentertainment/data/), which is the source of truth for the
-  // static-export build that deploys to Hostinger.
-  if (REPO_DATA_DIR !== DATA_DIR) {
-    try {
-      await mkdir(REPO_DATA_DIR, { recursive: true });
-      await writeFile(join(REPO_DATA_DIR, filename), serialized, 'utf-8');
-    } catch (err) {
-      console.error(`[data] repo sync to ${REPO_DATA_DIR}/${filename} failed:`, err);
+  // Serialize all writes of this file so concurrent mutations cannot interleave.
+  await withFileLock(filename, async () => {
+    // Canonical runtime copy — atomic, so a crash mid-write can never leave a
+    // truncated events.json that readJsonFile would treat as corrupt.
+    await atomicWrite(DATA_DIR, filename, serialized);
+
+    // Dual-write to the repo's canonical data/ directory if it differs from
+    // DATA_DIR. On VPS this syncs the admin's runtime write from the container
+    // volume (/app/data/) to the host-mounted repo (/workspace/data/ →
+    // /opt/abentertainment/data/), which is the source of truth for the
+    // static-export build that deploys to Hostinger.
+    if (REPO_DATA_DIR !== DATA_DIR) {
+      try {
+        await atomicWrite(REPO_DATA_DIR, filename, serialized);
+      } catch (err) {
+        console.error(`[data] repo sync to ${REPO_DATA_DIR}/${filename} failed:`, err);
+      }
     }
-  }
-  // Mirror to public/data/ so client-side fetchers and the next static-export
-  // build pick up admin changes immediately. Writes twice intentionally
-  // (sequentially) so failure to mirror does not corrupt the canonical copy.
-  if (PUBLIC_MIRRORED.has(filename)) {
-    try {
-      await mkdir(PUBLIC_DATA_DIR, { recursive: true });
-      await writeFile(join(PUBLIC_DATA_DIR, filename), serialized, 'utf-8');
-    } catch (err) {
-      // Mirror failure is non-fatal: canonical data/ write already succeeded.
-      console.error(`[data] mirror to public/data/${filename} failed:`, err);
+
+    // Mirror to public/data/ so client-side fetchers and the next static-export
+    // build pick up admin changes immediately. Mirror failure is non-fatal:
+    // the canonical data/ write above already succeeded.
+    if (PUBLIC_MIRRORED.has(filename)) {
+      try {
+        await atomicWrite(PUBLIC_DATA_DIR, filename, serialized);
+      } catch (err) {
+        console.error(`[data] mirror to public/data/${filename} failed:`, err);
+      }
     }
-  }
+  });
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -567,4 +620,27 @@ export async function getTimeline(): Promise<TimelineChapter[]> {
 
 export async function saveTimeline(chapters: TimelineChapter[]): Promise<void> {
   await writeJsonFile('timeline.json', chapters);
+}
+
+// ─── Contact submissions ─────────────────────────────────────────────────────
+// Admin-internal: NOT in PUBLIC_MIRRORED, so writeJsonFile never copies it to
+// public/data/ (it holds PII and must never be publicly served). It is also
+// gitignored so the admin git tool never commits it. On the VPS it persists to
+// the bind-mounted repo data dir so submissions survive container restarts.
+
+const CONTACT_SUBMISSIONS_FILE = 'contact-submissions.json';
+const MAX_CONTACT_SUBMISSIONS = 1000;
+
+export async function getContactSubmissions(): Promise<ContactSubmission[]> {
+  return readJsonFile<ContactSubmission[]>(CONTACT_SUBMISSIONS_FILE, []);
+}
+
+/** Append a contact submission, capping the stored history so it can't grow without bound. */
+export async function appendContactSubmission(submission: ContactSubmission): Promise<void> {
+  const existing = await getContactSubmissions();
+  existing.push(submission);
+  await writeJsonFile(
+    CONTACT_SUBMISSIONS_FILE,
+    existing.slice(-MAX_CONTACT_SUBMISSIONS),
+  );
 }

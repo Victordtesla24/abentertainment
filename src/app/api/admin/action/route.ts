@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
+import { withAuth } from '@/lib/with-auth';
 import { logAdminAction } from '@/lib/audit';
 import { clearRateLimitStore } from '@/lib/redis';
 import {
@@ -65,11 +65,6 @@ function loadWorkspaceFromDisk(): { ok: boolean; totalBytes: number; missing: st
  *                 admin dashboard shows fresh numbers.
  */
 
-function requireAuth(request: NextRequest): boolean {
-  const cookie = request.cookies.get(getSessionCookieName());
-  return cookie ? validateSessionToken(cookie.value) : false;
-}
-
 function getClientIp(request: NextRequest): string {
   const forwardedFor = request.headers.get('x-forwarded-for');
   if (forwardedFor) return forwardedFor.split(',')[0].trim();
@@ -82,11 +77,12 @@ function isVpsRuntime(): boolean {
   return process.env.ADMIN_RUNTIME === 'vps';
 }
 
-export async function POST(request: NextRequest) {
-  if (!requireAuth(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+// withAuth enforces the session cookie AND, on this mutating POST, the Origin
+// allowlist + CSRF double-submit token — the same contract as every other admin
+// route. Its only caller (HealthDashboard) goes through adminFetch, which sends
+// both, so this is transparent to the dashboard while closing the prior gap
+// where restart/clear-cache/wake could be driven without CSRF/Origin checks.
+export const POST = withAuth(async (request: NextRequest) => {
   const ip = getClientIp(request);
   let body: { action?: string } = {};
   try {
@@ -187,4 +183,4 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
   }
-}
+});

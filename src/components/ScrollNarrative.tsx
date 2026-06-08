@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -59,8 +60,8 @@ export default function ScrollNarrative() {
   const slidesRef = useRef<(HTMLDivElement | null)[]>([]);
   const [slides, setSlides] = useState<NarrativeSlide[]>(FALLBACK_SLIDES);
 
-  // Fetch live timeline data from admin
-  useEffect(() => {
+  // Fetch live timeline data from admin and keep it fresh while the page is open.
+  const loadTimeline = () => {
     fetch('/api/timeline')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -77,7 +78,8 @@ export default function ScrollNarrative() {
         }
       })
       .catch(() => {});
-  }, []);
+  };
+  usePolledRefresh(loadTimeline);
 
   useEffect(() => {
     const container = containerRef.current;

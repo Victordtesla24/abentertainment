@@ -7,6 +7,7 @@ import Image from 'next/image';
 import Tilt from 'react-parallax-tilt';
 import type { Event } from '@/lib/data';
 import SponsorBanner from '@/components/ui/SponsorBanner';
+import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
 /** Tiny 1x1 transparent placeholder for blur-up loading. */
 const BLUR_DATA_URL =
@@ -318,15 +319,17 @@ function EventsContentInner({ events: initialEvents, contactEmail }: EventsConte
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Fetch live data from VPS so admin changes appear without a rebuild.
+  // Fetch live data from VPS so admin changes appear without a rebuild, and
+  // keep polling so an idle visitor sees them too.
   // IMPORTANT: Accept empty arrays — if admin removed all events, the public
   // page must reflect that rather than showing stale SSR data.
-  useEffect(() => {
+  const loadEvents = () => {
     fetch('/api/events')
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (Array.isArray(data)) setEvents(data); })
       .catch(() => {});
-  }, []);
+  };
+  usePolledRefresh(loadEvents);
 
   // Read initial filter state from URL params
   const [category, setCategory] = useState(searchParams.get('category') || '');

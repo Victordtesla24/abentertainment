@@ -5,6 +5,7 @@ import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
 import { getApiUrl } from '@/lib/api-config';
+import { usePolledRefresh } from '@/lib/use-polled-refresh';
 import type { Event, GalleryImage } from '@/lib/data';
 
 type LightboxImage = { src: string; alt: string; title?: string };
@@ -185,6 +186,35 @@ export default function DynamicEventViewer() {
       document.title = `${event.title} — AB Entertainment`;
     }
   }, [event]);
+
+  // Steady-state polling: refresh the event + its gallery in place so an admin
+  // edit appears without a reload. Mirrors the happy path of the initial fetch
+  // but never touches loading/notFound, so a transient poll error can't flip a
+  // correctly-loaded page to "not found". The defensive eventId re-filter is
+  // preserved.
+  const refreshInPlace = useCallback(() => {
+    const eventSlug = resolveSlug();
+    if (!eventSlug) return;
+    fetch(getApiUrl('/api/events'))
+      .then(r => r.ok ? r.json() : null)
+      .then(events => {
+        if (!Array.isArray(events)) return;
+        const found = events.find(
+          (e: Event) => e.slug === eventSlug || e.slug.toLowerCase() === eventSlug.toLowerCase()
+        );
+        if (!found) return;
+        setEvent(found);
+        return fetch(getApiUrl(`/api/gallery?eventId=${encodeURIComponent(found.id)}`))
+          .then(r => r.ok ? r.json() : [])
+          .then(data => {
+            const imgs: GalleryImage[] = Array.isArray(data) ? data : [];
+            const own = imgs.filter((img) => img.eventId === found.id);
+            setGalleryImages(buildEventGalleryImages(found, own));
+          });
+      })
+      .catch(() => {});
+  }, [resolveSlug]);
+  usePolledRefresh(refreshInPlace, { immediate: false });
 
   if (loading) return <LoadingSkeleton />;
   if (notFound || !event) return <EventNotFound slug={slug} />;

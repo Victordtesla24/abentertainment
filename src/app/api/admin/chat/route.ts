@@ -7,6 +7,8 @@ import { promisify } from 'node:util';
 
 const execFileP = promisify(execFile);
 import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
+import { validateCsrfToken } from '@/lib/csrf';
+import { getAllowedOrigins } from '@/lib/cors';
 import {
   getEvents,
   getSponsors,
@@ -422,6 +424,19 @@ export async function POST(request: NextRequest) {
       developer: process.env.DEVELOPER_EMAIL || '',
       timestamp: new Date().toISOString(),
     });
+  }
+
+  // Every non-health request is a mutating, cost-incurring, tool-running call
+  // (model inference, content writes, git push). Enforce the SAME Origin + CSRF
+  // double-submit checks that withAuth applies to every other admin mutation —
+  // the read-only health ping above is intentionally exempt so the dashboard's
+  // lightweight SWR poll (a plain fetch with no CSRF header) keeps working.
+  const chatOrigin = request.headers.get('origin');
+  if (!chatOrigin || !getAllowedOrigins().includes(chatOrigin)) {
+    return NextResponse.json({ error: 'Forbidden: origin not allowed' }, { status: 403 });
+  }
+  if (!validateCsrfToken(request)) {
+    return NextResponse.json({ error: 'Forbidden: invalid CSRF token' }, { status: 403 });
   }
 
   // Run the auto-sleep check before serving chat too — otherwise a

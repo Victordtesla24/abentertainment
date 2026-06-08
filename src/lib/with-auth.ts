@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSessionToken } from '@/lib/auth';
 import { validateCsrfToken } from '@/lib/csrf';
+import { getAllowedOrigins } from '@/lib/cors';
 
 const COOKIE_NAME = 'ab-admin-session-v3';
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
-
-function getAllowedOrigins(): string[] {
-  const origins: string[] = ['http://localhost:3000'];
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  if (siteUrl) {
-    origins.push(siteUrl.replace(/\/$/, ''));
-  }
-  return origins;
-}
 
 type RouteHandler = (request: NextRequest) => Promise<NextResponse> | NextResponse;
 

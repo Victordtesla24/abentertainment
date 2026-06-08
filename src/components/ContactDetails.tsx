@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { SITE_CONFIG } from '@/lib/constants';
+import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
 export default function ContactDetails() {
   const [email, setEmail] = useState(SITE_CONFIG.contact.email);
   const [phone, setPhone] = useState(SITE_CONFIG.contact.phone);
 
-  useEffect(() => {
+  // Keep contact details in sync with admin Settings edits while the page is open.
+  const loadSettings = () => {
     fetch('/api/settings')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -15,7 +17,8 @@ export default function ContactDetails() {
         if (data?.contactPhone) setPhone(data.contactPhone);
       })
       .catch(() => {});
-  }, []);
+  };
+  usePolledRefresh(loadSettings);
 
   return (
     <div className="bg-[#111111]/40 border border-[#C9A84C]/40 p-8 space-y-6">

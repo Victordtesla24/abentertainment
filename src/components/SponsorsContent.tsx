@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import type { Sponsor } from '@/lib/data';
+import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
 const tierOrder: Record<string, number> = {
   platinum: 0,
@@ -71,18 +72,27 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 export default function SponsorsContent({ initialSponsors }: { initialSponsors: Sponsor[] }) {
   const [sponsors, setSponsors] = useState<Sponsor[]>(initialSponsors);
 
-  // Fetch live data from VPS so admin changes appear without a rebuild.
+  // Fetch live data from VPS so admin changes appear without a rebuild, and
+  // keep polling so an idle visitor sees them too.
   // IMPORTANT: Accept empty arrays — if admin removed all sponsors, the public
   // page must reflect that rather than showing stale SSR data.
-  useEffect(() => {
+  const loadSponsors = () => {
     fetch('/api/sponsors')
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (Array.isArray(data)) setSponsors(data); })
       .catch(() => {});
-  }, []);
+  };
+  usePolledRefresh(loadSponsors);
 
   const sortedSponsors = useMemo(
-    () => [...sponsors].sort((a, b) => (tierOrder[a.tier] ?? 99) - (tierOrder[b.tier] ?? 99)),
+    () =>
+      [...sponsors].sort((a, b) => {
+        const tierDelta = (tierOrder[a.tier] ?? 99) - (tierOrder[b.tier] ?? 99);
+        if (tierDelta !== 0) return tierDelta;
+        // Within a tier, honour the admin's reorder (order field). Sponsors
+        // without an order sink to the end, preserving prior behaviour.
+        return (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER);
+      }),
     [sponsors]
   );
 

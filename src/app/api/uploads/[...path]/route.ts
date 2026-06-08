@@ -35,12 +35,22 @@ export async function GET(
 
   try {
     const buffer = await readFile(fullPath);
-    return new NextResponse(buffer, {
-      headers: {
-        'Content-Type': mime,
-        'Cache-Control': 'public, max-age=31536000, immutable',
-      },
-    });
+    const headers: Record<string, string> = {
+      'Content-Type': mime,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      // Never let the browser MIME-sniff an uploaded file into something
+      // executable regardless of its declared type.
+      'X-Content-Type-Options': 'nosniff',
+    };
+    // SVGs are XML and can carry <script>/onload — served same-origin they
+    // would otherwise be a stored-XSS vector when navigated to directly.
+    // Sandbox + CSP neutralises any embedded script while still rendering the
+    // image inline (and as the src of an <img>, which never executes script).
+    if (ext === '.svg') {
+      headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+      headers['Content-Disposition'] = 'inline';
+    }
+    return new NextResponse(buffer, { headers });
   } catch {
     return NextResponse.json({ error: 'File not found' }, { status: 404 });
   }
