@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
 interface SponsorItem {
   name: string;
@@ -19,13 +20,15 @@ const FALLBACK_SPONSORS: SponsorItem[] = [
 export default function SponsorBanner() {
   const [sponsors, setSponsors] = useState<SponsorItem[]>(FALLBACK_SPONSORS);
 
-  // Fetch live sponsors. Accept empty arrays so deletions reflect immediately.
-  useEffect(() => {
+  // Fetch live sponsors and keep polling so changes appear without a reload.
+  // Accept empty arrays so deletions reflect immediately.
+  const loadSponsors = () => {
     fetch('/api/sponsors')
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (Array.isArray(data)) setSponsors(data); })
       .catch(() => {});
-  }, []);
+  };
+  usePolledRefresh(loadSponsors);
 
   // Double for seamless CSS animation loop (horizontal marquee)
   const marqueeItems = [...sponsors, ...sponsors];

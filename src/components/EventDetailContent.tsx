@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import CountdownTimer from '@/components/ui/CountdownTimer';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
 import { getApiUrl } from '@/lib/api-config';
+import { usePolledRefresh } from '@/lib/use-polled-refresh';
 import type { Event, GalleryImage } from '@/lib/data';
 
 type LightboxImage = { src: string; alt: string; title?: string };
@@ -90,6 +91,22 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
       .catch(() => {})
       .finally(() => setGalleryLoading(false));
   }, [event]);
+
+  // Steady-state polling: refresh this event in place so an admin edit appears
+  // without a reload. Only updates on success — a transient error leaves the
+  // already-rendered event untouched. The gallery effect above re-runs off the
+  // updated `event`, so it follows automatically.
+  const refreshEvent = useCallback(() => {
+    fetch(getApiUrl('/api/events'))
+      .then(r => r.ok ? r.json() : null)
+      .then(events => {
+        if (!Array.isArray(events)) return;
+        const live = events.find((e: Event) => e.slug === initialEvent.slug);
+        if (live) setEvent(live);
+      })
+      .catch(() => {});
+  }, [initialEvent.slug]);
+  usePolledRefresh(refreshEvent, { immediate: false });
 
   const isPast = new Date(event.date) <= new Date();
 

@@ -142,8 +142,14 @@ function writeData(filename, data) {
   }
 }
 
-// HMAC-signed stateless tokens — survive server restarts, no in-memory state needed
-const AGENT_TOKEN_SECRET = process.env.AGENT_SECRET || process.env.SESSION_SECRET || 'ab-agent-token-secret-change-me';
+// HMAC-signed stateless tokens — survive server restarts, no in-memory state needed.
+// Fail closed: never fall back to a shipped default secret (it would be public in
+// source and let anyone forge admin tokens). If no secret is configured, token
+// issuance and validation are disabled so no privileged request can be authorised.
+const AGENT_TOKEN_SECRET = process.env.AGENT_SECRET || process.env.SESSION_SECRET || '';
+if (!AGENT_TOKEN_SECRET) {
+  console.error('[agent-server] SECURITY: neither AGENT_SECRET nor SESSION_SECRET is set — admin auth is DISABLED. Set one to enable the admin API.');
+}
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function issueAdminToken() {
@@ -154,6 +160,7 @@ function issueAdminToken() {
 }
 
 function validateAdminToken(req) {
+  if (!AGENT_TOKEN_SECRET) return false; // auth disabled when unconfigured
   const auth = req.headers['authorization'] || '';
   if (!auth.startsWith('Bearer ')) return false;
   const token = auth.slice(7).trim();
@@ -874,12 +881,16 @@ async function handleAgentChat(messages, sessionId, modelKey = DEFAULT_MODEL) {
   // Reload workspace context at start of every request (MANDATORY)
   reloadWorkspaceContext();
 
-  // Check for production approval in the conversation (CASE-INSENSITIVE)
-  for (const msg of messages) {
+  // Production approval is per-request and based ONLY on the LATEST user
+  // message. Reset every request so a single approval can never persist and
+  // silently unlock code writes for later (or other users') conversations —
+  // the previous loop set a module-global true forever on any historical match.
+  productionApproved = false;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
     if (msg.role === 'user' && typeof msg.content === 'string') {
-      if (msg.content.toLowerCase().includes(PRODUCTION_SAFETY_PHRASE)) {
-        productionApproved = true;
-      }
+      productionApproved = msg.content.toLowerCase().includes(PRODUCTION_SAFETY_PHRASE);
+      break;
     }
   }
 
@@ -1137,9 +1148,13 @@ const server = http.createServer(async (req, res) => {
     const body = await parseBody(req);
     const adminUser = process.env.AGENT_ADMIN_USERNAME || 'admin';
     const adminPass = process.env.AGENT_ADMIN_PASSWORD || '';
-    const valid = adminPass
-      ? body.username === adminUser && body.password === adminPass
-      : body.username === 'admin' && body.password === 'admin123';
+    // Fail closed: require a configured password AND signing secret. Never fall
+    // back to the old hardcoded admin/admin123 default, which let anyone in.
+    const valid =
+      Boolean(adminPass) &&
+      Boolean(AGENT_TOKEN_SECRET) &&
+      body.username === adminUser &&
+      body.password === adminPass;
     if (valid) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       const token = issueAdminToken();

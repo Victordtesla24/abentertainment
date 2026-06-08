@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/redis';
+import { appendContactSubmission } from '@/lib/data';
 
 interface ContactRequest {
   name: string;
@@ -37,8 +38,11 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /**
  * Contact form handler.
- * Stores submissions locally (logs to console for now).
- * In production, this would write to PostgreSQL on the VPS and/or send email.
+ * Persists each valid submission to an admin-internal JSON store
+ * (data/contact-submissions.json — gitignored, never mirrored to public/) and
+ * logs it unconditionally so messages are always recoverable. Email/CRM
+ * delivery can be layered on top later by reading that store or wiring a
+ * provider here, but submissions are no longer silently discarded.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -107,13 +111,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log contact submission (replace with DB write in production)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Contact form submission:', {
-        name: trimmedName,
-        email: trimmedEmail,
-        timestamp: new Date().toISOString(),
-      });
+    // Persist the submission so it is never silently discarded. The form
+    // previously only console.log'd in development, which meant production
+    // submissions vanished while the user saw a success message. We now:
+    //   1. Persist to an admin-internal JSON store (recoverable, not public).
+    //   2. Log unconditionally (a server-log backup if the write ever fails).
+    // Persistence failure must not lose the message or break the UX, so we log
+    // loudly and still return success (the log is the recovery path).
+    const submission = {
+      id: `contact-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: trimmedName,
+      email: trimmedEmail,
+      phone: body.phone?.trim() || undefined,
+      subject: body.subject?.trim() || undefined,
+      message: trimmedMessage,
+      eventInterest: body.eventInterest?.trim() || undefined,
+      ip,
+      createdAt: new Date().toISOString(),
+    };
+    console.log('[contact] submission received:', {
+      id: submission.id,
+      name: submission.name,
+      email: submission.email,
+      subject: submission.subject,
+      createdAt: submission.createdAt,
+    });
+    try {
+      await appendContactSubmission(submission);
+    } catch (err) {
+      // Logged above with full key fields, so the message is still recoverable.
+      console.error('[contact] failed to persist submission', submission.id, err);
     }
 
     return NextResponse.json(

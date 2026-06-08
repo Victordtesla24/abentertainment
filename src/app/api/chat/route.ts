@@ -39,6 +39,25 @@ function getClientIp(request: NextRequest): string {
   return request.headers.get('x-real-ip') || 'unknown';
 }
 
+// The public concierge only has the OpenAI provider wired (`@ai-sdk/openai`).
+// The admin model selector can write OpenRouter-namespaced ids (e.g.
+// "anthropic/claude-opus-4.6") into settings; sending one to api.openai.com
+// returns model_not_found and breaks the bot for EVERY visitor. Prefer the
+// dedicated customer-facing field, then fall back, and always validate that
+// the result is a plausible OpenAI id before using it.
+const OPENAI_MODEL_PREFIXES = ['gpt-', 'o1', 'o3', 'o4', 'chatgpt'];
+const DEFAULT_CUSTOMER_MODEL = 'gpt-4.1-mini';
+
+function resolveCustomerModel(settings: { customerChatModel?: string; chatModel?: string }): string {
+  const requested = (settings.customerChatModel || settings.chatModel || '').trim();
+  // OpenRouter ids are provider-namespaced with a "/"; OpenAI ids never are.
+  const looksLikeOpenAi =
+    requested.length > 0 &&
+    !requested.includes('/') &&
+    OPENAI_MODEL_PREFIXES.some((prefix) => requested.startsWith(prefix));
+  return looksLikeOpenAi ? requested : DEFAULT_CUSTOMER_MODEL;
+}
+
 export async function POST(request: NextRequest) {
   if (!OPENAI_CONFIGURED) {
     return NextResponse.json(
@@ -112,7 +131,7 @@ GUIDELINES:
 
     const { openai } = await import('@ai-sdk/openai');
     const settings = await getSettings();
-    const modelId = settings.chatModel || 'gpt-4.1-mini';
+    const modelId = resolveCustomerModel(settings);
 
     const stream = streamText({
       model: openai(modelId),

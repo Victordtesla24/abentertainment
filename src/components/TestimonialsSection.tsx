@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
 interface Testimonial {
   id: string;
@@ -9,8 +10,11 @@ interface Testimonial {
   role: string;
   quote: string;
   rating: number;
-  image: string;
-  event: string;
+  // The live API (data.ts Testimonial) only carries id/name/role/quote/rating
+  // — `image` and `event` exist only on the richer FALLBACK seeds, so they are
+  // optional and every consumer must guard them.
+  image?: string;
+  event?: string;
 }
 
 const FALLBACK_TESTIMONIALS: Testimonial[] = [
@@ -32,11 +36,13 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-function AvatarImage({ src, name }: { src: string; name: string }) {
+function AvatarImage({ src, name }: { src?: string; name: string }) {
   const [imgError, setImgError] = useState(false);
   const initials = name.split(' ').map((n) => n[0]).join('');
 
-  if (imgError) {
+  // No src (live API testimonials have no image) or a load error → initials.
+  // A bare <img src={undefined}> does not reliably fire onError, so guard here.
+  if (imgError || !src) {
     return (
       <div className="w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-[#C9A84C]/15 to-[#C9A84C]/5 border border-[#C9A84C]/20">
         <span className="text-[#C9A84C] font-display font-bold text-sm">{initials}</span>
@@ -66,13 +72,15 @@ export function TestimonialsSection() {
   const [direction, setDirection] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Fetch live testimonials from admin. Accept empty arrays so deletions reflect.
-  useEffect(() => {
+  // Fetch live testimonials from admin, and keep polling so changes appear
+  // without a reload. Accept empty arrays so deletions reflect.
+  const loadTestimonials = () => {
     fetch('/api/testimonials')
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (Array.isArray(data)) setTestimonials(data); })
       .catch(() => {});
-  }, []);
+  };
+  usePolledRefresh(loadTestimonials);
 
   const paginate = (newDirection: number) => {
     setDirection(newDirection);
@@ -86,6 +94,10 @@ export function TestimonialsSection() {
   }, [currentIndex, isPaused, testimonials.length]);
 
   const current = testimonials[currentIndex % testimonials.length];
+
+  // If every testimonial was removed in the admin, render nothing rather than
+  // dereferencing `undefined` (live polling makes the empty state reachable).
+  if (!current) return null;
 
   return (
     <section className="relative py-28 bg-[#0A0A0A] overflow-hidden">
@@ -130,10 +142,12 @@ export function TestimonialsSection() {
                   <p className="text-white/65 text-lg md:text-xl font-body leading-relaxed mb-4 relative z-10 italic">
                     {current.quote}
                   </p>
-                  {/* Event reference */}
-                  <p className="text-[#C9A84C]/50 text-xs font-body italic mb-6 relative z-10">
-                    — {current.event}
-                  </p>
+                  {/* Event reference — only when the testimonial carries one */}
+                  {current.event && (
+                    <p className="text-[#C9A84C]/50 text-xs font-body italic mb-6 relative z-10">
+                      — {current.event}
+                    </p>
+                  )}
                   {/* Divider */}
                   <div className="w-12 h-[1px] bg-[#C9A84C]/20 mb-6" />
                   {/* Author */}

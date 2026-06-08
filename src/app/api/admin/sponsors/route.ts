@@ -22,6 +22,9 @@ export const POST = withAuth(async (request: NextRequest) => {
       url: body.url || '#',
       tier: body.tier || 'silver',
       description: body.description || '',
+      // Give new sponsors a stable order at the end so the admin reorder
+      // arrows have a value to move (they previously sorted on undefined).
+      order: body.order ?? sponsors.length,
       createdAt: new Date().toISOString(),
     };
 
@@ -52,6 +55,10 @@ export const PUT = withAuth(async (request: NextRequest) => {
       url: body.url ?? sponsors[index].url,
       tier: body.tier ?? sponsors[index].tier,
       description: body.description ?? sponsors[index].description,
+      // `order` was previously ignored, so the reorder arrows reverted on the
+      // next refresh. Persist it; `?? existing` keeps it stable on edits that
+      // don't touch ordering.
+      order: body.order ?? sponsors[index].order,
     };
 
     await saveSponsors(sponsors);

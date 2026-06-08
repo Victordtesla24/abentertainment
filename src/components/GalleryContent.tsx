@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
 import type { GalleryImage, Event } from '@/lib/data';
+import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
 type LightboxImage = { src: string; alt: string; title: string };
 
@@ -90,10 +91,11 @@ export default function GalleryContent({ initialImages, initialEvents }: Gallery
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>(initialImages);
   const [events, setEvents] = useState<Event[]>(initialEvents);
 
-  // Fetch live data from VPS so admin changes appear without a rebuild.
+  // Fetch live data from VPS so admin changes appear without a rebuild, and
+  // keep polling so an idle visitor sees them too.
   // IMPORTANT: Accept empty arrays — if admin removed all items, the public
   // page must reflect that rather than showing stale SSR data.
-  useEffect(() => {
+  const loadGallery = () => {
     Promise.all([
       fetch('/api/gallery').then(r => r.ok ? r.json() : null),
       fetch('/api/events').then(r => r.ok ? r.json() : null),
@@ -101,7 +103,8 @@ export default function GalleryContent({ initialImages, initialEvents }: Gallery
       if (Array.isArray(imgs)) setGalleryImages(imgs);
       if (Array.isArray(evts)) setEvents(evts);
     }).catch(() => {});
-  }, []);
+  };
+  usePolledRefresh(loadGallery);
 
   const grouped = useMemo(() => groupByEvent(galleryImages), [galleryImages]);
   const now = useMemo(() => new Date(), []);

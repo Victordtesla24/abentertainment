@@ -9,6 +9,14 @@ import {
 import { generateCsrfToken, setCsrfCookie } from '@/lib/csrf';
 import { validateOrigin, corsHeaders } from '@/lib/cors';
 import { logAdminAction } from '@/lib/audit';
+import { checkRateLimit, buildRateLimitHeaders } from '@/lib/redis';
+
+// Per-IP brute-force throttle for the login endpoint. Generous (a real admin
+// logs in once) but bounds an attacker to a handful of guesses per minute on
+// top of bcrypt's cost. The in-memory store degrades OPEN on container restart,
+// so the single legitimate admin can never be permanently locked out.
+const LOGIN_RATE_LIMIT_MAX = 10;
+const LOGIN_RATE_LIMIT_WINDOW_SECONDS = 60;
 
 function getClientIp(request: NextRequest): string {
   return (
@@ -28,9 +36,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const ip = getClientIp(request);
+
+  // Throttle repeated login attempts from the same IP before doing any work.
+  const rate = await checkRateLimit(`login:${ip}`, LOGIN_RATE_LIMIT_MAX, LOGIN_RATE_LIMIT_WINDOW_SECONDS);
+  if (!rate.allowed) {
+    try { logAdminAction('unknown', 'LOGIN_RATE_LIMITED', '/api/admin/auth', ip); } catch { /* audit must not block auth */ }
+    return NextResponse.json(
+      { error: 'Too many login attempts. Please wait a moment and try again.' },
+      {
+        status: 429,
+        headers: { ...corsHeaders(origin), ...buildRateLimitHeaders(LOGIN_RATE_LIMIT_MAX, 0, rate.resetIn) },
+      }
+    );
+  }
+
   try {
     const { username, password } = await request.json();
-    const ip = getClientIp(request);
 
     if (!(await validateCredentials(username, password))) {
       try { logAdminAction(username ?? 'unknown', 'LOGIN_FAILED', '/api/admin/auth', ip); } catch { /* audit must not block auth */ }

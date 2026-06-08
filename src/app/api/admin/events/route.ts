@@ -51,6 +51,7 @@ export const POST = withAuth(async (request: NextRequest) => {
       status: body.status || 'upcoming',
       ticketStatus: body.ticketStatus || 'available',
       image: body.image || '',
+      heroImage: body.heroImage || '',
       category: body.category || '',
       capacity: body.capacity || 0,
       ticketUrl: body.ticketUrl || '',
@@ -95,6 +96,10 @@ export const PUT = withAuth(async (request: NextRequest) => {
       status: body.status ?? events[index].status,
       ticketStatus: body.ticketStatus ?? events[index].ticketStatus,
       image: body.image ?? events[index].image,
+      // heroImage was previously dropped on save — the admin's hero-image edit
+      // (and the GalleryManager "event-hero" assign) round-tripped through the
+      // form but never persisted. Preserve existing value on partial updates.
+      heroImage: body.heroImage ?? events[index].heroImage,
       category: body.category ?? events[index].category,
       capacity: body.capacity ?? events[index].capacity,
       ticketUrl: body.ticketUrl ?? events[index].ticketUrl,

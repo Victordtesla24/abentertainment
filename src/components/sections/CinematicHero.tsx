@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { usePolledRefresh } from '@/lib/use-polled-refresh';
 import {
   motion,
   AnimatePresence,
@@ -285,8 +286,9 @@ export function CinematicHero() {
   const [heroReady, setHeroReady] = useState(false);
   const [slides, setSlides] = useState(heroSlides);
 
-  // Fetch live hero settings so admin changes appear without rebuild
-  useEffect(() => {
+  // Fetch live hero settings so admin changes appear without rebuild, and keep
+  // polling so an idle visitor sees them too.
+  const loadHeroSettings = () => {
     fetch('/api/settings')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -297,7 +299,8 @@ export function CinematicHero() {
         ));
       })
       .catch(() => {});
-  }, []);
+  };
+  usePolledRefresh(loadHeroSettings);
 
   const { scrollY } = useScroll();
   const parallaxBg = useTransform(scrollY, [0, 800], [0, -150]);
