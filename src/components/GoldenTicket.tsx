@@ -30,6 +30,10 @@ function formatDate(dateString: string): string {
 }
 
 function formatTime(dateString: string): string {
+  // Only show a time the admin actually set. A bare 'YYYY-MM-DD' parses as
+  // UTC midnight and would otherwise render a misleading local time (e.g.
+  // "11:00 am" in Melbourne) the admin never entered.
+  if (!dateString.includes('T')) return '';
   return new Date(dateString).toLocaleTimeString('en-AU', {
     hour: '2-digit',
     minute: '2-digit',
@@ -203,8 +207,12 @@ export default function GoldenTicket({ event }: GoldenTicketProps) {
                     <line x1="3" y1="10" x2="21" y2="10" />
                   </svg>
                   <span>{formatDate(event.date)}</span>
-                  <span className="text-[#C9A84C]/40">|</span>
-                  <span>{formatTime(event.date)}</span>
+                  {formatTime(event.date) && (
+                    <>
+                      <span className="text-[#C9A84C]/40">|</span>
+                      <span>{formatTime(event.date)}</span>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 text-white/50 text-sm font-body">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -21,10 +21,13 @@ function formatDate(dateString: string): string {
 }
 
 function formatTime(dateString: string): string {
-  const date = new Date(dateString);
+  // Only show a time the admin actually set (an ISO date-time with a 'T').
+  // Never fabricate one — dates stored as 'YYYY-MM-DD' have no time, and the
+  // caller hides the Time row when this returns ''.
   if (!dateString.includes('T')) {
-    return 'Doors open at 6:30 PM';
+    return '';
   }
+  const date = new Date(dateString);
   return date.toLocaleTimeString('en-AU', {
     hour: 'numeric',
     minute: '2-digit',
@@ -186,10 +189,12 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
                 <p className="text-white font-body font-medium">{formatDate(event.date)}</p>
               </div>
 
-              <div>
-                <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Time</p>
-                <p className="text-white font-body font-medium">{formatTime(event.date)}</p>
-              </div>
+              {formatTime(event.date) && (
+                <div>
+                  <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Time</p>
+                  <p className="text-white font-body font-medium">{formatTime(event.date)}</p>
+                </div>
+              )}
 
               <div>
                 <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Venue</p>
