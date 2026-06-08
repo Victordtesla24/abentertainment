@@ -18,7 +18,7 @@ export default function GalleryPicker({ images, onSelect, onClose, title = 'Sele
 
   const filtered = images.filter(img => {
     if (filterCategory !== 'all' && img.category !== filterCategory) return false;
-    if (search && !img.alt.toLowerCase().includes(search.toLowerCase()) && !img.src.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !(img.alt || '').toLowerCase().includes(search.toLowerCase()) && !img.src.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 

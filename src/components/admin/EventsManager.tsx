@@ -73,6 +73,11 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
   const [addingImageToEvent, setAddingImageToEvent] = useState<string | null>(null);
   const [newImageSrc, setNewImageSrc] = useState('');
   const [newImageAlt, setNewImageAlt] = useState('');
+  // Google Photos album import (per expanded event)
+  const [importingAlbumFor, setImportingAlbumFor] = useState<string | null>(null);
+  const [albumUrl, setAlbumUrl] = useState('');
+  const [albumImporting, setAlbumImporting] = useState(false);
+  const [albumStatus, setAlbumStatus] = useState('');
   const [galleryPickerTarget, setGalleryPickerTarget] = useState<'image' | 'heroImage' | null>(null);
 
   const sortedEvents = useMemo(() => {
@@ -357,6 +362,39 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
         setAddingImageToEvent(null);
       }
     } catch { setMessage('Error: Failed to add image'); }
+  }
+
+  async function handleImportAlbum(eventId: string) {
+    const url = albumUrl.trim();
+    if (!url) return;
+    setAlbumImporting(true);
+    setAlbumStatus('Importing from Google Photos — downloading photos, this can take a moment…');
+    try {
+      const res = await adminFetch('/api/admin/gallery/import-google-photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ albumUrl: url, eventId }),
+      });
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) {
+        setAlbumStatus(`Error: ${data.error || 'Import failed'}`);
+        return;
+      }
+      const imported = data.imported ?? 0;
+      setAlbumStatus(`Imported ${imported} photo${imported === 1 ? '' : 's'}${data.eventUpdated ? ' and set the event cover' : ''}.`);
+      setAlbumUrl('');
+      await fetchEventImages(eventId);
+      const firstSrc: string | undefined = data.images?.[0]?.src;
+      if (data.eventUpdated && firstSrc) {
+        setEvents(prev => prev.map(e =>
+          e.id === eventId ? { ...e, image: e.image || firstSrc, heroImage: e.heroImage || firstSrc } : e,
+        ));
+      }
+    } catch {
+      setAlbumStatus('Error: Import failed');
+    } finally {
+      setAlbumImporting(false);
+    }
   }
 
   async function handleDeleteEventImage(imageId: string, eventId: string) {
@@ -957,12 +995,38 @@ export default function EventsManager({ initialEvents, allSponsors = [], allGall
                       </div>
                     </div>
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <h4 className="text-sm font-semibold text-[#C9A84C]">Event Images</h4>
-                        <button onClick={() => setAddingImageToEvent(event.id)} className="text-xs px-3 py-1 bg-[#C9A84C] text-white rounded-sm hover:bg-[#D4B65C]">
-                          + Add Image
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => { setImportingAlbumFor(importingAlbumFor === event.id ? null : event.id); setAlbumStatus(''); }} className="text-xs px-3 py-1 border border-[#C9A84C]/40 text-[#C9A84C] rounded-sm hover:bg-[#C9A84C]/10">
+                            Import from Google Photos
+                          </button>
+                          <button onClick={() => setAddingImageToEvent(event.id)} className="text-xs px-3 py-1 bg-[#C9A84C] text-white rounded-sm hover:bg-[#D4B65C]">
+                            + Add Image
+                          </button>
+                        </div>
                       </div>
+                      {/* Import from a public Google Photos album */}
+                      {importingAlbumFor === event.id && (
+                        <div className="space-y-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-3">
+                          <p className="text-[11px] text-white/50">Paste a <strong>public</strong> Google Photos album link. Every photo is downloaded, hosted on this site, and added to this event.</p>
+                          <div className="flex gap-2">
+                            <input
+                              type="url"
+                              value={albumUrl}
+                              onChange={e => setAlbumUrl(e.target.value)}
+                              placeholder="https://photos.app.goo.gl/…"
+                              className="flex-1 px-3 py-2 bg-[#111] border border-[#C9A84C]/20 rounded-sm text-white text-sm"
+                            />
+                            <button onClick={() => handleImportAlbum(event.id)} disabled={albumImporting || !albumUrl.trim()} className="px-3 py-2 bg-[#C9A84C] text-white text-sm rounded-sm disabled:opacity-50">
+                              {albumImporting ? 'Importing…' : 'Import'}
+                            </button>
+                          </div>
+                          {albumStatus && (
+                            <p className={`text-[11px] ${albumStatus.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}`}>{albumStatus}</p>
+                          )}
+                        </div>
+                      )}
                       {/* Add image form */}
                       {addingImageToEvent === event.id && (
                         <div className="flex gap-2">

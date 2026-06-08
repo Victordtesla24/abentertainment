@@ -99,6 +99,28 @@ function escapeCsvField(field: string): string {
   return field;
 }
 
+/**
+ * Build a sensible, non-blank alt label from an image filename/URL when the
+ * admin leaves alt empty (alt is now optional). Keeps accessibility/search
+ * meaningful without forcing the admin to type alt for every bulk/import photo.
+ */
+function deriveAltFromSrc(src: string, fallback = 'Gallery image'): string {
+  try {
+    const path = src.split('?')[0].split('#')[0];
+    const file = path.substring(path.lastIndexOf('/') + 1);
+    const cleaned = file
+      .replace(/\.[a-z0-9]+$/i, '')      // drop extension
+      .replace(/^\d{10,}-/, '')           // drop leading "1712345678901-" upload timestamp
+      .replace(/[-_]+/g, ' ')             // dashes/underscores -> spaces
+      .replace(/\b\d{8,}\b/g, '')         // drop long numeric ids
+      .trim();
+    if (!cleaned) return fallback;
+    return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
+  } catch {
+    return fallback;
+  }
+}
+
 export default function GalleryManager({ initialGallery, allEvents, allSponsors, initialSiteImageOverrides }: GalleryManagerProps) {
   const [images, setImages] = useState<GalleryImage[]>(initialGallery);
   const [creating, setCreating] = useState(false);
@@ -134,6 +156,13 @@ export default function GalleryManager({ initialGallery, allEvents, allSponsors,
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Bulk upload (select many files, assign to one category/event)
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState('');
+  const [bulkCategory, setBulkCategory] = useState('event');
+  const [bulkEventId, setBulkEventId] = useState('');
 
   // Image health check — detect broken images that won't render on the public site
   const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
@@ -183,7 +212,9 @@ export default function GalleryManager({ initialGallery, allEvents, allSponsors,
       const res = await adminFetch('/api/admin/gallery', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ src, alt, category, eventId: eventId || undefined, width: 1200, height: 800 }),
+        // Alt is optional now — fall back to a label derived from the filename
+        // so the stored value is never blank.
+        body: JSON.stringify({ src, alt: alt.trim() || deriveAltFromSrc(src), category, eventId: eventId || undefined, width: 1200, height: 800 }),
       });
 
       if (!res.ok) throw new Error('Failed to add image');
@@ -200,6 +231,49 @@ export default function GalleryManager({ initialGallery, allEvents, allSponsors,
     } finally {
       setSaving(false);
     }
+  }
+
+  /** Upload many files at once, each assigned to the chosen category/event. Sequential to stay within the per-file 20 MB base64 body and avoid hammering the VPS. */
+  async function handleBulkUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const list = Array.from(files);
+    const eventTitle = bulkEventId ? (allEvents?.find((e) => e.id === bulkEventId)?.title || 'Event image') : 'Gallery image';
+    setBulkUploading(true);
+    setMessage('');
+    let done = 0;
+    let failed = 0;
+    setBulkProgress(`0 / ${list.length}`);
+    for (const file of list) {
+      try {
+        const up = await uploadFile(file, 'gallery');
+        const res = await adminFetch('/api/admin/gallery', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            src: up.url,
+            alt: deriveAltFromSrc(file.name, eventTitle),
+            category: bulkCategory,
+            eventId: bulkEventId || undefined,
+            width: 1200,
+            height: 800,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setImages((prev) => [...prev, data.image]);
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+      done++;
+      setBulkProgress(`${done} / ${list.length}`);
+    }
+    setBulkUploading(false);
+    setBulkProgress('');
+    setBulkOpen(false);
+    showMessage(`Bulk upload: ${done - failed} added${failed ? `, ${failed} failed` : ''}.`);
   }
 
   async function handleDelete(id: string) {
@@ -467,14 +541,14 @@ export default function GalleryManager({ initialGallery, allEvents, allSponsors,
     .map(group => ({
       ...group,
       images: group.images.filter(img =>
-        !search || img.alt.toLowerCase().includes(search.toLowerCase()) || img.src.toLowerCase().includes(search.toLowerCase())
+        !search || (img.alt || '').toLowerCase().includes(search.toLowerCase()) || img.src.toLowerCase().includes(search.toLowerCase())
       ),
     }))
     .filter(group => group.images.length > 0);
 
   // Filter custom uploads by search
   const filteredCustomImages = images.filter(img =>
-    !search || img.alt.toLowerCase().includes(search.toLowerCase()) || img.src.toLowerCase().includes(search.toLowerCase())
+    !search || (img.alt || '').toLowerCase().includes(search.toLowerCase()) || img.src.toLowerCase().includes(search.toLowerCase())
   );
 
   const totalImages = SITE_IMAGES.reduce((sum, g) => sum + g.images.length, 0);
@@ -491,7 +565,10 @@ export default function GalleryManager({ initialGallery, allEvents, allSponsors,
           <button onClick={handleExportCsv} className="px-4 py-2 border border-white/20 text-white/60 text-sm font-body hover:text-white hover:border-white/40 transition-colors">
             Export CSV
           </button>
-          <button onClick={() => setCreating(!creating)} className="px-4 py-2 bg-[#C9A84C] text-black text-sm font-body font-semibold hover:bg-[#D4B65C] transition-colors">
+          <button onClick={() => { setBulkOpen(!bulkOpen); setCreating(false); }} className="px-4 py-2 border border-[#C9A84C]/40 text-[#C9A84C] text-sm font-body hover:bg-[#C9A84C]/10 transition-colors">
+            Bulk Upload
+          </button>
+          <button onClick={() => { setCreating(!creating); setBulkOpen(false); }} className="px-4 py-2 bg-[#C9A84C] text-black text-sm font-body font-semibold hover:bg-[#D4B65C] transition-colors">
             + Add Image
           </button>
         </div>
@@ -500,6 +577,52 @@ export default function GalleryManager({ initialGallery, allEvents, allSponsors,
       {message && (
         <div className={`mb-4 px-4 py-2 text-sm font-body ${message.startsWith('Error') ? 'bg-red-400/10 text-red-400 border border-red-400/20' : 'bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/20'}`}>
           {message}
+        </div>
+      )}
+
+      {bulkOpen && (
+        <div className="mb-6 bg-[#111111] border border-[#C9A84C]/20 p-5">
+          <h3 className="text-sm font-display font-semibold text-[#C9A84C] mb-1">Bulk Upload</h3>
+          <p className="text-[11px] font-body text-white/35 mb-4">Select multiple images at once. They&apos;re uploaded and added to the gallery with the category/event below. Alt text is auto-derived from each filename and can be edited later.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-[10px] font-body uppercase tracking-wider text-white/35 mb-1">Category</label>
+              <select value={bulkCategory} onChange={(e) => setBulkCategory(e.target.value)} disabled={bulkUploading} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/15 text-white text-sm font-body focus:outline-none focus:border-[#C9A84C]/40 disabled:opacity-50">
+                <option value="event">Event</option>
+                <option value="behind-the-scenes">Behind the Scenes</option>
+                <option value="venue">Venue</option>
+                <option value="promotional">Promotional</option>
+              </select>
+            </div>
+            {allEvents && allEvents.length > 0 && (
+              <div>
+                <label className="block text-[10px] font-body uppercase tracking-wider text-white/35 mb-1">Assign to Event</label>
+                <select value={bulkEventId} onChange={(e) => setBulkEventId(e.target.value)} disabled={bulkUploading} className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/15 text-white text-sm font-body focus:outline-none focus:border-[#C9A84C]/40 disabled:opacity-50">
+                  <option value="">No event (uncategorised)</option>
+                  {allEvents.map((ev) => (
+                    <option key={ev.id} value={ev.id}>{ev.title}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <input
+            type="file"
+            id="gallery-bulk-upload"
+            accept="image/*"
+            multiple
+            className="hidden"
+            disabled={bulkUploading}
+            onChange={(e) => { handleBulkUpload(e.target.files); e.target.value = ''; }}
+          />
+          <div className="flex items-center gap-3">
+            <label htmlFor="gallery-bulk-upload" className={`px-6 py-2 bg-[#C9A84C] text-black text-sm font-body font-semibold transition-colors ${bulkUploading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#D4B65C] cursor-pointer'}`}>
+              {bulkUploading ? `Uploading ${bulkProgress}…` : 'Choose files'}
+            </label>
+            <button type="button" onClick={() => setBulkOpen(false)} disabled={bulkUploading} className="px-6 py-2 border border-white/20 text-white/40 text-sm font-body hover:text-white disabled:opacity-50">
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -540,8 +663,8 @@ export default function GalleryManager({ initialGallery, allEvents, allSponsors,
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-body uppercase tracking-wider text-white/35 mb-1">Alt Text</label>
-              <input type="text" value={alt} onChange={(e) => setAlt(e.target.value)} required className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/15 text-white text-sm font-body focus:outline-none focus:border-[#C9A84C]/40" />
+              <label className="block text-[10px] font-body uppercase tracking-wider text-white/35 mb-1">Alt Text <span className="text-white/20 normal-case">(optional)</span></label>
+              <input type="text" value={alt} onChange={(e) => setAlt(e.target.value)} placeholder="Auto-derived from filename if left blank" className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/15 text-white text-sm font-body focus:outline-none focus:border-[#C9A84C]/40 placeholder-white/20" />
             </div>
             <div>
               <label className="block text-[10px] font-body uppercase tracking-wider text-white/35 mb-1">Category</label>
