@@ -66,7 +66,7 @@ export function Navigation() {
       <motion.nav
         aria-label="Main navigation"
         style={{ backgroundColor: navBg, backdropFilter: navBlur, WebkitBackdropFilter: navBlur, borderBottomColor: navBorder }}
-        className="hidden md:flex fixed top-0 left-0 right-0 z-40 border-b transition-[border-color] duration-500"
+        className="hidden lg:flex fixed top-0 left-0 right-0 z-40 border-b transition-[border-color] duration-500"
       >
         <div className="container-eu py-4 flex items-center justify-between">
           <Link href="/" className="group flex items-center gap-3 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2">
@@ -120,7 +120,7 @@ export function Navigation() {
       </motion.nav>
 
       {/* MOBILE NAV */}
-      <nav aria-label="Mobile navigation" className="md:hidden fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-2xl border-b border-[#C9A84C]/8">
+      <nav aria-label="Mobile navigation" className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-2xl border-b border-[#C9A84C]/8">
         <div className="px-4 py-3 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2">
             <div className="relative w-10 h-10 overflow-hidden">
@@ -158,7 +158,7 @@ export function Navigation() {
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="md:hidden fixed inset-0 z-[55] bg-black/50"
+              className="lg:hidden fixed inset-0 z-[55] bg-black/50"
               onClick={() => setIsOpen(false)}
             />
             {/* Sliding drawer from right */}
@@ -167,7 +167,7 @@ export function Navigation() {
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="md:hidden fixed top-0 right-0 bottom-0 z-[60] w-72 bg-black/95 backdrop-blur-2xl border-l border-[#C9A84C]/8 overflow-y-auto"
+              className="lg:hidden fixed top-0 right-0 bottom-0 z-[60] w-72 bg-black/95 backdrop-blur-2xl border-l border-[#C9A84C]/8 overflow-y-auto"
             >
               <div className="px-4 py-6 space-y-1 mt-16">
                 {NAVIGATION.map((link) => (
