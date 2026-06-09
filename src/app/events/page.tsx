@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { getEvents } from '@/lib/data';
+import { getPublicEvents } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
 import PageHero from '@/components/ui/PageHero';
 import EventsContent from '@/components/EventsContent';
@@ -25,7 +25,7 @@ export default async function EventsPage() {
   let events: Event[] = [];
 
   try {
-    events = await getEvents();
+    events = await getPublicEvents();
   } catch (error) {
     console.error('Error loading events:', error);
   }

@@ -184,6 +184,21 @@ function sendJSON(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
+/**
+ * Resolve a model-supplied filepath inside the project root, rejecting any path
+ * that escapes it (../, absolute paths, symlink-style traversal). Returns the
+ * absolute path, or null if it would land outside projectRoot. The analyze_code
+ * and modify_code tools use this so a prompt-injected agent cannot read or
+ * overwrite arbitrary files on the host.
+ */
+function safeProjectPath(projectRoot, filepath) {
+  if (typeof filepath !== 'string' || filepath.length === 0) return null;
+  const root = path.resolve(projectRoot);
+  const full = path.resolve(root, filepath);
+  if (full !== root && !full.startsWith(root + path.sep)) return null;
+  return full;
+}
+
 function trackTelemetry(action, section) {
   try {
     const tel = readData('telemetry.json', { actions: [], totals: {}, lastLogin: null });
@@ -563,7 +578,8 @@ async function executeTool(name, args, sessionId) {
     case 'analyze_code': {
       try {
         const projectRoot = process.env.PROJECT_ROOT || '/app/project';
-        const fullPath = path.join(projectRoot, args.filepath);
+        const fullPath = safeProjectPath(projectRoot, args.filepath);
+        if (!fullPath) return 'Error: path escapes project root: ' + args.filepath;
         if (fs.existsSync(fullPath)) {
           const content = fs.readFileSync(fullPath, 'utf-8');
           return 'File: ' + args.filepath + '\n\n' + content.substring(0, 5000);
@@ -580,7 +596,8 @@ async function executeTool(name, args, sessionId) {
       }
       try {
         const projectRoot = process.env.PROJECT_ROOT || '/app/project';
-        const fullPath = path.join(projectRoot, args.filepath);
+        const fullPath = safeProjectPath(projectRoot, args.filepath);
+        if (!fullPath) return 'Error: path escapes project root: ' + args.filepath;
         fs.writeFileSync(fullPath, args.content);
         return 'File modified: ' + args.filepath + ' (' + args.reason + ')';
       } catch (e) {
@@ -1075,6 +1092,20 @@ const server = http.createServer(async (req, res) => {
         developer: DEVELOPER_CONTACT,
         timestamp: new Date().toISOString(),
       }));
+      return;
+    }
+
+    // Tool-running chat requires a valid admin token whenever auth is
+    // configured. The health branch above is intentionally left open (telemetry
+    // only), mirroring the Next.js /api/admin/chat route where health is public
+    // but every tool-executing request is gated. When no secret is configured
+    // the server already logs a loud SECURITY warning at startup and runs
+    // open (dev), so this does not change unconfigured behaviour — but the
+    // moment AGENT_SECRET/SESSION_SECRET is set (i.e. any real deployment), the
+    // tool loop (including modify_code) can no longer be driven anonymously.
+    if (AGENT_TOKEN_SECRET && !validateAdminToken(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
       return;
     }
 

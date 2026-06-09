@@ -488,37 +488,97 @@ function normalizeEvent(event: Event | (Event & { ticketStatus?: Event['ticketSt
   return { ...event, ticketStatus: 'available' };
 }
 
-async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
+// ─── Public projection ───────────────────────────────────────────────────────
+// Admin-internal fields (ticket sales + revenue, sponsor revenue/contract value)
+// must never reach a public/client surface. They are stripped both when an
+// entity is read for a public response AND when the file is mirrored to
+// public/data/ (which Hostinger serves verbatim and client fetchers read). The
+// canonical data/ copy keeps the full record so admin telemetry stays intact.
+
+/** Strip admin-internal financial fields from an Event before any public/client use. */
+export function toPublicEvent(event: Event): Event {
+  const pub = { ...event };
+  delete pub.ticketsSold;
+  delete pub.ticketRevenue;
+  return pub;
+}
+
+/** Strip admin-internal financial fields from a Sponsor before any public/client use. */
+export function toPublicSponsor(sponsor: Sponsor): Sponsor {
+  const pub = { ...sponsor };
+  delete pub.revenue;
+  delete pub.contractValue;
+  return pub;
+}
+
+/** Serialize the public/data/ mirror copy of a file, stripping internal fields for the entities that carry them. */
+function serializePublicMirror<T>(filename: string, data: T): string {
+  if (filename === 'events.json' && Array.isArray(data)) {
+    return JSON.stringify((data as Event[]).map(toPublicEvent), null, 2);
+  }
+  if (filename === 'sponsors.json' && Array.isArray(data)) {
+    return JSON.stringify((data as Sponsor[]).map(toPublicSponsor), null, 2);
+  }
+  return JSON.stringify(data, null, 2);
+}
+
+/**
+ * Write a file to all three destinations WITHOUT taking the lock. Callers that
+ * already hold the per-file lock (writeJsonFile, updateJsonFile) use this so a
+ * read-modify-write does not deadlock by re-acquiring its own lock.
+ */
+async function writeJsonFileUnlocked<T>(filename: string, data: T): Promise<void> {
   const serialized = JSON.stringify(data, null, 2);
+  // Canonical runtime copy — atomic, so a crash mid-write can never leave a
+  // truncated events.json that readJsonFile would treat as corrupt.
+  await atomicWrite(DATA_DIR, filename, serialized);
+
+  // Dual-write to the repo's canonical data/ directory if it differs from
+  // DATA_DIR. On VPS this syncs the admin's runtime write from the container
+  // volume (/app/data/) to the host-mounted repo (/workspace/data/ →
+  // /opt/abentertainment/data/), which is the source of truth for the
+  // static-export build that deploys to Hostinger.
+  if (REPO_DATA_DIR !== DATA_DIR) {
+    try {
+      await atomicWrite(REPO_DATA_DIR, filename, serialized);
+    } catch (err) {
+      console.error(`[data] repo sync to ${REPO_DATA_DIR}/${filename} failed:`, err);
+    }
+  }
+
+  // Mirror to public/data/ so client-side fetchers and the next static-export
+  // build pick up admin changes immediately. The mirror copy is sanitized so
+  // admin-internal financial fields never reach the publicly-served file.
+  // Mirror failure is non-fatal: the canonical data/ write above already succeeded.
+  if (PUBLIC_MIRRORED.has(filename)) {
+    try {
+      await atomicWrite(PUBLIC_DATA_DIR, filename, serializePublicMirror(filename, data));
+    } catch (err) {
+      console.error(`[data] mirror to public/data/${filename} failed:`, err);
+    }
+  }
+}
+
+async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
   // Serialize all writes of this file so concurrent mutations cannot interleave.
+  await withFileLock(filename, () => writeJsonFileUnlocked(filename, data));
+}
+
+/**
+ * Read-modify-write a file atomically with respect to other mutations of the
+ * same file: the read AND the write both run inside the per-file lock, so two
+ * concurrent callers can't both read the old contents and clobber each other's
+ * change (a lost update). writeJsonFile alone only serializes the write half.
+ */
+async function updateJsonFile<T>(
+  filename: string,
+  fallback: T,
+  mutate: (current: T) => T | Promise<T>,
+): Promise<void> {
   await withFileLock(filename, async () => {
-    // Canonical runtime copy — atomic, so a crash mid-write can never leave a
-    // truncated events.json that readJsonFile would treat as corrupt.
-    await atomicWrite(DATA_DIR, filename, serialized);
-
-    // Dual-write to the repo's canonical data/ directory if it differs from
-    // DATA_DIR. On VPS this syncs the admin's runtime write from the container
-    // volume (/app/data/) to the host-mounted repo (/workspace/data/ →
-    // /opt/abentertainment/data/), which is the source of truth for the
-    // static-export build that deploys to Hostinger.
-    if (REPO_DATA_DIR !== DATA_DIR) {
-      try {
-        await atomicWrite(REPO_DATA_DIR, filename, serialized);
-      } catch (err) {
-        console.error(`[data] repo sync to ${REPO_DATA_DIR}/${filename} failed:`, err);
-      }
-    }
-
-    // Mirror to public/data/ so client-side fetchers and the next static-export
-    // build pick up admin changes immediately. Mirror failure is non-fatal:
-    // the canonical data/ write above already succeeded.
-    if (PUBLIC_MIRRORED.has(filename)) {
-      try {
-        await atomicWrite(PUBLIC_DATA_DIR, filename, serialized);
-      } catch (err) {
-        console.error(`[data] mirror to public/data/${filename} failed:`, err);
-      }
-    }
+    const current = await readJsonFile<T>(filename, fallback);
+    const next = await mutate(current);
+    await writeJsonFileUnlocked(filename, next);
   });
 }
 
@@ -539,6 +599,17 @@ export async function saveEvents(events: Event[]): Promise<void> {
   await writeJsonFile('events.json', events);
 }
 
+/** Events for public/unauthenticated responses — admin-internal financial fields stripped. */
+export async function getPublicEvents(): Promise<Event[]> {
+  return (await getEvents()).map(toPublicEvent);
+}
+
+/** Single event by slug for public/unauthenticated responses — financial fields stripped. */
+export async function getPublicEventBySlug(slug: string): Promise<Event | null> {
+  const event = await getEventBySlug(slug);
+  return event ? toPublicEvent(event) : null;
+}
+
 export async function getSponsors(): Promise<Sponsor[]> {
   return readJsonFile('sponsors.json', SEED_SPONSORS);
 }
@@ -546,6 +617,11 @@ export async function getSponsors(): Promise<Sponsor[]> {
 /** @dev Dev-only — production admin CRUD goes through VPS agent server */
 export async function saveSponsors(sponsors: Sponsor[]): Promise<void> {
   await writeJsonFile('sponsors.json', sponsors);
+}
+
+/** Sponsors for public/unauthenticated responses — admin-internal revenue/contract fields stripped. */
+export async function getPublicSponsors(): Promise<Sponsor[]> {
+  return (await getSponsors()).map(toPublicSponsor);
 }
 
 export async function getGalleryImages(): Promise<GalleryImage[]> {
@@ -635,12 +711,17 @@ export async function getContactSubmissions(): Promise<ContactSubmission[]> {
   return readJsonFile<ContactSubmission[]>(CONTACT_SUBMISSIONS_FILE, []);
 }
 
-/** Append a contact submission, capping the stored history so it can't grow without bound. */
+/**
+ * Append a contact submission, capping the stored history so it can't grow
+ * without bound. The read-modify-write runs inside the per-file lock so two
+ * concurrent submissions (the public form is unauthenticated and can be hit in
+ * parallel) cannot both read the old list and overwrite each other — every
+ * submission is retained, as this PII store promises.
+ */
 export async function appendContactSubmission(submission: ContactSubmission): Promise<void> {
-  const existing = await getContactSubmissions();
-  existing.push(submission);
-  await writeJsonFile(
+  await updateJsonFile<ContactSubmission[]>(
     CONTACT_SUBMISSIONS_FILE,
-    existing.slice(-MAX_CONTACT_SUBMISSIONS),
+    [],
+    (existing) => [...existing, submission].slice(-MAX_CONTACT_SUBMISSIONS),
   );
 }

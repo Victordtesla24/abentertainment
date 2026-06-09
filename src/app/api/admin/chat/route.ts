@@ -287,6 +287,22 @@ function safeRepoPath(userPath: string): string | null {
   if (!userPath || typeof userPath !== 'string') return null;
   const clean = userPath.replace(/^\/+/, '').replace(/\\/g, '/');
   if (clean.includes('..')) return null;
+
+  // Secrets blocklist. The admin chat is auth-gated, but a prompt-injected tool
+  // call must never be able to READ or OVERWRITE credentials. On the VPS,
+  // REPO_ROOT=/workspace is the full repo mount, which contains .env.local with
+  // SESSION_SECRET, the bcrypt admin hash, and every API key. This guard sits in
+  // safeRepoPath so it protects read_codebase_file, write_codebase_file,
+  // list_codebase, git_diff — every tool that resolves a user-supplied path.
+  const segs = clean.toLowerCase().split('/').filter(Boolean);
+  const base = segs[segs.length - 1] || '';
+  const isEnvFile = base === '.env' || base.startsWith('.env.');
+  const isSshKey = /^id_(rsa|ed25519|ecdsa|dsa)$/.test(base) || base.endsWith('.ppk');
+  const isSecretsFile = /^secrets?\.(json|ya?ml|txt|env)$/.test(base);
+  const hasBlockedExt = /\.(pem|key|p12|pfx|keystore|crt|cer|asc)$/.test(base);
+  const insideGitDir = segs.includes('.git');
+  if (isEnvFile || isSshKey || isSecretsFile || hasBlockedExt || insideGitDir) return null;
+
   const resolved = pathResolve(REPO_ROOT, clean);
   if (!resolved.startsWith(REPO_ROOT + pathSep) && resolved !== REPO_ROOT) return null;
   return resolved;

@@ -5,9 +5,17 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import Fuse, { type IFuseOptions, type FuseResult } from 'fuse.js';
 import FocusTrap from 'focus-trap-react';
-// Bundled fallback for offline/build-time; live data fetched from API on open
-let eventsDataFallback: unknown[] = [];
-try { eventsDataFallback = require('../../data/events.json'); } catch { /* static import may fail in some contexts */ }
+// Bundled fallback for offline/build-time; live data fetched from API on open.
+// Project to search-relevant fields only so admin-internal fields (ticketsSold,
+// ticketRevenue) from the raw events.json never end up in the client bundle.
+const SEARCH_FIELDS = ['id', 'title', 'slug', 'date', 'venue', 'description', 'category', 'image', 'price', 'currency'] as const;
+let eventsDataFallback: Record<string, unknown>[] = [];
+try {
+  const raw = require('../../data/events.json') as Record<string, unknown>[];
+  eventsDataFallback = Array.isArray(raw)
+    ? raw.map((e) => Object.fromEntries(SEARCH_FIELDS.map((k) => [k, e[k]])))
+    : [];
+} catch { /* static import may fail in some contexts */ }
 
 interface SearchableEvent {
   id: string;

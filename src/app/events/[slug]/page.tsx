@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getEvents, getEventBySlug } from '@/lib/data';
+import { getEvents, getPublicEventBySlug } from '@/lib/data';
 import PageHero from '@/components/ui/PageHero';
 import EventSchema from '@/components/EventSchema';
 import EventDetailContent from '@/components/EventDetailContent';
@@ -30,7 +30,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const event = await getEventBySlug(slug);
+  const event = await getPublicEventBySlug(slug);
   if (!event) return {};
 
   const baseUrl = 'https://abentertainment.com.au';
@@ -63,7 +63,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function EventDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const event = await getEventBySlug(slug);
+  const event = await getPublicEventBySlug(slug);
 
   if (!event) {
     notFound();

@@ -201,6 +201,23 @@ export default function Footer() {
           </p>
         </div>
       </div>
+
+      {/* Technical support — shown site-wide on every page */}
+      <div className="border-t border-[#C9A84C]/6">
+        <div className="container-eu py-3.5 text-center">
+          <p className="text-white/45 text-xs font-body leading-relaxed">
+            For new website development, business &amp; all technical queries, contact:{' '}
+            <span className="text-white/65">Vik</span>
+            <span className="mx-1.5 text-white/30">|</span>
+            <a
+              href="mailto:sarkar.vikram@gmail.com"
+              className="text-[#C9A84C]/85 hover:text-[#C9A84C] transition-colors duration-300 break-all"
+            >
+              sarkar.vikram@gmail.com
+            </a>
+          </p>
+        </div>
+      </div>
     </footer>
   );
 }

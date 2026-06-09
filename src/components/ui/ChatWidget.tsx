@@ -536,7 +536,7 @@ export default function ChatWidget() {
                     placeholder="Ask me anything about our events…"
                     disabled={isLoading}
                     maxLength={600}
-                    className="flex-1 px-4 py-2.5 bg-[#0f0f09] border border-[#C9A84C]/15 text-white text-[13px] font-body placeholder-white/20 focus:outline-none focus:border-[#C9A84C]/45 disabled:opacity-40 transition-colors duration-200"
+                    className="flex-1 px-4 py-2.5 bg-[#0f0f09] border border-[#C9A84C]/15 text-white text-[16px] sm:text-[13px] font-body placeholder-white/20 focus:outline-none focus:border-[#C9A84C]/45 disabled:opacity-40 transition-colors duration-200"
                   />
                   <motion.button
                     type="submit"

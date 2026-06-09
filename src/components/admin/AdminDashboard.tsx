@@ -117,6 +117,9 @@ export default function AdminDashboard({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('health');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Off-canvas drawer state for tablet/mobile (below lg the sidebar slides in
+  // over the content instead of permanently eating horizontal space).
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [events, setEvents] = useState(initialEvents);
   const [sponsors, setSponsors] = useState(initialSponsors);
   const [gallery, setGallery] = useState(initialGallery);
@@ -160,8 +163,17 @@ export default function AdminDashboard({
 
   return (
     <div className="flex min-h-screen bg-[#060606]">
-      {/* Executive Sidebar */}
-      <aside className={`${sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'} bg-[#0A0A0A] border-r border-white/[0.06] flex flex-col transition-all duration-300 ease-out relative`}>
+      {/* Mobile drawer backdrop */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Executive Sidebar — off-canvas drawer below lg, in-flow column at lg+ */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-[260px] bg-[#0A0A0A] border-r border-white/[0.06] flex flex-col transition-transform duration-300 ease-out ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:z-auto lg:translate-x-0 lg:transition-all ${sidebarCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'}`}>
         {/* Brand Header */}
         <div className={`${sidebarCollapsed ? 'px-3 py-5' : 'px-6 py-6'} border-b border-white/[0.06]`}>
             <div className="flex items-center gap-3">
@@ -186,10 +198,11 @@ export default function AdminDashboard({
           </div>
         </div>
 
-        {/* Collapse toggle */}
+        {/* Collapse toggle — desktop only (mobile uses the drawer) */}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="absolute -right-3 top-[72px] w-6 h-6 bg-[#111] border border-white/[0.08] rounded-full flex items-center justify-center text-white/30 hover:text-white/60 hover:border-white/20 transition-all z-10"
+          aria-label="Toggle sidebar"
+          className="absolute -right-3 top-[72px] w-6 h-6 bg-[#111] border border-white/[0.08] rounded-full hidden lg:flex items-center justify-center text-white/30 hover:text-white/60 hover:border-white/20 transition-all z-10"
         >
           <svg className={`w-3 h-3 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -204,7 +217,7 @@ export default function AdminDashboard({
           {TABS.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => { setActiveTab(tab.id); setMobileNavOpen(false); }}
               title={sidebarCollapsed ? tab.label : undefined}
               className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-3'} py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative ${
                 activeTab === tab.id
@@ -259,20 +272,32 @@ export default function AdminDashboard({
       <main className="flex-1 overflow-auto">
         {/* Top Bar */}
         <div className="sticky top-0 z-10 bg-[#060606]/80 backdrop-blur-xl border-b border-white/[0.04]">
-          <div className="px-8 py-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-[15px] font-semibold text-white tracking-wide">
-                {TABS.find(t => t.id === activeTab)?.label}
-              </h2>
-              <p className="text-[11px] text-white/25 mt-0.5">
-                {TABS.find(t => t.id === activeTab)?.desc}
-              </p>
+          <div className="px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {/* Hamburger — opens the nav drawer below lg */}
+              <button
+                onClick={() => setMobileNavOpen(true)}
+                aria-label="Open navigation"
+                className="lg:hidden flex-shrink-0 w-9 h-9 -ml-1 flex items-center justify-center rounded-lg text-white/50 hover:text-white hover:bg-white/[0.05] transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+                </svg>
+              </button>
+              <div className="min-w-0">
+                <h2 className="text-[15px] font-semibold text-white tracking-wide truncate">
+                  {TABS.find(t => t.id === activeTab)?.label}
+                </h2>
+                <p className="text-[11px] text-white/25 mt-0.5 truncate">
+                  {TABS.find(t => t.id === activeTab)?.desc}
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-[10px] text-white/15 font-mono">
+              <span className="hidden sm:inline text-[10px] text-white/15 font-mono">
                 {new Date().toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
               </span>
-              <div className="w-px h-4 bg-white/[0.06]" />
+              <div className="hidden sm:block w-px h-4 bg-white/[0.06]" />
               <div className="flex items-center gap-1.5">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40" />
@@ -285,7 +310,7 @@ export default function AdminDashboard({
         </div>
 
         {/* Page Content */}
-        <div className="p-8">
+        <div className="p-4 sm:p-6 lg:p-8">
           {activeTab === 'health' && <HealthDashboard events={events} sponsors={sponsors} />}
           {activeTab === 'events' && <EventsManager initialEvents={events} allSponsors={sponsors} allGallery={gallery} />}
           {activeTab === 'sponsors' && <SponsorsManager initialSponsors={sponsors} allEvents={events} allGallery={gallery} />}

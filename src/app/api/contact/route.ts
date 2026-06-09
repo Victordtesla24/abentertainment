@@ -67,9 +67,13 @@ export async function POST(request: NextRequest) {
     const contactRateMax = parseInt(process.env.CONTACT_RATE_LIMIT_MAX ?? '3', 10);
     const { allowed, resetIn } = await checkRateLimit(`contact:${ip}`, contactRateMax, 60);
     if (!allowed) {
+      // checkRateLimit returns resetIn in MILLISECONDS — convert to whole
+      // seconds for the user-facing message (it previously told a throttled
+      // user to wait thousands of "seconds").
+      const retryAfterSeconds = Math.max(1, Math.ceil(resetIn / 1000));
       return NextResponse.json(
-        { error: `Too many submissions. Please try again in ${resetIn} seconds.` },
-        { status: 429 }
+        { error: `Too many submissions. Please try again in ${retryAfterSeconds} seconds.` },
+        { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
       );
     }
 

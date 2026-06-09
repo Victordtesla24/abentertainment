@@ -1,0 +1,72 @@
+name: Deploy to VPS (rebuild Docker image)
+
+# WHY THIS EXISTS
+# ---------------
+# The VPS runs a PRE-BUILT standalone Next.js image (see Dockerfile: the build
+# stage runs `npm run build` and the runner stage just does `node server.js`).
+# The Hostinger deploy webhook (deploy-webhook.php) only does `git reset --hard
+# origin/main` — it updates the source on disk but NEVER rebuilds the running
+# container. So server-side changes (new API routes, src/lib changes) do NOT go
+# live until the Docker image is rebuilt and the container restarted.
+#
+# This workflow does that automatically on every push to main, so backend changes
+# deploy without a manual SSH step. The Hostinger static export (out/) keeps
+# deploying via its own git-based mechanism; this only handles the VPS API server.
+#
+# ONE-TIME SETUP — add these repo secrets
+# (GitHub -> Settings -> Secrets and variables -> Actions -> New repository secret):
+#   VPS_SSH_HOST  - VPS IP or hostname (e.g. 187.77.12.13)
+#   VPS_SSH_USER  - SSH user that can run docker (e.g. root, or a user in the docker group)
+#   VPS_SSH_KEY   - the PRIVATE SSH key (full PEM) authorised on the VPS for that user
+#   VPS_SSH_PORT  - (optional) SSH port; the script below assumes 22 unless you edit it
+#
+# Until VPS_SSH_HOST is set, the workflow runs but safely skips with a warning.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # Surface the secret as an env var so it can be checked in `if:` safely.
+      DEPLOY_HOST: ${{ secrets.VPS_SSH_HOST }}
+    steps:
+      - name: Rebuild and restart the VPS container over SSH
+        if: env.DEPLOY_HOST != ''
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || '22' }}
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            cd /opt/abentertainment
+            echo "[deploy] syncing source to origin/main"
+            git fetch --all --prune
+            git reset --hard origin/main
+            echo "[deploy] rebuilding image"
+            docker compose build
+            echo "[deploy] restarting container"
+            docker compose up -d
+            echo "[deploy] waiting for health"
+            sleep 6
+            if curl -fsS http://localhost:3000/api/events >/dev/null; then
+              echo "[deploy] OK — /api/events is healthy"
+            else
+              echo "[deploy] WARNING: post-deploy health check failed" >&2
+              exit 1
+            fi
+
+      - name: Secrets not configured (skipping)
+        if: env.DEPLOY_HOST == ''
+        run: |
+          echo "::warning::VPS auto-deploy skipped — add VPS_SSH_HOST / VPS_SSH_USER / VPS_SSH_KEY repo secrets to enable it. Until then, rebuild the VPS manually: ssh into the VPS and run 'cd /opt/abentertainment && git pull && docker compose build && docker compose up -d'."

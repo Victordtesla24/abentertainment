@@ -359,7 +359,7 @@ export function CinematicHero() {
 
   return (
     <section
-      className="relative w-full h-screen overflow-hidden bg-black"
+      className="relative w-full h-dvh min-h-[34rem] overflow-hidden bg-black"
       role="region"
       aria-roledescription="carousel"
       aria-label="Hero slideshow"
@@ -481,7 +481,7 @@ export function CinematicHero() {
               initial={{ opacity: 0, y: 40, filter: 'blur(8px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               transition={{ duration: 1, delay: 0.3, ease: EASE }}
-              className="text-5xl md:text-7xl lg:text-[6rem] xl:text-[7.5rem] font-black leading-[0.88] tracking-tight uppercase mb-7"
+              className="px-4 text-[2.5rem] sm:text-5xl md:text-7xl lg:text-[6rem] xl:text-[7.5rem] font-black leading-[0.9] tracking-tight uppercase mb-7 break-words"
               style={{ fontFamily: 'var(--font-display), Georgia, serif' }}
             >
               <span className="gold-shimmer">{slides[currentSlide].title}</span>
