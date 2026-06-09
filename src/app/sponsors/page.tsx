@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { getSponsors } from '@/lib/data';
+import { getPublicSponsors } from '@/lib/data';
 import PageHero from '@/components/ui/PageHero';
 import SponsorsContent from '@/components/SponsorsContent';
 
@@ -24,7 +24,7 @@ export default async function SponsorsPage() {
   let sponsors: Sponsor[] = [];
 
   try {
-    sponsors = await getSponsors();
+    sponsors = await getPublicSponsors();
   } catch (error) {
     console.error('Error loading sponsors:', error);
   }

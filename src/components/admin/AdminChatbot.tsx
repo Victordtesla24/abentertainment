@@ -467,7 +467,7 @@ export default function AdminChatbot({ activeTab = 'default' }: AdminChatbotProp
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask the agent to create events, research markets..."
               disabled={loading}
-              className="flex-1 px-4 py-3 bg-[#0A0A0A] border border-white/[0.08] rounded-lg text-white text-sm placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/40 focus:ring-1 focus:ring-[#C9A84C]/20 disabled:opacity-50 transition-all"
+              className="flex-1 px-4 py-3 bg-[#0A0A0A] border border-white/[0.08] rounded-lg text-white text-base sm:text-sm placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/40 focus:ring-1 focus:ring-[#C9A84C]/20 disabled:opacity-50 transition-all"
             />
             <button
               type="submit"

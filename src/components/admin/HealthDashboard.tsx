@@ -667,7 +667,7 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
       {/* System Gauges */}
       <div className="bg-[#111111] border border-[#C9A84C]/10 p-5">
         <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-4">System Gauges</p>
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
           <GaugeChart value={healthData ? 100 : 0} max={100} label="Server" sublabel={healthData?.server.version || '—'} color={healthData ? GREEN : RED} />
           <GaugeChart value={passedPages} max={PAGES.length} label="Pages" sublabel={`${passedPages} of ${PAGES.length} OK`} color={passedPages === PAGES.length ? GREEN : passedPages >= 7 ? AMBER : RED} />
           <GaugeChart value={healthData?.modelCount || 0} max={15} label="AI Models" sublabel={`${healthData?.toolCount || 0} tools`} color={healthData?.modelCount ? GREEN : AMBER} />
@@ -745,7 +745,7 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
                     <span className="ml-2 text-[9px] font-body normal-case tracking-normal text-white/35">· cache released while sleeping (loads on wake)</span>
                   )}
                 </p>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {['SOUL.md', 'MEMORY.md', 'HEARTBEAT.md', 'SKILLS.md'].map(file => {
                     const isSleeping = healthData?.server?.agentStatus === 'sleeping';
                     const loaded = healthData?.workspace.files.includes(file) ?? true;

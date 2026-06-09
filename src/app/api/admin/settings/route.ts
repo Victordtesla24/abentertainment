@@ -33,15 +33,22 @@ export const PUT = withAuth(async (request: NextRequest) => {
 
     // Sync admin chat model → admin agent config so every reader stays aligned.
     // adminChatModel wins, falls back to chatModel. If neither changed, skip.
-    const newAdminModel = merged.adminChatModel || merged.chatModel;
-    const prevAdminModel = current.adminChatModel || current.chatModel;
-    if (newAdminModel && newAdminModel !== prevAdminModel) {
-      const agents = await getAgents();
-      const idx = agents.findIndex((a) => a.type === 'admin');
-      if (idx !== -1) {
-        agents[idx] = { ...agents[idx], model: newAdminModel, updatedAt: new Date().toISOString() };
-        await saveAgents(agents);
+    // This is a best-effort secondary write: the settings save above already
+    // succeeded, so a failure here must NOT bubble into the outer catch and
+    // return a misleading "Invalid request" 400 as if nothing was saved.
+    try {
+      const newAdminModel = merged.adminChatModel || merged.chatModel;
+      const prevAdminModel = current.adminChatModel || current.chatModel;
+      if (newAdminModel && newAdminModel !== prevAdminModel) {
+        const agents = await getAgents();
+        const idx = agents.findIndex((a) => a.type === 'admin');
+        if (idx !== -1) {
+          agents[idx] = { ...agents[idx], model: newAdminModel, updatedAt: new Date().toISOString() };
+          await saveAgents(agents);
+        }
       }
+    } catch (err) {
+      console.error('[settings] admin agent model sync failed (settings were saved):', err);
     }
 
     return NextResponse.json({ success: true });

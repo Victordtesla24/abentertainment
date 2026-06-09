@@ -121,7 +121,7 @@ export function TestimonialsSection() {
 
         {/* Testimonials carousel */}
         <div className="relative max-w-3xl mx-auto" onMouseEnter={() => setIsPaused(true)} onMouseLeave={() => setIsPaused(false)}>
-          <div className="relative h-96 md:h-72 flex items-center">
+          <div className="relative h-[28rem] sm:h-96 md:h-72 flex items-center">
             <AnimatePresence initial={false} custom={direction} mode="wait">
               <motion.div
                 key={currentIndex}
@@ -133,13 +133,13 @@ export function TestimonialsSection() {
                 transition={{ x: { type: 'spring', stiffness: 300, damping: 30 }, opacity: { duration: 0.4 }, scale: { duration: 0.4 } }}
                 className="absolute w-full"
               >
-                <div className="glass-card p-10 md:p-12 relative">
+                <div className="glass-card p-6 sm:p-10 md:p-12 relative">
                   {/* Large quotation mark */}
                   <div className="absolute top-6 left-8 text-[#C9A84C]/10 text-8xl font-display leading-none">&ldquo;</div>
                   {/* Stars */}
                   <div className="mb-5 relative z-10"><StarRating rating={current.rating} /></div>
                   {/* Quote */}
-                  <p className="text-white/65 text-lg md:text-xl font-body leading-relaxed mb-4 relative z-10 italic">
+                  <p className="text-white/65 text-base sm:text-lg md:text-xl font-body leading-relaxed mb-4 relative z-10 italic">
                     {current.quote}
                   </p>
                   {/* Event reference — only when the testimonial carries one */}
@@ -165,14 +165,14 @@ export function TestimonialsSection() {
             {/* Prev / Next buttons */}
             <button
               onClick={() => paginate(-1)}
-              className="absolute -left-4 md:-left-16 top-1/2 -translate-y-1/2 z-20 w-11 h-11 flex items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-400 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)]"
+              className="absolute md:-left-16 top-1/2 -translate-y-1/2 z-20 w-11 h-11 hidden md:flex items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-400 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)]"
               aria-label="Previous testimonial"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" /></svg>
             </button>
             <button
               onClick={() => paginate(1)}
-              className="absolute -right-4 md:-right-16 top-1/2 -translate-y-1/2 z-20 w-11 h-11 flex items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-400 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)]"
+              className="absolute md:-right-16 top-1/2 -translate-y-1/2 z-20 w-11 h-11 hidden md:flex items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-400 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)]"
               aria-label="Next testimonial"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>

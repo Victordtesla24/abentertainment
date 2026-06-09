@@ -8,7 +8,7 @@ import CTASection from '@/components/CTASection';
 import ScrollNarrative from '@/components/ScrollNarrative';
 import VideoHighlights from '@/components/VideoHighlights';
 import { ScrollReveal, StageLightingOverlay } from '@/components/ui/ScrollReveal';
-import { getEvents } from '@/lib/data';
+import { getPublicEvents } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
 
 import type { Event } from '@/lib/data';
@@ -22,7 +22,7 @@ export default async function Home() {
   let allEvents: Event[] = [];
 
   try {
-    allEvents = await getEvents();
+    allEvents = await getPublicEvents();
   } catch (error) {
     console.error('Error loading events:', error);
   }
