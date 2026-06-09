@@ -189,8 +189,8 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
               <motion.div key={event.id} variants={cardVariants} className="group">
                 <Link href={`/events/${event.slug}`}>
                   <div className="glass-card hover-shine overflow-hidden hover:shadow-[0_12px_50px_rgba(201,168,76,0.1)]">
-                    {/* Image with cinematic overlay */}
-                    <div className="relative h-56 overflow-hidden bg-gradient-to-br from-[#111] to-[#0A0A0A]">
+                    {/* Image — full poster (object-contain), never cropped */}
+                    <div className="relative h-64 overflow-hidden bg-gradient-to-br from-[#111] to-[#0A0A0A]">
                       {event.image && useNextImage && (
                         <Image
                           src={event.image}
@@ -199,17 +199,24 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                           placeholder="blur"
                           blurDataURL={BLUR_DATA_URL}
-                          className="object-cover transition-all duration-700 group-hover:scale-110 group-hover:brightness-110 saturate-[0.9]"
+                          className="object-contain transition-all duration-700 group-hover:brightness-110 saturate-[0.9]"
                         />
                       )}
                       {event.image && !useNextImage && (
                         <img
                           src={event.image}
                           alt={event.title}
-                          className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110 group-hover:brightness-110"
+                          className="w-full h-full object-contain transition-all duration-700 group-hover:brightness-110"
                           style={{ filter: 'saturate(0.9)' }}
                           loading="lazy"
                         />
+                      )}
+                      {/* Branded placeholder when an event has no image yet. */}
+                      {!event.image && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 select-none" aria-hidden="true">
+                          <span className="font-display font-bold text-4xl text-[#C9A84C]/25">AB</span>
+                          <span className="text-[10px] uppercase tracking-[0.25em] font-body text-[#C9A84C]/30">{event.category || 'Entertainment'}</span>
+                        </div>
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/30 to-transparent opacity-80" />
                       <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0A]/20 via-transparent to-[#0A0A0A]/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
