@@ -291,23 +291,36 @@ export function CinematicHero() {
 
   // Keep the headline on a single line at every viewport: if the nowrap title
   // overflows its container, scale the font down proportionally.
-  const titleRef = useRef<HTMLHeadingElement>(null);
-  useLayoutEffect(() => {
+  const titleRef = useRef<HTMLHeadingElement | null>(null);
+  const fitTitle = useCallback(() => {
     const el = titleRef.current;
     if (!el) return;
-    const fit = () => {
-      el.style.fontSize = '';
-      const max = el.clientWidth;
-      const needed = el.scrollWidth;
-      if (needed > max && needed > 0) {
-        const current = parseFloat(getComputedStyle(el).fontSize);
-        el.style.fontSize = `${Math.max(18, current * (max / needed) * 0.97)}px`;
-      }
-    };
-    fit();
-    window.addEventListener('resize', fit);
-    return () => window.removeEventListener('resize', fit);
-  }, [currentSlide, slides]);
+    el.style.fontSize = '';
+    const max = el.clientWidth;
+    const needed = el.scrollWidth;
+    if (needed > max && needed > 0) {
+      const current = parseFloat(getComputedStyle(el).fontSize);
+      el.style.fontSize = `${Math.max(18, current * (max / needed) * 0.97)}px`;
+    }
+  }, []);
+  // Callback ref, NOT a currentSlide-keyed effect: AnimatePresence mode="wait"
+  // mounts each slide's heading only after the previous one finishes exiting,
+  // so an effect keyed on currentSlide fires too early and measures the
+  // outgoing element. The callback ref runs at the exact mount of every h1.
+  const setTitleRef = useCallback(
+    (el: HTMLHeadingElement | null) => {
+      titleRef.current = el;
+      if (el) fitTitle();
+    },
+    [fitTitle]
+  );
+  useLayoutEffect(() => {
+    window.addEventListener('resize', fitTitle);
+    // Re-measure once webfonts settle — glyph widths shift when the display
+    // font swaps in.
+    document.fonts?.ready?.then(fitTitle).catch(() => {});
+    return () => window.removeEventListener('resize', fitTitle);
+  }, [fitTitle]);
 
   const { scrollY } = useScroll();
   const parallaxBg = useTransform(scrollY, [0, 800], [0, -150]);
@@ -442,7 +455,7 @@ export function CinematicHero() {
             </motion.div>
 
             <motion.h1
-              ref={titleRef}
+              ref={setTitleRef}
               initial={{ opacity: 0, y: 40, filter: 'blur(8px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               transition={{ duration: 1, delay: 0.3, ease: EASE }}

@@ -99,6 +99,9 @@ RewriteRule ^\.claude(/.*)?$ - [F,L]
   ExpiresByType text/html "access plus 0 seconds"
   ExpiresByType text/css "access plus 1 year"
   ExpiresByType application/javascript "access plus 1 year"
+  # LiteSpeed serves .js as application/x-javascript — cover all JS MIME names
+  ExpiresByType application/x-javascript "access plus 1 year"
+  ExpiresByType text/javascript "access plus 1 year"
   ExpiresByType image/webp "access plus 1 year"
   ExpiresByType image/avif "access plus 1 year"
   ExpiresByType image/jpeg "access plus 1 year"
@@ -108,7 +111,10 @@ RewriteRule ^\.claude(/.*)?$ - [F,L]
   ExpiresByType font/woff2 "access plus 1 year"
 </IfModule>
 <IfModule mod_headers.c>
-  <FilesMatch "\.html$">
+  # .html documents AND __next.*.txt RSC payloads are build-coupled and
+  # unhashed — a deploy replaces them wholesale, so any cached copy pairs
+  # stale markup/payloads with new chunks (ChunkLoadError / React #418).
+  <FilesMatch "\.(html|txt)$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 </IfModule>
