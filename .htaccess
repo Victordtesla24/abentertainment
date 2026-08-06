@@ -88,10 +88,15 @@ RewriteRule ^e2e(/.*)?$ - [F,L]
 RewriteRule ^agent-system(/.*)?$ - [F,L]
 RewriteRule ^\.claude(/.*)?$ - [F,L]
 
-# Cache static assets
+# Cache static assets.
+# HTML is NEVER edge-cached: each deploy replaces the content-hashed /_next
+# chunks (git reset --hard && git clean -fd), so hour-old cached HTML would
+# reference deleted chunk files and break with ChunkLoadError for returning
+# visitors. HTML documents are small — revalidating them is cheap; the hashed
+# assets they reference keep the year-long cache.
 <IfModule mod_expires.c>
   ExpiresActive On
-  ExpiresByType text/html "access plus 1 hour"
+  ExpiresByType text/html "access plus 0 seconds"
   ExpiresByType text/css "access plus 1 year"
   ExpiresByType application/javascript "access plus 1 year"
   ExpiresByType image/webp "access plus 1 year"
@@ -101,6 +106,11 @@ RewriteRule ^\.claude(/.*)?$ - [F,L]
   ExpiresByType video/mp4 "access plus 1 year"
   ExpiresByType video/webm "access plus 1 year"
   ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
 </IfModule>
 
 # HSTS: enforce HTTPS for 1 year
