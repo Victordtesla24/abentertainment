@@ -1,5 +1,21 @@
 # AB Entertainment
 
+## v4.2.0 — Hero Simplification & Event Ordering (2026-08-06)
+
+### Summary of Changes
+
+**Curtain Eradication — Complete**
+- Removed the homepage hero background video layer entirely (`CinematicHero.tsx`) — the `ab-transition.*` assets depicted theatre curtains and are now deleted from the repo; the Ken Burns image slideshow (previously the fallback) is the sole hero background
+- Saves ~3.8 MB of video payload on the homepage
+
+**Hero Headline**
+- Slide titles ("AB ENTERTAINMENT", etc.) now always render on a single line: `whitespace-nowrap` plus a resize-aware fit that proportionally scales the font when a title would overflow its container
+
+**Event Ordering**
+- Homepage Signature Events showcase and both Events-page sections (Upcoming and Past) now list events latest-date-first
+
+---
+
 ## v4.1.0 — Curtain Transition Removal & Community Page (2026-08-06)
 
 ### Summary of Changes
@@ -23,7 +39,7 @@
 - Removed the `body::before` black-overlay CSS (and its `preloader-done` / `preloader-skip` toggle classes) from `globals.css`
 - Removed the pre-hydration inline script in `layout.tsx` that read the `ab-preloader-time` localStorage cooldown
 - `CinematicHero.tsx` entrance animation no longer waits on the `ab:preloader-complete` event (which will never fire) — it now starts immediately on mount with the same opacity/translate/blur animation
-- `public/video/ab-transition.mp4` and `ab-transition.webm` are unaffected and remain in use as the homepage hero background video (`CinematicHero.tsx`); `public/video/pre-loader-animation-1.mp4` was deleted as it had no other consumers
+- `public/video/ab-transition.mp4` and `ab-transition.webm` were retained at this release solely as the homepage hero background video (removed entirely in v4.2.0); `public/video/pre-loader-animation-1.mp4` was deleted as it had no other consumers
 
 ### Deployment Notes
 - No new runtime dependencies added or removed
@@ -122,8 +138,8 @@
 - Configurable duration, delay, distance, and blur parameters
 
 **Video Asset Pipeline**
-- `public/video/ab-transition.mp4` — hero background video fallback source
-- `public/video/ab-transition.webm` — hero background video primary source
+- `public/video/ab-transition.mp4` — hero background video fallback source (asset deleted in v4.2.0)
+- `public/video/ab-transition.webm` — hero background video primary source (asset deleted in v4.2.0)
 
 ### Deployment Notes
 - Keep only active runtime assets under `public/video/`; remove legacy source clips and scratch media

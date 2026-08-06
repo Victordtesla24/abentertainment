@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 import {
   motion,
@@ -36,18 +36,6 @@ const heroSlides = [
     bg: '/images/hero-bg.jpg',
   },
 ];
-
-/**
- * Hero video background configuration.
- * Uses stable production video assets from public/video.
- * Falls back gracefully to image carousel if video fails to load.
- * Video assets are stored in public/video/ (same directory as other video assets).
- */
-const HERO_VIDEO = {
-  src: '/video/ab-transition.mp4',
-  webmSrc: '/video/ab-transition.webm',
-  poster: '/images/hero-bg.jpg',
-};
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
 const SLIDE_DURATION = 8000;
@@ -301,6 +289,26 @@ export function CinematicHero() {
   };
   usePolledRefresh(loadHeroSettings);
 
+  // Keep the headline on a single line at every viewport: if the nowrap title
+  // overflows its container, scale the font down proportionally.
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.fontSize = '';
+      const max = el.clientWidth;
+      const needed = el.scrollWidth;
+      if (needed > max && needed > 0) {
+        const current = parseFloat(getComputedStyle(el).fontSize);
+        el.style.fontSize = `${Math.max(18, current * (max / needed) * 0.97)}px`;
+      }
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [currentSlide, slides]);
+
   const { scrollY } = useScroll();
   const parallaxBg = useTransform(scrollY, [0, 800], [0, -150]);
   const parallaxContent = useTransform(scrollY, [0, 800], [0, -60]);
@@ -348,23 +356,7 @@ export function CinematicHero() {
     >
       {/* Animated Background Images with Ken Burns */}
       <motion.div className="absolute inset-0" style={{ y: parallaxBg, scale: heroScale }}>
-        {/* Video background layer — plays when asset exists, falls back to image slideshow */}
-        <video
-          autoPlay
-          muted
-          loop
-          playsInline
-          poster={HERO_VIDEO.poster}
-          className="absolute inset-0 w-full h-[130%] object-cover"
-          style={{ filter: 'saturate(0.85) contrast(1.1)' }}
-          aria-hidden="true"
-          onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
-        >
-          <source src={HERO_VIDEO.src} type="video/mp4" />
-          <source src={HERO_VIDEO.webmSrc} type="video/webm" />
-        </video>
-
-        {/* Image slideshow fallback — visible when video not available */}
+        {/* Ken Burns image slideshow background */}
         <AnimatePresence mode="sync">
           <motion.div
             key={slides[currentSlide].bg + currentSlide}
@@ -450,10 +442,11 @@ export function CinematicHero() {
             </motion.div>
 
             <motion.h1
+              ref={titleRef}
               initial={{ opacity: 0, y: 40, filter: 'blur(8px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               transition={{ duration: 1, delay: 0.3, ease: EASE }}
-              className="px-4 text-[2.5rem] sm:text-5xl md:text-7xl lg:text-[6rem] xl:text-[7.5rem] font-black leading-[0.9] tracking-tight uppercase mb-7 break-words"
+              className="px-4 w-full text-[2.5rem] sm:text-5xl md:text-7xl lg:text-[6rem] xl:text-[7.5rem] font-black leading-[0.9] tracking-tight uppercase mb-7 whitespace-nowrap"
               style={{ fontFamily: 'var(--font-display), Georgia, serif' }}
             >
               <span className="gold-shimmer">{slides[currentSlide].title}</span>

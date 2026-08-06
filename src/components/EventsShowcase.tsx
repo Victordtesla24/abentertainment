@@ -98,8 +98,12 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
     ...allCategories.map((cat) => ({ id: cat, label: cat })),
   ];
 
-  const filteredEvents =
-    selectedCategory === 'all' ? events : events.filter((event) => event.category === selectedCategory);
+  // Latest first — newest event date at the top of the showcase
+  const filteredEvents = (
+    selectedCategory === 'all' ? events : events.filter((event) => event.category === selectedCategory)
+  )
+    .slice()
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
     <section className="relative py-28 bg-[#0A0A0A] overflow-hidden">
