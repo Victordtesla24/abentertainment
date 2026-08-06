@@ -119,6 +119,7 @@ export const NAVIGATION = [
   { label: 'Events', href: '/events' },
   { label: 'Gallery', href: '/gallery' },
   { label: 'Sponsors', href: '/sponsors' },
+  { label: 'Community', href: '/community' },
   { label: 'Contact', href: '/contact' },
 ];
 

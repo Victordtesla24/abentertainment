@@ -416,6 +416,7 @@ const SEED_PAGES: PageTitle[] = [
   { slug: '/events', title: 'Events', updatedAt: '2025-01-01T00:00:00Z' },
   { slug: '/gallery', title: 'Gallery', updatedAt: '2025-01-01T00:00:00Z' },
   { slug: '/sponsors', title: 'Sponsors', updatedAt: '2025-01-01T00:00:00Z' },
+  { slug: '/community', title: 'Community', updatedAt: '2025-01-01T00:00:00Z' },
   { slug: '/contact', title: 'Contact', updatedAt: '2025-01-01T00:00:00Z' },
 ];
 

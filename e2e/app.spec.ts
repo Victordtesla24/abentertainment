@@ -80,6 +80,12 @@ test.describe('Public Pages', () => {
     await expect(page).toHaveTitle(/Sponsors/);
   });
 
+  test('community page loads correctly', async ({ page }) => {
+    await page.goto('/community');
+    await expect(page).toHaveTitle(/Community/);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  });
+
   test('contact page loads with form', async ({ page }) => {
     await page.goto('/contact');
     // Title may be "AB Entertainment" or "Contact | AB Entertainment"
@@ -105,12 +111,15 @@ test.describe('Public Pages', () => {
 
 test.describe('Navigation', () => {
   test('all page routes are accessible', async ({ page }) => {
-    // Verify core routes are accessible (preloader blocks link clicks in headless)
+    // Verify core routes are accessible via direct navigation
     await page.goto('/events');
     await expect(page).toHaveURL(/\/events/);
 
     await page.goto('/about');
     await expect(page).toHaveURL(/\/about/);
+
+    await page.goto('/community');
+    await expect(page).toHaveURL(/\/community/);
 
     await page.goto('/contact');
     await expect(page).toHaveURL(/\/contact/);

@@ -8,6 +8,7 @@ const routeLabels: Record<string, string> = {
   events: 'Events',
   gallery: 'Gallery',
   sponsors: 'Sponsors',
+  community: 'Community',
   contact: 'Contact',
   privacy: 'Privacy Policy',
   terms: 'Terms of Service',

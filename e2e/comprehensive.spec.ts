@@ -86,7 +86,7 @@ test.describe('@req-header-ui', () => {
   test('nav links present', async ({ page }) => {
     await page.goto('/');
     const nav = page.locator('nav').first();
-    for (const l of ['Home','About','Events','Gallery','Sponsors']) {
+    for (const l of ['Home','About','Events','Gallery','Sponsors','Community']) {
       await expect(nav.getByRole('link', { name: l }).first()).toBeVisible();
     }
     expect(await nav.locator('a:has-text("Contact")').count()).toBeGreaterThanOrEqual(1);
@@ -101,6 +101,8 @@ test.describe('@req-header-ui', () => {
     await expect(page).toHaveURL(/\/events\/?/);
     await page.locator('nav').getByRole('link', { name: 'About', exact: true }).first().click();
     await expect(page).toHaveURL(/\/about\/?/);
+    await page.locator('nav').getByRole('link', { name: 'Community', exact: true }).first().click();
+    await expect(page).toHaveURL(/\/community\/?/);
   });
 });
 
@@ -315,7 +317,7 @@ test.describe('@req-contact-api', () => {
 });
 
 test.describe('@req-zero-errors', () => {
-  for (const r of ['/','/about','/events','/gallery','/sponsors','/contact','/privacy','/terms']) {
+  for (const r of ['/','/about','/events','/gallery','/sponsors','/community','/contact','/privacy','/terms']) {
     test(`no errors ${r}`, async ({ page }) => {
       const e = attachErrorSpy(page);
       await page.goto(r);
@@ -424,7 +426,7 @@ test.describe('@req-admin-crud-api', () => {
 });
 
 test.describe('@req-all-pages', () => {
-  for (const r of ['/','/about','/events','/gallery','/sponsors','/contact','/privacy','/terms','/admin/login']) {
+  for (const r of ['/','/about','/events','/gallery','/sponsors','/community','/contact','/privacy','/terms','/admin/login']) {
     test(`${r} returns 200`, async ({ page }) => {
       expect((await page.goto(r))?.status()).toBe(200);
     });

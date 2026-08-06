@@ -69,6 +69,7 @@ const DEFAULT_PAGES: PageTitleEntry[] = [
   { slug: '/events', label: 'Events', title: 'Events' },
   { slug: '/gallery', label: 'Gallery', title: 'Gallery' },
   { slug: '/sponsors', label: 'Sponsors', title: 'Sponsors' },
+  { slug: '/community', label: 'Community', title: 'Community' },
   { slug: '/contact', label: 'Contact', title: 'Contact' },
 ];
 
