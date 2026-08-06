@@ -1,0 +1,24 @@
+[
+  {
+    "id": "vid-1781183482634",
+    "title": "APGV Launch Video",
+    "url": "https://youtube.com/shorts/1COehLrEqac?feature=share",
+    "type": "promo",
+    "eventId": "evt-1780911052955",
+    "featured": true,
+    "order": 0,
+    "createdAt": "2026-06-11T13:11:22.634Z",
+    "updatedAt": "2026-06-11T13:16:19.244Z"
+  },
+  {
+    "id": "vid-1781183706703",
+    "title": "APGV Melbourne July 2026",
+    "url": "https://youtube.com/shorts/dBh2C8JPFys",
+    "type": "promo",
+    "eventId": "evt-1780911052955",
+    "featured": false,
+    "order": 0,
+    "createdAt": "2026-06-11T13:15:06.703Z",
+    "updatedAt": "2026-06-11T13:15:06.703Z"
+  }
+]
