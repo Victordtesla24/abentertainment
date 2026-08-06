@@ -19,21 +19,21 @@ const heroSlides = [
     badge: 'Welcome to',
     title: 'AB ENTERTAINMENT',
     subtitle: "Melbourne's Legendary Indian & Marathi Performing Arts Experience",
-    bg: '/images/hero-bg.jpg',
+    bg: '/images/hero-stage.jpg',
   },
   {
     id: 'slide-2',
     badge: 'Celebrating',
     title: 'CULTURAL EXCELLENCE',
     subtitle: 'Indian & Marathi Performing Arts in Melbourne',
-    bg: '/images/hero-bg-2.jpg',
+    bg: '/images/hero-performance.jpg',
   },
   {
     id: 'slide-3',
     badge: 'Discover',
     title: 'UNFORGETTABLE MOMENTS',
     subtitle: '6+ Events · 25+ Team · 25,000+ Audience Reach',
-    bg: '/images/hero-bg.jpg',
+    bg: '/images/hero-audience.jpg',
   },
 ];
 
