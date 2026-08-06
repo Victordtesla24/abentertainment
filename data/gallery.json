@@ -1,38 +1,193 @@
 [
   {
-    "id": "img-1775373866698",
-    "src": "/images/gallery/stage-lights-golden-hour-1775373752700.png",
-    "alt": "Theatre stage with golden spotlights",
-    "category": "hero",
-    "width": 1200,
-    "height": 800,
-    "createdAt": "2026-04-05T07:24:26.698Z"
-  },
-  {
-    "id": "img-1775373867727",
-    "src": "/images/gallery/indian-classical-instruments-1775373786782.png",
-    "alt": "Classical Indian instruments",
-    "category": "background",
-    "width": 1200,
-    "height": 800,
-    "createdAt": "2026-04-05T07:24:27.727Z"
-  },
-  {
-    "id": "img-1775373868881",
-    "src": "/images/gallery/marathi-cultural-textiles-1775373800663.png",
-    "alt": "Marathi paithani silk",
-    "category": "background",
-    "width": 1200,
-    "height": 800,
-    "createdAt": "2026-04-05T07:24:28.881Z"
-  },
-  {
-    "id": "img-1775973527862",
-    "src": "/images/gallery/desktop-hud-clock-1775973508208.png",
-    "alt": "Desktop with futuristic HUD clock display",
+    "id": "img-1776005483792",
+    "src": "/images/gallery/niyam-v-ati-8.jpg",
+    "alt": "Niyam V Ati Lagu 8",
+    "eventId": "evt-1776134897593",
     "category": "event",
     "width": 1200,
     "height": 800,
-    "createdAt": "2026-04-12T05:58:47.862Z"
+    "createdAt": "2026-04-12T14:51:23.792Z"
+  },
+  {
+    "id": "img-1776005541393",
+    "src": "/images/gallery/niyam-v-ati-7.jpg",
+    "alt": "Niyam V Ati Lagu 7",
+    "eventId": "evt-1776134897593",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-12T14:52:21.393Z"
+  },
+  {
+    "id": "img-1776043753590",
+    "src": "/images/gallery/niyam-v-ati-1.jpg",
+    "alt": "Niyam V Ati Lagu 1",
+    "eventId": "evt-1776134897593",
+    "category": "gallery",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-13T01:29:13.590Z"
+  },
+  {
+    "id": "img-1776043760546",
+    "src": "/images/gallery/niyam-v-ati-2.jpg",
+    "alt": "Niyam V Ati Lagu 2",
+    "eventId": "evt-1776134897593",
+    "category": "gallery",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-13T01:29:20.546Z"
+  },
+  {
+    "id": "img-1776043766652",
+    "src": "/images/gallery/niyam-v-ati-3.jpg",
+    "alt": "Niyam V Ati Lagu 3",
+    "eventId": "evt-1776134897593",
+    "category": "gallery",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-13T01:29:26.652Z"
+  },
+  {
+    "id": "img-1776043774354",
+    "src": "/images/gallery/niyam-v-ati-4.jpg",
+    "alt": "Niyam V Ati Lagu 4",
+    "eventId": "evt-1776134897593",
+    "category": "gallery",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-13T01:29:34.354Z"
+  },
+  {
+    "id": "img-1776043779571",
+    "src": "/images/gallery/niyam-v-ati-5.jpg",
+    "alt": "Niyam V Ati Lagu 5",
+    "eventId": "evt-1776134897593",
+    "category": "gallery",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-13T01:29:39.571Z"
+  },
+  {
+    "id": "img-1776043784294",
+    "src": "/images/gallery/niyam-v-ati-6.jpg",
+    "alt": "Niyam V Ati Lagu 6",
+    "eventId": "evt-1776134897593",
+    "category": "gallery",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-13T01:29:44.294Z"
+  },
+  {
+    "id": "img-1776043794318",
+    "src": "/images/gallery/niyam-v-ati-9.jpg",
+    "alt": "Niyam V Ati Lagu 9",
+    "eventId": "evt-1776134897593",
+    "category": "gallery",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-13T01:29:54.318Z"
+  },
+  {
+    "id": "img-1776043805450",
+    "src": "/images/gallery/niyam-v-ati-10.jpg",
+    "alt": "Niyam V Ati Lagu 10",
+    "eventId": "evt-1776134897593",
+    "category": "venue",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-13T01:30:05.450Z"
+  },
+  {
+    "id": "img-1776043867407",
+    "src": "/images/events/shikayla-gelo-ek.jpg",
+    "alt": "Shikayla Gelo Ek!",
+    "eventId": "evt-shikayla-gelo-ek",
+    "category": "events",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-13T01:31:07.407Z"
+  },
+  {
+    "id": "img-1776134912730",
+    "src": "/images/gallery/event-1.jpg",
+    "alt": "Event Photo 1",
+    "eventId": "evt-1776134897593",
+    "category": "behind-the-scenes",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-14T02:48:32.731Z"
+  },
+  {
+    "id": "img-1776134921004",
+    "src": "/images/gallery/event-2.jpg",
+    "alt": "Event Photo 2",
+    "eventId": "evt-1776134897593",
+    "category": "gallery",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-14T02:48:41.004Z"
+  },
+  {
+    "id": "img-1776153430094",
+    "src": "/images/events/shrimant-damodar-pant.jpg",
+    "alt": "Shrimant Damodar Pant",
+    "eventId": "evt-shrimant-damodar-pant",
+    "category": "events",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-14T07:57:10.094Z"
+  },
+  {
+    "id": "img-1776153446047",
+    "src": "/images/gallery/event-5.jpg",
+    "alt": "Event Photo 5",
+    "eventId": "evt-1776134897593",
+    "category": "gallery",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-14T07:57:26.047Z"
+  },
+  {
+    "id": "img-1776153487074",
+    "src": "/images/events/varvarche-vadhu-var.jpg",
+    "alt": "Varvarche Vadhu Var",
+    "eventId": "evt-varvarche-vadhu-var",
+    "category": "events",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-04-14T07:58:07.074Z"
+  },
+  {
+    "id": "img-1780909785710",
+    "src": "/api/uploads/gallery/1780909705809-20241110_165535.jpg",
+    "alt": "MT Nov 2024",
+    "eventId": "evt-swaranirmiti-2026",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-06-08T09:09:45.710Z"
+  },
+  {
+    "id": "img-1780910153345",
+    "src": "https://photos.google.com/share/AF1QipPdWn2S4bBtf9H-PJiV2GOaoyDz5T967M9pfVdL6V5KueIC4KGpvgmbOWX-uqiEqw?key=cE83amY1dFljWkVzZXRBTmRIV2YzMHR3QzJmRW5n",
+    "alt": "Event image",
+    "eventId": "evt-swaranirmiti-2026",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-06-08T09:15:53.345Z"
+  },
+  {
+    "id": "img-1781182983533",
+    "src": "/api/uploads/gallery/1781182966428-APGV_PosterV3.jpg",
+    "alt": "APGV PosterV3",
+    "eventId": "evt-1780911052955",
+    "category": "promotional",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-06-11T13:03:03.533Z",
+    "order": 19
   }
 ]

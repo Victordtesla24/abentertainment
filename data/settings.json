@@ -1,9 +1,96 @@
 {
-  "chatModel": "gpt-4.1",
-  "adminChatModel": "gpt-4.1",
-  "heroTitle": "Melbourne's Legendary Cultural Events",
-  "heroSubtitle": "Melbourne's Premier Indian & Marathi Performing Arts",
+  "chatModel": "anthropic/claude-opus-4.6:thinking-max",
+  "adminChatModel": "anthropic/claude-opus-4.6:thinking-max",
+  "heroTitle": "Experience Events Like No Other",
+  "heroSubtitle": "Australia's Premier Indian Performing Arts",
   "contactEmail": "abhi@abentertainment.com.au",
   "contactPhone": "(+61) 430082646",
-  "siteImageOverrides": {}
+  "siteImageOverrides": {
+    "/images/events/shrimant-damodar-pant.jpg": {
+      "alt": "Shrimant Damodar Pant",
+      "src": "/images/events/shrimant-damodar-pant.jpg"
+    },
+    "/images/gallery/niyam-v-ati-8.jpg": {
+      "alt": "Niyam V Ati Lagu 8",
+      "src": "/images/gallery/niyam-v-ati-8.jpg"
+    },
+    "/images/gallery/niyam-v-ati-4.jpg": {
+      "alt": "Niyam V Ati Lagu 4",
+      "src": "/images/gallery/niyam-v-ati-4.jpg"
+    },
+    "/images/gallery/niyam-v-ati-1.jpg": {
+      "alt": "Niyam V Ati Lagu 1",
+      "src": "/images/gallery/niyam-v-ati-1.jpg"
+    },
+    "/images/gallery/niyam-v-ati-2.jpg": {
+      "alt": "Niyam V Ati Lagu 2",
+      "src": "/images/gallery/niyam-v-ati-2.jpg"
+    },
+    "/images/gallery/niyam-v-ati-3.jpg": {
+      "alt": "Niyam V Ati Lagu 3",
+      "src": "/images/gallery/niyam-v-ati-3.jpg"
+    },
+    "/images/gallery/niyam-v-ati-5.jpg": {
+      "alt": "Niyam V Ati Lagu 5",
+      "src": "/images/gallery/niyam-v-ati-5.jpg"
+    },
+    "/images/gallery/niyam-v-ati-6.jpg": {
+      "alt": "Niyam V Ati Lagu 6",
+      "src": "/images/gallery/niyam-v-ati-6.jpg"
+    },
+    "/images/gallery/niyam-v-ati-7.jpg": {
+      "alt": "Niyam V Ati Lagu 7",
+      "src": "/images/gallery/niyam-v-ati-7.jpg"
+    },
+    "/images/gallery/niyam-v-ati-9.jpg": {
+      "alt": "Niyam V Ati Lagu 9",
+      "src": "/images/gallery/niyam-v-ati-9.jpg"
+    },
+    "/images/gallery/niyam-v-ati-10.jpg": {
+      "alt": "Niyam V Ati Lagu 10",
+      "src": "/images/gallery/niyam-v-ati-10.jpg"
+    },
+    "/images/events/shikayla-gelo-ek.jpg": {
+      "alt": "Shikayla Gelo Ek!",
+      "src": "/images/events/shikayla-gelo-ek.jpg"
+    },
+    "/images/gallery/event-1.jpg": {
+      "alt": "Event Photo 1",
+      "src": "/images/gallery/event-1.jpg"
+    },
+    "/images/gallery/event-2.jpg": {
+      "alt": "Event Photo 2",
+      "src": "/images/gallery/event-2.jpg"
+    },
+    "/images/gallery/event-5.jpg": {
+      "alt": "Event Photo 5",
+      "src": "/images/gallery/event-5.jpg"
+    },
+    "/images/events/varvarche-vadhu-var.jpg": {
+      "alt": "Varvarche Vadhu Var",
+      "src": "/images/events/varvarche-vadhu-var.jpg"
+    },
+    "/images/heroes/gallery-hero.png": {
+      "src": ""
+    },
+    "/images/hero-bg.jpg": {
+      "src": ""
+    },
+    "/images/sponsors/mac.png": {
+      "alt": "Bombay Rocks",
+      "src": ""
+    },
+    "/images/sponsors/vmc.png": {
+      "alt": "Curry Leaf",
+      "src": ""
+    },
+    "/images/sponsors/sbs.png": {
+      "alt": "Rosa Mexicano",
+      "src": "/images/sponsors/sbs.png"
+    },
+    "/images/sponsors/iam.jpg": {
+      "alt": "Kwik Kopy",
+      "src": "KwikKopy_Logo_2020 1000x301-2.pdf"
+    }
+  }
 }

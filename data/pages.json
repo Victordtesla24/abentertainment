@@ -1,0 +1,32 @@
+[
+  {
+    "slug": "/",
+    "title": "Home",
+    "updatedAt": "2025-01-01T00:00:00Z"
+  },
+  {
+    "slug": "/about",
+    "title": "About",
+    "updatedAt": "2025-01-01T00:00:00Z"
+  },
+  {
+    "slug": "/events",
+    "title": "Events",
+    "updatedAt": "2026-06-08T09:39:36.745Z"
+  },
+  {
+    "slug": "/gallery",
+    "title": "Gallery",
+    "updatedAt": "2025-01-01T00:00:00Z"
+  },
+  {
+    "slug": "/sponsors",
+    "title": "Sponsors",
+    "updatedAt": "2025-01-01T00:00:00Z"
+  },
+  {
+    "slug": "/contact",
+    "title": "Contact",
+    "updatedAt": "2025-01-01T00:00:00Z"
+  }
+]
