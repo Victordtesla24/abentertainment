@@ -1,5 +1,30 @@
 # AB Entertainment
 
+## v4.1.0 — Curtain Transition Removal & Community Page (2026-08-06)
+
+### Summary of Changes
+
+**New Page — Community (`/community`)**
+- Community connect, socialisation and contacts page matching the existing black-and-gold design system (PageHero, glass-card grid, gold-shimmer headings, sharp-edge cards)
+- Connect & Socialise channel grid sourced from `SITE_CONFIG` (Instagram, Facebook, email, phone) with accessible external-link handling
+- Reuses `VisionSection`, `TestimonialsSection`, `ContactDetails` and `CTASection` for zero-duplication parity with the rest of the site
+- Registered in `NAVIGATION` (header, mobile drawer, footer Quick Links and Sitemap columns auto-propagate), `sitemap.ts`, `SEED_PAGES`, admin `DEFAULT_PAGES`, and `Breadcrumbs` route labels
+- Playwright coverage: page smoke test, route-accessibility, zero-console-error and all-pages sweeps extended to `/community`
+
+**Motion Simplification**
+- Removed the between-page curtain (`RouteTransition.tsx`, its dissolve/blur/gold-wipe motion, and the `ab-transition.*` video overlay it played on route change) — deleted the component; `layout.tsx` now renders `{children}` directly inside a plain `flex-1 w-full` wrapper
+- Removed the initial-load curtain preloader (`Preloader.tsx`, the `pre-loader-animation-1.mp4` full-viewport video overlay, and its dynamic import in `ClientProviders.tsx`)
+- Removed the `body::before` black-overlay CSS (and its `preloader-done` / `preloader-skip` toggle classes) from `globals.css`
+- Removed the pre-hydration inline script in `layout.tsx` that read the `ab-preloader-time` localStorage cooldown
+- `CinematicHero.tsx` entrance animation no longer waits on the `ab:preloader-complete` event (which will never fire) — it now starts immediately on mount with the same opacity/translate/blur animation
+- `public/video/ab-transition.mp4` and `ab-transition.webm` are unaffected and remain in use as the homepage hero background video (`CinematicHero.tsx`); `public/video/pre-loader-animation-1.mp4` was deleted as it had no other consumers
+
+### Deployment Notes
+- No new runtime dependencies added or removed
+- No `.env` variables affected
+
+---
+
 ## v4.0.0 — Comprehensive Platform Remediation (2026-04-03)
 
 ### Summary of Changes
@@ -91,8 +116,8 @@
 - Configurable duration, delay, distance, and blur parameters
 
 **Video Asset Pipeline**
-- `public/video/ab-transition.mp4` — transition fallback source
-- `public/video/ab-transition.webm` — transition primary source
+- `public/video/ab-transition.mp4` — hero background video fallback source
+- `public/video/ab-transition.webm` — hero background video primary source
 
 ### Deployment Notes
 - Keep only active runtime assets under `public/video/`; remove legacy source clips and scratch media
@@ -214,7 +239,7 @@ AB Entertainment is not a conventional website. It is a three-tier digital platf
 
 | Tier | Capability | Value |
 | :--- | :--- | :--- |
-| **Public Website** | Cinematic, premium web experience with video preloader, 3D canvas, parallax hero, and floating AI concierge chatbot | Audience engagement and ticket conversion |
+| **Public Website** | Cinematic, premium web experience with 3D canvas, parallax hero, and floating AI concierge chatbot | Audience engagement and ticket conversion |
 | **Administrative Portal** | Full CRUD operations for events, sponsors, gallery, and site settings with a secure login system | Operational independence for the AB team |
 | **AI Agent System** | Fifteen frontier AI models, eight intelligent tools, and an orchestrated workflow with production safety gates, sleep/wake cost management, and persistent memory | Strategic automation at a fraction of the cost |
 
@@ -228,7 +253,7 @@ AB Entertainment is not a conventional website. It is a three-tier digital platf
 | AI models available | 15 (OpenAI, Anthropic, Google, DeepSeek, and more) |
 | Agent tools | 8 (research, image generation, event management, code analysis, memory persistence) |
 | Cost limit per request | $5.00 (with automatic escalation) |
-| Public pages | 11 (Home, About, Events, Gallery, Sponsors, Contact, Privacy, Terms, 404, Admin Login, Admin Dashboard) |
+| Public pages | 12 (Home, About, Events, Gallery, Sponsors, Community, Contact, Privacy, Terms, 404, Admin Login, Admin Dashboard) |
 | API endpoints | 8 production routes |
 
 ---
@@ -258,7 +283,6 @@ flowchart TD
     BROWSER["Browser Client"]:::client --> HOSTINGER["Hostinger Static Hosting"]:::server
 
     subgraph Frontend["Frontend (Static HTML/JS/CSS)"]
-        HOSTINGER --> PRELOADER["Video Preloader"]:::server
         HOSTINGER --> HERO["CinematicHero + 3D Canvas"]:::server
         HOSTINGER --> PAGES["10 Public Pages"]:::server
         HOSTINGER --> CHATWIDGET["Customer AI Concierge"]:::server
@@ -317,11 +341,12 @@ The public-facing website delivers a cinematic, premium experience designed to c
 
 | Page | Route | Key Features |
 | :--- | :--- | :--- |
-| **Home** | `/` | Video preloader, Three.js 3D canvas, dual-image Ken Burns hero with parallax, event showcase, vision pillars, testimonials, CTA |
+| **Home** | `/` | Three.js 3D canvas, dual-image Ken Burns hero with parallax, event showcase, vision pillars, testimonials, CTA |
 | **About** | `/about` | AI-generated hero image, company story, team profiles, four pillars, past events |
 | **Events** | `/events` | AI-generated hero image, event cards with category filtering, venue and pricing details |
 | **Gallery** | `/gallery` | AI-generated hero image, masonry photo grid from past productions |
 | **Sponsors** | `/sponsors` | AI-generated hero image, tiered sponsor cards (Platinum, Gold, Silver, Bronze) |
+| **Community** | `/community` | Community connect and socialisation hub — social channels, community pillars, testimonials, contact details |
 | **Contact** | `/contact` | AI-generated hero image, validated contact form with VPS backend |
 | **Privacy** | `/privacy` | Privacy policy (Australian Privacy Principles compliant) |
 | **Terms** | `/terms` | Terms of service |
@@ -331,7 +356,6 @@ The public-facing website delivers a cinematic, premium experience designed to c
 
 | Feature | Component | Description |
 | :--- | :--- | :--- |
-| **Video Preloader** | `Preloader.tsx` | Full-screen compressed video (889KB) on first homepage visit; session-aware (plays once) |
 | **Three.js Canvas** | `ThreeCanvas.tsx` | WebGL particle effects with graceful degradation; disabled on admin routes |
 | **Customer AI Concierge** | `ChatWidget.tsx` | Floating gold chat button on all public pages; streams responses via OpenAI; rate-limited (20 req/min) |
 | **Sponsor Carousel** | `SponsorBanner.tsx` | CSS animation infinite scroll banner; hidden on Home and About pages |
@@ -657,6 +681,7 @@ ab-entertainment/
 │   │   ├── events/page.tsx          # Events listing
 │   │   ├── gallery/page.tsx         # Photo gallery
 │   │   ├── sponsors/page.tsx        # Sponsor showcase
+│   │   ├── community/page.tsx       # Community connect & socialisation hub
 │   │   ├── contact/page.tsx         # Contact form
 │   │   ├── privacy/page.tsx         # Privacy policy
 │   │   ├── terms/page.tsx           # Terms of service
@@ -671,13 +696,14 @@ ab-entertainment/
 │   │   ├── sitemap.ts               # Dynamic sitemap generation (MetadataRoute API)
 │   │   ├── robots.ts                # Dynamic robots.txt generation (MetadataRoute API)
 │   │   ├── globals.css              # Tailwind + custom animations
-│   │   └── layout.tsx               # Root layout (preloader, nav, footer, Three.js)
+│   │   └── layout.tsx               # Root layout (nav, footer, Three.js)
 │   │
 │   ├── components/
 │   │   ├── sections/                # CinematicHero, IntroSection, VisionSection
-│   │   ├── layout/                  # Navigation, Footer, RouteTransition
+│   │   ├── layout/                  # Navigation, Footer, ClientProviders
 │   │   ├── admin/                   # Dashboard, EventsManager, SponsorsManager, etc.
-│   │   └── ui/                      # ChatWidget, PageHero, Preloader, SponsorBanner, ThreeCanvas, BackToTop, Breadcrumbs, CookieConsent
+│   │   ├── community/               # CommunityPageContent (connect channels, pillars, voices, contacts)
+│   │   └── ui/                      # ChatWidget, PageHero, SponsorBanner, ThreeCanvas, BackToTop, Breadcrumbs, CookieConsent
 │   │
 │   └── lib/
 │       ├── api-config.ts            # API URL routing (local vs PHP proxy)
@@ -688,7 +714,7 @@ ab-entertainment/
 │
 ├── public/
 │   ├── images/                      # Logos, heroes, events, gallery, sponsors, team
-│   └── videos/                      # Preloader video (gitignored, deployed via SCP)
+│   └── videos/                      # Hero background and highlight videos (gitignored, deployed via SCP)
 │
 ├── e2e/                             # Playwright E2E tests
 ├── data/                            # Runtime JSON data store

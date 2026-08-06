@@ -81,8 +81,6 @@ export const metadata: Metadata = {
   },
 };
 
-import RouteTransition from '@/components/layout/RouteTransition';
-
 interface RootLayoutProps {
   children: ReactNode;
 }
@@ -128,14 +126,6 @@ export default function RootLayout({ children }: RootLayoutProps) {
         />
       </head>
       <body className="bg-[#0A0A0A] text-white font-body antialiased">
-        {/* Preloader cooldown check — runs before React hydrates.
-            Adds 'preloader-skip' class to body if within 5-min cooldown.
-            The overlay itself is a body::before pseudo-element defined in globals.css. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=parseInt(localStorage.getItem('ab-preloader-time')||'0');if(t&&Date.now()-t<300000){document.documentElement.classList.add('preloader-skip');}}catch(e){}})();`,
-          }}
-        />
         <ClientProviders>
           <a
             href="#main-content"
@@ -145,9 +135,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
           </a>
           <Navigation />
           <main id="main-content" className="flex flex-col min-h-screen">
-            <RouteTransition>
-              {children}
-            </RouteTransition>
+            <div className="flex-1 w-full">{children}</div>
           </main>
           <Footer />
         </ClientProviders>

@@ -851,7 +851,7 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {[
             { label: 'Full System Status', prompt: 'Give me a comprehensive status report of all systems including server health, available models, tools, workspace files, and any issues you detect.' },
-            { label: 'Check Homepage', prompt: 'Analyze the homepage hero component code. Check for any issues with the CinematicHero, Preloader, or ThreeCanvas components.' },
+            { label: 'Check Homepage', prompt: 'Analyze the homepage hero component code. Check for any issues with the CinematicHero or ThreeCanvas components.' },
             { label: 'Review Events', prompt: 'List all current events with dates, venues, and prices. Are any events outdated or missing information?' },
             { label: 'Security Audit', prompt: 'Review the admin authentication system. Check cookie handling, credential storage, and session management for vulnerabilities.' },
           ].map(item => (

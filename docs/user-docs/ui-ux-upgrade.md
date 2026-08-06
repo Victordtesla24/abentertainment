@@ -257,10 +257,7 @@ The engine is built on Vanilla Three.js, deliberately avoiding `react-three-fibe
 
 ## Phase 3: Route Choreography
 
-Barba.js was retired in favor of native Next.js routing coupled with framer-motion and GSAP. 
-1. When a user clicks a link, `RouteTransition.tsx` intercepts it.
-2. The HTML DOM fades out while the underlying 3D camera executes a grand "swoop" to a new vantage point within the 3D scene.
-3. The new Next.js page mounts and fades in its elements sequentially.
+Route changes are handled by native Next.js App Router navigation with no transition wrapper — pages mount directly. (Earlier drafts of this document described a `RouteTransition.tsx` curtain-video-and-3D-camera-swoop sequence; that never matched the shipped implementation and the component itself has since been removed entirely, along with the curtain preloader that ran on initial page load.)
 
 ## Phase 4: Asset Pipelines
 

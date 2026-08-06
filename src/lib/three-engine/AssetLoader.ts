@@ -48,7 +48,7 @@ export class AssetLoader {
         (progressEvent) => {
           if (progressEvent.lengthComputable) {
             const percentComplete = (progressEvent.loaded / progressEvent.total) * 100;
-            // In a full implementation, we dispatch this to the Preloader UI
+            // In a full implementation, we dispatch this to a loading-progress UI
             window.dispatchEvent(new CustomEvent('assetProgress', { detail: { percentComplete } }));
           }
         },

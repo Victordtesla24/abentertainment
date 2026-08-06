@@ -283,7 +283,6 @@ function VolumetricSpotlight({ className }: { className?: string }) {
 export function CinematicHero() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [heroReady, setHeroReady] = useState(false);
   const [slides, setSlides] = useState(heroSlides);
 
   // Fetch live hero settings so admin changes appear without rebuild, and keep
@@ -333,29 +332,6 @@ export function CinematicHero() {
     }, SLIDE_DURATION);
     return () => clearInterval(interval);
   }, [isPaused]);
-
-  useEffect(() => {
-    const htmlHasPreloaderDone = document.documentElement.classList.contains(
-      'preloader-done'
-    );
-    if (htmlHasPreloaderDone) {
-      setHeroReady(true);
-      return;
-    }
-
-    const handlePreloaderComplete = () => setHeroReady(true);
-    window.addEventListener('ab:preloader-complete', handlePreloaderComplete);
-
-    // Fallback: if preloader event never fires (e.g. video fails to load), start hero after 5 seconds
-    const fallbackTimer = setTimeout(() => {
-      setHeroReady(true);
-    }, 5000);
-
-    return () => {
-      window.removeEventListener('ab:preloader-complete', handlePreloaderComplete);
-      clearTimeout(fallbackTimer);
-    };
-  }, []);
 
   return (
     <section
@@ -432,11 +408,7 @@ export function CinematicHero() {
         className="relative z-10 w-full h-full flex flex-col items-center justify-center text-center"
         style={{ y: parallaxContent, opacity: heroOpacity }}
         initial={{ opacity: 0, y: 24, filter: 'blur(10px)' }}
-        animate={
-          heroReady
-            ? { opacity: 1, y: 0, filter: 'blur(0px)' }
-            : { opacity: 0, y: 24, filter: 'blur(10px)' }
-        }
+        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
         transition={{ duration: 0.9, ease: EASE }}
       >
         <motion.div
