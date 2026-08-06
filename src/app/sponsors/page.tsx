@@ -30,7 +30,7 @@ export default async function SponsorsPage() {
   }
 
   return (
-    <main className="bg-[#0A0A0A]">
+    <div className="bg-[#0A0A0A]">
       <PageHero
         image="/images/heroes/sponsors-hero.png"
         badge="Our Partners"
@@ -40,6 +40,6 @@ export default async function SponsorsPage() {
       />
 
       <SponsorsContent initialSponsors={sponsors} />
-    </main>
+    </div>
   );
 }

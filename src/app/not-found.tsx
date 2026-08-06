@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function NotFound() {
   return (
-    <main className="bg-[#0A0A0A] min-h-screen flex items-center justify-center">
+    <div className="bg-[#0A0A0A] min-h-screen flex items-center justify-center">
       <div className="text-center px-6">
         <p className="text-[#C9A84C] text-sm uppercase tracking-[0.3em] font-body font-semibold mb-6">
           Page Not Found
@@ -34,6 +34,6 @@ export default function NotFound() {
           </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

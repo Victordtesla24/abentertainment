@@ -32,7 +32,7 @@ export default async function GalleryPage() {
   }
 
   return (
-    <main className="bg-[#0A0A0A]">
+    <div className="bg-[#0A0A0A]">
       <PageHero
         image="/images/heroes/gallery-hero.png"
         badge="Gallery"
@@ -42,6 +42,6 @@ export default async function GalleryPage() {
       />
 
       <GalleryContent initialImages={galleryImages} initialEvents={events} />
-    </main>
+    </div>
   );
 }

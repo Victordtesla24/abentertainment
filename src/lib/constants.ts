@@ -37,6 +37,11 @@ export const SITE_CONFIG = {
   },
 };
 
+/** RFC 3966-safe tel: href — display numbers keep spaces/parens, hrefs must not. */
+export function telHref(phone: string): string {
+  return `tel:${phone.replace(/[^+\d]/g, '')}`;
+}
+
 export const FOUR_PILLARS = [
   {
     title: 'Networking',

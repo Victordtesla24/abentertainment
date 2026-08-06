@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <main className="bg-[#0A0A0A] min-h-screen-dynamic">
+    <div className="bg-[#0A0A0A] min-h-screen-dynamic">
       <PageHero
         image="/images/heroes/contact-hero.png"
         badge="Contact"
@@ -103,6 +103,6 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

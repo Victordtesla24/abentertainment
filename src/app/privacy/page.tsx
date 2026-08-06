@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { SITE_CONFIG } from '@/lib/constants';
+import { SITE_CONFIG, telHref } from '@/lib/constants';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
@@ -97,7 +97,7 @@ export default function PrivacyPage() {
               </a>
               <br />
               Phone:{' '}
-              <a href={`tel:${SITE_CONFIG.contact.phone}`} className="text-[#C9A84C] hover:underline">
+              <a href={telHref(SITE_CONFIG.contact.phone)} className="text-[#C9A84C] hover:underline">
                 {SITE_CONFIG.contact.phone}
               </a>
             </address>

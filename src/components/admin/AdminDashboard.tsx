@@ -269,7 +269,7 @@ export default function AdminDashboard({
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto">
         {/* Top Bar */}
         <div className="sticky top-0 z-10 bg-[#060606]/80 backdrop-blur-xl border-b border-white/[0.04]">
           <div className="px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-3">
@@ -323,7 +323,7 @@ export default function AdminDashboard({
           {activeTab === 'ai' && <AdminChatbot activeTab={activeTab} />}
           {activeTab === 'conversations' && <AgentConversations />}
         </div>
-      </main>
+      </div>
     </div>
   );
 }

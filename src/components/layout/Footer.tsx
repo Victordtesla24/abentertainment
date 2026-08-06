@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState, FormEvent } from 'react';
 import { usePathname } from 'next/navigation';
-import { SITE_CONFIG, NAVIGATION } from '@/lib/constants';
+import { SITE_CONFIG, NAVIGATION, telHref } from '@/lib/constants';
 import SponsorBanner from '@/components/ui/SponsorBanner';
 
 export default function Footer() {
@@ -32,7 +32,7 @@ export default function Footer() {
       { label: 'Sponsors', href: '/sponsors' },
     ],
     Contact: [
-      { label: SITE_CONFIG.contact.phone, href: `tel:${SITE_CONFIG.contact.phone}` },
+      { label: SITE_CONFIG.contact.phone, href: telHref(SITE_CONFIG.contact.phone) },
       { label: SITE_CONFIG.contact.email, href: `mailto:${SITE_CONFIG.contact.email}` },
       { label: `${SITE_CONFIG.contact.address.city}, ${SITE_CONFIG.contact.address.state}`, href: '#' },
     ],
@@ -94,7 +94,7 @@ export default function Footer() {
                 <div className="absolute inset-0 bg-gradient-to-r from-[#D4B65C] to-[#E8D5A3] opacity-0 group-hover:opacity-100 transition-opacity duration-400" />
               </a>
               <a
-                href={`tel:${SITE_CONFIG.contact.phone}`}
+                href={telHref(SITE_CONFIG.contact.phone)}
                 className="px-8 py-3.5 border border-[#C9A84C]/20 text-[#C9A84C]/70 text-sm font-body uppercase tracking-wider hover:border-[#C9A84C]/50 hover:text-[#C9A84C] transition-all duration-400 text-center"
               >
                 Call Us

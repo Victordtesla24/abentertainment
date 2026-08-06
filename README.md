@@ -6,10 +6,16 @@
 
 **New Page — Community (`/community`)**
 - Community connect, socialisation and contacts page matching the existing black-and-gold design system (PageHero, glass-card grid, gold-shimmer headings, sharp-edge cards)
+- Bespoke AI-generated hero image (`community-hero.png`, 2752×1536 with full responsive variant set) in the site's dark-and-gold editorial style
 - Connect & Socialise channel grid sourced from `SITE_CONFIG` (Instagram, Facebook, email, phone) with accessible external-link handling
-- Reuses `VisionSection`, `TestimonialsSection`, `ContactDetails` and `CTASection` for zero-duplication parity with the rest of the site
-- Registered in `NAVIGATION` (header, mobile drawer, footer Quick Links and Sitemap columns auto-propagate), `sitemap.ts`, `SEED_PAGES`, admin `DEFAULT_PAGES`, and `Breadcrumbs` route labels
+- Community-specific "Heart of Our Community" pillars section (Meet at the Shows, Pass It Forward, Champion the Artists, Network & Grow) plus reused `TestimonialsSection`, `ContactDetails` and `CTASection`
+- Registered in `NAVIGATION` (header, mobile drawer, footer Quick Links and Sitemap columns auto-propagate), `sitemap.ts`, `SEED_PAGES`, admin `DEFAULT_PAGES`, `Breadcrumbs` route labels, and settings/testimonials revalidation
 - Playwright coverage: page smoke test, route-accessibility, zero-console-error and all-pages sweeps extended to `/community`
+
+**Accessibility & Correctness Hardening (post-audit)**
+- Exactly one `<main>` landmark per page — page-level `<main>` wrappers demoted to `<div>` sitewide (layout's `main#main-content` is the single landmark)
+- All `tel:` hrefs now RFC 3966-safe via the shared `telHref()` helper (display numbers unchanged)
+- `.env.backup*` added to `.gitignore`
 
 **Motion Simplification**
 - Removed the between-page curtain (`RouteTransition.tsx`, its dissolve/blur/gold-wipe motion, and the `ab-transition.*` video overlay it played on route change) — deleted the component; `layout.tsx` now renders `{children}` directly inside a plain `flex-1 w-full` wrapper

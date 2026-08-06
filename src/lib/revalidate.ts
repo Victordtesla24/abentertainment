@@ -67,6 +67,7 @@ export function revalidateTestimonials(): void {
   try {
     revalidatePath('/', 'page');
     revalidatePath('/about');
+    revalidatePath('/community');
   } catch {
     // revalidatePath throws during static export — safe to ignore
   }
@@ -80,6 +81,7 @@ export function revalidateSettings(): void {
     revalidatePath('/', 'page');
     revalidatePath('/about');
     revalidatePath('/contact');
+    revalidatePath('/community');
   } catch {
     // revalidatePath throws during static export — safe to ignore
   }

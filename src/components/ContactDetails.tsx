@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SITE_CONFIG } from '@/lib/constants';
+import { SITE_CONFIG, telHref } from '@/lib/constants';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
 export default function ContactDetails() {
@@ -26,7 +26,7 @@ export default function ContactDetails() {
 
       <div>
         <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Phone</p>
-        <a href={`tel:${phone}`} className="text-white hover:text-[#C9A84C] transition-colors font-body font-medium">
+        <a href={telHref(phone)} className="text-white hover:text-[#C9A84C] transition-colors font-body font-medium">
           {phone}
         </a>
       </div>

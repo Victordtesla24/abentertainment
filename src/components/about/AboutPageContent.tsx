@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { motion, useInView } from 'framer-motion';
 import { useRef, useEffect, useState } from 'react';
-import { ABOUT_CONTENT, SITE_CONFIG, FOUR_PILLARS, TEAM_MEMBERS, STATS } from '@/lib/constants';
+import { ABOUT_CONTENT, SITE_CONFIG, FOUR_PILLARS, TEAM_MEMBERS, STATS, telHref } from '@/lib/constants';
 import PageHero from '@/components/ui/PageHero';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ function Reveal({
 
 export default function AboutPageContent() {
   return (
-    <main className="bg-[#0A0A0A]">
+    <div className="bg-[#0A0A0A]">
 
       {/* ── 1. Hero ─────────────────────────────────────────────────────────── */}
       <PageHero
@@ -437,7 +437,7 @@ export default function AboutPageContent() {
             <div className="text-center">
               <p className="text-[#C9A84C]/50 text-[10px] uppercase tracking-[0.25em] font-body mb-1">Phone</p>
               <a
-                href={`tel:${SITE_CONFIG.contact.phone}`}
+                href={telHref(SITE_CONFIG.contact.phone)}
                 className="text-white/70 hover:text-[#C9A84C] transition-colors font-body text-sm"
               >
                 {SITE_CONFIG.contact.phone}
@@ -480,6 +480,6 @@ export default function AboutPageContent() {
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/20 to-transparent" />
       </section>
 
-    </main>
+    </div>
   );
 }
