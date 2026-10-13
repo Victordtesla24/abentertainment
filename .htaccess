@@ -95,6 +95,7 @@ RewriteRule ^\.claude(/.*)?$ - [F,L]
 <IfModule mod_mime.c>
   AddType image/avif .avif
   AddType image/webp .webp
+  AddType video/webm .webm
 </IfModule>
 
 # Cache static assets.
