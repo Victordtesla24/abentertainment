@@ -27,7 +27,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ['three', 'bcryptjs'],
+  serverExternalPackages: ['bcryptjs'],
   experimental: {
     // Inline all CSS to eliminate render-blocking stylesheets
     inlineCss: true,
