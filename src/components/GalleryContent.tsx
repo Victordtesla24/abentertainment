@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
 import OptimizedImage from '@/components/ui/OptimizedImage';
+import EventLink from '@/components/ui/EventLink';
 import { firstUsableImageUrl, isUsableImageUrl } from '@/lib/perf/image-source';
 import type { GalleryImage, Event } from '@/lib/data';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
@@ -37,7 +37,15 @@ function buildFolderImages(event: Event, galleryForEvent: GalleryImage[]): Light
   return out;
 }
 
-function EventFolderCard({ event, images }: { event: Event; images: LightboxImage[] }) {
+function EventFolderCard({
+  event,
+  images,
+  staticEventSlugs,
+}: {
+  event: Event;
+  images: LightboxImage[];
+  staticEventSlugs: readonly string[];
+}) {
   const cover = firstUsableImageUrl(event.heroImage, event.image, images[0]?.src);
   const date = new Date(event.date).toLocaleDateString('en-AU', {
     day: 'numeric', month: 'long', year: 'numeric',
@@ -54,12 +62,13 @@ function EventFolderCard({ event, images }: { event: Event; images: LightboxImag
               {event.title}
             </h3>
           </div>
-          <Link
-            href={`/events/${event.slug}/`}
+          <EventLink
+            slug={event.slug}
+            staticSlugs={staticEventSlugs}
             className="text-[11px] font-body font-semibold tracking-[0.15em] uppercase text-[#C9A84C] border border-[#C9A84C]/30 hover:bg-[#C9A84C]/10 transition-colors px-4 py-2 rounded-sm"
           >
             View event →
-          </Link>
+          </EventLink>
         </div>
         {cover && (
           <div className="relative aspect-[16/9] w-full overflow-hidden rounded-sm border border-[#C9A84C]/20 mb-4">
@@ -86,9 +95,11 @@ function EventFolderCard({ event, images }: { event: Event; images: LightboxImag
 interface GalleryContentProps {
   initialImages: GalleryImage[];
   initialEvents: Event[];
+  /** Slugs that have a pre-rendered page in this build; other events open through the client-side viewer. */
+  staticEventSlugs: readonly string[];
 }
 
-export default function GalleryContent({ initialImages, initialEvents }: GalleryContentProps) {
+export default function GalleryContent({ initialImages, initialEvents, staticEventSlugs }: GalleryContentProps) {
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>(initialImages);
   const [events, setEvents] = useState<Event[]>(initialEvents);
 
@@ -168,7 +179,7 @@ export default function GalleryContent({ initialImages, initialEvents }: Gallery
               Preview art and announcement imagery for shows on the horizon.
             </p>
             {upcomingFolders.map(({ ev, images }) => (
-              <EventFolderCard key={ev.id} event={ev} images={images} />
+              <EventFolderCard key={ev.id} event={ev} images={images} staticEventSlugs={staticEventSlugs} />
             ))}
           </>
         )}
@@ -182,7 +193,7 @@ export default function GalleryContent({ initialImages, initialEvents }: Gallery
               A permanent archive of every performance we have produced.
             </p>
             {pastFolders.map(({ ev, images }) => (
-              <EventFolderCard key={ev.id} event={ev} images={images} />
+              <EventFolderCard key={ev.id} event={ev} images={images} staticEventSlugs={staticEventSlugs} />
             ))}
           </>
         )}

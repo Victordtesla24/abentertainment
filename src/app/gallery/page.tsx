@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { getGalleryImages, getEvents } from '@/lib/data';
+import { getStaticEventSlugs } from '@/lib/static-event-slugs';
 import PageHero from '@/components/ui/PageHero';
 import GalleryContent from '@/components/GalleryContent';
 
@@ -23,10 +24,12 @@ export const metadata: Metadata = {
 export default async function GalleryPage() {
   let galleryImages: GalleryImage[] = [];
   let events: Event[] = [];
+  let staticEventSlugs: string[] = [];
 
   try {
     galleryImages = await getGalleryImages();
     events = await getEvents();
+    staticEventSlugs = await getStaticEventSlugs();
   } catch (error) {
     console.error('Error loading gallery:', error);
   }
@@ -41,7 +44,11 @@ export default async function GalleryPage() {
         subtitle="A visual archive of cultural moments — from classical performances to vibrant celebrations across Melbourne"
       />
 
-      <GalleryContent initialImages={galleryImages} initialEvents={events} />
+      <GalleryContent
+        initialImages={galleryImages}
+        initialEvents={events}
+        staticEventSlugs={staticEventSlugs}
+      />
     </div>
   );
 }

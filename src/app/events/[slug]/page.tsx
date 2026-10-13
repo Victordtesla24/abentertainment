@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getEvents, getPublicEventBySlug } from '@/lib/data';
+import { getPublicEventBySlug } from '@/lib/data';
+import { getStaticEventSlugs } from '@/lib/static-event-slugs';
 import PageHero from '@/components/ui/PageHero';
 import EventSchema from '@/components/EventSchema';
 import EventDetailContent from '@/components/EventDetailContent';
@@ -17,8 +18,8 @@ import { firstUsableImageUrl } from '@/lib/perf/image-source';
 // ---------------------------------------------------------------------------
 
 export async function generateStaticParams() {
-  const events = await getEvents();
-  return events.map((event) => ({ slug: event.slug }));
+  const slugs = await getStaticEventSlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
 // ---------------------------------------------------------------------------

@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion, useMotionValue, useTransform, useSpring, useMotionTemplate, useReducedMotion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { openEvent } from '@/lib/event-links';
 import type { Event } from '@/lib/data';
 
 /**
@@ -18,6 +19,8 @@ import type { Event } from '@/lib/data';
 
 interface GoldenTicketProps {
   event: Event;
+  /** Slugs that have a pre-rendered page in this build; any other event opens with a full page load. */
+  staticEventSlugs?: readonly string[];
 }
 
 function formatDate(dateString: string): string {
@@ -44,7 +47,9 @@ function formatTime(dateString: string): string {
   });
 }
 
-export default function GoldenTicket({ event }: GoldenTicketProps) {
+const NO_STATIC_EVENTS: readonly string[] = [];
+
+export default function GoldenTicket({ event, staticEventSlugs = NO_STATIC_EVENTS }: GoldenTicketProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [isRouting, setIsRouting] = useState(false);
@@ -99,20 +104,19 @@ export default function GoldenTicket({ event }: GoldenTicketProps) {
   }, [mouseX, mouseY]);
 
   const handleBookNow = useCallback((eventSlug: string) => {
-    const target = `/events/${eventSlug}`;
     if (isRouting) return;
 
     if (shouldReduceMotion) {
-      router.push(target);
+      openEvent(router, staticEventSlugs, eventSlug);
       return;
     }
 
     setIsRouting(true);
     window.setTimeout(() => {
-      router.push(target);
+      openEvent(router, staticEventSlugs, eventSlug);
       setIsRouting(false);
     }, 180);
-  }, [isRouting, router, shouldReduceMotion]);
+  }, [isRouting, router, shouldReduceMotion, staticEventSlugs]);
 
   return (
     <div style={{ perspective: '1200px' }} className="w-full max-w-xl mx-auto">

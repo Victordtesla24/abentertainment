@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import GoldenTicket from '@/components/GoldenTicket';
+import EventLink from '@/components/ui/EventLink';
 import OptimizedImage from '@/components/ui/OptimizedImage';
 import { isUsableImageUrl } from '@/lib/perf/image-source';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
@@ -67,7 +68,14 @@ function formatDate(dateString: string): string {
   return date.toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export default function EventsShowcase({ events: initialEvents }: { events: Event[] }) {
+export default function EventsShowcase({
+  events: initialEvents,
+  staticEventSlugs,
+}: {
+  events: Event[];
+  /** Slugs that have a pre-rendered page in this build; other events open through the client-side viewer. */
+  staticEventSlugs: readonly string[];
+}) {
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
@@ -170,7 +178,7 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
                 Featured Event
               </span>
             </div>
-            <GoldenTicket event={featuredEvent} />
+            <GoldenTicket event={featuredEvent} staticEventSlugs={staticEventSlugs} />
           </motion.div>
         )}
 
@@ -187,7 +195,7 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
               const badge = getStatusBadge(event);
               return (
               <motion.div key={event.id} variants={cardVariants} className="group">
-                <Link href={`/events/${event.slug}`}>
+                <EventLink slug={event.slug} staticSlugs={staticEventSlugs}>
                   <div className="glass-card hover-shine overflow-hidden hover:shadow-[0_12px_50px_rgba(201,168,76,0.1)]">
                     {/* Image — full poster (object-contain), never cropped */}
                     <div className="relative h-64 overflow-hidden bg-gradient-to-br from-[#111] to-[#0A0A0A]">
@@ -253,7 +261,7 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
                       </div>
                     </div>
                   </div>
-                </Link>
+                </EventLink>
               </motion.div>
               );
             })}

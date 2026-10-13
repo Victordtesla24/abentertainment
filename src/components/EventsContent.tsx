@@ -2,11 +2,11 @@
 
 import { Suspense, useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import Tilt from 'react-parallax-tilt';
 import type { Event, Sponsor } from '@/lib/data';
 import SponsorBanner from '@/components/ui/SponsorBanner';
 import OptimizedImage from '@/components/ui/OptimizedImage';
+import EventLink from '@/components/ui/EventLink';
 import { isUsableImageUrl } from '@/lib/perf/image-source';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
@@ -167,7 +167,15 @@ function FilterBar({
 
 // ─── Event Card with Status Badge ────────────────────────────────────────────
 
-function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }) {
+function EventCard({
+  event,
+  staticEventSlugs,
+  isPast = false,
+}: {
+  event: Event;
+  staticEventSlugs: readonly string[];
+  isPast?: boolean;
+}) {
   const badge = getStatusBadge(event);
   // Upcoming events show the FULL poster (object-contain, no hover zoom that
   // would re-crop it); past events stay cropped thumbnails.
@@ -176,7 +184,7 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
     : 'object-contain';
 
   return (
-    <Link href={`/events/${event.slug}`} className="block">
+    <EventLink slug={event.slug} staticSlugs={staticEventSlugs} className="block">
       <Tilt
         tiltMaxAngleX={4}
         tiltMaxAngleY={4}
@@ -275,7 +283,7 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
           </div>
         </div>
       </Tilt>
-    </Link>
+    </EventLink>
   );
 }
 
@@ -286,6 +294,8 @@ interface EventsContentProps {
   /** Visible sponsors at build time, so the in-page carousel paints with real sponsors before the live poll. */
   sponsors?: Sponsor[];
   contactEmail: string;
+  /** Slugs that have a pre-rendered page in this build; other events open through the client-side viewer. */
+  staticEventSlugs: readonly string[];
 }
 
 export default function EventsContent(props: EventsContentProps) {
@@ -313,7 +323,12 @@ function EventsContentFallback() {
   );
 }
 
-function EventsContentInner({ events: initialEvents, sponsors = [], contactEmail }: EventsContentProps) {
+function EventsContentInner({
+  events: initialEvents,
+  sponsors = [],
+  contactEmail,
+  staticEventSlugs,
+}: EventsContentProps) {
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -497,7 +512,7 @@ function EventsContentInner({ events: initialEvents, sponsors = [], contactEmail
             >
               {upcomingEvents.map((event) => (
                 <div key={event.id} role="listitem">
-                  <EventCard event={event} />
+                  <EventCard event={event} staticEventSlugs={staticEventSlugs} />
                 </div>
               ))}
             </div>
@@ -541,7 +556,7 @@ function EventsContentInner({ events: initialEvents, sponsors = [], contactEmail
             >
               {pastEvents.map((event) => (
                 <div key={event.id} role="listitem">
-                  <EventCard event={event} isPast />
+                  <EventCard event={event} staticEventSlugs={staticEventSlugs} isPast />
                 </div>
               ))}
             </div>

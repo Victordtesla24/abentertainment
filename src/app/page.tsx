@@ -10,6 +10,7 @@ import VideoHighlights from '@/components/VideoHighlights';
 import { ScrollReveal, StageLightingOverlay } from '@/components/ui/ScrollReveal';
 import { getPublicEvents, getPublicSiteMetrics } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
+import { getStaticEventSlugs } from '@/lib/static-event-slugs';
 
 import type { Event, SiteMetric } from '@/lib/data';
 
@@ -20,9 +21,11 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   let allEvents: Event[] = [];
+  let staticEventSlugs: string[] = [];
 
   try {
     allEvents = await getPublicEvents();
+    staticEventSlugs = await getStaticEventSlugs();
   } catch (error) {
     console.error('Error loading events:', error);
   }
@@ -55,7 +58,7 @@ export default async function Home() {
 
       {/* Dramatic section entrance — EventsShowcase rises with stage-light effect */}
       <ScrollReveal variant="dramatic" duration={1.5} delay={0.05}>
-        <EventsShowcase events={allEvents} />
+        <EventsShowcase events={allEvents} staticEventSlugs={staticEventSlugs} />
       </ScrollReveal>
 
       <TestimonialsSection />

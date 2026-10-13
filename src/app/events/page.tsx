@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { getPublicEvents, getPublicSponsors } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
+import { getStaticEventSlugs } from '@/lib/static-event-slugs';
 import PageHero from '@/components/ui/PageHero';
 import EventsContent from '@/components/EventsContent';
 
@@ -23,10 +24,12 @@ export const metadata: Metadata = {
 
 export default async function EventsPage() {
   let events: Event[] = [];
+  let staticEventSlugs: string[] = [];
   let sponsors: Sponsor[] = [];
 
   try {
     events = await getPublicEvents();
+    staticEventSlugs = await getStaticEventSlugs();
   } catch (error) {
     console.error('Error loading events:', error);
   }
@@ -98,7 +101,12 @@ export default async function EventsPage() {
       />
 
       {/* Client-side interactive content with filtering */}
-      <EventsContent events={events} sponsors={sponsors} contactEmail={SITE_CONFIG.contact.email} />
+      <EventsContent
+        events={events}
+        sponsors={sponsors}
+        contactEmail={SITE_CONFIG.contact.email}
+        staticEventSlugs={staticEventSlugs}
+      />
     </div>
   );
 }

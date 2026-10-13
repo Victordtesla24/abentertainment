@@ -7,6 +7,7 @@ import Fuse, { type IFuseOptions, type FuseResult } from 'fuse.js';
 import FocusTrap from 'focus-trap-react';
 import OptimizedImage from '@/components/ui/OptimizedImage';
 import { isUsableImageUrl } from '@/lib/perf/image-source';
+import { openEvent } from '@/lib/event-links';
 // Bundled fallback for offline/build-time; live data fetched from API on open.
 // Project to search-relevant fields only so admin-internal fields (ticketsSold,
 // ticketRevenue) from the raw events.json never end up in the client bundle.
@@ -18,6 +19,11 @@ try {
     ? raw.map((e) => Object.fromEntries(SEARCH_FIELDS.map((k) => [k, e[k]])))
     : [];
 } catch { /* static import may fail in some contexts */ }
+
+// The slugs of that same build-time file are the ones generateStaticParams
+// pre-renders (see lib/static-event-slugs.ts). A result outside it is an event
+// created after the last build, which has no RSC payload to client-navigate to.
+const STATIC_EVENT_SLUGS: readonly string[] = eventsDataFallback.map((e) => String(e.slug));
 
 interface SearchableEvent {
   id: string;
@@ -130,7 +136,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const navigateToResult = useCallback(
     (slug: string) => {
       onClose();
-      router.push(`/events/${slug}`);
+      openEvent(router, STATIC_EVENT_SLUGS, slug);
     },
     [onClose, router]
   );
