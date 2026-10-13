@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * The static export starts its framework scripts after the first paint (scripts/defer-scripts.mjs,
@@ -230,9 +230,9 @@ test.describe('public forms are never submitted natively before React is in char
 
   /**
    * Main-frame document loads (the first visit, plus any native form submission or reload), and every
-   * request the page makes to the contact API (answered locally, never sent anywhere).
+   * request the page makes to the contact API (answered locally after `answerAfterMs`, never sent anywhere).
    */
-  async function watch(page: Page) {
+  async function watch(page: Page, answerAfterMs = 0) {
     const navigations: string[] = [];
     page.on('request', (request) => {
       if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations.push(request.url());
@@ -240,9 +240,33 @@ test.describe('public forms are never submitted natively before React is in char
     const posts: string[] = [];
     await page.route('**/api/contact', async (route) => {
       posts.push(route.request().postData() ?? '');
+      if (answerAfterMs > 0) await new Promise((resolve) => setTimeout(resolve, answerAfterMs));
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
     });
     return { navigations, posts };
+  }
+
+  /**
+   * The site scrolls smoothly, and with the CPU slowed down a tap can start while that scroll is still
+   * running, so its click lands on whatever has moved under the finger. Scroll the control into view
+   * and wait until the page has stopped moving before tapping it.
+   */
+  async function aimAt(page: Page, control: Locator) {
+    await control.scrollIntoViewIfNeeded();
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          let last = -1;
+          let still = 0;
+          const check = () => {
+            still = window.scrollY === last ? still + 1 : 0;
+            last = window.scrollY;
+            if (still >= 6) resolve();
+            else requestAnimationFrame(check);
+          };
+          check();
+        }),
+    );
   }
 
   async function fillContactForm(page: Page) {
@@ -257,7 +281,9 @@ test.describe('public forms are never submitted natively before React is in char
     const { navigations, posts } = await watch(page);
     await openHeldBack(page, '/contact/');
     await fillContactForm(page);
-    await page.getByRole('button', { name: 'Send Message' }).tap();
+    const send = page.getByRole('button', { name: 'Send Message' });
+    await aimAt(page, send);
+    await send.tap();
 
     await page.waitForTimeout(600);
     expect(navigations, 'a native GET would navigate to /contact/?name=...').toHaveLength(1);
@@ -289,7 +315,9 @@ test.describe('public forms are never submitted natively before React is in char
     const { navigations } = await watch(page);
     await openHeldBack(page, '/about/');
     await page.getByPlaceholder('Enter your email').fill('fan@example.com');
-    await page.getByRole('button', { name: 'Subscribe' }).tap();
+    const subscribe = page.getByRole('button', { name: 'Subscribe' });
+    await aimAt(page, subscribe);
+    await subscribe.tap();
 
     await page.waitForTimeout(600);
     expect(navigations, 'a native GET would reload the page').toHaveLength(1);
@@ -305,8 +333,55 @@ test.describe('public forms are never submitted natively before React is in char
     await page.waitForFunction(hydrated, undefined, { timeout: 20000 });
     await expect(field).toHaveValue('typed@example.com');
 
-    await page.getByRole('button', { name: 'Subscribe' }).tap();
+    const subscribe = page.getByRole('button', { name: 'Subscribe' });
+    await aimAt(page, subscribe);
+    await subscribe.tap();
     await expect(page.getByText('Thank you for subscribing!')).toBeVisible();
+  });
+
+  test('a submit that React has already taken, while the hold is still on the form, is sent once and not replayed', async ({ page }) => {
+    // For about a frame after hydration React's handler is live but the re-render that drops
+    // data-await-hydration has not run. Keep the attribute on to hold that moment open.
+    await page.addInitScript(() => {
+      const remove = Element.prototype.removeAttribute;
+      const kept: Element[] = [];
+      Element.prototype.removeAttribute = function (name: string) {
+        if (name === 'data-await-hydration') {
+          kept.push(this);
+          return;
+        }
+        remove.call(this, name);
+      };
+      (window as unknown as { releaseHold: () => void }).releaseHold = () => {
+        Element.prototype.removeAttribute = remove;
+        kept.splice(0).forEach((element) => remove.call(element, 'data-await-hydration'));
+      };
+    });
+    const { navigations, posts } = await watch(page, 1200);
+    await openHeldBack(page, '/contact/');
+    await page.keyboard.press('Shift'); // any first touch starts the scripts (the idle path is off here)
+    await page.waitForFunction(
+      () => {
+        const form = document.querySelector('form');
+        return !!form && Object.keys(form).some((key) => key.startsWith('__reactProps$'));
+      },
+      undefined,
+      { timeout: 20000 },
+    );
+    await expect(page.locator('form').first()).toHaveAttribute('data-await-hydration', '');
+
+    await fillContactForm(page);
+    const send = page.getByRole('button', { name: 'Send Message' });
+    await aimAt(page, send);
+    await send.tap();
+    await expect.poll(() => posts.length, { timeout: 20000 }).toBe(1);
+
+    // The hold lifts while the first send is still waiting for its answer.
+    await page.evaluate(() => (window as unknown as { releaseHold: () => void }).releaseHold());
+    await expect(page.getByRole('heading', { name: 'Message Sent' })).toBeVisible({ timeout: 20000 });
+    await page.waitForTimeout(1500);
+    expect(posts, 'one send, not one from React and one replayed by the hold').toHaveLength(1);
+    expect(navigations).toHaveLength(1);
   });
 
   test('a form submitted after hydration is sent once, with nothing replayed', async ({ page }) => {
@@ -315,7 +390,9 @@ test.describe('public forms are never submitted natively before React is in char
     await page.goto(`${BASE}/contact/`, { waitUntil: 'load' });
     await page.waitForFunction(hydrated, undefined, { timeout: 20000 });
     await fillContactForm(page);
-    await page.getByRole('button', { name: 'Send Message' }).tap();
+    const send = page.getByRole('button', { name: 'Send Message' });
+    await aimAt(page, send);
+    await send.tap();
 
     await expect(page.getByRole('heading', { name: 'Message Sent' })).toBeVisible();
     await page.waitForTimeout(1500);

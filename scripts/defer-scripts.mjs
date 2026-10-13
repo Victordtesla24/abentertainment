@@ -20,14 +20,20 @@
  * Pages stay fully readable and every link works as a plain link while the scripts arrive.
  *
  * Public forms never submit natively before React is in charge. The contact and newsletter forms
- * render `data-await-hydration` until they are hydrated (see useHydrated); a submit or an Enter
- * press in such a form before then is cancelled (a native GET would put the message in the URL),
- * remembered once per form, and replayed with requestSubmit() when the attribute goes. Text typed
- * into the form meanwhile is remembered too and put back through the fields' own input/change
- * events once React is live: react-hook-form wipes its fields to their default values when it
+ * render `data-await-hydration` until they are hydrated (see useHydrated). A submit or an Enter
+ * press in such a form is judged in the bubble phase, after React's own listener has run: if the
+ * submit is already cancelled, React's handler took it and nothing more is done (holding it too
+ * would send it twice); otherwise no handler exists yet, so the loader cancels it (a native GET
+ * would put the message in the URL), remembers it once per form, and replays it with
+ * requestSubmit() in a task of its own once the attribute goes. Text typed into the form
+ * meanwhile is remembered too and put back through the fields' own input/change events the
+ * moment the attribute goes: react-hook-form wipes its fields to their default values when it
  * attaches, and React's controlled inputs ignore text they did not render, so without this the
- * visitor's words would vanish and the replayed submit would be empty. Forms without the
- * attribute (and all admin pages) are untouched.
+ * visitor's words would vanish and the replayed submit would be empty. The replay runs in a task
+ * of its own, so whatever React scheduled while the text was restored has finished first. The
+ * attribute is watched with a MutationObserver, so the restore happens in the same turn in which
+ * React drops it, before any later tap. Forms without the attribute (and all admin pages) are
+ * untouched.
  *
  * Nothing the visitor does is lost. React replays the clicks it sees while it hydrates, but
  * it cannot see a tap that happens before its own scripts exist, so the loader keeps the
@@ -159,26 +165,29 @@ const LOADER_SOURCE = `
     });
     typed = typed.filter(function (entry) { return entry[0].form !== form; });
   }
-  function whenReleased(form, deadline, then) {
-    if (!document.documentElement.contains(form) || Date.now() > deadline) return;
-    if (guarded(form)) {
-      setTimeout(function () { whenReleased(form, deadline, then); }, 50);
-      return;
-    }
-    then();
+  function whenReleased(form, then) {
+    var watcher = new MutationObserver(function () {
+      if (guarded(form)) return;
+      watcher.disconnect();
+      then();
+    });
+    watcher.observe(form, { attributes: true, attributeFilter: ['data-await-hydration'] });
+    setTimeout(function () { watcher.disconnect(); }, 8000);
   }
   function onSubmit(event) {
     var form = event.target;
-    if (!guarded(form)) return;
+    if (event.defaultPrevented || !guarded(form)) return;
     event.preventDefault();
     if (heldForms.indexOf(form) !== -1) return;
     heldForms.push(form);
     var submitter = event.submitter;
     start();
-    whenReleased(form, Date.now() + 8000, function () {
+    whenReleased(form, function () {
       restoreTyped(form);
-      if (form.requestSubmit) form.requestSubmit(submitter || undefined);
-      else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      setTimeout(function () {
+        if (form.requestSubmit) form.requestSubmit(submitter || undefined);
+        else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      }, 0);
     });
   }
   function onType(event) {
@@ -190,7 +199,7 @@ const LOADER_SOURCE = `
     else typed.push([field, field.value]);
     if (watchedForms.indexOf(form) !== -1) return;
     watchedForms.push(form);
-    whenReleased(form, Date.now() + 8000, function () { restoreTyped(form); });
+    whenReleased(form, function () { restoreTyped(form); });
   }
   function replay(target, deadline) {
     if (superseded || !document.documentElement.contains(target)) return;
@@ -215,7 +224,7 @@ const LOADER_SOURCE = `
   events.forEach(function (name) { addEventListener(name, start, { capture: true, once: true, passive: true }); });
   addEventListener('click', onClick, true);
   addEventListener('click', onLaterClick, true);
-  addEventListener('submit', onSubmit, true);
+  addEventListener('submit', onSubmit, false);
   addEventListener('input', onType, true);
   addEventListener('change', onType, true);
   if (document.readyState === 'complete') afterPaint();
