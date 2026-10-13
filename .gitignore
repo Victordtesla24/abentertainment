@@ -87,3 +87,7 @@ agent-system/node_modules/
 # build:export stash (orphan safety — if SIGKILL/power-loss leaves this behind,
 # the next build run auto-recovers it; ignore here so it can't be committed)
 /.admin-routes-stashed-during-export/
+
+# Python bytecode caches (the VPS auto-deploy script is Python; a stray cache must never be committed)
+__pycache__/
+*.pyc
