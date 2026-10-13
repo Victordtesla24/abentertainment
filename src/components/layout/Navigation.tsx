@@ -3,10 +3,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useScroll, useTransform, motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import OptimizedImage from '@/components/ui/OptimizedImage';
 import { usePathname } from 'next/navigation';
 import { NAVIGATION } from '@/lib/constants';
-import SearchModal from '@/components/SearchModal';
+
+// The search dialog (Fuse.js, focus-trap and the events index) is fetched the first time it is
+// requested or its button is approached, not with every page view.
+const loadSearchModal = () => import('@/components/SearchModal');
+const SearchModal = dynamic(loadSearchModal, { ssr: false });
 
 const mobileMenuVariants = {
   hidden: { x: '100%' },
@@ -29,6 +34,8 @@ const mobileItemVariants = {
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // Mounted from the first request on and kept mounted, so closing it can still animate out.
+  const [searchRequested, setSearchRequested] = useState(false);
   const { scrollY } = useScroll();
   const pathname = usePathname();
 
@@ -53,8 +60,14 @@ export function Navigation() {
     };
   }, [isOpen]);
 
+  const openSearch = useCallback(() => {
+    setSearchRequested(true);
+    setIsSearchOpen(true);
+  }, []);
+
   // Global Cmd/Ctrl+K shortcut to toggle search modal
   const toggleSearch = useCallback(() => {
+    setSearchRequested(true);
     setIsSearchOpen((prev) => !prev);
   }, []);
 
@@ -123,7 +136,9 @@ export function Navigation() {
           {/* Right CTA */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsSearchOpen(true)}
+              onClick={openSearch}
+              onPointerEnter={() => void loadSearchModal()}
+              onFocus={() => void loadSearchModal()}
               className="flex h-11 w-11 items-center justify-center text-white/50 hover:text-[#C9A84C] transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2"
               aria-label="Search events"
             >
@@ -152,7 +167,9 @@ export function Navigation() {
           </Link>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => setIsSearchOpen(true)}
+              onClick={openSearch}
+              onTouchStart={() => void loadSearchModal()}
+              onFocus={() => void loadSearchModal()}
               className="flex h-11 w-11 items-center justify-center text-white/50 hover:text-[#C9A84C] transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2"
               aria-label="Search events"
             >
@@ -215,7 +232,7 @@ export function Navigation() {
       </AnimatePresence>
 
       {/* Search Modal */}
-      <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+      {searchRequested && <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />}
     </>
   );
 }
