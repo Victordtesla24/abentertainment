@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getApiUrl } from '@/lib/api-config';
 import { adminFetch } from '@/lib/admin-fetch';
 import { TelemetryGaugeGrid } from './telemetry/TelemetryGaugeGrid';
 import { TimeScopeFilter } from './telemetry/TimeScopeFilter';
@@ -16,8 +15,10 @@ import useSWR from 'swr';
 
 // ─── SWR Fetcher ─────────────────────────────────────────────────────────────
 
-const fetcher = (url: string): Promise<HealthData> =>
-  fetch(url, {
+// Health ping through adminFetch so it carries the admin session header as
+// well as the cookie (the session must work where the browser refuses cookies).
+const fetcher = (path: string): Promise<HealthData> =>
+  adminFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type: 'health' }),
@@ -337,7 +338,7 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
     error: swrHealthError,
     isLoading: swrLoading,
     mutate,
-  } = useSWR(getApiUrl('/api/admin/chat'), fetcher, {
+  } = useSWR('/api/admin/chat', fetcher, {
     refreshInterval: 10000,
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
