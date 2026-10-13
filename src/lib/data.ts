@@ -88,6 +88,8 @@ export interface Sponsor {
   url: string;
   /** Free-text tier label the admin types (for example "Platinum" or "Media Partner"); empty means no tier. */
   tier: string;
+  /** Free-text label the carousel shows under the name, for example "Sponsor", "Partner" or "Sponsor & Partner"; empty or absent means none. */
+  category?: string;
   description?: string;
   revenue?: number;
   contractValue?: number;

@@ -19,6 +19,8 @@ const MAX_URL_LENGTH = 300;
 const MAX_LOGO_LENGTH = 300;
 const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_LABEL_LENGTH = 40;
+// Suggestions for the free-text Category field (it accepts anything).
+const CATEGORY_SUGGESTIONS = ['Sponsor', 'Partner', 'Sponsor & Partner'];
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 const LOGO_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
 const LOGO_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg';
@@ -42,6 +44,7 @@ interface FormState {
   logo: string;
   url: string;
   tier: string;
+  category: string;
   description: string;
   revenue: string;
   contractValue: string;
@@ -54,6 +57,7 @@ const EMPTY_FORM: FormState = {
   logo: '',
   url: '',
   tier: '',
+  category: '',
   description: '',
   revenue: '',
   contractValue: '',
@@ -149,9 +153,11 @@ function formProblems(form: FormState): string[] {
     problems.push('Website URL must start with http:// or https:// (for example https://example.com)');
   }
 
-  const tier = form.tier.trim();
-  if (tier.length > MAX_LABEL_LENGTH) problems.push(`Tier must be ${MAX_LABEL_LENGTH} characters or fewer`);
-  else if (CONTROL_CHARACTERS.test(tier)) problems.push('Tier must not contain control characters');
+  for (const [value, label] of [[form.tier, 'Tier'], [form.category, 'Category']] as const) {
+    const text = value.trim();
+    if (text.length > MAX_LABEL_LENGTH) problems.push(`${label} must be ${MAX_LABEL_LENGTH} characters or fewer`);
+    else if (CONTROL_CHARACTERS.test(text)) problems.push(`${label} must not contain control characters`);
+  }
 
   if (form.description.trim().length > MAX_DESCRIPTION_LENGTH) {
     problems.push(`Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`);
@@ -268,6 +274,7 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
       // "#" was the old placeholder for "no website"; show it as empty.
       url: sponsor.url === '#' ? '' : sponsor.url,
       tier: sponsor.tier ?? '',
+      category: sponsor.category ?? '',
       description: sponsor.description || '',
       revenue: sponsor.revenue != null ? String(sponsor.revenue) : '',
       contractValue: sponsor.contractValue != null ? String(sponsor.contractValue) : '',
@@ -324,6 +331,7 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
         logo: form.logo.trim(),
         url: form.url.trim(),
         tier: form.tier.trim(),
+        category: form.category.trim(),
         description: form.description.trim(),
         visible: form.visible,
         revenue: amount(form.revenue),
@@ -435,7 +443,7 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
   }
 
   function handleExportCSV() {
-    const header = 'id,name,tier,revenue,contractValue,url,companyName,visible';
+    const header = 'id,name,tier,revenue,contractValue,url,companyName,visible,category';
     const escape = (val: string) => {
       if (val.includes(',') || val.includes('"') || val.includes('\n')) {
         return `"${val.replace(/"/g, '""')}"`;
@@ -452,6 +460,7 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
         escape(s.url),
         escape(companyNameOf(s)),
         isVisible(s) ? 'true' : 'false',
+        escape(s.category ?? ''),
       ].join(',')
     );
     const csv = [header, ...rows].join('\n');
@@ -626,19 +635,24 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
               </div>
             </div>
             <div>
-              <label htmlFor="sponsor-website-url" className="block text-xs text-white/40 mb-1">
-                Website URL <span className="text-white/25">(optional)</span>
-              </label>
+              <label htmlFor="sponsor-category" className="block text-xs text-white/40 mb-1">Category</label>
               <input
-                id="sponsor-website-url"
+                id="sponsor-category"
                 type="text"
-                inputMode="url"
-                value={form.url}
-                onChange={(e) => setField('url', e.target.value)}
-                placeholder="https://example.com"
-                maxLength={MAX_URL_LENGTH}
+                list="sponsor-category-options"
+                value={form.category}
+                onChange={(e) => setField('category', e.target.value)}
+                placeholder="Sponsor, Partner or Sponsor & Partner"
+                maxLength={MAX_LABEL_LENGTH}
+                autoComplete="off"
                 className={inputClasses}
               />
+              {/* Suggestions only: the category stays free text; the website shows it in the carousel only. */}
+              <datalist id="sponsor-category-options">
+                {CATEGORY_SUGGESTIONS.map((suggestion) => (
+                  <option key={suggestion} value={suggestion} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label htmlFor="sponsor-tier" className="block text-xs text-white/40 mb-1">Tier</label>
@@ -659,6 +673,21 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
                   <option key={group.label.toLowerCase()} value={group.label} />
                 ))}
               </datalist>
+            </div>
+            <div className="md:col-span-2">
+              <label htmlFor="sponsor-website-url" className="block text-xs text-white/40 mb-1">
+                Website URL <span className="text-white/25">(optional)</span>
+              </label>
+              <input
+                id="sponsor-website-url"
+                type="text"
+                inputMode="url"
+                value={form.url}
+                onChange={(e) => setField('url', e.target.value)}
+                placeholder="https://example.com"
+                maxLength={MAX_URL_LENGTH}
+                className={inputClasses}
+              />
             </div>
             <div>
               <label htmlFor="sponsor-revenue" className="block text-xs text-white/40 mb-1">Revenue (AUD)</label>
@@ -760,6 +789,12 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
                     <h3 className="text-white font-semibold text-sm break-words">{sponsor.name}</h3>
                     {company.toLowerCase() !== (sponsor.name ?? '').trim().toLowerCase() && (
                       <p className="text-white/50 text-xs mt-0.5 break-words">{company}</p>
+                    )}
+                    {(sponsor.category ?? '').trim() && (
+                      <p className="text-[#C9A84C]/70 text-xs mt-0.5 break-words">
+                        <span className="text-white/30">Category </span>
+                        {sponsor.category?.trim()}
+                      </p>
                     )}
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {(sponsor.tier ?? '').trim() && (

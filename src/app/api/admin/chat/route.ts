@@ -587,7 +587,7 @@ ${workspaceSection}
 
 # Live Business Context (refreshed each request)
 - Current events: ${JSON.stringify(events.map((e) => ({ id: e.id, slug: e.slug, title: e.title, date: e.date, status: e.status, venue: e.venue })))}
-- Sponsors: ${JSON.stringify(sponsors.map((s) => ({ name: s.name, tier: s.tier })))}
+- Sponsors: ${JSON.stringify(sponsors.map((s) => ({ name: s.name, tier: s.tier, category: s.category ?? '' })))}
 - Site settings: ${JSON.stringify(settings)}
 - Active admin-agent config: ${JSON.stringify({ model: resolvedModel, provider: resolvedProvider.id, temperature: resolvedTemp, maxTokens: resolvedMaxTokens })}
 - Supported models: ${[...ALLOWED_MODEL_IDS].join(', ')}
@@ -1002,7 +1002,7 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'list_sponsors',
-        description: 'Return the current sponsors with id, name, tier, url.',
+        description: 'Return the current sponsors with id, name, tier, category, url.',
         parameters: { type: 'object', properties: {} },
       },
     },
@@ -1018,6 +1018,7 @@ function buildTools() {
             logo: { type: 'string', description: 'Image URL or path under /images/sponsors/' },
             url: { type: 'string', description: "Sponsor's website URL" },
             tier: { type: 'string', description: 'Free-text tier label, for example Platinum, Gold or Media Partner (optional, up to 40 characters)' },
+            category: { type: 'string', description: 'Free-text category shown in the website carousel: Sponsor, Partner or Sponsor & Partner (optional, up to 40 characters)' },
             description: { type: 'string' },
           },
           required: ['name'],
@@ -1037,6 +1038,7 @@ function buildTools() {
             logo: { type: 'string' },
             url: { type: 'string' },
             tier: { type: 'string', description: 'Free-text tier label (up to 40 characters); an empty string clears it' },
+            category: { type: 'string', description: 'Free-text carousel category: Sponsor, Partner or Sponsor & Partner (up to 40 characters); an empty string clears it' },
             description: { type: 'string' },
           },
           required: ['id'],
@@ -1229,7 +1231,7 @@ function buildTools() {
 }
 
 /**
- * A free-text sponsor label (tier): trimmed, at most 40 characters, no control
+ * A free-text sponsor label (tier or category): trimmed, at most 40 characters, no control
  * characters, empty allowed. Same rule as /api/admin/sponsors. Returns null when invalid.
  */
 function parseSponsorLabel(value: unknown): string | null {
@@ -1583,18 +1585,21 @@ ${context ? `# Context\n${context}\n` : ''}`;
       }
       case 'list_sponsors': {
         const sponsors = await getSponsors();
-        return { ok: true, result: sponsors.map((s) => ({ id: s.id, name: s.name, tier: s.tier, url: s.url })) };
+        return { ok: true, result: sponsors.map((s) => ({ id: s.id, name: s.name, tier: s.tier, category: s.category ?? '', url: s.url })) };
       }
       case 'create_sponsor': {
         const sponsors = await getSponsors();
         const tier = args.tier === undefined ? '' : parseSponsorLabel(args.tier);
         if (tier === null) return { ok: false, error: `tier ${SPONSOR_LABEL_ERROR}` };
+        const category = args.category === undefined ? '' : parseSponsorLabel(args.category);
+        if (category === null) return { ok: false, error: `category ${SPONSOR_LABEL_ERROR}` };
         const newSponsor: Sponsor = {
           id: `sp-${Date.now()}`,
           name: String(args.name || '').trim(),
           logo: typeof args.logo === 'string' ? args.logo : '',
           url: typeof args.url === 'string' ? args.url : '#',
           tier,
+          category,
           description: typeof args.description === 'string' ? args.description : '',
           createdAt: new Date().toISOString(),
         };
@@ -1602,7 +1607,7 @@ ${context ? `# Context\n${context}\n` : ''}`;
         sponsors.push(newSponsor);
         await saveSponsors(sponsors);
         try { logAdminAction('admin', 'SPONSOR_CREATE', '/api/admin/chat', ip, { tool: name, id: newSponsor.id, name: newSponsor.name }); } catch { /* non-blocking */ }
-        return { ok: true, result: { id: newSponsor.id, name: newSponsor.name, tier: newSponsor.tier } };
+        return { ok: true, result: { id: newSponsor.id, name: newSponsor.name, tier: newSponsor.tier, category: newSponsor.category } };
       }
       case 'update_sponsor': {
         const id = typeof args.id === 'string' ? args.id : '';
@@ -1613,17 +1618,20 @@ ${context ? `# Context\n${context}\n` : ''}`;
         const current = sponsors[idx];
         const tier = args.tier === undefined ? current.tier : parseSponsorLabel(args.tier);
         if (tier === null) return { ok: false, error: `tier ${SPONSOR_LABEL_ERROR}` };
+        const category = args.category === undefined ? current.category : parseSponsorLabel(args.category);
+        if (category === null) return { ok: false, error: `category ${SPONSOR_LABEL_ERROR}` };
         sponsors[idx] = {
           ...current,
           name: typeof args.name === 'string' ? args.name : current.name,
           logo: typeof args.logo === 'string' ? args.logo : current.logo,
           url: typeof args.url === 'string' ? args.url : current.url,
           tier,
+          ...(category === undefined ? {} : { category }),
           description: typeof args.description === 'string' ? args.description : current.description,
         };
         await saveSponsors(sponsors);
         try { logAdminAction('admin', 'SPONSOR_UPDATE', '/api/admin/chat', ip, { tool: name, id }); } catch { /* non-blocking */ }
-        return { ok: true, result: { id, name: sponsors[idx].name, tier: sponsors[idx].tier } };
+        return { ok: true, result: { id, name: sponsors[idx].name, tier: sponsors[idx].tier, category: sponsors[idx].category ?? '' } };
       }
       case 'delete_sponsor': {
         const id = typeof args.id === 'string' ? args.id : '';
