@@ -25,7 +25,7 @@ export default function ClientProviders({ children }: { children: ReactNode }) {
   const isAdmin = pathname.startsWith('/admin');
   return (
     <LazyMotion features={domAnimation}>
-      <ThreeCanvas />
+      {!isAdmin && <ThreeCanvas />}
       {children}
       {!isAdmin && <ChatWidget />}
       {!isAdmin && <BackToTop />}
