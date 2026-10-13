@@ -204,6 +204,8 @@ async function attemptInner(subscriberId: string, deps: SenderDeps, now: () => D
     await settleSendLog(slot.entry.id, { outcome: 'sent', messageId: sent.id, httpStatus: sent.status }, now());
     await setWelcome(subscriber.id, (w) => ({ status: 'sent', attemptedAt: w.attemptedAt, sentAt: isoNow(now), templateKey: template.key, version: check.version.version, messageId: sent.id, updatedAt: isoNow(now) }));
     claim.held = false;
+    // sending works right now: look in a few minutes for older welcomes that are still waiting (for example after a restart)
+    scheduleWelcomeSweep(deps);
     return { result: 'sent', messageId: sent.id };
   }
 
@@ -278,6 +280,10 @@ export function scheduleWelcomeSweep(deps: SenderDeps = {}, delayMs: number = SW
       .catch((err) => console.error('[email] welcome sweep failed:', describeError(err)));
   }, delayMs);
   sweepTimer.unref?.();
+}
+
+export function isWelcomeSweepScheduled(): boolean {
+  return sweepTimer !== null;
 }
 
 export function cancelWelcomeSweep(): void {

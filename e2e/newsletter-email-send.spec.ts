@@ -219,6 +219,7 @@ test.describe('newsletter email sending', () => {
     expect(entries[0].layoutVersion).toBe(layoutMod.getLayout().version);
 
     // exactly once: a second attempt and a queued run send nothing
+    expect(sender.isWelcomeSweepScheduled()).toBe(true); // a sweep is scheduled after a send, to catch any older welcomes still waiting
     expect(await run(subscriber.id, stub)).toEqual({ result: 'already', status: 'sent' });
     expect(await sender.sendPendingWelcomes({ fetchImpl: stub.impl, env: ENV })).toMatchObject({ considered: 0, sent: 0, pending: 0 });
     expect(stub.calls).toHaveLength(1);
