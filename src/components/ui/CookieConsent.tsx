@@ -68,9 +68,9 @@ export default function CookieConsent() {
       {isVisible && (
         <motion.div
           ref={bannerRef}
-          initial={{ opacity: 0, y: 20, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.95 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
           transition={{ duration: 0.35, ease: [0.25, 1, 0.5, 1] }}
           className="fixed left-3 right-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[1000] sm:bottom-6 sm:left-6 sm:right-auto sm:max-w-sm [@media(max-height:480px)]:right-24"
           role="dialog"
@@ -123,13 +123,13 @@ export default function CookieConsent() {
               <div className="flex items-center gap-2 mt-3">
                 <button
                   onClick={() => setShowSettings(!showSettings)}
-                  className="px-3.5 py-2 pointer-coarse:min-h-11 border border-white/10 text-white/40 text-xs uppercase tracking-wider font-body hover:border-[#C9A84C]/30 hover:text-white/60 transition-all duration-300 rounded"
+                  className="px-3.5 py-2 pointer-coarse:min-h-11 border border-white/10 text-white/50 text-xs uppercase tracking-wider font-body hover:border-[#C9A84C]/30 hover:text-white/60 transition-all duration-300 rounded"
                 >
                   Settings
                 </button>
                 <button
                   onClick={declineCookies}
-                  className="px-3.5 py-2 pointer-coarse:min-h-11 border border-white/10 text-white/40 text-xs uppercase tracking-wider font-body hover:border-white/25 hover:text-white/60 transition-all duration-300 rounded"
+                  className="px-3.5 py-2 pointer-coarse:min-h-11 border border-white/10 text-white/50 text-xs uppercase tracking-wider font-body hover:border-white/25 hover:text-white/60 transition-all duration-300 rounded"
                 >
                   Decline
                 </button>

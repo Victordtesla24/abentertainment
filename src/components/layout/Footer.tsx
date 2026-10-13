@@ -288,7 +288,7 @@ export default function Footer({ initialSponsors = [] }: { initialSponsors?: Spo
           line above the fixed chat launcher / back-to-top buttons on phones. */}
       <div className="border-t border-[#C9A84C]/6 pb-24 lg:pb-0">
         <div className="container-eu py-3.5 text-center">
-          <p className="text-white/45 text-xs font-body leading-relaxed">
+          <p className="text-white/50 text-xs font-body leading-relaxed">
             For new website development, business &amp; all technical queries, contact:{' '}
             <a
               href={`mailto:${SITE_CONFIG.contact.email}`}

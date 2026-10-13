@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import EventNotFoundBlock from '@/components/EventNotFoundBlock';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
 import OptimizedImage from '@/components/ui/OptimizedImage';
 import { firstUsableImageUrl, isUsableImageUrl } from '@/lib/perf/image-source';
@@ -78,28 +79,23 @@ function LoadingSkeleton() {
   );
 }
 
-// ─── Error State ──────────────────────────────────────────────────────────────
+// ─── Slug ─────────────────────────────────────────────────────────────────────
 
-function EventNotFound({ slug }: { slug: string }) {
-  return (
-    <section className="py-24 md:py-32">
-      <div className="container-eu text-center">
-        <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-6">
-          Event Not Found
-        </h1>
-        <p className="text-white/60 font-body text-lg mb-8 max-w-xl mx-auto">
-          We couldn&apos;t find an event matching &ldquo;{slug}&rdquo;. It may have been
-          removed or the link may be incorrect.
-        </p>
-        <Link
-          href="/events"
-          className="inline-block bg-[#C9A84C] hover:bg-[#D4B65C] text-white font-display font-bold text-sm uppercase tracking-wider py-4 px-8 transition-colors duration-300"
-        >
-          Browse All Events
-        </Link>
-      </div>
-    </section>
-  );
+/**
+ * The event slug the address asks for: the ?slug= query parameter (set by the .htaccess rewrite), else the
+ * last path segment (/events/Play -> "Play"), and '' for /events/view itself. The same rule runs in
+ * app/events/view/page.tsx before first paint, to decide whether the not-found state can be shown at once.
+ */
+function slugFromLocation(searchParams: { get(name: string): string | null }, pathname: string): string {
+  const qSlug = searchParams.get('slug');
+  if (qSlug) return qSlug;
+
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length >= 2 && segments[segments.length - 1] !== 'view') {
+    return segments[segments.length - 1];
+  }
+
+  return '';
 }
 
 // ─── Dynamic Event Viewer ─────────────────────────────────────────────────────
@@ -118,27 +114,18 @@ export default function DynamicEventViewer() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
+  // An address without a slug has nothing to look up: start on the not-found state (which the page has
+  // already painted from its HTML) instead of flashing the loading skeleton first.
+  const initialSlug = slugFromLocation(searchParams, pathname);
+
   const [event, setEvent] = useState<Event | null>(null);
   const [galleryImages, setGalleryImages] = useState<LightboxImage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [slug, setSlug] = useState('');
+  const [loading, setLoading] = useState(initialSlug !== '');
+  const [notFound, setNotFound] = useState(initialSlug === '');
+  const [slug, setSlug] = useState(initialSlug);
 
   // Determine the slug from query params or URL path
-  const resolveSlug = useCallback(() => {
-    // Priority 1: ?slug= query parameter
-    const qSlug = searchParams.get('slug');
-    if (qSlug) return qSlug;
-
-    // Priority 2: Extract from pathname (e.g., /events/view → no slug, /events/Play → slug=Play)
-    const segments = pathname.split('/').filter(Boolean);
-    // If path is /events/view, there's no slug
-    if (segments.length >= 2 && segments[segments.length - 1] !== 'view') {
-      return segments[segments.length - 1];
-    }
-
-    return '';
-  }, [searchParams, pathname]);
+  const resolveSlug = useCallback(() => slugFromLocation(searchParams, pathname), [searchParams, pathname]);
 
   // Fetch event data
   useEffect(() => {
@@ -222,7 +209,7 @@ export default function DynamicEventViewer() {
   usePolledRefresh(refreshInPlace, { immediate: false });
 
   if (loading) return <LoadingSkeleton />;
-  if (notFound || !event) return <EventNotFound slug={slug} />;
+  if (notFound || !event) return <EventNotFoundBlock slug={slug} />;
 
   const isPast = new Date(event.date) <= new Date();
 
@@ -268,7 +255,7 @@ export default function DynamicEventViewer() {
         <div className="container-eu">
           <Link
             href="/events"
-            className="inline-flex items-center gap-2 text-[#C9A84C] text-sm font-body font-semibold uppercase tracking-[0.15em] hover:text-white transition-colors duration-300 mb-10"
+            className="inline-flex items-center gap-2 text-[#C9A84C] text-sm font-body font-semibold uppercase tracking-[0.15em] hover:text-white transition-colors duration-300 py-3 -mt-3 mb-7"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -363,7 +350,7 @@ export default function DynamicEventViewer() {
                   <p className="text-white font-body font-medium">From ${event.price} {event.currency}</p>
                 </div>
 
-                {event.capacity && (
+                {typeof event.capacity === 'number' && event.capacity > 0 && (
                   <div>
                     <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Capacity</p>
                     <p className="text-white font-body font-medium">{event.capacity.toLocaleString()} seats</p>
@@ -412,7 +399,7 @@ export default function DynamicEventViewer() {
                   </p>
                   <Link
                     href="/events"
-                    className="inline-block mt-4 text-[#C9A84C] font-body font-semibold text-sm hover:text-white transition-colors duration-300"
+                    className="inline-block mt-1 py-3 -mb-3 text-[#C9A84C] font-body font-semibold text-sm hover:text-white transition-colors duration-300"
                   >
                     View Upcoming Events
                   </Link>
