@@ -18,8 +18,9 @@ import HeroImageManager from './HeroImageManager';
 import TimelineManager from './TimelineManager';
 import TestimonialsManager from './TestimonialsManager';
 import SiteMetricsManager from './SiteMetricsManager';
+import NewsletterManager from './NewsletterManager';
 
-type Tab = 'health' | 'events' | 'sponsors' | 'gallery' | 'heroes' | 'videos' | 'timeline' | 'testimonials' | 'metrics' | 'settings' | 'ai' | 'conversations';
+type Tab = 'health' | 'events' | 'sponsors' | 'gallery' | 'heroes' | 'videos' | 'timeline' | 'testimonials' | 'newsletter' | 'metrics' | 'settings' | 'ai' | 'conversations';
 
 interface AdminDashboardProps {
   initialEvents: Event[];
@@ -42,6 +43,7 @@ const TABS: { id: Tab; label: string; desc: string }[] = [
   { id: 'videos', label: 'Videos', desc: 'Video management' },
   { id: 'timeline', label: 'Timeline', desc: 'Our Story chapters' },
   { id: 'testimonials', label: 'Testimonials', desc: 'Customer reviews' },
+  { id: 'newsletter', label: 'Newsletter', desc: 'Subscriber list' },
   { id: 'metrics', label: 'Site Metrics', desc: 'Landing & about page numbers' },
   { id: 'settings', label: 'Settings', desc: 'Configuration' },
   { id: 'ai', label: 'AI Agent', desc: 'Intelligent assistant' },
@@ -98,6 +100,11 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   testimonials: (
     <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+    </svg>
+  ),
+  newsletter: (
+    <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
     </svg>
   ),
   metrics: (
@@ -331,6 +338,7 @@ export default function AdminDashboard({
           {activeTab === 'videos' && <VideoManager initialVideos={videos} events={events} />}
           {activeTab === 'timeline' && <TimelineManager initialChapters={timeline} />}
           {activeTab === 'testimonials' && <TestimonialsManager initialTestimonials={testimonials} />}
+          {activeTab === 'newsletter' && <NewsletterManager />}
           {activeTab === 'metrics' && <SiteMetricsManager initialMetrics={metrics} />}
           {activeTab === 'settings' && <SettingsManager initialSettings={settings} />}
           {activeTab === 'ai' && <AdminChatbot activeTab={activeTab} />}

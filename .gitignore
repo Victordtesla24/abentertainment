@@ -64,6 +64,10 @@ public/video/*.MP3
 data/contact-submissions.json
 public/data/contact-submissions.json
 
+# Newsletter subscribers — personal email addresses, runtime data only: never committed, mirrored or served
+data/newsletter-subscribers.json
+public/data/newsletter-subscribers.json
+
 # Agent system Docker volumes
 agent-system/.env
 agent-system/node_modules/

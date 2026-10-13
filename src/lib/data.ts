@@ -8,10 +8,12 @@
  */
 
 import { readFile, writeFile, mkdir, rename } from 'fs/promises';
-import { join } from 'path';
+import { join, resolve } from 'path';
+import { randomBytes } from 'crypto';
 import { normalizeSiteMetrics, toPublicSiteMetrics } from '@/lib/site-metrics';
 
-const DATA_DIR = join(process.cwd(), 'data');
+// AB_DATA_DIR points the runtime data directory somewhere else (a scratch folder for tests); unset, it is ./data as always.
+const DATA_DIR = process.env.AB_DATA_DIR ? resolve(process.env.AB_DATA_DIR) : join(process.cwd(), 'data');
 // PUBLIC_DATA_DIR writes mirror admin changes to the static-export data
 // directory so client-side fetchers and the next build pick them up. On
 // VPS Docker, REPO_ROOT=/workspace points at the real repo source so the
@@ -166,6 +168,16 @@ export interface ContactSubmission {
   eventInterest?: string;
   ip?: string;
   createdAt: string;
+}
+
+/** One address on the newsletter list (admin-internal: never part of any public projection). */
+export interface NewsletterSubscriber {
+  id: string;
+  /** Trimmed and lower-cased; unique across the list. */
+  email: string;
+  createdAt: string;
+  /** Path of the page the visitor subscribed from (for example "/about/"); empty when unknown. */
+  source: string;
 }
 
 export interface Video {
@@ -772,6 +784,17 @@ export function toPublicSponsor(sponsor: Sponsor): Sponsor {
   return pub;
 }
 
+/**
+ * Strip admin-only settings from a SiteSettings before any public/client use. siteImageOverrides is
+ * edited by the admin gallery and read by no public page, so the public copy (public/data/settings.json,
+ * and out/data/settings.json on the live site) does not carry it; the canonical copy keeps it.
+ */
+export function toPublicSettings(settings: SiteSettings): SiteSettings {
+  const pub = { ...settings };
+  delete pub.siteImageOverrides;
+  return pub;
+}
+
 /** Whether a sponsor appears on public surfaces. Records saved before `visible` existed count as visible. */
 export function isSponsorVisible(sponsor: Sponsor): boolean {
   return sponsor.visible !== false;
@@ -797,6 +820,9 @@ function serializePublicMirror<T>(filename: string, data: T): string {
   }
   if (filename === 'site-metrics.json' && Array.isArray(data)) {
     return JSON.stringify(toPublicSiteMetrics(data as SiteMetric[]), null, 2);
+  }
+  if (filename === 'settings.json' && data && typeof data === 'object' && !Array.isArray(data)) {
+    return JSON.stringify(toPublicSettings(data as unknown as SiteSettings), null, 2);
   }
   return JSON.stringify(data, null, 2);
 }
@@ -1073,4 +1099,85 @@ export async function appendContactSubmission(submission: ContactSubmission): Pr
     [],
     (existing) => [...existing, submission].slice(-MAX_CONTACT_SUBMISSIONS),
   );
+}
+
+// ─── Newsletter subscribers ──────────────────────────────────────────────────
+// Admin-internal AND runtime-only. Unlike every other store, this file is written to DATA_DIR
+// alone: never to public/data (the repository's data directories are served by the static host,
+// and this is a list of personal email addresses), and never to REPO_DATA_DIR (the admin AI agent
+// runs git inside the repository). On the VPS DATA_DIR is the persistent app-data volume, so the
+// list survives restarts and rebuilds. It is not in PUBLIC_MIRRORED and is gitignored as well.
+//
+// Reads are strict: an unreadable or malformed file raises instead of being treated as an empty
+// list, so a signup can never overwrite (and so destroy) a list that merely failed to parse.
+
+const NEWSLETTER_FILE = 'newsletter-subscribers.json';
+/** A runaway or hostile flood must not grow the file (rewritten whole on every signup) without bound. */
+const MAX_NEWSLETTER_SUBSCRIBERS = 20000;
+
+function isNewsletterSubscriber(value: unknown): value is NewsletterSubscriber {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.id === 'string' && typeof record.email === 'string' && typeof record.createdAt === 'string';
+}
+
+async function readNewsletterSubscribers(): Promise<NewsletterSubscriber[]> {
+  let raw: string;
+  try {
+    raw = await readFile(join(DATA_DIR, NEWSLETTER_FILE), 'utf-8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return [];
+    throw err;
+  }
+  const parsed: unknown = JSON.parse(raw);
+  if (!Array.isArray(parsed) || !parsed.every(isNewsletterSubscriber)) {
+    throw new Error(`${NEWSLETTER_FILE} does not hold a list of subscribers`);
+  }
+  return parsed.map((entry) => ({ ...entry, source: typeof entry.source === 'string' ? entry.source : '' }));
+}
+
+async function writeNewsletterSubscribers(list: NewsletterSubscriber[]): Promise<void> {
+  await atomicWrite(DATA_DIR, NEWSLETTER_FILE, JSON.stringify(list, null, 2));
+}
+
+export async function getNewsletterSubscribers(): Promise<NewsletterSubscriber[]> {
+  return readNewsletterSubscribers();
+}
+
+export type AddNewsletterResult =
+  | { status: 'created'; subscriber: NewsletterSubscriber }
+  | { status: 'exists' }
+  | { status: 'full' };
+
+/**
+ * Add an address. The address is trimmed and lower-cased and the list is unique by it; an address
+ * that is already on the list is left exactly as it was ('exists'). Read and write both run inside
+ * the per-file lock, so parallel signups cannot lose each other.
+ */
+export async function addNewsletterSubscriber(input: { email: string; source?: string }): Promise<AddNewsletterResult> {
+  const email = input.email.trim().toLowerCase();
+  return withFileLock<AddNewsletterResult>(NEWSLETTER_FILE, async () => {
+    const list = await readNewsletterSubscribers();
+    if (list.some((subscriber) => subscriber.email === email)) return { status: 'exists' };
+    if (list.length >= MAX_NEWSLETTER_SUBSCRIBERS) return { status: 'full' };
+    const subscriber: NewsletterSubscriber = {
+      id: `nl-${Date.now()}-${randomBytes(4).toString('hex')}`,
+      email,
+      createdAt: new Date().toISOString(),
+      source: input.source ?? '',
+    };
+    await writeNewsletterSubscribers([...list, subscriber]);
+    return { status: 'created', subscriber };
+  });
+}
+
+/** Remove one subscriber (an unsubscribe on request); returns the removed record, or null when there is no such id. */
+export async function deleteNewsletterSubscriber(id: string): Promise<NewsletterSubscriber | null> {
+  return withFileLock<NewsletterSubscriber | null>(NEWSLETTER_FILE, async () => {
+    const list = await readNewsletterSubscribers();
+    const target = list.find((subscriber) => subscriber.id === id);
+    if (!target) return null;
+    await writeNewsletterSubscribers(list.filter((subscriber) => subscriber.id !== id));
+    return target;
+  });
 }
