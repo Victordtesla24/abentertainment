@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import type { TouchEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
@@ -71,6 +72,7 @@ export function TestimonialsSection() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const touchStartX = useRef<number | null>(null);
 
   // Fetch live testimonials from admin, and keep polling so changes appear
   // without a reload. Accept empty arrays so deletions reflect.
@@ -92,6 +94,19 @@ export function TestimonialsSection() {
     const timer = setTimeout(() => paginate(1), 6000);
     return () => clearTimeout(timer);
   }, [currentIndex, isPaused, testimonials.length]);
+
+  // Swipe left/right to change testimonial on touch screens (the arrow buttons are desktop-only).
+  const handleTouchStart = (e: TouchEvent) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null;
+  };
+  const handleTouchEnd = (e: TouchEvent) => {
+    const startX = touchStartX.current;
+    touchStartX.current = null;
+    const endX = e.changedTouches[0]?.clientX;
+    if (startX === null || endX === undefined || testimonials.length < 2) return;
+    const dx = endX - startX;
+    if (Math.abs(dx) > 50) paginate(dx < 0 ? 1 : -1);
+  };
 
   const current = testimonials[currentIndex % testimonials.length];
 
@@ -120,8 +135,16 @@ export function TestimonialsSection() {
         </motion.div>
 
         {/* Testimonials carousel */}
-        <div className="relative max-w-3xl mx-auto" onMouseEnter={() => setIsPaused(true)} onMouseLeave={() => setIsPaused(false)}>
-          <div className="relative h-[28rem] sm:h-96 md:h-72 flex items-center">
+        <div
+          className="relative max-w-3xl mx-auto"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* min-height (not a fixed height): a long quote makes the card grow instead of
+              overflowing onto the indicators below it. */}
+          <div className="relative min-h-[28rem] sm:min-h-96 md:min-h-72 flex items-center">
             <AnimatePresence initial={false} custom={direction} mode="wait">
               <motion.div
                 key={currentIndex}
@@ -131,7 +154,7 @@ export function TestimonialsSection() {
                 animate="center"
                 exit="exit"
                 transition={{ x: { type: 'spring', stiffness: 300, damping: 30 }, opacity: { duration: 0.4 }, scale: { duration: 0.4 } }}
-                className="absolute w-full"
+                className="w-full"
               >
                 <div className="glass-card p-6 sm:p-10 md:p-12 relative">
                   {/* Large quotation mark */}
@@ -165,14 +188,14 @@ export function TestimonialsSection() {
             {/* Prev / Next buttons */}
             <button
               onClick={() => paginate(-1)}
-              className="absolute md:-left-16 top-1/2 -translate-y-1/2 z-20 w-11 h-11 hidden md:flex items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-400 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)]"
+              className="absolute md:-left-16 top-1/2 -translate-y-1/2 z-20 w-11 h-11 hidden md:flex max-md:hidden! items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-400 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)]"
               aria-label="Previous testimonial"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" /></svg>
             </button>
             <button
               onClick={() => paginate(1)}
-              className="absolute md:-right-16 top-1/2 -translate-y-1/2 z-20 w-11 h-11 hidden md:flex items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-400 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)]"
+              className="absolute md:-right-16 top-1/2 -translate-y-1/2 z-20 w-11 h-11 hidden md:flex max-md:hidden! items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-400 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)]"
               aria-label="Next testimonial"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
@@ -180,15 +203,18 @@ export function TestimonialsSection() {
           </div>
 
           {/* Indicators */}
-          <div className="flex justify-center gap-2.5 mt-10">
+          {/* Each 2px bar sits in a 44px-tall button; the negative margin keeps the original layout height. */}
+          <div className="flex justify-center items-center mt-10">
             {testimonials.map((_, index) => (
               <button
                 key={index}
                 onClick={() => { setDirection(index > currentIndex ? 1 : -1); setCurrentIndex(index); }}
-                className={`h-[2px] transition-all duration-500 ${index === currentIndex ? 'bg-[#C9A84C] w-10' : 'bg-white/10 w-3 hover:bg-white/25'}`}
+                className="group -my-5 flex h-11 items-center justify-center px-[5px] pointer-coarse:min-w-11"
                 aria-label={`Go to testimonial ${index + 1}`}
                 aria-current={index === currentIndex}
-              />
+              >
+                <span className={`block h-[2px] transition-[width,background-color] duration-500 ${index === currentIndex ? 'bg-[#C9A84C] w-10' : 'bg-white/10 w-3 group-hover:bg-white/25'}`} />
+              </button>
             ))}
           </div>
         </div>
