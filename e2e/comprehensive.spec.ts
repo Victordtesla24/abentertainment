@@ -196,7 +196,7 @@ test.describe('@req-footer-arch', () => {
     const f = page.locator('footer');
     const support = f.getByRole('link', { name: 'abentertainment support' });
     await expect(support).toBeVisible();
-    await expect(support).toHaveAttribute('href', 'mailto:sarkar.vikram@gmail.com');
+    await expect(support).toHaveAttribute('href', 'mailto:abhi@abentertainment.com.au');
     await expect(f).not.toContainText('sarkar.vikram@gmail.com');
   });
 });
