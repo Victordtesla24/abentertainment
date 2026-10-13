@@ -6,8 +6,9 @@ import { useState, FormEvent } from 'react';
 import { usePathname } from 'next/navigation';
 import { SITE_CONFIG, NAVIGATION, telHref } from '@/lib/constants';
 import SponsorBanner from '@/components/ui/SponsorBanner';
+import type { Sponsor } from '@/lib/data';
 
-export default function Footer() {
+export default function Footer({ initialSponsors = [] }: { initialSponsors?: Sponsor[] }) {
   const pathname = usePathname();
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
@@ -105,7 +106,7 @@ export default function Footer() {
       </div>
 
       {/* Sponsor Banner */}
-      <SponsorBanner />
+      <SponsorBanner initialSponsors={initialSponsors} />
 
       {/* Main footer grid */}
       <div className="container-eu py-18">

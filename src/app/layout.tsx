@@ -2,6 +2,8 @@ import { DM_Sans, Playfair_Display } from 'next/font/google';
 import { Metadata } from 'next';
 import { ReactNode } from 'react';
 import { SITE_CONFIG } from '@/lib/constants';
+import { getPublicSponsors } from '@/lib/data';
+import type { Sponsor } from '@/lib/data';
 import { Navigation } from '@/components/layout/Navigation';
 import Footer from '@/components/layout/Footer';
 import ClientProviders from '@/components/layout/ClientProviders';
@@ -85,7 +87,17 @@ interface RootLayoutProps {
   children: ReactNode;
 }
 
-export default function RootLayout({ children }: RootLayoutProps) {
+export default async function RootLayout({ children }: RootLayoutProps) {
+  // The footer's sponsor marquee paints the real sponsors straight away (read at
+  // build time for the static export, per request otherwise); the client then
+  // keeps it fresh from /api/sponsors.
+  let sponsors: Sponsor[] = [];
+  try {
+    sponsors = await getPublicSponsors();
+  } catch (error) {
+    console.error('Error loading sponsors for the footer:', error);
+  }
+
   return (
     <html
       lang="en"
@@ -137,7 +149,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
           <main id="main-content" className="flex flex-col min-h-screen">
             <div className="flex-1 w-full">{children}</div>
           </main>
-          <Footer />
+          <Footer initialSponsors={sponsors} />
         </ClientProviders>
       </body>
     </html>
