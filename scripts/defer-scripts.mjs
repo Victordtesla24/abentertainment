@@ -11,11 +11,16 @@
  * load-time profile.
  *
  * This rewrites each exported page so the same scripts, with the same attributes and in
- * the same order, are added to the document once (a) the page has loaded and its first
- * contentful paint candidate exists, and (b) the main thread is idle. Pages stay fully
- * readable and every link works as a plain link while the scripts arrive; hydration starts
- * roughly one paint later than before. Safety nets: if the load event or the paint entry
- * never comes, the scripts start after 3 s anyway.
+ * the same order, are added to the document as soon as the first of these happens:
+ *   - the page has loaded, its first contentful paint candidate exists and the main thread
+ *     is idle (the normal path, roughly one paint after the old behaviour);
+ *   - the visitor first touches the page (pointerdown, touchstart, keydown or wheel), so a
+ *     tap on the menu starts hydration at that moment instead of waiting for idle;
+ *   - a safety timer expires (2 s after the paint entry is missing, 3 s regardless).
+ * Pages stay fully readable and every link works as a plain link while the scripts arrive.
+ *
+ * Admin pages (admin/**) are left exactly as Next.js wrote them: the sign-in page must
+ * hydrate as early as possible and has no use for a paint-first schedule.
  *
  * Usage: node scripts/defer-scripts.mjs [exportDir=out]
  * Set DEFER_SCRIPTS=0 to skip (the export is then exactly what Next.js wrote).
@@ -26,10 +31,16 @@
  */
 
 import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const MARKER = 'data-ab-deferred-scripts';
+
+/** Pages under these export directories keep their original script tags. */
+const EXCLUDED_DIRECTORIES = ['admin'];
+
+/** First-touch events that start the scripts at once. */
+const INTERACTION_EVENTS = ['pointerdown', 'touchstart', 'keydown', 'wheel'];
 
 /** <script ...></script> with a src and no body (inline scripts carry the flight data and stay put). */
 const SCRIPT_TAG = /<script\b([^>]*)>\s*<\/script>/g;
@@ -66,7 +77,7 @@ function asDeferrable(attributesSource) {
  * `items` is [[src, [[attr, value], ...]], ...] in document order.
  */
 function loaderFor(items) {
-  const body = `(function(items){var started=false;function start(){if(started)return;started=true;items.forEach(function(item){var s=document.createElement("script");s.src=item[0];item[1].forEach(function(a){s.setAttribute(a[0],a[1])});s.async=true;document.body.appendChild(s)})}function idle(){if("requestIdleCallback"in window)requestIdleCallback(start,{timeout:1000});else setTimeout(start,0)}function afterPaint(){try{var o=new PerformanceObserver(function(){o.disconnect();idle()});o.observe({type:"largest-contentful-paint",buffered:true})}catch(e){idle()}setTimeout(idle,2000)}if(document.readyState==="complete")afterPaint();else addEventListener("load",afterPaint,{once:true});setTimeout(afterPaint,3000)})(${JSON.stringify(items).replace(/</g, '\\u003c')})`;
+  const body = `(function(items,events){var started=false;function start(){if(started)return;started=true;events.forEach(function(e){removeEventListener(e,start,true)});items.forEach(function(item){var s=document.createElement("script");s.src=item[0];item[1].forEach(function(a){s.setAttribute(a[0],a[1])});s.async=true;document.body.appendChild(s)})}function idle(){if("requestIdleCallback"in window)requestIdleCallback(start,{timeout:1000});else setTimeout(start,0)}function afterPaint(){try{var o=new PerformanceObserver(function(){o.disconnect();idle()});o.observe({type:"largest-contentful-paint",buffered:true})}catch(e){idle()}setTimeout(idle,2000)}events.forEach(function(e){addEventListener(e,start,{capture:true,once:true,passive:true})});if(document.readyState==="complete")afterPaint();else addEventListener("load",afterPaint,{once:true});setTimeout(afterPaint,3000)})(${JSON.stringify(items).replace(/</g, '\\u003c')},${JSON.stringify(INTERACTION_EVENTS)})`;
   return `<script ${MARKER}>${body}</script>`;
 }
 
@@ -110,7 +121,13 @@ async function main() {
 
   let pages = 0;
   let moved = 0;
+  let skipped = 0;
   for await (const file of htmlFiles(root)) {
+    const [topDirectory] = relative(root, file).split(sep);
+    if (EXCLUDED_DIRECTORIES.includes(topDirectory)) {
+      skipped++;
+      continue;
+    }
     const html = await readFile(file, 'utf8');
     const result = deferFrameworkScripts(html);
     if (result.moved === 0) continue;
@@ -122,7 +139,10 @@ async function main() {
     pages++;
     moved += result.moved;
   }
-  console.log(`[defer-scripts] ${moved} framework script tags in ${pages} pages now start after the first paint`);
+  console.log(
+    `[defer-scripts] ${moved} framework script tags in ${pages} pages now start after the first paint or the first touch` +
+      ` (${skipped} admin pages left as exported)`,
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

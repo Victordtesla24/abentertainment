@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
  * The static export starts its framework scripts after the first paint (scripts/defer-scripts.mjs,
@@ -48,6 +48,43 @@ test.describe('framework scripts start after the first paint', () => {
     expect(timing.fcp).toBeGreaterThan(0);
     expect(timing.firstScriptStart).toBeGreaterThanOrEqual(timing.fcp);
   });
+
+  test('admin pages keep their original script tags', async ({ request }) => {
+    for (const path of ['/admin/', '/admin/login/']) {
+      const html = await (await request.get(`${BASE}${path}`)).text();
+      expect(html, `${path} must not use the loader`).not.toContain('data-ab-deferred-scripts');
+      const blocking = [...html.matchAll(/<script\b([^>]*)>\s*<\/script>/g)]
+        .map(([, attributes]) => attributes)
+        .filter((attributes) => /\bsrc="\/_next\//.test(attributes) && /\basync\b/.test(attributes) && !/nomodule/i.test(attributes));
+      expect(blocking.length, `${path} keeps its framework script tags`).toBeGreaterThan(5);
+    }
+  });
+
+  // With the idle path disabled, only a first touch can start the scripts.
+  const firstTouches: Array<[string, (page: Page) => Promise<void>]> = [
+    ['pointerdown', async (page) => { await page.mouse.move(40, 300); await page.mouse.down(); await page.mouse.up(); }],
+    ['keydown', async (page) => { await page.keyboard.press('Shift'); }],
+    ['wheel', async (page) => { await page.mouse.move(40, 300); await page.mouse.wheel(0, 40); }],
+    ['touchstart', async (page) => { await page.evaluate(() => window.dispatchEvent(new Event('touchstart'))); }],
+  ];
+  for (const [name, touch] of firstTouches) {
+    test(`a ${name} before the idle moment starts the scripts at once`, async ({ page }) => {
+      await page.addInitScript(() => {
+        localStorage.setItem('cookie_consent', 'accepted');
+        window.requestIdleCallback = () => 0;
+      });
+      await page.goto(`${BASE}/`, { waitUntil: 'load' });
+      const frameworkScripts = () =>
+        page.evaluate(() => document.querySelectorAll('script[src*="/_next/static/chunks/"]:not([nomodule])').length);
+
+      await page.waitForTimeout(600);
+      expect(await frameworkScripts(), 'nothing starts on its own while the page is idle-blocked').toBe(0);
+
+      await touch(page);
+      await expect.poll(frameworkScripts, { timeout: 5000 }).toBeGreaterThan(5);
+      await page.waitForFunction(hydrated, undefined, { timeout: 15000 });
+    });
+  }
 
   test('pages are readable and links work with JavaScript disabled', async ({ browser }) => {
     const context = await browser.newContext({ javaScriptEnabled: false });
