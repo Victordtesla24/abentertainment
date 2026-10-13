@@ -51,6 +51,30 @@ export const DESIGN_COLOURS: readonly string[] = [
   '#000000',
 ];
 
+/** The tokens the layout is built from, by their design-system names (values from colors_and_type.css). */
+export const BRAND = {
+  bg: '#0A0A0A',
+  surface: '#111111',
+  surface2: '#1A1A1A',
+  surface3: '#222222',
+  footer: '#070707',
+  gold: '#C9A84C',
+  goldLight: '#D4B65C',
+  goldDark: '#B0923F',
+  white: '#FFFFFF',
+  black: '#000000',
+  fg2: 'rgba(255,255,255,0.65)',
+  fg3: 'rgba(255,255,255,0.5)',
+  fg4: 'rgba(255,255,255,0.4)',
+  gold50: 'rgba(201,168,76,0.5)',
+  gold40: 'rgba(201,168,76,0.4)',
+  gold20: 'rgba(201,168,76,0.2)',
+  gold15: 'rgba(201,168,76,0.15)',
+  gold08: 'rgba(201,168,76,0.08)',
+  displayFont: "'Playfair Display',Georgia,serif",
+  bodyFont: "'DM Sans','Helvetica Neue',Helvetica,sans-serif",
+} as const;
+
 export const DESIGN_FONT_FAMILIES: readonly string[] = [
   'playfair display',
   'georgia',

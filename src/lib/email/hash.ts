@@ -1,8 +1,12 @@
 import { createHash } from 'crypto';
 import { EMAIL_FIELDS, type EmailFields } from './types';
 
-/** Bumped whenever the deterministic rules or the review rubric change, so older approvals stop applying. */
-export const GATE_RULES_VERSION = 1;
+/**
+ * Bumped whenever the deterministic rules or the review rubric change, so older approvals stop applying.
+ * 2: the footer's own links (the site and its social profiles) are the layout's, not editable content, so they are exempt
+ * from the allowed-domain check.
+ */
+export const GATE_RULES_VERSION = 2;
 
 export function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
