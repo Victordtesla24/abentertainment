@@ -19,16 +19,29 @@ const tierColors: Record<string, string> = {
   bronze: '#CD7F32',
 };
 
+/** The sponsor's website if it is a real http(s) address; empty or placeholder values (such as "#") get no link. */
+function externalHref(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const { protocol } = new URL(url);
+    return protocol === 'http:' || protocol === 'https:' ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
   const tierColor = tierColors[sponsor.tier] || '#C9A84C';
+  const href = externalHref(sponsor.url);
+  const name = (sponsor.name ?? '').trim();
+  // Records saved before the company-name field existed fall back to the display name.
+  const company = (sponsor.companyName ?? '').trim() || name;
+  const showCompany = company.toLowerCase() !== name.toLowerCase();
+  const cardClassName =
+    'group block bg-[#111111]/40 border border-[#C9A84C]/10 hover:border-[#C9A84C]/40 p-8 transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_32px_rgba(204,138,28,0.1)]';
 
-  return (
-    <a
-      href={sponsor.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group block bg-[#111111]/40 border border-[#C9A84C]/10 hover:border-[#C9A84C]/40 p-8 transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_32px_rgba(204,138,28,0.1)]"
-    >
+  const content = (
+    <>
       <div className="flex items-center justify-between mb-6">
         <span
           className="px-3 py-1 text-xs font-body font-semibold uppercase tracking-wider"
@@ -47,7 +60,7 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
         {sponsor.logo ? (
           <img
             src={sponsor.logo}
-            alt={`${sponsor.name} logo`}
+            alt={`${company} logo`}
             className="max-h-14 max-w-full object-contain"
           />
         ) : (
@@ -60,12 +73,25 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
       <h3 className="text-lg font-display font-bold text-white group-hover:text-[#C9A84C] transition-colors duration-300 mb-2">
         {sponsor.name}
       </h3>
+      {showCompany && (
+        <p className="text-[#C9A84C]/60 text-xs font-body font-medium uppercase tracking-wider mb-2">
+          {company}
+        </p>
+      )}
       {sponsor.description && (
         <p className="text-[rgba(255,255,255,0.4)] text-sm font-body leading-relaxed">
           {sponsor.description}
         </p>
       )}
+    </>
+  );
+
+  return href ? (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={cardClassName}>
+      {content}
     </a>
+  ) : (
+    <div className={cardClassName}>{content}</div>
   );
 }
 
@@ -86,7 +112,7 @@ export default function SponsorsContent({ initialSponsors }: { initialSponsors: 
 
   const sortedSponsors = useMemo(
     () =>
-      [...sponsors].sort((a, b) => {
+      sponsors.filter((sponsor) => sponsor.visible !== false).sort((a, b) => {
         const tierDelta = (tierOrder[a.tier] ?? 99) - (tierOrder[b.tier] ?? 99);
         if (tierDelta !== 0) return tierDelta;
         // Within a tier, honour the admin's reorder (order field). Sponsors
