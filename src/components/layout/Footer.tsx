@@ -227,8 +227,11 @@ export default function Footer({ initialSponsors = [] }: { initialSponsors?: Spo
                 <ul className="space-y-3.5">
                   {links.map((link) => (
                     <li key={link.label}>
+                      {/* The address (about 200 px) is wider than a link column. From 1344 px the gap beside the
+                          Contact column leaves room for it on one line, clear of the Sitemap column; below that
+                          it would run into that column (or off the page on a tablet), so it may break anywhere. */}
                       {link.href.startsWith('mailto:') || link.href.startsWith('tel:') ? (
-                        <a href={link.href} className="text-white/60 hover:text-[#C9A84C] transition-colors duration-400 text-sm font-body [overflow-wrap:anywhere]">
+                        <a href={link.href} className="text-white/60 hover:text-[#C9A84C] transition-colors duration-400 text-sm font-body max-[1343px]:[overflow-wrap:anywhere]">
                           {link.label}
                         </a>
                       ) : (
