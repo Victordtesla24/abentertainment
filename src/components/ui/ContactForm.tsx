@@ -83,7 +83,7 @@ export default function ContactForm() {
       transition={{ duration: 0.8, delay: 0.1, ease: CINEMATIC_EASE }}
     >
       {status === 'success' ? (
-        <div className="bg-[#C9A84C]/10 border border-[#C9A84C]/30 p-12 text-center">
+        <div className="bg-[#C9A84C]/10 border border-[#C9A84C]/30 p-6 sm:p-12 text-center">
           <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center border border-[#C9A84C]/30">
             <svg
               className="w-8 h-8 text-[#C9A84C]"

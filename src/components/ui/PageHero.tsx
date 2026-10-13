@@ -23,14 +23,14 @@ export default function PageHero({ image, badge, title, highlight, subtitle }: P
   const scale = useTransform(scrollY, [0, 500], [1, 1.08]);
 
   return (
-    <section className="relative w-full h-[60vh] md:h-[70vh] overflow-hidden">
+    <section className="relative flex w-full min-h-[60vh] md:min-h-[70vh] overflow-hidden">
       {/* Background image with parallax */}
       <motion.div className="absolute inset-0" style={{ y: bgY, scale }}>
         <OptimizedImage
           src={image}
           alt=""
-          width={1920}
-          height={1080}
+          width={1536}
+          height={1024}
           priority={true}
           sizes="100vw"
           className="w-full h-[120%] object-cover"
@@ -48,8 +48,10 @@ export default function PageHero({ image, badge, title, highlight, subtitle }: P
       <div className="film-grain" />
 
       {/* Content */}
+      {/* min-h + top padding (not a fixed height): a long title or description grows the
+          hero instead of being clipped under the fixed nav. */}
       <motion.div
-        className="relative z-[10] h-full flex flex-col items-start justify-end pb-16 md:pb-20"
+        className="relative z-[10] flex w-full min-h-[60vh] md:min-h-[70vh] flex-col items-start justify-end pt-28 pb-16 md:pb-20"
         style={{ opacity }}
       >
         <div className="container-eu">

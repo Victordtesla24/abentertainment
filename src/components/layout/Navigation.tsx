@@ -38,6 +38,21 @@ export function Navigation() {
 
   useEffect(() => { setIsOpen(false); }, [pathname]);
 
+  // While the mobile drawer is open: Escape closes it and the page behind stops scrolling.
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const closeOnEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen]);
+
   // Global Cmd/Ctrl+K shortcut to toggle search modal
   const toggleSearch = useCallback(() => {
     setIsSearchOpen((prev) => !prev);
@@ -58,7 +73,12 @@ export function Navigation() {
   // hook order across renders (Rules of Hooks: same hooks, same order, every render).
   if (pathname.startsWith('/admin')) return null;
 
-  const isActive = (href: string) => pathname === href;
+  // The static export is served with trailing slashes (`/about/`) while the links are written
+  // without one, and the same page can be reached either way. Comparing slash-less paths keeps
+  // the highlighted link identical in the prerendered HTML and in the client render, so
+  // hydration never has to regenerate the tree for visitors who arrive without the slash.
+  const currentPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  const isActive = (href: string) => currentPath === href;
 
   return (
     <>
@@ -76,12 +96,13 @@ export function Navigation() {
             </div>
             <div className="flex flex-col">
               <span className="text-white font-body text-[11px] uppercase tracking-[0.25em] font-semibold leading-tight">AB Entertainment</span>
-              <span className="text-[#C9A84C]/50 font-body text-[9px] uppercase tracking-[0.2em] font-normal">Experience events like no other</span>
+              {/* The tagline needs ~220px the 1024-1279px header does not have; it returns at xl. */}
+              <span className="hidden xl:block text-[#C9A84C]/70 font-body text-[9px] uppercase tracking-[0.2em] font-normal">Experience events like no other</span>
             </div>
           </Link>
 
           {/* Center Links */}
-          <div className="flex items-center gap-9">
+          <div className="flex items-center gap-5 xl:gap-9">
             {NAVIGATION.map((link) => (
               <Link key={link.href} href={link.href}
                 className={`group relative text-xs uppercase tracking-wider font-body font-medium transition-all duration-400 py-1 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-4 ${
@@ -103,7 +124,7 @@ export function Navigation() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="p-2.5 text-white/50 hover:text-[#C9A84C] transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2"
+              className="flex h-11 w-11 items-center justify-center text-white/50 hover:text-[#C9A84C] transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2"
               aria-label="Search events"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
@@ -120,9 +141,10 @@ export function Navigation() {
       </motion.nav>
 
       {/* MOBILE NAV */}
-      <nav aria-label="Mobile navigation" className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-2xl border-b border-[#C9A84C]/8">
+      {/* Above the drawer (z-60) while it is open so the menu button stays visible and tappable. */}
+      <nav aria-label="Mobile navigation" className={`lg:hidden fixed top-0 left-0 right-0 ${isOpen ? 'z-[70]' : 'z-50'} bg-black/95 backdrop-blur-2xl border-b border-[#C9A84C]/8`}>
         <div className="px-4 py-3 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2">
+          <Link href="/" className="flex min-h-11 items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2">
             <div className="relative w-10 h-10 overflow-hidden">
               <Image src="/images/AB_Logo_transparent.png" alt="AB Entertainment" fill className="object-contain" priority />
             </div>
@@ -131,14 +153,14 @@ export function Navigation() {
           <div className="flex items-center gap-1">
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="p-2 text-white/50 hover:text-[#C9A84C] transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2"
+              className="flex h-11 w-11 items-center justify-center text-white/50 hover:text-[#C9A84C] transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2"
               aria-label="Search events"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
               </svg>
             </button>
-            <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-[#C9A84C] focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2" aria-label="Toggle menu" aria-expanded={isOpen}>
+            <button onClick={() => setIsOpen(!isOpen)} className="flex h-11 w-11 items-center justify-center text-[#C9A84C] focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2" aria-label="Toggle menu" aria-expanded={isOpen} aria-controls="mobile-drawer">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                   d={isOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'} />
@@ -167,7 +189,8 @@ export function Navigation() {
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="lg:hidden fixed top-0 right-0 bottom-0 z-[60] w-72 bg-black/95 backdrop-blur-2xl border-l border-[#C9A84C]/8 overflow-y-auto"
+              id="mobile-drawer"
+              className="lg:hidden fixed top-0 right-0 bottom-0 z-[60] w-72 max-w-[85vw] bg-black/95 backdrop-blur-2xl border-l border-[#C9A84C]/8 overflow-y-auto overscroll-contain"
             >
               <div className="px-4 py-6 space-y-1 mt-16">
                 {NAVIGATION.map((link) => (

@@ -126,7 +126,7 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A] px-4 relative overflow-hidden">
+    <div className="min-h-dvh flex items-center justify-center bg-[#0A0A0A] px-4 relative overflow-hidden">
       {/* Ambient glow */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[radial-gradient(ellipse,rgba(201,168,76,0.06),transparent_60%)] pointer-events-none" />
       <div className="film-grain" />
@@ -145,7 +145,7 @@ export default function AdminLoginPage() {
         </div>
 
         {/* Login Card */}
-        <div className="glass-card p-8">
+        <div className="glass-card p-6 sm:p-8">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-[1px] bg-gradient-to-r from-transparent to-[#C9A84C]/40" />
             <h2 className="text-sm font-body font-semibold text-[#C9A84C] uppercase tracking-[0.2em]">

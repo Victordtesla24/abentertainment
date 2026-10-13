@@ -314,7 +314,7 @@ export default function ChatWidget() {
   return (
     <>
       {/* ── FAB ─────────────────────────────────────────────────────────────── */}
-      <div className="fixed bottom-6 right-6 z-[901] flex flex-col items-end gap-2 md:bottom-6">
+      <div className="fixed bottom-6 right-4 sm:right-6 z-[901] flex flex-col items-end gap-2 transition-transform duration-300 max-sm:-translate-y-[var(--ab-cookie-h,0px)]">
 
         {/* "Chat with us" label — shown before first open */}
         <AnimatePresence>
@@ -324,7 +324,7 @@ export default function ChatWidget() {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 12, scale: 0.9 }}
               transition={{ delay: 1.5, duration: 0.4, ease: 'easeOut' }}
-              className="bg-[#0A0A0A] border border-[#C9A84C]/30 px-4 py-2 shadow-lg shadow-black/40 pointer-events-none"
+              className="bg-[#0A0A0A] border border-[#C9A84C]/30 px-4 py-2 shadow-lg shadow-black/40 pointer-events-none [html[data-cookie-banner]_&]:max-sm:hidden"
             >
               <p className="text-[#C9A84C] text-xs font-body font-semibold tracking-wide whitespace-nowrap">
                 Ask our Concierge ✨
@@ -378,8 +378,8 @@ export default function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 28, scale: 0.94 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed bottom-[5.25rem] right-6 z-[900] w-[min(420px,calc(100vw-1.5rem))] flex flex-col bg-[#060606] shadow-[0_20px_60px_rgba(0,0,0,0.8),0_0_0_1px_rgba(201,168,76,0.12)]"
-            style={{ maxHeight: 'min(600px, calc(100dvh - 7rem))' }}
+            className="fixed bottom-[calc(5.25rem+var(--ab-cookie-h,0px))] sm:bottom-[5.25rem] right-3 sm:right-6 z-[900] w-[min(420px,calc(100vw-1.5rem))] flex flex-col bg-[#060606] shadow-[0_20px_60px_rgba(0,0,0,0.8),0_0_0_1px_rgba(201,168,76,0.12)]"
+            style={{ maxHeight: 'min(600px, calc(100dvh - 7rem - var(--ab-cookie-h, 0px)))' }}
           >
             {/* Gold accent bar */}
             <div className="h-[3px] w-full flex-shrink-0" style={{ background: 'linear-gradient(90deg, transparent, #C9A84C 30%, #D4B65C 50%, #C9A84C 70%, transparent)' }} />
@@ -411,7 +411,8 @@ export default function ChatWidget() {
                   <button
                     onClick={clearConversation}
                     title="Start new conversation"
-                    className="text-white/20 hover:text-white/50 transition-colors p-0.5"
+                    aria-label="Start new conversation"
+                    className="-m-2.5 flex h-11 w-11 items-center justify-center text-white/20 hover:text-white/50 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -421,7 +422,7 @@ export default function ChatWidget() {
                 {/* Close */}
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="text-white/25 hover:text-white/60 transition-colors p-0.5"
+                  className="-m-2.5 flex h-11 w-11 items-center justify-center text-white/25 hover:text-white/60 transition-colors"
                   aria-label="Close"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>

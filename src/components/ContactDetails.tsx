@@ -21,25 +21,25 @@ export default function ContactDetails() {
   usePolledRefresh(loadSettings);
 
   return (
-    <div className="bg-[#111111]/40 border border-[#C9A84C]/40 p-8 space-y-6">
-      <h3 className="text-xl font-display text-[#C9A84C] mb-4">Contact Details</h3>
+    <div className="bg-[#111111]/40 border border-[#C9A84C]/40 p-6 sm:p-8 space-y-6">
+      <h2 className="text-xl font-display text-[#C9A84C] mb-4">Contact Details</h2>
 
       <div>
-        <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Phone</p>
-        <a href={telHref(phone)} className="text-white hover:text-[#C9A84C] transition-colors font-body font-medium">
+        <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Phone</p>
+        <a href={telHref(phone)} className="inline-block py-2 text-white hover:text-[#C9A84C] transition-colors font-body font-medium [overflow-wrap:anywhere]">
           {phone}
         </a>
       </div>
 
       <div>
-        <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Email</p>
-        <a href={`mailto:${email}`} className="text-white hover:text-[#C9A84C] transition-colors font-body font-medium">
+        <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Email</p>
+        <a href={`mailto:${email}`} className="inline-block py-2 text-white hover:text-[#C9A84C] transition-colors font-body font-medium [overflow-wrap:anywhere]">
           {email}
         </a>
       </div>
 
       <div>
-        <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Location</p>
+        <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Location</p>
         <address className="not-italic text-white leading-relaxed font-body">
           {SITE_CONFIG.contact.address.city}, {SITE_CONFIG.contact.address.state}
           <br />

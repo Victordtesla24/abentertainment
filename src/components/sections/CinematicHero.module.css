@@ -1,0 +1,41 @@
+/*
+ * Single-line headline that always fits: --fit is the largest font size that keeps
+ * the whole title inside the heading's content box (set per title from its length),
+ * --cap is the designed size for the breakpoint. A JS measurement can still shrink
+ * it further once the web font has loaded.
+ */
+.title {
+  --cap: 2.5rem;
+  font-size: var(--cap);
+}
+
+/* Container-query units (Chrome 105+, Safari 16+, Firefox 110+); older browsers keep --cap and the JS fit. */
+@supports (width: 1cqw) {
+  .title {
+    font-size: min(var(--cap), var(--fit, var(--cap)));
+  }
+}
+
+@media (min-width: 640px) {
+  .title {
+    --cap: 3rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .title {
+    --cap: 4.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .title {
+    --cap: 6rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .title {
+    --cap: 7.5rem;
+  }
+}

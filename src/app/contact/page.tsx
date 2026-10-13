@@ -33,7 +33,7 @@ export default function ContactPage() {
       {/* Intro text — server-rendered for SEO */}
       <section className="py-16 md:py-20">
         <div className="container-eu">
-          <p className="text-white/40 text-lg font-body max-w-2xl mb-8">
+          <p className="text-white/60 text-lg font-body max-w-2xl mb-8">
             We&apos;d love to hear from you.
           </p>
         </div>
@@ -50,36 +50,36 @@ export default function ContactPage() {
             <aside className="lg:col-span-2 space-y-8">
               <ContactDetails />
 
-              <div className="bg-[#111111]/40 border border-[#C9A84C]/40 p-8">
-                <h3 className="text-xl font-display text-[#C9A84C] mb-4">
+              <div className="bg-[#111111]/40 border border-[#C9A84C]/40 p-6 sm:p-8">
+                <h2 className="text-xl font-display text-[#C9A84C] mb-4">
                   Office Hours
-                </h3>
+                </h2>
                 <div className="space-y-2 text-sm font-body">
-                  <div className="flex justify-between">
-                    <span className="text-white/40">Monday - Friday</span>
+                  <div className="flex flex-wrap justify-between gap-x-4">
+                    <span className="text-white/60">Monday - Friday</span>
                     <span className="text-white">9:00 AM - 6:00 PM</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-white/40">Saturday</span>
+                  <div className="flex flex-wrap justify-between gap-x-4">
+                    <span className="text-white/60">Saturday</span>
                     <span className="text-white">10:00 AM - 4:00 PM</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-white/40">Sunday</span>
+                  <div className="flex flex-wrap justify-between gap-x-4">
+                    <span className="text-white/60">Sunday</span>
                     <span className="text-white">Closed</span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-[#111111]/40 border border-[#C9A84C]/40 p-8">
-                <h3 className="text-xl font-display text-[#C9A84C] mb-4">
+              <div className="bg-[#111111]/40 border border-[#C9A84C]/40 p-6 sm:p-8">
+                <h2 className="text-xl font-display text-[#C9A84C] mb-4">
                   Follow Us
-                </h3>
+                </h2>
                 <div className="flex gap-3">
                   <a
                     href={SITE_CONFIG.social.instagram}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-10 h-10 flex items-center justify-center border border-[#C9A84C]/20 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-white transition-all duration-300"
+                    className="w-11 h-11 flex items-center justify-center border border-[#C9A84C]/20 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-white transition-all duration-300"
                     aria-label="Instagram"
                   >
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -90,7 +90,7 @@ export default function ContactPage() {
                     href={SITE_CONFIG.social.facebook}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-10 h-10 flex items-center justify-center border border-[#C9A84C]/20 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-white transition-all duration-300"
+                    className="w-11 h-11 flex items-center justify-center border border-[#C9A84C]/20 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-white transition-all duration-300"
                     aria-label="Facebook"
                   >
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
