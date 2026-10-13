@@ -2,7 +2,7 @@
 
 import { useState, FormEvent, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
+import OptimizedImage from '@/components/ui/OptimizedImage';
 import { getApiUrl } from '@/lib/api-config';
 import { adminFetch, setCsrfToken, setAuthToken } from '@/lib/admin-fetch';
 
@@ -136,7 +136,7 @@ export default function AdminLoginPage() {
         <div className="flex flex-col items-center mb-10">
           <div className="relative w-20 h-20 mb-4">
             <div className="absolute inset-0 bg-[#C9A84C]/10 blur-2xl rounded-full" />
-            <Image src="/images/AB_Logo_transparent.png" alt="AB Entertainment" fill className="object-contain" priority />
+            <OptimizedImage src="/images/AB_Logo_transparent.png" alt="AB Entertainment" width={500} height={500} sizes="80px" priority preload={false} className="absolute inset-0 h-full w-full object-contain" />
           </div>
           <h1 className="text-2xl font-display font-bold text-white tracking-wide">
             AB Entertainment

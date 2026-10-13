@@ -54,7 +54,7 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
             className="h-auto w-auto max-h-14 max-w-full object-contain"
           />
         ) : (
-          <span className="text-lg font-display font-bold text-[rgba(255,255,255,0.4)] group-hover:text-[#C9A84C] transition-colors duration-300">
+          <span className="text-lg font-display font-bold text-[rgba(255,255,255,0.5)] group-hover:text-[#C9A84C] transition-colors duration-300">
             {sponsor.name}
           </span>
         )}
@@ -69,7 +69,7 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
         </p>
       )}
       {sponsor.description && (
-        <p className="text-[rgba(255,255,255,0.4)] text-sm font-body leading-relaxed">
+        <p className="text-[rgba(255,255,255,0.5)] text-sm font-body leading-relaxed">
           {sponsor.description}
         </p>
       )}
@@ -147,7 +147,7 @@ export default function SponsorsContent({ initialSponsors }: { initialSponsors: 
           <h2 className="text-2xl md:text-3xl font-display font-bold text-white mb-4">
             Interested in <span className="text-[#C9A84C]">Sponsorship</span>?
           </h2>
-          <p className="text-[rgba(255,255,255,0.4)] font-body mb-8 max-w-lg mx-auto">
+          <p className="text-[rgba(255,255,255,0.5)] font-body mb-8 max-w-lg mx-auto">
             Partner with us to reach Melbourne&apos;s vibrant Indian and Marathi
             community through world-class cultural events.
           </p>

@@ -26,14 +26,14 @@ export default function ContactDetails() {
 
       <div>
         <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Phone</p>
-        <a href={telHref(phone)} className="inline-block py-2 text-white hover:text-[#C9A84C] transition-colors font-body font-medium [overflow-wrap:anywhere]">
+        <a href={telHref(phone)} className="inline-block py-[10px] -my-[2px] text-white hover:text-[#C9A84C] transition-colors font-body font-medium [overflow-wrap:anywhere]">
           {phone}
         </a>
       </div>
 
       <div>
         <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Email</p>
-        <a href={`mailto:${email}`} className="inline-block py-2 text-white hover:text-[#C9A84C] transition-colors font-body font-medium [overflow-wrap:anywhere]">
+        <a href={`mailto:${email}`} className="inline-block py-[10px] -my-[2px] text-white hover:text-[#C9A84C] transition-colors font-body font-medium [overflow-wrap:anywhere]">
           {email}
         </a>
       </div>

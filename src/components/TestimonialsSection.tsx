@@ -182,7 +182,7 @@ export function TestimonialsSection() {
                     <AvatarImage src={current.image} name={current.name} />
                     <div>
                       <p className="text-white font-semibold font-body text-sm">{current.name}</p>
-                      <p className="text-[#C9A84C]/50 text-xs font-body tracking-wide">{current.role}</p>
+                      <p className="text-[#C9A84C]/70 text-xs font-body tracking-wide">{current.role}</p>
                     </div>
                   </div>
                 </div>
