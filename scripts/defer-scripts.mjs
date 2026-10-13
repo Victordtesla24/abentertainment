@@ -19,6 +19,15 @@
  *   - a safety timer expires (2 s after the paint entry is missing, 3 s regardless).
  * Pages stay fully readable and every link works as a plain link while the scripts arrive.
  *
+ * Nothing the visitor does is lost. React replays the clicks it sees while it hydrates, but
+ * it cannot see a tap that happens before its own scripts exist, so the loader keeps the
+ * first completed click on a <button> or [role=button] (links navigate natively; form
+ * fields and submit buttons keep their native behaviour) made before React is listening,
+ * and clicks that same element once React has hydrated it (waiting at most 8 s). It never
+ * replays a click made after React is listening (React's own replay covers those) and it
+ * stands down if the visitor clicks the element again after that point, so nothing is
+ * activated twice.
+ *
  * Admin pages (admin/**) are left exactly as Next.js wrote them: the sign-in page must
  * hydrate as early as possible and has no use for a paint-first schedule.
  *
@@ -73,12 +82,88 @@ function asDeferrable(attributesSource) {
 }
 
 /**
- * The inline loader. Kept small and dependency-free; it runs before anything else on the page.
- * `items` is [[src, [[attr, value], ...]], ...] in document order.
+ * The inline loader, as readable source. It is flattened to one line before it is written into
+ * pages, so every line must end in `;`, `{`, `}` or `,`, none may begin with an operator, and
+ * there must be no comments inside it.
+ *
+ * `items` is [[src, [[attr, value], ...]], ...] in document order; `events` are the first-touch events.
  */
+const LOADER_SOURCE = `
+(function (items, events) {
+  var started = false;
+  var tapTarget = null;
+  var superseded = false;
+  function reactAttached() {
+    return Object.keys(document).some(function (key) { return key.indexOf('_reactListening') === 0; });
+  }
+  function hydrated(element) {
+    return Object.keys(element).some(function (key) { return key.indexOf('__reactProps$') === 0; });
+  }
+  function start() {
+    if (started) return;
+    started = true;
+    events.forEach(function (name) { removeEventListener(name, start, true); });
+    items.forEach(function (item) {
+      var script = document.createElement('script');
+      script.src = item[0];
+      item[1].forEach(function (attribute) { script.setAttribute(attribute[0], attribute[1]); });
+      script.async = true;
+      document.body.appendChild(script);
+    });
+  }
+  function idle() {
+    if ('requestIdleCallback' in window) requestIdleCallback(start, { timeout: 1000 });
+    else setTimeout(start, 0);
+  }
+  function afterPaint() {
+    try {
+      var observer = new PerformanceObserver(function () { observer.disconnect(); idle(); });
+      observer.observe({ type: 'largest-contentful-paint', buffered: true });
+    } catch (error) {
+      idle();
+    }
+    setTimeout(idle, 2000);
+  }
+  function replay(target, deadline) {
+    if (superseded || !document.documentElement.contains(target)) return;
+    if (hydrated(target)) {
+      target.click();
+      return;
+    }
+    if (Date.now() < deadline) setTimeout(function () { replay(target, deadline); }, 50);
+  }
+  function onClick(event) {
+    if (tapTarget || !event.isTrusted || reactAttached()) return;
+    var target = event.target && event.target.closest ? event.target.closest('button, [role="button"]') : null;
+    if (!target || target.disabled || target.closest('a[href]')) return;
+    if (target.form && target.type !== 'button') return;
+    tapTarget = target;
+    start();
+    replay(target, Date.now() + 8000);
+  }
+  function onLaterClick(event) {
+    if (tapTarget && event.isTrusted && tapTarget.contains(event.target) && reactAttached()) superseded = true;
+  }
+  events.forEach(function (name) { addEventListener(name, start, { capture: true, once: true, passive: true }); });
+  addEventListener('click', onClick, true);
+  addEventListener('click', onLaterClick, true);
+  if (document.readyState === 'complete') afterPaint();
+  else addEventListener('load', afterPaint, { once: true });
+  setTimeout(afterPaint, 3000);
+})
+`;
+
+const flatten = (source) =>
+  source
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('');
+
+/** The inline <script> for one page. */
 function loaderFor(items) {
-  const body = `(function(items,events){var started=false;function start(){if(started)return;started=true;events.forEach(function(e){removeEventListener(e,start,true)});items.forEach(function(item){var s=document.createElement("script");s.src=item[0];item[1].forEach(function(a){s.setAttribute(a[0],a[1])});s.async=true;document.body.appendChild(s)})}function idle(){if("requestIdleCallback"in window)requestIdleCallback(start,{timeout:1000});else setTimeout(start,0)}function afterPaint(){try{var o=new PerformanceObserver(function(){o.disconnect();idle()});o.observe({type:"largest-contentful-paint",buffered:true})}catch(e){idle()}setTimeout(idle,2000)}events.forEach(function(e){addEventListener(e,start,{capture:true,once:true,passive:true})});if(document.readyState==="complete")afterPaint();else addEventListener("load",afterPaint,{once:true});setTimeout(afterPaint,3000)})(${JSON.stringify(items).replace(/</g, '\\u003c')},${JSON.stringify(INTERACTION_EVENTS)})`;
-  return `<script ${MARKER}>${body}</script>`;
+  const args = [JSON.stringify(items).replace(/</g, '\\u003c'), JSON.stringify(INTERACTION_EVENTS)].join(',');
+  return `<script ${MARKER}>${flatten(LOADER_SOURCE)}(${args})</script>`;
 }
 
 /** Rewrites one page. Returns the number of scripts moved (0 when there was nothing to do). */

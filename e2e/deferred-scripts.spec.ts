@@ -96,3 +96,111 @@ test.describe('framework scripts start after the first paint', () => {
     await context.close();
   });
 });
+
+test.describe('taps made before hydration are not lost', () => {
+  test.skip(!BASE, 'needs a static export (set E2E_BASE_URL)');
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  const frameworkScripts = (page: Page) =>
+    page.evaluate(() => document.querySelectorAll('script[src*="/_next/static/chunks/"]:not([nomodule])').length);
+
+  /**
+   * A phone-like start: CPU 4x slower, framework chunks held back for 700 ms, and the idle path
+   * disabled, so the first tap is what starts the scripts and reaches the page before React exists.
+   */
+  async function openBeforeHydration(page: Page, path: string) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    await page.route('**/_next/static/chunks/*.js', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      await route.continue();
+    });
+    await page.addInitScript(() => {
+      localStorage.setItem('cookie_consent', 'accepted');
+      window.requestIdleCallback = () => 0;
+    });
+    await page.goto(`${BASE}${path}`, { waitUntil: 'load' });
+    expect(await frameworkScripts(page), 'no framework script exists yet').toBe(0);
+  }
+
+  test('a tap on the menu before any framework script exists opens it once, after hydration', async ({ page }) => {
+    await openBeforeHydration(page, '/');
+    const toggle = page.getByRole('button', { name: 'Toggle menu' });
+    await toggle.tap();
+
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true', { timeout: 20000 });
+    await expect(page.locator('#mobile-drawer')).toBeVisible();
+    await page.waitForTimeout(1500);
+    await expect(toggle, 'still open: nothing activated it a second time').toHaveAttribute('aria-expanded', 'true');
+
+    await toggle.tap();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#mobile-drawer')).toBeHidden();
+  });
+
+  test('two taps before hydration still open the menu once', async ({ page }) => {
+    await openBeforeHydration(page, '/about/');
+    const toggle = page.getByRole('button', { name: 'Toggle menu' });
+    await toggle.tap();
+    await page.waitForTimeout(150);
+    await toggle.tap();
+
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true', { timeout: 20000 });
+    await page.waitForTimeout(1500);
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('a tap on the search button before hydration opens the dialog once', async ({ page }) => {
+    await openBeforeHydration(page, '/');
+    await page.getByRole('button', { name: 'Search events' }).tap();
+
+    const dialog = page.getByRole('dialog', { name: 'Search events' });
+    await expect(dialog).toBeVisible({ timeout: 20000 });
+    await page.waitForTimeout(1500);
+    await expect(dialog, 'still open: not toggled shut by a second activation').toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+  });
+
+  test('the chat launcher, which only exists after hydration, opens once when tapped', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('cookie_consent', 'accepted'));
+    await page.goto(`${BASE}/`, { waitUntil: 'load' });
+    const launcher = page.getByRole('button', { name: 'Open concierge chat' });
+    await expect(launcher).toBeVisible({ timeout: 20000 });
+    await launcher.tap();
+
+    const heading = page.getByRole('heading', { name: 'AB Concierge' });
+    await expect(heading).toBeVisible();
+    await page.waitForTimeout(1500);
+    await expect(heading).toBeVisible();
+    await page.getByRole('button', { name: 'Close', exact: true }).tap();
+    await expect(heading).toBeHidden();
+  });
+
+  test('a tap on a link before hydration navigates normally, with no replay', async ({ page }) => {
+    await openBeforeHydration(page, '/');
+    await page.getByRole('link', { name: 'Buy Tickets' }).first().tap();
+    await expect(page).toHaveURL(/\/events\/?$/);
+    // The idle path is disabled for this page's whole life, so a key press (once the page and its
+    // loader exist) starts the new page's scripts.
+    await page.waitForLoadState('load');
+    await page.keyboard.press('Shift');
+    await page.waitForFunction(hydrated, undefined, { timeout: 20000 });
+    await expect(page.locator('#mobile-drawer')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Toggle menu' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('a tap after hydration is not doubled', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('cookie_consent', 'accepted'));
+    await page.goto(`${BASE}/`, { waitUntil: 'load' });
+    await page.waitForFunction(hydrated, undefined, { timeout: 20000 });
+    const toggle = page.getByRole('button', { name: 'Toggle menu' });
+    await toggle.tap();
+
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await page.waitForTimeout(1500);
+    await expect(toggle, 'one tap, one activation').toHaveAttribute('aria-expanded', 'true');
+    await toggle.tap();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
+});
