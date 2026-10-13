@@ -6,11 +6,11 @@ import { readSendLog, type SendKind, type SendOutcome } from '@/lib/email/send-l
 
 /**
  * The send log, newest first: one entry per attempt with the recipient masked, the provider's message id, the outcome
- * and a short reason. GET ?limit=1..500&kind=welcome|test&outcome=...
+ * and a short reason. GET ?limit=1..500&kind=welcome|test|unsubscribe&outcome=...
  */
 
-const KINDS = new Set<string>(['welcome', 'test']);
-const OUTCOMES = new Set<string>(['reserved', 'sent', 'failed', 'retry', 'blocked', 'provider_not_ready', 'rate_limited', 'skipped']);
+const KINDS = new Set<string>(['welcome', 'test', 'unsubscribe']);
+const OUTCOMES = new Set<string>(['reserved', 'sent', 'failed', 'retry', 'blocked', 'provider_not_ready', 'rate_limited', 'skipped', 'unsubscribed']);
 
 export const GET = withAuth(async (request: NextRequest) => {
   const params = request.nextUrl.searchParams;

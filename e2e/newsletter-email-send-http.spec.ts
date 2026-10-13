@@ -10,102 +10,12 @@
  * It writes the server's data directory, so it only runs against this machine and restores every file it touches.
  */
 
-import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
+import { test, expect } from '@playwright/test';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { cleanUnitDir, loadWithUnitDir, unitDir } from './support/email-unit';
-import { StubAi, passingReview } from './fixtures/email-ai-stub';
+import { HAS_ADMIN_CREDS, MockResend, SERVER_DATA_DIR as DATA_DIR, SITE_ORIGIN, adminApi, adminLogin, readSubscribers, seedApprovedTemplate, subscribePublic as subscribe } from './support/email-http';
 
-const DATA_DIR = process.env.AB_DATA_DIR ?? join(process.cwd(), 'data');
 const FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'newsletter-subscribers.json'];
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_TEST_PASSWORD ?? '';
-const HAS_ADMIN_CREDS = Boolean(process.env.ADMIN_TEST_PASSWORD);
-const SITE_ORIGIN = 'https://abentertainment.com.au';
-const MOCK_PORT = 3199;
-
-interface MockRequest {
-  method: string;
-  url: string;
-  headers: Record<string, string | string[] | undefined>;
-  body: Record<string, unknown>;
-}
-
-/** The Resend API on loopback: records every request, answers from a queue (default: accepted with a numbered id). */
-class MockResend {
-  requests: MockRequest[] = [];
-  answers: Array<{ status: number; body: unknown }> = [];
-  private server: Server | null = null;
-  private counter = 0;
-
-  reset(): void {
-    this.requests = [];
-    this.answers = [];
-    this.counter = 0;
-  }
-
-  start(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.server = createServer((req: IncomingMessage, res: ServerResponse) => {
-        let raw = '';
-        req.on('data', (chunk) => (raw += chunk));
-        req.on('end', () => {
-          let body: Record<string, unknown> = {};
-          try { body = JSON.parse(raw) as Record<string, unknown>; } catch { body = {}; }
-          this.requests.push({ method: String(req.method), url: String(req.url), headers: req.headers, body });
-          const answer = this.answers.shift() ?? { status: 200, body: { id: `re_mock_${++this.counter}` } };
-          res.writeHead(answer.status, { 'content-type': 'application/json' });
-          res.end(JSON.stringify(answer.body));
-        });
-      });
-      this.server.once('error', reject);
-      this.server.listen(MOCK_PORT, '127.0.0.1', () => resolve());
-    });
-  }
-
-  stop(): Promise<void> {
-    return new Promise((resolve) => (this.server ? this.server.close(() => resolve()) : resolve()));
-  }
-}
-
-let ipCounter = 0;
-const freshIp = () => `203.0.113.${((Date.now() + ++ipCounter) % 250) + 1}`;
-
-async function subscribe(request: APIRequestContext, email: string) {
-  return request.post('/api/newsletter', { data: { email, page: '/about/' }, headers: { origin: SITE_ORIGIN, 'x-forwarded-for': freshIp() } });
-}
-
-async function adminLogin(page: Page): Promise<void> {
-  await page.goto('/admin/login');
-  await page.waitForTimeout(500);
-  for (let attempt = 0; attempt < 2; attempt++) {
-    await page.getByLabel('Username').fill(ADMIN_USERNAME);
-    await page.getByLabel('Password').fill(ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /sign in/i }).click();
-    if (await page.locator('aside').getByText('AB Entertainment').first().isVisible({ timeout: 6000 }).catch(() => false)) return;
-    const throttled = await page.getByText(/too many attempts|too many requests/i).first().isVisible({ timeout: 1500 }).catch(() => false);
-    if (!throttled) break;
-    await page.waitForTimeout(2000);
-  }
-  await expect(page.locator('aside').getByText('AB Entertainment').first()).toBeVisible({ timeout: 20000 });
-}
-
-async function adminApi(page: Page, method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<{ status: number; body: Record<string, unknown> | null; retryAfter: string | null }> {
-  return page.evaluate(
-    async ({ method, path, body }) => {
-      const auth = await fetch('/api/admin/auth', { credentials: 'include', cache: 'no-store' });
-      const { csrfToken } = (await auth.json()) as { csrfToken?: string };
-      const res = await fetch(path, { method, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken ?? '' }, credentials: 'include', body: body === undefined ? undefined : JSON.stringify(body) });
-      let json: Record<string, unknown> | null = null;
-      try { json = (await res.json()) as Record<string, unknown>; } catch { json = null; }
-      return { status: res.status, body: json, retryAfter: res.headers.get('retry-after') };
-    },
-    { method, path, body },
-  );
-}
-
-const readSubscribers = () => (existsSync(join(DATA_DIR, 'newsletter-subscribers.json')) ? (JSON.parse(readFileSync(join(DATA_DIR, 'newsletter-subscribers.json'), 'utf-8')) as Array<{ id: string; email: string; status?: string; welcome?: { status: string; reason?: string; messageId?: string; version?: number } }>) : []);
 
 test.describe.configure({ mode: 'serial' });
 
@@ -132,25 +42,6 @@ test.describe('welcome email over HTTP (Resend mocked on loopback)', () => {
     mock.reset();
     for (const file of FILES) rmSync(join(DATA_DIR, file), { force: true });
   });
-
-  /** An approved, active welcome template in the server's data directory (what an admin's passing review leaves behind). */
-  async function seedApprovedTemplate() {
-    cleanUnitDir();
-    const modules = loadWithUnitDir(() => ({
-      store: require('@/lib/email/store') as typeof import('@/lib/email/store'),
-      gate: require('@/lib/email/gate') as typeof import('@/lib/email/gate'),
-      layout: require('@/lib/email/layout') as typeof import('@/lib/email/layout'),
-    }));
-    const layout = modules.layout.getLayout();
-    const guidelines = await modules.store.getBrandGuidelines();
-    const settings = await modules.store.getEmailSettings();
-    const template = (await modules.store.getEmailTemplates())[0];
-    const result = await modules.gate.runGate({ fields: template.versions[0].fields, settings, guidelines }, { layout, ai: new StubAi([passingReview()]), ctx: modules.gate.reviewContext() });
-    expect(result.passed).toBe(true);
-    await modules.store.recordGateOutcome(template.id, 1, { result, approval: modules.gate.buildApproval(result, layout, guidelines) });
-    await modules.store.setActiveVersion(template.id, 1, () => null);
-    writeFileSync(join(DATA_DIR, 'email-templates.json'), readFileSync(join(unitDir(), 'email-templates.json'), 'utf-8'), 'utf-8');
-  }
 
   test('every sending endpoint is a 401 without a session', async ({ request }) => {
     const origin = { origin: SITE_ORIGIN };
