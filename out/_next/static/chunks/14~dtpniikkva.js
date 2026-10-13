@@ -1,0 +1,1 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,94485,n=>{"use strict";function t(n,t){return n.includes(t)}function e(n){return`/events/${n}/`}n.s(["eventDocumentHref",0,e,"isStaticEventSlug",0,t,"openEvent",0,function(n,o,i){t(o,i)?n.push(`/events/${i}`):window.location.assign(e(i))}])}]);
