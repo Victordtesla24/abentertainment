@@ -119,6 +119,15 @@ if (_sessionSecret === 'admin123') {
 
 // ─── Credential Validation ───────────────────────────────────────────────────
 
+/**
+ * Usernames are compared case-insensitively and without surrounding
+ * whitespace: phone keyboards capitalise the first letter and QuickType
+ * suggestions append a space. The password is always compared exactly.
+ */
+function normalizeUsername(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
 /** Constant-time string comparison to prevent timing oracle attacks. */
 function constantTimeEqual(a: string, b: string): boolean {
   const maxLen = Math.max(a.length, b.length);
@@ -146,7 +155,7 @@ export async function validateCredentials(
   username: string,
   password: string
 ): Promise<boolean> {
-  const usernameMatch = constantTimeEqual(username, getAdminUsername());
+  const usernameMatch = constantTimeEqual(normalizeUsername(username), normalizeUsername(getAdminUsername()));
 
   // Always run bcrypt comparison even if username doesn't match (timing safety)
   const storedHash = getAdminPasswordHash();
@@ -166,7 +175,7 @@ export async function validateCredentialsExtended(
   username: string,
   password: string
 ): Promise<CredentialResult> {
-  const usernameMatch = constantTimeEqual(username, getAdminUsername());
+  const usernameMatch = constantTimeEqual(normalizeUsername(username), normalizeUsername(getAdminUsername()));
 
   const storedHash = getAdminPasswordHash();
   const passwordMatch = await bcrypt.compare(password, storedHash);

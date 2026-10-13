@@ -6,14 +6,26 @@ import Image from 'next/image';
 import { getApiUrl } from '@/lib/api-config';
 import { setCsrfToken, setAuthToken } from '@/lib/admin-fetch';
 
+const AUTH_PATH = '/api/admin/auth';
+
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  // This page is a static export: its HTML (and therefore the form) is visible
+  // before React has hydrated it. Until then the form has no submit handler, so
+  // pressing Sign In or Enter would fall through to a native form submission,
+  // which reloads the page with the fields cleared and never calls the API —
+  // on slow phones the login "does nothing". `ready` keeps Sign In disabled
+  // until the handler is attached; the inputs stay usable and are uncontrolled,
+  // so anything typed before hydration is kept and read on submit.
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
   const [retryAfter, setRetryAfter] = useState(0);
+
+  useEffect(() => {
+    setReady(true);
+  }, []);
 
   useEffect(() => {
     if (!rateLimited) return;
@@ -27,13 +39,23 @@ export default function AdminLoginPage() {
     return () => clearTimeout(timer);
   }, [rateLimited, retryAfter]);
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!ready || loading || rateLimited) return;
+    const form = new FormData(e.currentTarget);
+    // Usernames are matched case-insensitively and without surrounding spaces
+    // (phone keyboards add both); the password is sent exactly as typed.
+    const username = String(form.get('username') ?? '').trim();
+    const password = String(form.get('password') ?? '');
+    if (!username || !password) {
+      setError('Enter your username and password.');
+      return;
+    }
     setError('');
     setLoading(true);
 
     try {
-      const res = await fetch(getApiUrl('/api/admin/auth'), {
+      const res = await fetch(getApiUrl(AUTH_PATH), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -47,14 +69,27 @@ export default function AdminLoginPage() {
         }
         if (data.csrfToken) {
           setCsrfToken(data.csrfToken);
-          // Store CSRF token as the auth indicator so isAuthenticated() returns true.
-          // The actual session validation uses the httpOnly cookie (set by the server),
-          // but sessionStorage needs a non-null value for the client-side guard.
+          // The CSRF token doubles as the sessionStorage auth indicator read by
+          // adminFetch; the session itself lives in the httpOnly cookie.
           if (!data.token) {
             setAuthToken(data.csrfToken);
           }
         }
+        // Confirm the browser stored and sends the session cookie before
+        // leaving this page, so a blocked cookie produces a clear message here
+        // instead of a silent bounce back from the dashboard.
+        const check = await fetch(getApiUrl(AUTH_PATH), {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!check.ok) {
+          setError('Signed in, but this browser did not keep the session cookie. Allow cookies for abentertainment.com.au and try again.');
+          return;
+        }
         router.push('/admin');
+      } else if (res.status === 401) {
+        setError('Incorrect username or password.');
       } else if (res.status === 429) {
         const retryAfterHeader = res.headers.get('Retry-After');
         const seconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 30;
@@ -62,8 +97,8 @@ export default function AdminLoginPage() {
         setRateLimited(true);
         setError('');
       } else {
-        const data = await res.json();
-        setError(data.error || 'Invalid credentials');
+        const data = await res.json().catch(() => null);
+        setError(data?.error || `Sign-in failed (HTTP ${res.status}). Please try again.`);
       }
     } catch {
       setError('Network error. Please try again.');
@@ -101,7 +136,7 @@ export default function AdminLoginPage() {
             <div className="w-10 h-[1px] bg-gradient-to-l from-transparent to-[#C9A84C]/40" />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} method="post" className="space-y-5">
             <div>
               <label htmlFor="username" className="block text-xs font-body font-medium text-white/40 uppercase tracking-wider mb-2">
                 Username
@@ -110,8 +145,6 @@ export default function AdminLoginPage() {
                 id="username"
                 name="username"
                 type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
                 required
                 autoComplete="username"
                 autoCapitalize="none"
@@ -130,8 +163,6 @@ export default function AdminLoginPage() {
                 id="password"
                 name="password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
                 className="w-full px-4 py-3 bg-white/[0.03] border border-[#C9A84C]/12 text-white font-body text-sm placeholder-white/20 focus:outline-none focus:border-[#C9A84C]/40 focus:bg-white/[0.05] transition-all duration-300"
@@ -153,10 +184,10 @@ export default function AdminLoginPage() {
 
             <button
               type="submit"
-              disabled={loading || rateLimited}
+              disabled={!ready || loading || rateLimited}
               className="w-full py-3.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black font-body font-bold text-sm uppercase tracking-[0.12em] hover:shadow-[0_0_25px_rgba(201,168,76,0.35)] transition-all duration-400 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {!ready ? 'Loading…' : loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
         </div>

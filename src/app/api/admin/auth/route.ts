@@ -6,7 +6,7 @@ import {
   getSessionCookieName,
   validateSessionToken,
 } from '@/lib/auth';
-import { generateCsrfToken, setCsrfCookie } from '@/lib/csrf';
+import { generateCsrfToken, setCsrfCookie, CSRF_COOKIE } from '@/lib/csrf';
 import { validateOrigin, corsHeaders } from '@/lib/cors';
 import { logAdminAction } from '@/lib/audit';
 import { checkRateLimit, buildRateLimitHeaders } from '@/lib/redis';
@@ -53,6 +53,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const { username, password } = await request.json();
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      return NextResponse.json(
+        { error: 'Invalid request' },
+        { status: 400, headers: corsHeaders(origin) }
+      );
+    }
 
     if (!(await validateCredentials(username, password))) {
       try { logAdminAction(username ?? 'unknown', 'LOGIN_FAILED', '/api/admin/auth', ip); } catch { /* audit must not block auth */ }
@@ -108,10 +114,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json(
-    { authenticated: true },
-    { headers: corsHeaders(origin) }
+  // Hand the tab its CSRF double-submit token so a reloaded or newly opened
+  // tab can make admin changes without logging in again. Reuse the token in
+  // the existing cookie; issue a fresh one if it is missing or malformed.
+  // Only allowed origins can read this response (validateOrigin + CORS above).
+  const existing = request.cookies.get(CSRF_COOKIE)?.value;
+  const csrfToken = existing && /^[0-9a-f]{64}$/.test(existing) ? existing : generateCsrfToken();
+  const response = NextResponse.json(
+    { authenticated: true, csrfToken },
+    { headers: { ...corsHeaders(origin), 'Cache-Control': 'no-store' } }
   );
+  if (csrfToken !== existing) setCsrfCookie(response, csrfToken);
+  return response;
 }
 
 export async function DELETE(request: NextRequest) {

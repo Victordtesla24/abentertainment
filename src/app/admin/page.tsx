@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminDashboard from '@/components/admin/AdminDashboard';
-import { isAuthenticated, adminFetch } from '@/lib/admin-fetch';
+import { adminFetch, setCsrfToken, setAuthToken } from '@/lib/admin-fetch';
 import type { Event, Sponsor, GalleryImage, SiteSettings, Video, HeroImage, TimelineChapter, Testimonial } from '@/lib/data';
 
 const DEFAULT_SETTINGS: SiteSettings = {
@@ -31,13 +31,11 @@ export default function AdminPage() {
     let isCancelled = false;
 
     const verify = async () => {
-      if (!isAuthenticated()) {
-        router.replace('/admin/login');
-        if (!isCancelled) setLoading(false);
-        return;
-      }
-
       try {
+        // The httpOnly session cookie is the source of truth. Ask the server
+        // directly instead of gating on sessionStorage, which is per-tab: a
+        // valid session must also open the dashboard in a new tab or after the
+        // browser restored the page.
         const response = await adminFetch('/api/admin/auth', {
           method: 'GET',
           cache: 'no-store',
@@ -46,6 +44,17 @@ export default function AdminPage() {
         if (!response.ok) {
           router.replace('/admin/login');
           return;
+        }
+
+        const auth: { authenticated?: boolean; csrfToken?: string } = await response.json();
+        if (!auth.authenticated) {
+          router.replace('/admin/login');
+          return;
+        }
+        if (auth.csrfToken) {
+          // Re-arm the CSRF double-submit header for this tab.
+          setCsrfToken(auth.csrfToken);
+          setAuthToken(auth.csrfToken);
         }
 
         if (!isCancelled) {
