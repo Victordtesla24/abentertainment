@@ -4,6 +4,7 @@ import { getEvents, getPublicEventBySlug } from '@/lib/data';
 import PageHero from '@/components/ui/PageHero';
 import EventSchema from '@/components/EventSchema';
 import EventDetailContent from '@/components/EventDetailContent';
+import { firstUsableImageUrl } from '@/lib/perf/image-source';
 
 // Removed force-static: in standalone (VPS) mode, pages pre-rendered via
 // generateStaticParams can still be re-rendered dynamically. The client-side
@@ -73,7 +74,7 @@ export default async function EventDetailPage({ params }: PageProps) {
     <div className="bg-[#0A0A0A]">
       <EventSchema event={event} />
       <PageHero
-        image={event.heroImage || event.image || '/images/heroes/events-hero.png'}
+        image={firstUsableImageUrl(event.heroImage, event.image) ?? '/images/heroes/events-hero.png'}
         badge={event.category}
         title={event.title}
         subtitle={event.description}

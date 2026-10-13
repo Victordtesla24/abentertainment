@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { motion } from 'framer-motion';
+import OptimizedImage from '@/components/ui/OptimizedImage';
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
 
@@ -24,24 +24,6 @@ export default function CTASection() {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(201,168,76,0.05)_0%,transparent_60%)]" />
       {/* Film grain */}
       <div className="film-grain" />
-      {/* Floating particles */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {Array.from({ length: 12 }, (_, i) => (
-          <div
-            key={i}
-            className="particle particle-gold"
-            style={{
-              left: `${(i * 8.3 + 5) % 100}%`,
-              bottom: `${(i * 5) % 20}%`,
-              width: 1.5 + (i % 3) * 0.5,
-              height: 1.5 + (i % 3) * 0.5,
-              '--duration': `${10 + (i % 5) * 3}s`,
-              '--delay': `${i * 1.2}s`,
-            } as React.CSSProperties}
-          />
-        ))}
-      </div>
-
       <motion.div
         className="container-eu text-center relative z-10"
         initial="hidden"
@@ -53,7 +35,7 @@ export default function CTASection() {
         <motion.div variants={itemVariants} className="mb-10">
           <div className="relative w-20 h-20 mx-auto">
             <div className="absolute inset-0 bg-[#C9A84C]/10 blur-2xl rounded-full" />
-            <Image src="/images/AB_Logo_transparent.png" alt="" fill className="object-contain opacity-30" aria-hidden="true" />
+            <OptimizedImage src="/images/AB_Logo_transparent.png" alt="" width={500} height={500} sizes="80px" className="absolute inset-0 h-full w-full object-contain opacity-30" />
           </div>
         </motion.div>
 

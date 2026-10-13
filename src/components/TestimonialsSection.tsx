@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { TouchEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
+import OptimizedImage from '@/components/ui/OptimizedImage';
 
 interface Testimonial {
   id: string;
@@ -52,9 +53,12 @@ function AvatarImage({ src, name }: { src?: string; name: string }) {
   }
 
   return (
-    <img
+    <OptimizedImage
       src={src}
       alt={name}
+      width={48}
+      height={48}
+      sizes="48px"
       onError={() => setImgError(true)}
       className="w-12 h-12 rounded-full object-cover border border-[#C9A84C]/20"
     />

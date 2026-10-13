@@ -50,11 +50,13 @@ export default function VideoHighlights() {
             </div>
           )}
 
+          {/* The poster is a 50 KB WebP variant, and preload="none" keeps the reel itself
+              (several MB) off the wire until someone presses play. */}
           <video
             ref={videoRef}
             className="w-full h-full object-cover"
-            poster="/images/timeline/chapter-1-origins.jpg"
-            preload="metadata"
+            poster="/images/timeline/chapter-1-origins-1024w.webp"
+            preload="none"
             playsInline
             loop
           >

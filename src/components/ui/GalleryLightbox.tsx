@@ -5,12 +5,23 @@ import Lightbox from 'yet-another-react-lightbox';
 import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
 import 'yet-another-react-lightbox/styles.css';
+import OptimizedImage, { largestVariantSrc } from '@/components/ui/OptimizedImage';
 
 interface GalleryLightboxProps {
-  images: { src: string; alt: string; title?: string }[];
+  images: { src: string; alt: string; title?: string; width?: number; height?: number }[];
 }
 
-function GalleryImage({ image, onClick }: { image: { src: string; alt: string }; onClick: () => void }) {
+/** Used until an image's real size is known; keeps the grid from collapsing while files load. */
+const FALLBACK_WIDTH = 1024;
+const FALLBACK_HEIGHT = 683;
+
+function GalleryImage({
+  image,
+  onClick,
+}: {
+  image: { src: string; alt: string; width?: number; height?: number };
+  onClick: () => void;
+}) {
   const [failed, setFailed] = useState(false);
   if (failed) return null;
 
@@ -21,10 +32,12 @@ function GalleryImage({ image, onClick }: { image: { src: string; alt: string };
       aria-label={`View ${image.alt} in lightbox`}
     >
       <div className="relative overflow-hidden">
-        <img
+        <OptimizedImage
           src={image.src}
           alt={image.alt}
-          loading="lazy"
+          width={image.width || FALLBACK_WIDTH}
+          height={image.height || FALLBACK_HEIGHT}
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           onError={() => setFailed(true)}
           className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-105"
         />
@@ -52,8 +65,9 @@ export default function GalleryLightbox({ images }: GalleryLightboxProps) {
     setOpen(true);
   }, []);
 
+  // Full-screen view gets the largest generated variant rather than a multi-MB original.
   const slides = images.map((img) => ({
-    src: img.src,
+    src: largestVariantSrc(img.src),
     alt: img.alt,
     title: img.title,
   }));

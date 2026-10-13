@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
+import OptimizedImage from '@/components/ui/OptimizedImage';
+import { firstUsableImageUrl, isUsableImageUrl } from '@/lib/perf/image-source';
 import { getApiUrl } from '@/lib/api-config';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 import type { Event, GalleryImage } from '@/lib/data';
@@ -38,7 +40,7 @@ function buildEventGalleryImages(event: Event, galleryImages: GalleryImage[]): L
   const out: LightboxImage[] = [];
   const seen = new Set<string>();
   const add = (src: string | undefined, alt: string, title?: string) => {
-    if (!src || seen.has(src)) return;
+    if (!isUsableImageUrl(src) || seen.has(src)) return;
     seen.add(src);
     out.push({ src, alt, title });
   };
@@ -230,9 +232,13 @@ export default function DynamicEventViewer() {
       <section className="relative flex w-full min-h-[40vh] md:min-h-[50vh] overflow-hidden">
         {/* Fall back to the default events hero so an event without its own
             image still shows a branded band instead of a blank/dark hero. */}
-        <img
-          src={event.heroImage || event.image || '/images/heroes/events-hero.png'}
+        <OptimizedImage
+          src={firstUsableImageUrl(event.heroImage, event.image) ?? '/images/heroes/events-hero.png'}
           alt={event.title}
+          width={1536}
+          height={1024}
+          sizes="100vw"
+          priority
           className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-black/90" />
@@ -293,9 +299,16 @@ export default function DynamicEventViewer() {
                 </p>
               </div>
 
-              {event.image && (
+              {isUsableImageUrl(event.image) && (
                 <div className="relative overflow-hidden border border-[#C9A84C]/10">
-                  <img src={event.image} alt={event.title} className="w-full h-auto object-cover" />
+                  <OptimizedImage
+                    src={event.image}
+                    alt={event.title}
+                    width={940}
+                    height={788}
+                    sizes="(max-width: 1024px) 100vw, 66vw"
+                    className="w-full h-auto object-cover"
+                  />
                 </div>
               )}
 

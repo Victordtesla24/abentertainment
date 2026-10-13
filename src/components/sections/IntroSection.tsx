@@ -11,6 +11,7 @@ import {
   pickBadgeMetrics,
 } from '@/lib/site-metrics';
 import { useSiteMetrics } from '@/lib/use-site-metrics';
+import OptimizedImage from '@/components/ui/OptimizedImage';
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
 
@@ -142,9 +143,12 @@ export function IntroSection({ initialMetrics }: { initialMetrics: SiteMetric[] 
                 transition={{ duration: 0.5 }}
               >
                 <div className="relative h-52 overflow-hidden">
-                  <img
+                  <OptimizedImage
                     src="/images/events/shrimant-damodar-pant.jpg"
                     alt="Shrimant Damodar Pant"
+                    width={940}
+                    height={788}
+                    sizes="(max-width: 448px) 100vw, 448px"
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent" />
@@ -166,7 +170,7 @@ export function IntroSection({ initialMetrics }: { initialMetrics: SiteMetric[] 
                   transition={{ duration: 0.4 }}
                 >
                   <div className="relative h-32 overflow-hidden">
-                    <img src="/images/events/arya-ambekar.jpg" alt="Arya Ambekar" className="w-full h-full object-cover" />
+                    <OptimizedImage src="/images/events/arya-ambekar.jpg" alt="Arya Ambekar" width={940} height={788} sizes="(max-width: 448px) 50vw, 220px" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent" />
                     <div className="absolute bottom-2 left-2 right-2">
                       <p className="text-white font-display font-bold text-xs">Arya Ambekar</p>
@@ -180,7 +184,7 @@ export function IntroSection({ initialMetrics }: { initialMetrics: SiteMetric[] 
                   transition={{ duration: 0.4 }}
                 >
                   <div className="relative h-32 overflow-hidden">
-                    <img src="/images/events/shikayla-gelo-ek.jpg" alt="Shikayla Gelo Ek" className="w-full h-full object-cover" />
+                    <OptimizedImage src="/images/events/shikayla-gelo-ek.jpg" alt="Shikayla Gelo Ek" width={1080} height={1350} sizes="(max-width: 448px) 50vw, 220px" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent" />
                     <div className="absolute bottom-2 left-2 right-2">
                       <p className="text-white font-display font-bold text-xs">Shikayla Gelo Ek!</p>

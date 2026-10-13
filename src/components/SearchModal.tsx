@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import Fuse, { type IFuseOptions, type FuseResult } from 'fuse.js';
 import FocusTrap from 'focus-trap-react';
+import OptimizedImage from '@/components/ui/OptimizedImage';
+import { isUsableImageUrl } from '@/lib/perf/image-source';
 // Bundled fallback for offline/build-time; live data fetched from API on open.
 // Project to search-relevant fields only so admin-internal fields (ticketsSold,
 // ticketRevenue) from the raw events.json never end up in the client bundle.
@@ -305,13 +307,15 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                         onMouseEnter={() => setSelectedIndex(index)}
                       >
                         {/* Event Image Thumbnail */}
-                        {event.image && (
+                        {isUsableImageUrl(event.image) && (
                           <div className="relative w-14 h-14 shrink-0 overflow-hidden bg-[#0A0A0A]">
-                            <img
+                            <OptimizedImage
                               src={event.image}
                               alt=""
+                              width={56}
+                              height={56}
+                              sizes="56px"
                               className="w-full h-full object-cover"
-                              loading="lazy"
                             />
                           </div>
                         )}

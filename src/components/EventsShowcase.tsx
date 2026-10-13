@@ -2,16 +2,13 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import GoldenTicket from '@/components/GoldenTicket';
+import OptimizedImage from '@/components/ui/OptimizedImage';
+import { isUsableImageUrl } from '@/lib/perf/image-source';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
 import type { Event } from '@/lib/data';
-
-/** Tiny 1x1 dark placeholder for blur-up loading. */
-const BLUR_DATA_URL =
-  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMSIgaGVpZ2h0PSIxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMxYTFhMmUiLz48L3N2Zz4=';
 
 function getStatusBadge(event: Event): { label: string; color: string } | null {
   const now = new Date();
@@ -188,35 +185,25 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
           >
             {filteredEvents.map((event) => {
               const badge = getStatusBadge(event);
-              const useNextImage = event.image.startsWith('/');
               return (
               <motion.div key={event.id} variants={cardVariants} className="group">
                 <Link href={`/events/${event.slug}`}>
                   <div className="glass-card hover-shine overflow-hidden hover:shadow-[0_12px_50px_rgba(201,168,76,0.1)]">
                     {/* Image — full poster (object-contain), never cropped */}
                     <div className="relative h-64 overflow-hidden bg-gradient-to-br from-[#111] to-[#0A0A0A]">
-                      {event.image && useNextImage && (
-                        <Image
+                      {isUsableImageUrl(event.image) && (
+                        <OptimizedImage
                           src={event.image}
                           alt={event.title}
-                          fill
+                          width={940}
+                          height={788}
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                          placeholder="blur"
-                          blurDataURL={BLUR_DATA_URL}
-                          className="object-contain transition-all duration-700 group-hover:brightness-110 saturate-[0.9]"
-                        />
-                      )}
-                      {event.image && !useNextImage && (
-                        <img
-                          src={event.image}
-                          alt={event.title}
-                          className="w-full h-full object-contain transition-all duration-700 group-hover:brightness-110"
-                          style={{ filter: 'saturate(0.9)' }}
-                          loading="lazy"
+                          blurPlaceholder
+                          className="absolute inset-0 h-full w-full object-contain transition-all duration-700 group-hover:brightness-110 saturate-[0.9]"
                         />
                       )}
                       {/* Branded placeholder when an event has no image yet. */}
-                      {!event.image && (
+                      {!isUsableImageUrl(event.image) && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 select-none" aria-hidden="true">
                           <span className="font-display font-bold text-4xl text-[#C9A84C]/25">AB</span>
                           <span className="text-[10px] uppercase tracking-[0.25em] font-body text-[#C9A84C]/30">{event.category || 'Entertainment'}</span>
