@@ -228,6 +228,38 @@ export function createSessionToken(): string {
   return `${encodedPayload}.${signature}`;
 }
 
+/** How the admin proved its session on a request. */
+export type AdminSessionSource = 'header' | 'cookie';
+
+interface SessionCarrier {
+  headers: { get(name: string): string | null };
+  cookies: { get(name: string): { value: string } | undefined };
+}
+
+/**
+ * Resolve the admin session of a request.
+ *
+ * The primary carrier is the httpOnly SameSite=Strict session cookie. Some
+ * browsing contexts refuse to store or send it even though the password was
+ * accepted — the site opened inside another app's preview pane (a third-party
+ * iframe), or cookies blocked for the site. For those, the admin client also
+ * sends the same HMAC-signed token in an `Authorization: Bearer` header,
+ * held only in that tab's sessionStorage.
+ *
+ * The header is checked first: a browser never attaches it on its own, so a
+ * header-authenticated request cannot be a cross-site forgery, and callers can
+ * skip the CSRF double-submit check for it (the Origin allow-list still
+ * applies). Cookie-authenticated mutations keep requiring the CSRF token.
+ */
+export function getAdminSession(request: SessionCarrier): AdminSessionSource | null {
+  const authorization = request.headers.get('authorization');
+  const bearer = authorization ? /^Bearer\s+(\S+)$/i.exec(authorization) : null;
+  if (bearer && validateSessionToken(bearer[1])) return 'header';
+  const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  if (cookie && validateSessionToken(cookie)) return 'cookie';
+  return null;
+}
+
 /**
  * Validate HMAC-signed session token.
  * Verifies signature integrity + expiration.

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSessionToken } from '@/lib/auth';
+import { getAdminSession } from '@/lib/auth';
 import { validateCsrfToken } from '@/lib/csrf';
 import { getAllowedOrigins } from '@/lib/cors';
-
-const COOKIE_NAME = 'ab-admin-session-v3';
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
 
@@ -11,11 +9,11 @@ type RouteHandler = (request: NextRequest) => Promise<NextResponse> | NextRespon
 
 export function withAuth(handler: RouteHandler): RouteHandler {
   return async (request: NextRequest) => {
-    // Read the session cookie directly from the request object.
-    // This works even with force-static (which only affects cookies() from next/headers).
-    const sessionCookie = request.cookies.get(COOKIE_NAME);
+    // Session from the httpOnly cookie, or from the Authorization: Bearer
+    // header for browsers that refuse the cookie (see getAdminSession).
+    const session = getAdminSession(request);
 
-    if (!sessionCookie || !validateSessionToken(sessionCookie.value)) {
+    if (!session) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -39,8 +37,10 @@ export function withAuth(handler: RouteHandler): RouteHandler {
         );
       }
 
-      // Validate CSRF double-submit cookie token
-      const csrfValid = validateCsrfToken(request);
+      // Validate the CSRF double-submit token for cookie sessions. A request
+      // authenticated by the Authorization header cannot be forged cross-site
+      // (browsers never attach it on their own), so it needs no CSRF token.
+      const csrfValid = session === 'header' || validateCsrfToken(request);
       if (!csrfValid) {
         return NextResponse.json(
           { error: 'Forbidden: invalid CSRF token' },

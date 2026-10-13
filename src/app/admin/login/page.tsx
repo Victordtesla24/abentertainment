@@ -4,7 +4,7 @@ import { useState, FormEvent, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { getApiUrl } from '@/lib/api-config';
-import { setCsrfToken, setAuthToken } from '@/lib/admin-fetch';
+import { adminFetch, setCsrfToken, setAuthToken } from '@/lib/admin-fetch';
 
 const AUTH_PATH = '/api/admin/auth';
 
@@ -88,27 +88,21 @@ export default function AdminLoginPage() {
 
       if (res.ok) {
         const data = await res.json();
+        // The session lives in the httpOnly cookie; the same signed token is
+        // also kept for this tab and sent as an Authorization header, so the
+        // admin works where the browser refuses the cookie (an app's preview
+        // pane, blocked cookies).
         if (data.token) {
           setAuthToken(data.token);
         }
         if (data.csrfToken) {
           setCsrfToken(data.csrfToken);
-          // The CSRF token doubles as the sessionStorage auth indicator read by
-          // adminFetch; the session itself lives in the httpOnly cookie.
-          if (!data.token) {
-            setAuthToken(data.csrfToken);
-          }
         }
-        // Confirm the browser stored and sends the session cookie before
-        // leaving this page, so a blocked cookie produces a clear message here
-        // instead of a silent bounce back from the dashboard.
-        const check = await fetch(getApiUrl(AUTH_PATH), {
-          method: 'GET',
-          credentials: 'include',
-          cache: 'no-store',
-        });
+        // Confirm the session works before leaving this page, so a failure is
+        // explained here instead of a silent bounce back from the dashboard.
+        const check = await adminFetch(AUTH_PATH, { method: 'GET', cache: 'no-store' });
         if (!check.ok) {
-          setError('Signed in, but this browser did not keep the session cookie. Allow cookies for abentertainment.com.au and try again.');
+          setError('Signed in, but this browser blocked the session. Open https://abentertainment.com.au/admin/login directly in Safari, Chrome or Firefox (not inside another app) and try again.');
           return;
         }
         router.push('/admin');
