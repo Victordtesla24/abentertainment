@@ -202,16 +202,21 @@ a, button, input, select, textarea, [role="button"] {
   /* Preserve essential transitions for focus indicators and color changes */
 }
 
-/* Issue 40: Minimum 44x44pt touch targets on touch devices */
-@media (pointer: coarse) {
-  footer a,
-  .btn-utility,
-  button[aria-label] {
-    min-height: 44px;
-    min-width: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+/* Issue 40: Minimum 44x44pt touch targets on touch devices.
+   In the components layer so Tailwind utilities (`hidden`, `lg:hidden`, `block`, ...) still win:
+   an unlayered rule outranks every layered one regardless of specificity, which un-hid every
+   `display: none` button with an aria-label on touch screens. */
+@layer components {
+  @media (pointer: coarse) {
+    footer a,
+    .btn-utility,
+    button[aria-label] {
+      min-height: 44px;
+      min-width: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
   }
 }
 

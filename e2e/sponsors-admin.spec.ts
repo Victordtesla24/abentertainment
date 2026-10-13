@@ -9,6 +9,8 @@
  *   2. Footer carousel: renders from the store (alt text = company name), no
  *      placeholder sponsors, handles 0 / 1 / 2 / many sponsors with a seamless
  *      loop and the original animation timing
+ *   2b. Category (Sponsor / Partner / both): an optional second line in the carousel,
+ *      and nowhere else on the public site
  *   3. Sponsors page: hidden sponsors are not listed, company name shown, free-text
  *      tiers sort case-insensitively but are never displayed anywhere on the public site
  *   4. Admin API protection and server-side validation
@@ -48,6 +50,7 @@ interface TestSponsor {
   logo: string;
   url: string;
   tier: string;
+  category?: string;
   description?: string;
   revenue?: number;
   order?: number;
@@ -420,6 +423,129 @@ test.describe('Footer carousel — renders from the store', () => {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(banner.locator('img[alt="Added While Open Co"]').first()).toBeAttached({ timeout: 15000 });
   });
+
+  test('a category is a small second line under the name; a sponsor without one renders exactly as before', async ({ page }) => {
+    writeStore([
+      makeSponsor(0, { category: 'Sponsor' }),
+      makeSponsor(1),
+      makeSponsor(2, { category: '' }),
+      makeSponsor(3, { category: '  Sponsor & Partner  ' }),
+    ]);
+    await page.goto('/');
+    await expect(page.locator('[aria-label="Our sponsors"] .animate-scroll-left a').first()).toBeAttached({ timeout: 15000 });
+    await page.waitForTimeout(1500);
+    const items = await page.evaluate(() => {
+      // The first copy of the list: the first half's first four items.
+      const links = Array.from(document.querySelectorAll('[aria-label="Our sponsors"] .animate-scroll-left > div:first-child > a')).slice(0, 4);
+      return links.map((a) => {
+        const text = a.children[1];
+        return {
+          tags: Array.from(a.children).map((child) => child.tagName.toLowerCase()),
+          textClass: text.className,
+          textChildren: Array.from(text.children).map((child) => ({ tag: child.tagName.toLowerCase(), className: child.className, text: child.textContent })),
+          textContent: text.textContent,
+          height: Math.round(a.getBoundingClientRect().height),
+        };
+      });
+    });
+    const nameClass = 'text-white/50 text-[10px] font-body whitespace-nowrap group-hover/item:text-[#C9A84C] transition-colors duration-500';
+    // Without a category (none, or empty): the logo chip and one name span with no children, as ever.
+    for (const index of [1, 2]) {
+      expect(items[index].tags).toEqual(['div', 'span']);
+      expect(items[index].textClass).toBe(nameClass);
+      expect(items[index].textChildren).toEqual([]);
+      expect(items[index].textContent).toBe(`E2E Sponsor ${index}`);
+    }
+    // With one: the same name span plus a small, uppercase, gold second line, in one flex column.
+    for (const [index, category] of [[0, 'Sponsor'], [3, 'Sponsor & Partner']] as const) {
+      expect(items[index].tags).toEqual(['div', 'span']);
+      expect(items[index].textClass).toBe('flex flex-col gap-0.5');
+      expect(items[index].textChildren).toHaveLength(2);
+      expect(items[index].textChildren[0]).toEqual({ tag: 'span', className: nameClass, text: `E2E Sponsor ${index}` });
+      expect(items[index].textChildren[1].tag).toBe('span');
+      expect(items[index].textChildren[1].text).toBe(category);
+      expect(items[index].textChildren[1].className).toContain('text-[8px]');
+      expect(items[index].textChildren[1].className).toContain('uppercase');
+      expect(items[index].textChildren[1].className).toContain('tracking-[0.2em]');
+      expect(items[index].textChildren[1].className).toContain('text-[#C9A84C]/70');
+      expect(items[index].textChildren[1].className).toContain('group-hover/item:text-[#C9A84C]');
+    }
+    // No extra height: every item is as tall as the logo chip.
+    expect(new Set(items.map((item) => item.height)).size).toBe(1);
+    // Alt text still comes from the company name.
+    await expect(page.locator('[aria-label="Our sponsors"] img[alt="E2E Sponsor 3 Pty Ltd"]').first()).toBeAttached();
+  });
+
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 768 }]) {
+    test(`categories change nothing structural at ${viewport.width}px: same banner height, seamless loop, 25s per 20 sponsors`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      const heights: number[] = [];
+      for (const mode of ['none', 'some', 'all'] as const) {
+        const labels = ['Sponsor', 'Partner', 'Sponsor & Partner'];
+        writeStore(
+          makeSponsors(20).map((sponsor, index) => ({
+            ...sponsor,
+            category: mode === 'none' ? undefined : mode === 'some' ? (index % 4 === 0 ? labels[index % 3] : undefined) : labels[index % 3],
+          })),
+        );
+        await page.goto('/');
+        await expect(page.locator('[aria-label="Our sponsors"]')).toBeAttached({ timeout: 15000 });
+        await page.waitForTimeout(1500);
+        const metrics = await readMarquee(page);
+        const bannerHeight = await page.evaluate(() => document.querySelector('[aria-label="Our sponsors"]')!.getBoundingClientRect().height);
+        heights.push(bannerHeight);
+        expect(metrics.halves, mode).toBe(2);
+        expect(metrics.items, mode).toBe(40);
+        expect(metrics.duration, mode).toBe('25s');
+        expect(metrics.timing, mode).toBe('linear');
+        expect(metrics.halfWidths[0], mode).toBe(metrics.halfWidths[1]);
+        expect(Math.abs(metrics.slideDistance - metrics.halfPitch), mode).toBeLessThan(0.5);
+        expect(metrics.rightmostEdgeAcrossLoop, mode).toBeGreaterThanOrEqual(metrics.viewport - 1);
+        const altTexts = await page.evaluate(() => Array.from(document.querySelectorAll('[aria-label="Our sponsors"] img')).map((img) => (img as HTMLImageElement).alt));
+        expect(altTexts.slice(0, 20), mode).toEqual(Array.from({ length: 20 }, (_, i) => `E2E Sponsor ${i} Pty Ltd`));
+      }
+      expect(new Set(heights).size, `banner heights ${heights.join(', ')}`).toBe(1);
+    });
+  }
+
+  test('the category shows in the carousel only, never in the page content, on any public page', async ({ page }) => {
+    writeStore(makeSponsors(3).map((sponsor, index) => ({ ...sponsor, category: `ZZCategoryMarker ${index}` })));
+    for (const route of ['/', '/sponsors', '/events', '/about', '/gallery', '/community', '/contact']) {
+      await page.goto(route);
+      await expect(page.locator('footer')).toBeAttached({ timeout: 15000 });
+      await page.waitForTimeout(1500);
+      const rendered = await page.evaluate(() => {
+        const inBanner = Array.from(document.querySelectorAll('[aria-label="Our sponsors"]')).some((banner) => banner.textContent?.includes('ZZCategoryMarker'));
+        // Everything except the carousel(s): no scripts or styles (they carry data), no banners.
+        const clone = document.documentElement.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll('script, style, [aria-label="Our sponsors"]').forEach((node) => node.remove());
+        return { inBanner, outsideText: clone.textContent ?? '', outsideMarkup: clone.outerHTML };
+      });
+      expect(rendered.inBanner, `${route}: carousel shows the category`).toBe(true);
+      expect(rendered.outsideText, `${route} text outside the carousel`).not.toContain('ZZCategoryMarker');
+      expect(rendered.outsideMarkup, `${route} markup outside the carousel`).not.toContain('ZZCategoryMarker');
+    }
+    // The Sponsors page cards in particular.
+    await page.goto('/sponsors');
+    await expect(page.locator('main h3').first()).toBeVisible({ timeout: 15000 });
+    expect(await page.locator('main').innerText()).not.toContain('ZZCategoryMarker');
+  });
+
+  test('the public API carries the category and the open carousel follows an edit', async ({ page, request }) => {
+    writeStore([makeSponsor(0, { category: 'Partner' }), makeSponsor(1)]);
+    const list = (await (await request.get('/api/sponsors')).json()) as TestSponsor[];
+    expect(list.find((sponsor) => sponsor.id === 'sp-e2e-0')?.category).toBe('Partner');
+    await page.goto('/');
+    // A short list repeats inside the strip, so look at the distinct second lines.
+    const secondLines = () => page.evaluate(() => [...new Set(Array.from(document.querySelectorAll('[aria-label="Our sponsors"] .animate-scroll-left > div:first-child > a > span > span:nth-child(2)')).map((node) => node.textContent))]);
+    await expect.poll(secondLines, { timeout: 15000 }).toEqual(['Partner']);
+    writeStore([makeSponsor(0, { category: 'Sponsor & Partner' }), makeSponsor(1)]);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect.poll(secondLines, { timeout: 15000 }).toEqual(['Sponsor & Partner']);
+    writeStore([makeSponsor(0), makeSponsor(1)]);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect.poll(secondLines, { timeout: 15000 }).toEqual([]);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -677,6 +803,129 @@ test.describe('Sponsors admin panel', () => {
     await expect(badgeOf('Foxtrot')).toHaveText('Visible');
     const saved = ((await adminCall(page, 'GET', '/api/admin/sponsors')).body?.sponsors as TestSponsor[]).find((sponsor) => sponsor.name === 'Foxtrot');
     expect(saved?.tier).toBe('');
+  });
+
+  test('category is optional free text: trimmed, at most 40 characters, empty means none, served by the public API', async ({ page, request }) => {
+    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    await assertAppReadsThisCheckout(request);
+    writeStore(makeSponsors(1));
+    await adminLogin(page);
+
+    const none = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'Plain Co', companyName: 'Plain Co' });
+    expect(none.status).toBe(201);
+    expect((none.body?.sponsor as TestSponsor).category ?? '').toBe('');
+
+    const both = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'Both Co', companyName: 'Both Co', category: '  Sponsor & Partner  ' });
+    expect(both.status).toBe(201);
+    expect((both.body?.sponsor as TestSponsor).category).toBe('Sponsor & Partner');
+    const id = (both.body?.sponsor as TestSponsor).id;
+
+    const custom = await adminCall(page, 'PUT', '/api/admin/sponsors', { id, category: 'Media Partner' });
+    expect(custom.status).toBe(200);
+    expect((custom.body?.sponsor as TestSponsor).category).toBe('Media Partner');
+    const publicList = (await (await page.request.get('/api/sponsors')).json()) as TestSponsor[];
+    expect(publicList.find((sponsor) => sponsor.id === id)?.category).toBe('Media Partner');
+
+    const cleared = await adminCall(page, 'PUT', '/api/admin/sponsors', { id, category: '' });
+    expect(cleared.status).toBe(200);
+    expect((cleared.body?.sponsor as TestSponsor).category).toBe('');
+
+    const tooLong = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'Long Co', companyName: 'Long Co', category: 'c'.repeat(41) });
+    expect(tooLong.status).toBe(400);
+    expect(String(tooLong.body?.error)).toMatch(/Category must be 40 characters or fewer/);
+    const control = await adminCall(page, 'PUT', '/api/admin/sponsors', { id, category: 'Sponsor\u0000' });
+    expect(control.status).toBe(400);
+    const control2 = await adminCall(page, 'PUT', '/api/admin/sponsors', { id, category: 'Spon\nsor' });
+    expect(control2.status).toBe(400);
+    expect(String(control2.body?.error)).toMatch(/Category must not contain control characters/);
+    const numeric = await adminCall(page, 'PUT', '/api/admin/sponsors', { id, category: 7 });
+    expect(numeric.status).toBe(400);
+    expect(String(numeric.body?.error)).toMatch(/Category must be text/);
+    const still = ((await adminCall(page, 'GET', '/api/admin/sponsors')).body?.sponsors as TestSponsor[]).find((sponsor) => sponsor.id === id);
+    expect(still?.category ?? '').toBe('');
+  });
+
+  test('the Category field is free text with exactly three suggestions; the card shows it and the carousel follows', async ({ page, context, request }) => {
+    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    await assertAppReadsThisCheckout(request);
+    writeStore(makeSponsors(2));
+    await adminLogin(page);
+    await openSponsorsTab(page);
+
+    const publicPage = await context.newPage();
+    await publicPage.goto('/');
+    const banner = publicPage.locator('[aria-label="Our sponsors"]');
+    await expect(banner).toBeAttached({ timeout: 15000 });
+    // A short list repeats inside the strip, so look at the distinct second lines.
+    const secondLines = () =>
+      publicPage.evaluate(() => [...new Set(Array.from(document.querySelectorAll('[aria-label="Our sponsors"] .animate-scroll-left > div:first-child > a > span > span:nth-child(2)')).map((node) => node.textContent))]);
+    await expect.poll(secondLines).toEqual([]);
+
+    await page.getByRole('button', { name: '+ New Sponsor' }).click();
+    const categoryInput = page.locator('#sponsor-category');
+    await expect(categoryInput).toHaveJSProperty('tagName', 'INPUT');
+    await expect(categoryInput).toHaveAttribute('type', 'text');
+    await expect(categoryInput).toHaveAttribute('maxlength', '40');
+    await expect(categoryInput).toHaveAttribute('placeholder', 'Sponsor, Partner or Sponsor & Partner');
+    await expect(categoryInput).toHaveValue('');
+    await expect(page.locator('select#sponsor-category')).toHaveCount(0);
+    await expect(page.getByLabel('Category', { exact: true })).toHaveCount(1);
+    const suggestions = await page.locator('#sponsor-category-options option').evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    expect(suggestions).toEqual(['Sponsor', 'Partner', 'Sponsor & Partner']);
+
+    // Free text: something that is not a suggestion is accepted as typed.
+    await page.locator('#sponsor-name').fill('Label Co');
+    await page.locator('#sponsor-company-name').fill('Label Pty Ltd');
+    await categoryInput.fill('Community Partner');
+    await page.locator('form').getByRole('button', { name: 'Add Sponsor' }).click();
+    await expect(page.locator('div[role="status"]')).toContainText('Sponsor created');
+    const card = page.locator('[data-sponsor-id]').filter({ hasText: 'Label Co' });
+    await expect(card).toContainText('Category Community Partner');
+
+    await publicPage.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect.poll(secondLines, { timeout: 15000 }).toEqual(['Community Partner']);
+
+    // Edit to one of the suggestions, then clear it.
+    await card.getByRole('button', { name: /Edit/ }).click();
+    await expect(categoryInput).toHaveValue('Community Partner');
+    await categoryInput.fill('Sponsor & Partner');
+    await page.locator('form').getByRole('button', { name: 'Update' }).click();
+    await expect(page.locator('div[role="status"]')).toContainText('Sponsor updated');
+    await expect(card).toContainText('Category Sponsor & Partner');
+    await publicPage.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect.poll(secondLines, { timeout: 15000 }).toEqual(['Sponsor & Partner']);
+
+    await card.getByRole('button', { name: /Edit/ }).click();
+    await categoryInput.fill('');
+    await page.locator('form').getByRole('button', { name: 'Update' }).click();
+    await expect(page.locator('div[role="status"]')).toContainText('Sponsor updated');
+    await expect(card).not.toContainText('Category');
+    await publicPage.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect.poll(secondLines, { timeout: 15000 }).toEqual([]);
+
+    // A category over 40 characters is stopped in the browser with a clear message.
+    await card.getByRole('button', { name: /Edit/ }).click();
+    await categoryInput.evaluate((input) => (input as HTMLInputElement).removeAttribute('maxlength'));
+    await categoryInput.fill('z'.repeat(41));
+    await page.locator('form').getByRole('button', { name: 'Update' }).click();
+    await expect(page.locator('div[role="alert"]:not(#__next-route-announcer__)')).toContainText('Category must be 40 characters or fewer');
+  });
+
+  test('Export CSV keeps the original eight columns in order and adds the category as the last one', async ({ page, request }) => {
+    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    await assertAppReadsThisCheckout(request);
+    writeStore([makeSponsor(0, { tier: 'Gold, Plus', category: 'Sponsor, "Partner"' }), makeSponsor(1)]);
+    await adminLogin(page);
+    await openSponsorsTab(page);
+
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
+    expect(download.suggestedFilename()).toMatch(/^sponsors-export-\d{4}-\d{2}-\d{2}\.csv$/);
+    const lines = readFileSync((await download.path()) as string, 'utf-8').split('\n');
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toBe('id,name,tier,revenue,contractValue,url,companyName,visible,category');
+    // A comma or a quote inside a value is escaped; a sponsor without a category ends with an empty column.
+    expect(lines[1]).toBe('sp-e2e-0,E2E Sponsor 0,"Gold, Plus",,,https://example.com,E2E Sponsor 0 Pty Ltd,true,"Sponsor, ""Partner"""');
+    expect(lines[2]).toBe('sp-e2e-1,E2E Sponsor 1,silver,,,https://example.com,E2E Sponsor 1 Pty Ltd,true,');
   });
 
   test('logo upload: 2 MB cap, image types only, and the file content must match', async ({ page, request }) => {
