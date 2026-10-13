@@ -112,17 +112,24 @@ const CONE_FRAGMENT = /* glsl */ `
 export function mountHeroSpotlight(canvas: HTMLCanvasElement, host: HTMLElement): HeroSpotlightHandle | null {
   const profile = pickProfile();
 
+  // Create the context ourselves: when WebGL is unavailable (blocked GPU, privacy
+  // settings) three.js would log an error to the console before throwing.
+  const attributes: WebGLContextAttributes = {
+    antialias: false,
+    alpha: true,
+    depth: false,
+    stencil: false,
+    powerPreference: 'low-power',
+  };
+  const gl = canvas.getContext('webgl2', attributes) ?? canvas.getContext('webgl', attributes);
+  if (!gl) return null;
+
   let renderer: THREE.WebGLRenderer;
   try {
-    renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: false,
-      alpha: true,
-      depth: false,
-      stencil: false,
-      powerPreference: 'low-power',
-    });
-  } catch {
+    renderer = new THREE.WebGLRenderer({ canvas, context: gl, ...attributes });
+  } catch (error) {
+    // The hero is complete without the beams; note why they are missing and carry on.
+    console.warn('[hero] spotlight renderer could not start', error);
     return null;
   }
 
