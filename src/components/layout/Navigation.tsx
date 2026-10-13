@@ -73,7 +73,12 @@ export function Navigation() {
   // hook order across renders (Rules of Hooks: same hooks, same order, every render).
   if (pathname.startsWith('/admin')) return null;
 
-  const isActive = (href: string) => pathname === href;
+  // The static export is served with trailing slashes (`/about/`) while the links are written
+  // without one, and the same page can be reached either way. Comparing slash-less paths keeps
+  // the highlighted link identical in the prerendered HTML and in the client render, so
+  // hydration never has to regenerate the tree for visitors who arrive without the slash.
+  const currentPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  const isActive = (href: string) => currentPath === href;
 
   return (
     <>
