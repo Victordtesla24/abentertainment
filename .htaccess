@@ -88,6 +88,15 @@ RewriteRule ^e2e(/.*)?$ - [F,L]
 RewriteRule ^agent-system(/.*)?$ - [F,L]
 RewriteRule ^\.claude(/.*)?$ - [F,L]
 
+# Media types LiteSpeed does not map by default. Without this, the generated
+# AVIF variants (public/images/**/*-<width>w.avif) are served as text/plain;
+# Chromium sniffs them anyway, but other browsers and caches rely on the type,
+# and the ExpiresByType image/avif rule below only applies once it is set.
+<IfModule mod_mime.c>
+  AddType image/avif .avif
+  AddType image/webp .webp
+</IfModule>
+
 # Cache static assets.
 # HTML is NEVER edge-cached: each deploy replaces the content-hashed /_next
 # chunks (git reset --hard && git clean -fd), so hour-old cached HTML would
