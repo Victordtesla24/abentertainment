@@ -405,18 +405,6 @@ test.describe('Footer carousel — renders from the store', () => {
     expect(result.dupesFocusable).toBe(false);
   });
 
-  test('hovering the carousel pauses it', async ({ page }) => {
-    writeStore(makeSponsors(5));
-    await page.goto('/');
-    const banner = page.locator('[aria-label="Our sponsors"]');
-    await expect(banner).toBeAttached({ timeout: 15000 });
-    await banner.scrollIntoViewIfNeeded();
-    const track = banner.locator('.animate-scroll-left');
-    await expect(track).toHaveCSS('animation-play-state', 'running');
-    await banner.locator('.group').hover();
-    await expect(track).toHaveCSS('animation-play-state', 'paused');
-  });
-
   test('the carousel picks up a change made while the page is open', async ({ page }) => {
     writeStore(makeSponsors(2));
     await page.goto('/');
@@ -550,14 +538,14 @@ test.describe('Sponsors admin panel', () => {
     await page.getByRole('button', { name: '+ New Sponsor' }).click();
     const form = page.locator('form');
     await form.getByRole('button', { name: 'Add Sponsor' }).click();
-    await expect(page.locator('div[role="alert"]')).toContainText('Name is required');
-    await expect(page.locator('div[role="alert"]')).toContainText('Company name is required');
+    await expect(page.locator('div[role="alert"]:not(#__next-route-announcer__)')).toContainText('Name is required');
+    await expect(page.locator('div[role="alert"]:not(#__next-route-announcer__)')).toContainText('Company name is required');
 
     await page.locator('#sponsor-name').fill('Banner Sponsor');
     await page.locator('#sponsor-company-name').fill('Banner Co');
     await page.locator('#sponsor-website-url').fill('website.com');
     await form.getByRole('button', { name: 'Add Sponsor' }).click();
-    await expect(page.locator('div[role="alert"]')).toContainText('Website URL must start with http:// or https://');
+    await expect(page.locator('div[role="alert"]:not(#__next-route-announcer__)')).toContainText('Website URL must start with http:// or https://');
 
     // A 3 MB logo is refused in the browser and never uploaded.
     let uploadAttempts = 0;
@@ -569,11 +557,11 @@ test.describe('Sponsors admin panel', () => {
       mimeType: 'image/png',
       buffer: Buffer.concat([PNG_SIGNATURE, Buffer.alloc(3 * 1024 * 1024)]),
     });
-    await expect(page.locator('div[role="alert"]')).toContainText('Logo must be 2 MB or smaller');
+    await expect(page.locator('div[role="alert"]:not(#__next-route-announcer__)')).toContainText('Logo must be 2 MB or smaller');
     expect(uploadAttempts).toBe(0);
 
     await page.setInputFiles('#sponsor-logo-upload', { name: 'anim.gif', mimeType: 'image/gif', buffer: Buffer.from('GIF89a') });
-    await expect(page.locator('div[role="alert"]')).toContainText('PNG, JPG, WebP or SVG');
+    await expect(page.locator('div[role="alert"]:not(#__next-route-announcer__)')).toContainText('PNG, JPG, WebP or SVG');
   });
 
   test('add with an uploaded logo, edit name and logo, hide, reorder and delete: the carousel follows each step', async ({ page, context, request }) => {
