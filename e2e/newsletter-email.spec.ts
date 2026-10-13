@@ -24,6 +24,8 @@ type Body = typeof import('@/lib/email/body-format');
 type Hash = typeof import('@/lib/email/hash');
 type Seed = typeof import('@/lib/email/seed');
 type Types = typeof import('@/lib/email/types');
+type Tokens = typeof import('@/lib/email/design-tokens');
+type Content = typeof import('@/lib/email/design-system-content');
 
 test.describe.configure({ mode: 'serial' });
 
@@ -39,6 +41,8 @@ test.describe('email modules (in-process)', () => {
   let hash: Hash;
   let seed: Seed;
   let types: Types;
+  let tokens: Tokens;
+  let content: Content;
 
   test.beforeAll(async () => {
     previousDir = process.env.AB_DATA_DIR;
@@ -51,6 +55,8 @@ test.describe('email modules (in-process)', () => {
     hash = require('@/lib/email/hash') as Hash;
     seed = require('@/lib/email/seed') as Seed;
     types = require('@/lib/email/types') as Types;
+    tokens = require('@/lib/email/design-tokens') as Tokens;
+    content = require('@/lib/email/design-system-content') as Content;
   });
 
   test.afterAll(() => {
@@ -124,7 +130,7 @@ test.describe('email modules (in-process)', () => {
     await expect(store.createEmailTemplate({ key: 'monthly_news', name: '' })).rejects.toMatchObject({ code: 'invalid' });
     const created = await store.createEmailTemplate({ key: 'monthly_news', name: ' Monthly news ' });
     expect(created).toMatchObject({ key: 'monthly_news', name: 'Monthly news', enabled: true, activeVersion: null });
-    expect(created.versions[0].fields).toEqual({ subject: '', preheader: '', heading: '', body: '', ctaLabel: '', ctaUrl: '' });
+    expect(created.versions[0].fields).toEqual({ subject: '', preheader: '', eyebrow: '', heading: '', body: '', ctaLabel: '', ctaUrl: '' });
     await expect(store.createEmailTemplate({ key: 'monthly_news', name: 'again' })).rejects.toMatchObject({ code: 'conflict' });
     // the store now exists and holds the seed too
     expect((await store.getEmailTemplates()).map((t) => t.key)).toEqual(['newsletter_welcome', 'monthly_news']);
@@ -211,7 +217,8 @@ test.describe('email modules (in-process)', () => {
   test('brand guidelines: the written default, a version that rises only when the text changes', async () => {
     const first = await store.getBrandGuidelines();
     expect(first.version).toBe(1);
-    for (const phrase of ['premium, theatrical, reverent', 'formal, yet warm', 'Title Case', 'ALL CAPS', 'No emoji', 'Australian English (en-AU)', 'Explore Upcoming Events']) expect(first.text, phrase).toContain(phrase);
+    expect(first.text.startsWith(content.CONTENT_FUNDAMENTALS)).toBe(true);
+    for (const phrase of ['Premium, theatrical, reverent', 'formal but warm', 'No emoji', 'Australian English (en_AU)', 'Title Case', 'ALL CAPS', 'HOW THE REVIEW SCORES']) expect(first.text, phrase).toContain(phrase);
     const text = store.parseGuidelinesText(`${first.text}\n\nAdditional rule: always mention Melbourne.`);
     const second = await store.saveBrandGuidelines(text, 'admin');
     expect(second.version).toBe(2);
@@ -243,6 +250,46 @@ test.describe('email modules (in-process)', () => {
       expect(existsSync(join(process.cwd(), 'public', 'data', file)), `public/data/${file}`).toBe(false);
       expect(existsSync(join(process.cwd(), 'data', file)), `data/${file}`).toBe(false);
     }
+  });
+
+  test('the guidelines open with the README CONTENT FUNDAMENTALS verbatim', () => {
+    const readme = readFileSync(join(process.cwd(), 'docs', 'design-system', 'README.md'), 'utf-8');
+    const section = readme.match(/## CONTENT FUNDAMENTALS[\s\S]*?(?=\n---\n)/)?.[0].trimEnd();
+    expect(section).toBeTruthy();
+    expect(content.CONTENT_FUNDAMENTALS).toBe(section);
+    expect(seed.DEFAULT_GUIDELINES_TEXT.startsWith(section as string)).toBe(true);
+    expect(seed.DEFAULT_GUIDELINES_TEXT).toContain('## APPLYING THE FUNDAMENTALS TO EMAIL');
+    expect(seed.DEFAULT_GUIDELINES_TEXT).toContain('## HOW THE REVIEW SCORES');
+  });
+
+  test('the design-system docs carry their provenance', () => {
+    const provenance = readFileSync(join(process.cwd(), 'docs', 'design-system', 'PROVENANCE.md'), 'utf-8');
+    expect(provenance).toContain("Pulled read-only from Claude Design project 019e020b-bf85-766e-a492-52ae7afe59b3 'AB Entertainment Design System' on 2026-10-13.");
+    for (const file of ['README.md', 'SKILL.md', 'colors_and_type.css', 'components/Button/Button.jsx', 'components/OrnamentDivider/OrnamentDivider.jsx', 'ui_kits/website/footer.jsx']) {
+      expect(existsSync(join(process.cwd(), 'docs', 'design-system', file)), file).toBe(true);
+    }
+  });
+
+  test('the token set is the design system CSS: every --color-* and font in colors_and_type.css is allowed, and nothing else is', () => {
+    const css = readFileSync(join(process.cwd(), 'docs', 'design-system', 'colors_and_type.css'), 'utf-8');
+    const root = css.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const declared = [...root.matchAll(/--color-[a-z0-9-]+:\s*([^;]+);/g)].map((m) => tokens.normaliseColour(m[1].replace(/\/\*.*$/, '').trim()));
+    expect(declared.length).toBeGreaterThan(30);
+    for (const value of declared) expect(tokens.isBrandColour(value), value).toBe(true);
+    // the module lists no colour the CSS does not declare, apart from the button label black the components use
+    const allowedExtra = new Set(['#000000']);
+    for (const value of tokens.DESIGN_COLOURS) expect(declared.includes(tokens.normaliseColour(value)) || allowedExtra.has(value), value).toBe(true);
+    const fonts = [...root.matchAll(/--font-(?:display|body):\s*([^;]+);/g)].flatMap((m) => m[1].split(',').map((family) => family.trim().replace(/^['"]|['"]$/g, '').toLowerCase()));
+    expect([...new Set(fonts)].sort()).toEqual([...tokens.DESIGN_FONT_FAMILIES].sort());
+  });
+
+  test('off-brand tokens are found: any colour or font family outside the set, in any notation', () => {
+    const onBrand = '<table bgcolor="#0A0A0A" style="background-color:#111111;font-family:\'DM Sans\',\'Helvetica Neue\',Helvetica,sans-serif;color:rgba(255, 255, 255, .65);border:1px solid rgba(201,168,76,0.2)"><tr><td style="background-image:linear-gradient(135deg,#C9A84C,#D4B65C 50%,#C9A84C);font-family:Playfair Display,Georgia,serif;color:#FFF;background:transparent">x</td><td style="color:rgb(255,255,255);font-family:\'Playfair Display\', Georgia, serif;border-top:1px solid #b0923f"></td></tr></table>';
+    expect(tokens.findOffBrandTokens(onBrand)).toEqual({ colours: [], fonts: [] });
+    const off = '<p style="color:#ff00ff;font-family:Comic Sans MS, Arial, sans-serif"><span style="background-color:rgb(1,2,3);border:1px solid red;font-family:\'Open Sans\'">y</span><td bgcolor="#123456" style="color:rgba(255,255,255,0.7);background:linear-gradient(90deg,#abcdef,#C9A84C)"></td></p><style>.x{color:#bada55;font-family:Verdana}</style>';
+    const found = tokens.findOffBrandTokens(off);
+    expect(found.colours.map((c) => tokens.normaliseColour(c)).sort()).toEqual(['#123456', '#abcdef', '#bada55', '#ff00ff', 'rgba(255,255,255,0.7)', 'red'.replace('red', '#ff0000'), '#010203'].sort());
+    expect(found.fonts.map((family) => family.toLowerCase()).sort()).toEqual(['arial', 'comic sans ms', 'open sans', 'verdana']);
   });
 
   test('the shipped layout is not installed, and says so', async () => {

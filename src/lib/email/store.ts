@@ -93,7 +93,7 @@ function parseKey(value: unknown): string {
   return value;
 }
 
-const BLANK_FIELDS: EmailFields = { subject: '', preheader: '', heading: '', body: '', ctaLabel: '', ctaUrl: '' };
+const BLANK_FIELDS: EmailFields = { subject: '', preheader: '', eyebrow: '', heading: '', body: '', ctaLabel: '', ctaUrl: '' };
 
 function pruneVersions(template: EmailTemplate): void {
   if (template.versions.length <= MAX_VERSIONS_PER_TEMPLATE) return;

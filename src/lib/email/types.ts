@@ -3,10 +3,13 @@
  * No server-only imports here: the admin screens import these too.
  */
 
-export const EMAIL_FIELDS = ['subject', 'preheader', 'heading', 'body', 'ctaLabel', 'ctaUrl'] as const;
+export const EMAIL_FIELDS = ['subject', 'preheader', 'eyebrow', 'heading', 'body', 'ctaLabel', 'ctaUrl'] as const;
 export type EmailFieldName = (typeof EMAIL_FIELDS)[number];
 /** What an admin writes. The brand layout (code, not an admin) turns it into the final message. */
 export type EmailFields = Record<EmailFieldName, string>;
+
+/** Fields an admin may leave empty (the eyebrow is the small gold label above the heading). */
+export const OPTIONAL_FIELDS: readonly EmailFieldName[] = ['eyebrow'];
 
 /**
  * Hard bounds enforced when a template is SAVED: an abuse and header-injection guard, not editorial rules.
@@ -15,6 +18,7 @@ export type EmailFields = Record<EmailFieldName, string>;
 export const FIELD_SAVE_LIMITS: Record<EmailFieldName, number> = {
   subject: 300,
   preheader: 500,
+  eyebrow: 100,
   heading: 300,
   body: 20000,
   ctaLabel: 100,
@@ -22,13 +26,13 @@ export const FIELD_SAVE_LIMITS: Record<EmailFieldName, number> = {
 };
 
 /** The fields an admin edits on one line (a newline in a subject is a header-injection vector). */
-export const SINGLE_LINE_FIELDS: readonly EmailFieldName[] = ['subject', 'preheader', 'heading', 'ctaLabel', 'ctaUrl'];
+export const SINGLE_LINE_FIELDS: readonly EmailFieldName[] = ['subject', 'preheader', 'eyebrow', 'heading', 'ctaLabel', 'ctaUrl'];
 
 export const WELCOME_TEMPLATE_KEY = 'newsletter_welcome';
 
 // ─── Quality gate ────────────────────────────────────────────────────────────
 
-export type GateField = 'subject' | 'preheader' | 'heading' | 'body' | 'cta' | 'layout' | 'global';
+export type GateField = 'subject' | 'preheader' | 'eyebrow' | 'heading' | 'body' | 'cta' | 'layout' | 'global';
 
 export interface GateIssue {
   source: 'deterministic' | 'ai';
