@@ -6,8 +6,8 @@ import { revalidateSponsors } from '@/lib/revalidate';
 import { logAdminAction } from '@/lib/audit';
 import type { Sponsor } from '@/lib/data';
 
-const TIERS: readonly Sponsor['tier'][] = ['platinum', 'gold', 'silver', 'bronze'];
 const NAME_MAX_LENGTH = 80;
+const LABEL_MAX_LENGTH = 40;
 const URL_MAX_LENGTH = 300;
 const LOGO_MAX_LENGTH = 300;
 const DESCRIPTION_MAX_LENGTH = 500;
@@ -59,6 +59,18 @@ function audit(request: NextRequest, action: string, details: Record<string, unk
   }
 }
 
+/** Control characters (including newlines and tabs) have no place in a one-line label. */
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
+
+/** Validate a free-text label such as the tier: trimmed, at most LABEL_MAX_LENGTH characters, no control characters; empty is allowed. */
+function parseLabel(value: unknown, label: string): { value?: string; error?: string } {
+  if (typeof value !== 'string') return { error: `${label} must be text` };
+  const trimmed = value.trim();
+  if (trimmed.length > LABEL_MAX_LENGTH) return { error: `${label} must be ${LABEL_MAX_LENGTH} characters or fewer` };
+  if (CONTROL_CHARACTERS.test(trimmed)) return { error: `${label} must not contain control characters` };
+  return { value: trimmed };
+}
+
 /** True when `value` parses as a URL with one of the given protocols and a host, and has no whitespace. */
 function isUrlWithProtocol(value: string, protocols: readonly string[]): boolean {
   if (/\s/.test(value)) return false;
@@ -80,7 +92,7 @@ interface SponsorInput {
   companyName?: string;
   logo?: string;
   url?: string;
-  tier?: Sponsor['tier'];
+  tier?: string;
   description?: string;
   order?: number;
   visible?: boolean;
@@ -125,9 +137,9 @@ function parseSponsorInput(body: Record<string, unknown>): { input: SponsorInput
   }
 
   if (body.tier !== undefined) {
-    if (typeof body.tier === 'string' && (TIERS as readonly string[]).includes(body.tier)) {
-      input.tier = body.tier as Sponsor['tier'];
-    } else errors.push(`Tier must be one of: ${TIERS.join(', ')}`);
+    const tier = parseLabel(body.tier, 'Tier');
+    if (tier.error) errors.push(tier.error);
+    else input.tier = tier.value;
   }
 
   if (body.description !== undefined) {
@@ -210,7 +222,7 @@ export const POST = withAuth(async (request: NextRequest) => {
         companyName: input.companyName ?? name,
         logo: input.logo ?? '',
         url: input.url ?? '',
-        tier: input.tier ?? 'silver',
+        tier: input.tier ?? '',
         description: input.description ?? '',
         ...(typeof input.revenue === 'number' ? { revenue: input.revenue } : {}),
         ...(typeof input.contractValue === 'number' ? { contractValue: input.contractValue } : {}),

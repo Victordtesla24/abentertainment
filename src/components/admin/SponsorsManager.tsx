@@ -18,16 +18,30 @@ const MAX_NAME_LENGTH = 80;
 const MAX_URL_LENGTH = 300;
 const MAX_LOGO_LENGTH = 300;
 const MAX_DESCRIPTION_LENGTH = 500;
+const MAX_LABEL_LENGTH = 40;
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 const LOGO_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
 const LOGO_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg';
+/** Control characters (including newlines and tabs) have no place in a one-line label such as the tier. */
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
+
+// Colours for the classic tiers (matched case-insensitively); any other tier text gets the neutral style.
+// Maps rather than plain objects, so free text such as "constructor" cannot hit an inherited property.
+const TIER_STYLES = new Map<string, string>([
+  ['platinum', 'bg-purple-400/20 text-purple-300'],
+  ['gold', 'bg-[#C9A84C]/20 text-[#C9A84C]'],
+  ['silver', 'bg-gray-400/20 text-gray-300'],
+  ['bronze', 'bg-orange-400/20 text-orange-300'],
+]);
+const NEUTRAL_TIER_STYLE = 'bg-white/10 text-white/60';
+const CLASSIC_TIER_RANK = new Map<string, number>([['platinum', 0], ['gold', 1], ['silver', 2], ['bronze', 3]]);
 
 interface FormState {
   name: string;
   companyName: string;
   logo: string;
   url: string;
-  tier: Sponsor['tier'];
+  tier: string;
   description: string;
   revenue: string;
   contractValue: string;
@@ -39,7 +53,7 @@ const EMPTY_FORM: FormState = {
   companyName: '',
   logo: '',
   url: '',
-  tier: 'silver',
+  tier: '',
   description: '',
   revenue: '',
   contractValue: '',
@@ -53,6 +67,29 @@ function isVisible(sponsor: Sponsor): boolean {
 /** Company name for display; records saved before the field existed fall back to the name. */
 function companyNameOf(sponsor: Sponsor): string {
   return (sponsor.companyName ?? '').trim() || (sponsor.name ?? '').trim();
+}
+
+function tierStyle(tier: string | undefined): string {
+  return TIER_STYLES.get((tier ?? '').trim().toLowerCase()) ?? NEUTRAL_TIER_STYLE;
+}
+
+/**
+ * The distinct tiers in use, matched case-insensitively and shown with the
+ * spelling seen first; empty tiers are skipped. The classic four come first in
+ * their usual order, then any other tier in order of first appearance.
+ */
+function tierGroups(sponsors: Sponsor[]): { label: string; count: number }[] {
+  const groups = new Map<string, { label: string; count: number }>();
+  for (const sponsor of sponsors) {
+    const label = (sponsor.tier ?? '').trim();
+    if (!label) continue;
+    const group = groups.get(label.toLowerCase());
+    if (group) group.count += 1;
+    else groups.set(label.toLowerCase(), { label, count: 1 });
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => (CLASSIC_TIER_RANK.get(a) ?? 99) - (CLASSIC_TIER_RANK.get(b) ?? 99))
+    .map(([, group]) => group);
 }
 
 /** Same ordering as the public site: `order` ascending (none last), then oldest first. */
@@ -111,6 +148,10 @@ function formProblems(form: FormState): string[] {
   else if (url && !hasProtocol(url, ['http:', 'https:'])) {
     problems.push('Website URL must start with http:// or https:// (for example https://example.com)');
   }
+
+  const tier = form.tier.trim();
+  if (tier.length > MAX_LABEL_LENGTH) problems.push(`Tier must be ${MAX_LABEL_LENGTH} characters or fewer`);
+  else if (CONTROL_CHARACTERS.test(tier)) problems.push('Tier must not contain control characters');
 
   if (form.description.trim().length > MAX_DESCRIPTION_LENGTH) {
     problems.push(`Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`);
@@ -184,17 +225,8 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
   const summary = useMemo(() => {
     const totalRevenue = sponsors.reduce((sum, s) => sum + (s.revenue ?? 0), 0);
     const totalContractValue = sponsors.reduce((sum, s) => sum + (s.contractValue ?? 0), 0);
-    const tierCounts: Record<Sponsor['tier'], number> = {
-      platinum: 0,
-      gold: 0,
-      silver: 0,
-      bronze: 0,
-    };
-    for (const s of sponsors) {
-      if (s.tier in tierCounts) tierCounts[s.tier]++;
-    }
     const visibleCount = sponsors.filter(isVisible).length;
-    return { total: sponsors.length, visibleCount, totalRevenue, totalContractValue, tierCounts };
+    return { total: sponsors.length, visibleCount, totalRevenue, totalContractValue, tiers: tierGroups(sponsors) };
   }, [sponsors]);
 
   function setField<K extends keyof FormState>(field: K, value: FormState[K]) {
@@ -235,7 +267,7 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
       logo: sponsor.logo,
       // "#" was the old placeholder for "no website"; show it as empty.
       url: sponsor.url === '#' ? '' : sponsor.url,
-      tier: sponsor.tier,
+      tier: sponsor.tier ?? '',
       description: sponsor.description || '',
       revenue: sponsor.revenue != null ? String(sponsor.revenue) : '',
       contractValue: sponsor.contractValue != null ? String(sponsor.contractValue) : '',
@@ -291,7 +323,7 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
         companyName: form.companyName.trim(),
         logo: form.logo.trim(),
         url: form.url.trim(),
-        tier: form.tier,
+        tier: form.tier.trim(),
         description: form.description.trim(),
         visible: form.visible,
         revenue: amount(form.revenue),
@@ -414,7 +446,7 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
       [
         escape(s.id),
         escape(s.name),
-        escape(s.tier),
+        escape(s.tier ?? ''),
         s.revenue != null ? String(s.revenue) : '',
         s.contractValue != null ? String(s.contractValue) : '',
         escape(s.url),
@@ -440,13 +472,6 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
       maximumFractionDigits: 0,
     }).format(value);
   }
-
-  const tierColors: Record<Sponsor['tier'], string> = {
-    platinum: 'bg-purple-400/20 text-purple-300',
-    gold: 'bg-[#C9A84C]/20 text-[#C9A84C]',
-    silver: 'bg-gray-400/20 text-gray-300',
-    bronze: 'bg-orange-400/20 text-orange-300',
-  };
 
   const inputClasses =
     'w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]';
@@ -494,14 +519,18 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
           <div>
             <p className="text-xs text-white/40 mb-1">By Tier</p>
             <div className="flex flex-wrap gap-2 mt-1">
-              {(['platinum', 'gold', 'silver', 'bronze'] as const).map((t) => (
-                <span
-                  key={t}
-                  className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-sm ${tierColors[t]}`}
-                >
-                  {t} {summary.tierCounts[t]}
-                </span>
-              ))}
+              {summary.tiers.length === 0 ? (
+                <span className="text-xs text-white/30">None set</span>
+              ) : (
+                summary.tiers.map((group) => (
+                  <span
+                    key={group.label.toLowerCase()}
+                    className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-sm ${tierStyle(group.label)}`}
+                  >
+                    {group.label} {group.count}
+                  </span>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -613,17 +642,23 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
             </div>
             <div>
               <label htmlFor="sponsor-tier" className="block text-xs text-white/40 mb-1">Tier</label>
-              <select
+              <input
                 id="sponsor-tier"
+                type="text"
+                list="sponsor-tier-options"
                 value={form.tier}
-                onChange={(e) => setField('tier', e.target.value as Sponsor['tier'])}
+                onChange={(e) => setField('tier', e.target.value)}
+                placeholder="e.g. Platinum, Gold, Media Partner"
+                maxLength={MAX_LABEL_LENGTH}
+                autoComplete="off"
                 className={inputClasses}
-              >
-                <option value="platinum">Platinum</option>
-                <option value="gold">Gold</option>
-                <option value="silver">Silver</option>
-                <option value="bronze">Bronze</option>
-              </select>
+              />
+              {/* Suggestions only: the tier stays free text. */}
+              <datalist id="sponsor-tier-options">
+                {summary.tiers.map((group) => (
+                  <option key={group.label.toLowerCase()} value={group.label} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label htmlFor="sponsor-revenue" className="block text-xs text-white/40 mb-1">Revenue (AUD)</label>
@@ -727,11 +762,13 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
                       <p className="text-white/50 text-xs mt-0.5 break-words">{company}</p>
                     )}
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      <span
-                        className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-sm ${tierColors[sponsor.tier] ?? tierColors.silver}`}
-                      >
-                        {sponsor.tier}
-                      </span>
+                      {(sponsor.tier ?? '').trim() && (
+                        <span
+                          className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-sm ${tierStyle(sponsor.tier)}`}
+                        >
+                          {sponsor.tier.trim()}
+                        </span>
+                      )}
                       <span
                         className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-sm ${
                           visible ? 'bg-[#1BBFA1]/15 text-[#1BBFA1]' : 'bg-white/10 text-white/50'

@@ -5,19 +5,24 @@ import Link from 'next/link';
 import type { Sponsor } from '@/lib/data';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
-const tierOrder: Record<string, number> = {
-  platinum: 0,
-  gold: 1,
-  silver: 2,
-  bronze: 3,
-};
+// Tiers are free text the admin types, so they are matched case-insensitively ("Platinum" sorts
+// with "platinum"). Maps rather than plain objects: text such as "constructor" must not hit an
+// inherited property.
+const tierOrder = new Map<string, number>([
+  ['platinum', 0],
+  ['gold', 1],
+  ['silver', 2],
+  ['bronze', 3],
+]);
 
-const tierColors: Record<string, string> = {
-  platinum: '#E5E4E2',
-  gold: '#C9A84C',
-  silver: '#C0C0C0',
-  bronze: '#CD7F32',
-};
+const tierColors = new Map<string, string>([
+  ['platinum', '#E5E4E2'],
+  ['gold', '#C9A84C'],
+  ['silver', '#C0C0C0'],
+  ['bronze', '#CD7F32'],
+]);
+
+const tierKey = (tier: string | undefined): string => (tier ?? '').trim().toLowerCase();
 
 /** The sponsor's website if it is a real http(s) address; empty or placeholder values (such as "#") get no link. */
 function externalHref(url: string | undefined): string | undefined {
@@ -31,7 +36,8 @@ function externalHref(url: string | undefined): string | undefined {
 }
 
 function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
-  const tierColor = tierColors[sponsor.tier] || '#C9A84C';
+  const tierLabel = (sponsor.tier ?? '').trim();
+  const tierColor = tierColors.get(tierKey(sponsor.tier)) || '#C9A84C';
   const href = externalHref(sponsor.url);
   const name = (sponsor.name ?? '').trim();
   // Records saved before the company-name field existed fall back to the display name.
@@ -42,19 +48,21 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 
   const content = (
     <>
-      <div className="flex items-center justify-between mb-6">
-        <span
-          className="px-3 py-1 text-xs font-body font-semibold uppercase tracking-wider"
-          style={{
-            color: tierColor,
-            borderWidth: 1,
-            borderStyle: 'solid',
-            borderColor: `${tierColor}40`,
-          }}
-        >
-          {sponsor.tier}
-        </span>
-      </div>
+      {tierLabel && (
+        <div className="flex items-center justify-between mb-6">
+          <span
+            className="px-3 py-1 text-xs font-body font-semibold uppercase tracking-wider"
+            style={{
+              color: tierColor,
+              borderWidth: 1,
+              borderStyle: 'solid',
+              borderColor: `${tierColor}40`,
+            }}
+          >
+            {tierLabel}
+          </span>
+        </div>
+      )}
 
       <div className="h-20 flex items-center justify-center mb-6 bg-white/90 rounded p-3">
         {sponsor.logo ? (
@@ -113,7 +121,7 @@ export default function SponsorsContent({ initialSponsors }: { initialSponsors: 
   const sortedSponsors = useMemo(
     () =>
       sponsors.filter((sponsor) => sponsor.visible !== false).sort((a, b) => {
-        const tierDelta = (tierOrder[a.tier] ?? 99) - (tierOrder[b.tier] ?? 99);
+        const tierDelta = (tierOrder.get(tierKey(a.tier)) ?? 99) - (tierOrder.get(tierKey(b.tier)) ?? 99);
         if (tierDelta !== 0) return tierDelta;
         // Within a tier, honour the admin's reorder (order field). Sponsors
         // without an order sink to the end, preserving prior behaviour.

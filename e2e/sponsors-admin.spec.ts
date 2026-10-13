@@ -9,7 +9,8 @@
  *   2. Footer carousel: renders from the store (alt text = company name), no
  *      placeholder sponsors, handles 0 / 1 / 2 / many sponsors with a seamless
  *      loop and the original animation timing
- *   3. Sponsors page: hidden sponsors are not listed, company name shown
+ *   3. Sponsors page: hidden sponsors are not listed, company name shown, free-text
+ *      tiers sort case-insensitively
  *   4. Admin API protection and server-side validation
  *   5. Admin panel: add (with an uploaded logo), edit, hide and delete a
  *      sponsor, and the carousel follows
@@ -46,7 +47,7 @@ interface TestSponsor {
   companyName?: string;
   logo: string;
   url: string;
-  tier: 'platinum' | 'gold' | 'silver' | 'bronze';
+  tier: string;
   description?: string;
   revenue?: number;
   order?: number;
@@ -147,7 +148,10 @@ async function openSponsorsTab(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Sponsors & Partners' })).toBeVisible({ timeout: 10000 });
 }
 
-/** Call an admin endpoint from the logged-in page: session cookie plus the CSRF header the panel itself sends. */
+/**
+ * Call an admin endpoint from the logged-in page: session cookie plus the CSRF header the panel
+ * itself sends. The token comes from GET /api/admin/auth, exactly as the admin page re-arms it.
+ */
 async function adminCall(
   page: Page,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
@@ -156,10 +160,11 @@ async function adminCall(
 ): Promise<{ status: number; body: Record<string, unknown> | null }> {
   return page.evaluate(
     async ({ method, path, body }) => {
-      const token = sessionStorage.getItem('ab-admin-token');
+      const auth = await fetch('/api/admin/auth', { credentials: 'include', cache: 'no-store' });
+      const { csrfToken } = (await auth.json()) as { csrfToken?: string };
       const res = await fetch(path, {
         method,
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token ?? '' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken ?? '' },
         credentials: 'include',
         body: body === undefined ? undefined : JSON.stringify(body),
       });
@@ -438,6 +443,38 @@ test.describe('Sponsors page', () => {
     await expect(page.getByRole('heading', { name: 'Same Name' })).toBeVisible();
     await expect(page.getByText('Secret Sponsor')).toHaveCount(0);
   });
+
+  test('free-text tiers sort case-insensitively with the classic ones; no tier sorts last without a badge', async ({ page }) => {
+    writeStore([
+      makeSponsor(0, { name: 'Silver One', tier: 'silver', order: 0 }),
+      makeSponsor(1, { name: 'Plat Capital', tier: 'Platinum', order: 1 }),
+      makeSponsor(2, { name: 'Plat Lower', tier: 'platinum', order: 2 }),
+      makeSponsor(3, { name: 'No Tier', tier: '', order: 3 }),
+      makeSponsor(4, { name: 'Gold Shouted', tier: 'GOLD', order: 4 }),
+      makeSponsor(5, { name: 'Media Friend', tier: 'Media Partner', order: 5 }),
+    ]);
+    await page.goto('/sponsors');
+    await expect(page.getByRole('heading', { name: 'Plat Capital' })).toBeVisible({ timeout: 15000 });
+    const names = await page.locator('main h3').allTextContents();
+    expect(names).toEqual(['Plat Capital', 'Plat Lower', 'Gold Shouted', 'Silver One', 'No Tier', 'Media Friend']);
+    // The card of a sponsor with no tier has no empty badge row.
+    const noTierCard = page.locator('a, div.group', { has: page.getByRole('heading', { name: 'No Tier' }) }).first();
+    await expect(noTierCard.locator('span.uppercase')).toHaveCount(0);
+  });
+
+  test('the stored sponsors keep their order: tier rank (case-insensitive), then the admin order', async ({ page }) => {
+    const stored = JSON.parse(readFileSync(join(DATA_DIR, FILE), 'utf-8')) as TestSponsor[];
+    const rank = (tier: string | undefined) => ({ platinum: 0, gold: 1, silver: 2, bronze: 3 })[(tier ?? '').trim().toLowerCase() as 'platinum'] ?? 99;
+    const expected = stored
+      .filter((sponsor) => sponsor.visible !== false)
+      .sort((a, b) => rank(a.tier) - rank(b.tier) || (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER))
+      .map((sponsor) => sponsor.name.trim());
+    await page.goto('/sponsors');
+    await expect(page.locator('main h3').first()).toBeVisible({ timeout: 15000 });
+    await page.waitForTimeout(1500);
+    const names = (await page.locator('main h3').allTextContents()).map((n) => n.trim());
+    expect(names).toEqual(expected);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -481,8 +518,15 @@ test.describe('Sponsors admin panel', () => {
     expect(urlWithoutScheme.status).toBe(400);
     expect(String(urlWithoutScheme.body?.error)).toMatch(/http:\/\/ or https:\/\//);
 
-    const badTier = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'Valid Name', companyName: 'Valid Co', tier: 'diamond' });
-    expect(badTier.status).toBe(400);
+    const longTier = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'Valid Name', companyName: 'Valid Co', tier: 'x'.repeat(41) });
+    expect(longTier.status).toBe(400);
+    expect(String(longTier.body?.error)).toMatch(/Tier must be 40 characters or fewer/);
+    const controlTier = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'Valid Name', companyName: 'Valid Co', tier: 'Gold\u0007Plus' });
+    expect(controlTier.status).toBe(400);
+    expect(String(controlTier.body?.error)).toMatch(/control characters/);
+    const numericTier = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'Valid Name', companyName: 'Valid Co', tier: 5 });
+    expect(numericTier.status).toBe(400);
+    expect(String(numericTier.body?.error)).toMatch(/Tier must be text/);
 
     const badLogo = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'Valid Name', companyName: 'Valid Co', logo: '//evil.example/logo.png' });
     expect(badLogo.status).toBe(400);
@@ -495,6 +539,118 @@ test.describe('Sponsors admin panel', () => {
     // Nothing was stored by any of the rejected requests.
     const listed = await adminCall(page, 'GET', '/api/admin/sponsors');
     expect((listed.body?.sponsors as TestSponsor[]).length).toBe(2);
+  });
+
+  test('tier is free text: any label up to 40 characters is stored trimmed, empty means no tier', async ({ page, request }) => {
+    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    await assertAppReadsThisCheckout(request);
+    writeStore(makeSponsors(1));
+    await adminLogin(page);
+
+    const media = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'Media Co', companyName: 'Media Co', tier: '  Media Partner  ' });
+    expect(media.status).toBe(201);
+    expect((media.body?.sponsor as TestSponsor).tier).toBe('Media Partner');
+
+    const longest = 'L'.repeat(40);
+    const edge = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'Edge Co', companyName: 'Edge Co', tier: longest });
+    expect(edge.status).toBe(201);
+    expect((edge.body?.sponsor as TestSponsor).tier).toBe(longest);
+
+    const unspecified = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'No Tier Co', companyName: 'No Tier Co' });
+    expect(unspecified.status).toBe(201);
+    expect((unspecified.body?.sponsor as TestSponsor).tier).toBe('');
+
+    const blank = await adminCall(page, 'POST', '/api/admin/sponsors', { name: 'Blank Tier Co', companyName: 'Blank Tier Co', tier: '   ' });
+    expect(blank.status).toBe(201);
+    expect((blank.body?.sponsor as TestSponsor).tier).toBe('');
+
+    const id = (media.body?.sponsor as TestSponsor).id;
+    const cleared = await adminCall(page, 'PUT', '/api/admin/sponsors', { id, tier: '' });
+    expect(cleared.status).toBe(200);
+    expect((cleared.body?.sponsor as TestSponsor).tier).toBe('');
+    const renamed = await adminCall(page, 'PUT', '/api/admin/sponsors', { id, tier: 'Gold Partner' });
+    expect(renamed.status).toBe(200);
+    expect((renamed.body?.sponsor as TestSponsor).tier).toBe('Gold Partner');
+    const tooLong = await adminCall(page, 'PUT', '/api/admin/sponsors', { id, tier: 'x'.repeat(41) });
+    expect(tooLong.status).toBe(400);
+    const stillThere = ((await adminCall(page, 'GET', '/api/admin/sponsors')).body?.sponsors as TestSponsor[]).find((sponsor) => sponsor.id === id);
+    expect(stillThere?.tier).toBe('Gold Partner');
+
+    // The public API serves the free text as it is.
+    const publicList = (await (await page.request.get('/api/sponsors')).json()) as TestSponsor[];
+    expect(publicList.find((sponsor) => sponsor.id === id)?.tier).toBe('Gold Partner');
+  });
+
+  test('the tier field is free text with suggestions from the tiers in use; summary and badges follow the text', async ({ page, request }) => {
+    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    await assertAppReadsThisCheckout(request);
+    writeStore([
+      makeSponsor(0, { name: 'Alpha', tier: 'platinum' }),
+      makeSponsor(1, { name: 'Bravo', tier: 'Platinum' }),
+      makeSponsor(2, { name: 'Charlie', tier: 'Media Partner' }),
+      makeSponsor(3, { name: 'Delta', tier: '' }),
+      makeSponsor(4, { name: 'Echo', tier: 'silver' }),
+    ]);
+    await adminLogin(page);
+    await openSponsorsTab(page);
+    await expect(page.locator('[data-sponsor-id]')).toHaveCount(5);
+
+    // "By Tier" groups case-insensitively with the first spelling seen, skips empty tiers,
+    // and lists the classic tiers first.
+    const summary = page.locator('p', { hasText: 'By Tier' }).locator('xpath=..');
+    await expect(summary).toContainText('platinum 2');
+    await expect(summary).toContainText('silver 1');
+    await expect(summary).toContainText('Media Partner 1');
+    await expect(summary).not.toContainText('Platinum 1');
+    await expect(summary).not.toContainText('gold');
+
+    // Badges: classic tiers keep their colours (case-insensitive), other text is neutral, none shows nothing.
+    const badgeOf = (name: string) => page.locator('[data-sponsor-id]').filter({ hasText: name }).locator('span.inline-block').first();
+    await expect(badgeOf('Bravo')).toHaveText('Platinum');
+    await expect(badgeOf('Bravo')).toHaveClass(/text-purple-300/);
+    await expect(badgeOf('Charlie')).toHaveText('Media Partner');
+    await expect(badgeOf('Charlie')).toHaveClass(/text-white\/60/);
+    await expect(badgeOf('Delta')).toHaveText('Visible');
+
+    // The form field is a text input with a datalist of the tiers in use, not a dropdown.
+    await page.getByRole('button', { name: '+ New Sponsor' }).click();
+    const tierInput = page.locator('#sponsor-tier');
+    await expect(tierInput).toHaveJSProperty('tagName', 'INPUT');
+    await expect(tierInput).toHaveAttribute('type', 'text');
+    await expect(tierInput).toHaveAttribute('maxlength', '40');
+    await expect(tierInput).toHaveAttribute('placeholder', 'e.g. Platinum, Gold, Media Partner');
+    await expect(tierInput).toHaveValue('');
+    await expect(page.locator('select#sponsor-tier')).toHaveCount(0);
+    await expect(page.getByLabel('Tier', { exact: true })).toHaveCount(1);
+    const suggestions = await page.locator('#sponsor-tier-options option').evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    expect(suggestions).toEqual(['platinum', 'silver', 'Media Partner']);
+
+    // Create with free text.
+    await page.locator('#sponsor-name').fill('Foxtrot');
+    await page.locator('#sponsor-company-name').fill('Foxtrot Pty Ltd');
+    await tierInput.fill('Community Champion');
+    await page.locator('form').getByRole('button', { name: 'Add Sponsor' }).click();
+    await expect(page.locator('div[role="status"]')).toContainText('Sponsor created');
+    await expect(badgeOf('Foxtrot')).toHaveText('Community Champion');
+    await expect(summary).toContainText('Community Champion 1');
+
+    // A tier over 40 characters is stopped in the browser with a clear message.
+    await page.locator('[data-sponsor-id]').filter({ hasText: 'Foxtrot' }).getByRole('button', { name: /Edit/ }).click();
+    await expect(tierInput).toHaveValue('Community Champion');
+    await tierInput.evaluate((input) => {
+      (input as HTMLInputElement).removeAttribute('maxlength');
+    });
+    await tierInput.fill('y'.repeat(41));
+    await page.locator('form').getByRole('button', { name: 'Update' }).click();
+    await expect(page.locator('div[role="alert"]:not(#__next-route-announcer__)')).toContainText('Tier must be 40 characters or fewer');
+
+    // Clearing the field removes the tier.
+    await tierInput.fill('');
+    await page.locator('form').getByRole('button', { name: 'Update' }).click();
+    await expect(page.locator('div[role="status"]')).toContainText('Sponsor updated');
+    await expect(badgeOf('Foxtrot')).toHaveText('Visible');
+    const saved = ((await adminCall(page, 'GET', '/api/admin/sponsors')).body?.sponsors as TestSponsor[]).find((sponsor) => sponsor.name === 'Foxtrot');
+    expect(saved?.tier).toBe('');
   });
 
   test('logo upload: 2 MB cap, image types only, and the file content must match', async ({ page, request }) => {

@@ -1017,10 +1017,10 @@ function buildTools() {
             name: { type: 'string' },
             logo: { type: 'string', description: 'Image URL or path under /images/sponsors/' },
             url: { type: 'string', description: "Sponsor's website URL" },
-            tier: { type: 'string', enum: ['platinum', 'gold', 'silver', 'bronze'] },
+            tier: { type: 'string', description: 'Free-text tier label, for example Platinum, Gold or Media Partner (optional, up to 40 characters)' },
             description: { type: 'string' },
           },
-          required: ['name', 'tier'],
+          required: ['name'],
         },
       },
     },
@@ -1036,7 +1036,7 @@ function buildTools() {
             name: { type: 'string' },
             logo: { type: 'string' },
             url: { type: 'string' },
-            tier: { type: 'string', enum: ['platinum', 'gold', 'silver', 'bronze'] },
+            tier: { type: 'string', description: 'Free-text tier label (up to 40 characters); an empty string clears it' },
             description: { type: 'string' },
           },
           required: ['id'],
@@ -1227,6 +1227,19 @@ function buildTools() {
     },
   ];
 }
+
+/**
+ * A free-text sponsor label (tier): trimmed, at most 40 characters, no control
+ * characters, empty allowed. Same rule as /api/admin/sponsors. Returns null when invalid.
+ */
+function parseSponsorLabel(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed.length > 40 || /[\u0000-\u001f\u007f]/.test(trimmed)) return null;
+  return trimmed;
+}
+
+const SPONSOR_LABEL_ERROR = 'must be text of at most 40 characters without control characters';
 
 async function executeTool(
   name: string,
@@ -1574,7 +1587,8 @@ ${context ? `# Context\n${context}\n` : ''}`;
       }
       case 'create_sponsor': {
         const sponsors = await getSponsors();
-        const tier = (args.tier === 'platinum' || args.tier === 'gold' || args.tier === 'silver' || args.tier === 'bronze') ? args.tier : 'silver';
+        const tier = args.tier === undefined ? '' : parseSponsorLabel(args.tier);
+        if (tier === null) return { ok: false, error: `tier ${SPONSOR_LABEL_ERROR}` };
         const newSponsor: Sponsor = {
           id: `sp-${Date.now()}`,
           name: String(args.name || '').trim(),
@@ -1597,7 +1611,8 @@ ${context ? `# Context\n${context}\n` : ''}`;
         const idx = sponsors.findIndex((s) => s.id === id);
         if (idx === -1) return { ok: false, error: `sponsor not found: ${id}` };
         const current = sponsors[idx];
-        const tier = (args.tier === 'platinum' || args.tier === 'gold' || args.tier === 'silver' || args.tier === 'bronze') ? args.tier : current.tier;
+        const tier = args.tier === undefined ? current.tier : parseSponsorLabel(args.tier);
+        if (tier === null) return { ok: false, error: `tier ${SPONSOR_LABEL_ERROR}` };
         sponsors[idx] = {
           ...current,
           name: typeof args.name === 'string' ? args.name : current.name,
