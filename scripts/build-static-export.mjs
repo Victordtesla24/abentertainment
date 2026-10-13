@@ -121,6 +121,15 @@ try {
     safeRestore();
     process.exit(result.status ?? 1);
   }
+  // Start the framework scripts after the first paint (see scripts/defer-scripts.mjs; DEFER_SCRIPTS=0 skips it).
+  const deferred = spawnSync(process.execPath, [resolve(repoRoot, 'scripts/defer-scripts.mjs'), resolve(repoRoot, 'out')], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+  });
+  if (deferred.status !== 0) {
+    safeRestore();
+    process.exit(deferred.status ?? 1);
+  }
   safeRestore();
 } catch (err) {
   console.error('[build:export] error:', err.message);
