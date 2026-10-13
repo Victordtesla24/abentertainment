@@ -191,6 +191,14 @@ test.describe('@req-footer-arch', () => {
     await expect(f.getByRole('heading', { name: 'Events' })).toBeVisible();
     await expect(f.getByRole('heading', { name: 'Contact' })).toBeVisible();
   });
+  test('support contact is a link, not a visible personal email', async ({ page }) => {
+    await page.goto('/');
+    const f = page.locator('footer');
+    const support = f.getByRole('link', { name: 'abentertainment support' });
+    await expect(support).toBeVisible();
+    await expect(support).toHaveAttribute('href', 'mailto:sarkar.vikram@gmail.com');
+    await expect(f).not.toContainText('sarkar.vikram@gmail.com');
+  });
 });
 
 test.describe('@req-admin-auth', () => {

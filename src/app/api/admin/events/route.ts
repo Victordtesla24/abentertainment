@@ -33,6 +33,9 @@ export const GET = withAuth(async () => {
 export const POST = withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
+    if (typeof body?.title !== 'string' || !body.title.trim()) {
+      return NextResponse.json({ error: 'Event title is required' }, { status: 400 });
+    }
     const events = await getEvents();
 
     const newEvent: Event = {

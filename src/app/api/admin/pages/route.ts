@@ -22,6 +22,9 @@ export const GET = withAuth(async () => {
 export const POST = withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
+    if (typeof body?.slug !== 'string' || !body.slug.trim() || typeof body?.title !== 'string' || !body.title.trim()) {
+      return NextResponse.json({ error: 'Page slug and title are required' }, { status: 400 });
+    }
     const pages = await getPageTitles();
 
     const existing = pages.find((p) => p.slug === body.slug);

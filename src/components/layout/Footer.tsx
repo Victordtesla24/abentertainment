@@ -211,9 +211,9 @@ export default function Footer() {
             <span className="mx-1.5 text-white/30">|</span>
             <a
               href="mailto:sarkar.vikram@gmail.com"
-              className="text-[#C9A84C]/85 hover:text-[#C9A84C] transition-colors duration-300 break-all"
+              className="text-[#C9A84C]/85 hover:text-[#C9A84C] transition-colors duration-300 whitespace-nowrap"
             >
-              sarkar.vikram@gmail.com
+              abentertainment support
             </a>
           </p>
         </div>

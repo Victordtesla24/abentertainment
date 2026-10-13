@@ -23,7 +23,8 @@ export function RevenueChart({ sponsors }: RevenueChartProps) {
       tier,
       color: TIER_COLORS[tier] || '#C9A84C',
       sponsors: tierSponsors.map((s) => ({
-        name: s.name,
+        // A record saved without a name must not crash the whole dashboard.
+        name: s.name?.trim() || 'Unnamed sponsor',
         revenue: s.revenue ?? s.contractValue ?? 0,
       })),
       total: tierSponsors.reduce((sum, s) => sum + (s.revenue ?? s.contractValue ?? 0), 0),

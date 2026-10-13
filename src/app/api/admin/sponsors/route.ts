@@ -13,6 +13,9 @@ export const GET = withAuth(async () => {
 export const POST = withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
+    if (typeof body?.name !== 'string' || !body.name.trim()) {
+      return NextResponse.json({ error: 'Sponsor name is required' }, { status: 400 });
+    }
     const sponsors = await getSponsors();
 
     const newSponsor: Sponsor = {
