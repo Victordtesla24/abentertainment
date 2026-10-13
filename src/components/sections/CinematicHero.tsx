@@ -66,9 +66,9 @@ const TITLE_FIT_FACTOR = 0.97;
 const SPOTLIGHT_DELAY_MS = 4000;
 
 /**
- * Decorative beams + dust. The renderer (and three.js itself, ~125 KB gzipped) is
- * loaded only well after the page has finished loading and the main thread is idle,
- * so it can never delay first paint, hydration, the load event or the first taps.
+ * Decorative beams + dust. The renderer is loaded only well after the page has
+ * finished loading and the main thread is idle, so it can never delay first paint,
+ * hydration, the load event or the first taps.
  */
 function VolumetricSpotlight({ className }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);

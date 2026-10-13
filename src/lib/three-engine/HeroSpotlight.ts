@@ -1,9 +1,8 @@
-import * as THREE from 'three';
-
 /**
  * Volumetric spotlight layer for the home hero: three gold shader cones plus a
  * field of drifting dust motes, drawn into a transparent canvas above the hero
- * photography.
+ * photography. Plain WebGL: the layer is two small programs and two buffers, so
+ * it needs no graphics library.
  *
  * Cost controls (the look is unchanged — the beams are wide, soft gradients):
  *  - the drawing buffer is sized to a pixel budget instead of devicePixelRatio,
@@ -23,6 +22,8 @@ export interface HeroSpotlightHandle {
   dispose(): void;
 }
 
+type GL = WebGLRenderingContext | WebGL2RenderingContext;
+
 const FRAME_INTERVAL_MS = 1000 / 30;
 const MIN_PIXEL_RATIO = 0.3;
 /** Main-thread milliseconds one frame may cost (render + updates) before quality is reduced. */
@@ -36,6 +37,21 @@ const SOFTWARE_START_SCALE = 0.5;
 const SOFTWARE_RENDERER = /swiftshader|llvmpipe|softpipe|software|basic render/i;
 /** Original authored speed: the sway clock advanced 0.01 per 60 Hz frame. */
 const CLOCK_SPEED = 0.6;
+
+/** Camera: 60 degree vertical field of view, 0.1..50 clip range, 5 units in front of the origin. */
+const FOV_DEGREES = 60;
+const NEAR = 0.1;
+const FAR = 50;
+const CAMERA_Z = 5;
+
+/** Cone: apex up, 3 units wide at the base, 8 tall, centred on its origin (open at the base). */
+const CONE_RADIUS = 3;
+const CONE_HEIGHT = 8;
+const CONE_COLOR: readonly [number, number, number] = srgbToLinear(0xc9, 0xa8, 0x4c);
+/** Dust motes keep the sRGB gold the screen shows. */
+const DUST_COLOR: readonly [number, number, number] = [0xc9 / 255, 0xa8 / 255, 0x4c / 255];
+const DUST_SIZE = 0.025;
+const DUST_OPACITY = 0.5;
 
 interface Profile {
   dustCount: number;
@@ -53,7 +69,7 @@ function pickProfile(): Profile {
 }
 
 /** True when the browser reports a CPU-emulated GL implementation. */
-function isSoftwareRenderer(gl: WebGLRenderingContext | WebGL2RenderingContext): boolean {
+function isSoftwareRenderer(gl: GL): boolean {
   const info = gl.getExtension('WEBGL_debug_renderer_info');
   if (!info) return false;
   const renderer = String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL) ?? '');
@@ -66,7 +82,51 @@ function pixelRatioFor(profile: Profile, cssWidth: number, cssHeight: number, sc
   return Math.max(MIN_PIXEL_RATIO, Math.min(window.devicePixelRatio || 1, profile.maxPixelRatio, budgeted) * scale);
 }
 
+/** The cone shader writes its colour straight to the canvas, so the gold is given in linear light. */
+function srgbToLinear(red: number, green: number, blue: number): [number, number, number] {
+  const channel = (value: number) => {
+    const c = value / 255;
+    return c < 0.04045 ? c * 0.0773993808 : Math.pow(c * 0.9478672986 + 0.0521327014, 2.4);
+  };
+  return [channel(red), channel(green), channel(blue)];
+}
+
+// ─── Matrices (column-major, as WebGL expects) ───────────────────────────────
+
+type Mat4 = number[];
+
+function perspective(aspect: number): Mat4 {
+  const f = 1 / Math.tan((FOV_DEGREES * Math.PI) / 360);
+  const m = new Array<number>(16).fill(0);
+  m[0] = f / aspect;
+  m[5] = f;
+  m[10] = -(FAR + NEAR) / (FAR - NEAR);
+  m[11] = -1;
+  m[14] = (-2 * FAR * NEAR) / (FAR - NEAR);
+  return m;
+}
+
+/** Translate, then rotate about X (`rotationX`) and Z (`rotationZ`), then uniformly scale, seen from the camera. */
+function modelView(x: number, y: number, z: number, rotationX: number, rotationZ: number, scale: number): Mat4 {
+  const a = Math.cos(rotationX);
+  const b = Math.sin(rotationX);
+  const e = Math.cos(rotationZ);
+  const f = Math.sin(rotationZ);
+  return [
+    e * scale, a * f * scale, b * f * scale, 0,
+    -f * scale, a * e * scale, b * e * scale, 0,
+    0, -b * scale, a * scale, 0,
+    x, y, z - CAMERA_Z, 1,
+  ];
+}
+
+// ─── Shaders ─────────────────────────────────────────────────────────────────
+
 const CONE_VERTEX = /* glsl */ `
+  attribute vec3 position;
+  attribute vec2 uv;
+  uniform mat4 modelViewMatrix;
+  uniform mat4 projectionMatrix;
   varying vec2 vUv;
   varying float vY;
   void main() {
@@ -105,6 +165,102 @@ const CONE_FRAGMENT = /* glsl */ `
   }
 `;
 
+const DUST_VERTEX = /* glsl */ `
+  attribute vec3 position;
+  uniform mat4 modelViewMatrix;
+  uniform mat4 projectionMatrix;
+  uniform float uSize;
+  uniform float uScale;
+  void main() {
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+    // Motes shrink with distance: pixels per world unit at that depth.
+    gl_PointSize = uSize * (uScale / -mvPosition.z);
+  }
+`;
+
+const DUST_FRAGMENT = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  void main() {
+    gl_FragColor = vec4(uColor, uOpacity);
+  }
+`;
+
+interface Program {
+  handle: WebGLProgram;
+  attribute: (name: string) => number;
+  uniform: (name: string) => WebGLUniformLocation | null;
+}
+
+function compile(gl: GL, type: number, source: string): WebGLShader {
+  const shader = gl.createShader(type);
+  if (!shader) throw new Error('could not create a shader');
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(shader);
+    gl.deleteShader(shader);
+    throw new Error(`shader failed to compile: ${log}`);
+  }
+  return shader;
+}
+
+function link(gl: GL, vertexSource: string, fragmentSource: string): Program {
+  const highp = (gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT)?.precision ?? 0) > 0;
+  const vertex = compile(gl, gl.VERTEX_SHADER, `precision highp float;\n${vertexSource}`);
+  const fragment = compile(gl, gl.FRAGMENT_SHADER, `precision ${highp ? 'highp' : 'mediump'} float;\n${fragmentSource}`);
+  const handle = gl.createProgram();
+  if (!handle) throw new Error('could not create a program');
+  gl.attachShader(handle, vertex);
+  gl.attachShader(handle, fragment);
+  gl.linkProgram(handle);
+  gl.deleteShader(vertex);
+  gl.deleteShader(fragment);
+  if (!gl.getProgramParameter(handle, gl.LINK_STATUS)) {
+    const log = gl.getProgramInfoLog(handle);
+    gl.deleteProgram(handle);
+    throw new Error(`program failed to link: ${log}`);
+  }
+  return {
+    handle,
+    attribute: (name) => gl.getAttribLocation(handle, name),
+    uniform: (name) => gl.getUniformLocation(handle, name),
+  };
+}
+
+/** Interleaved x, y, z, u, v for the open cone: one triangle per segment, from the base ring to the apex. */
+function coneVertices(segments: number): Float32Array {
+  const data = new Float32Array(segments * 3 * 5);
+  let offset = 0;
+  const push = (x: number, y: number, z: number, u: number, v: number) => {
+    data[offset++] = x;
+    data[offset++] = y;
+    data[offset++] = z;
+    data[offset++] = u;
+    data[offset++] = v;
+  };
+  const base = (i: number) => {
+    const u = i / segments;
+    const theta = u * Math.PI * 2;
+    push(CONE_RADIUS * Math.sin(theta), -CONE_HEIGHT / 2, CONE_RADIUS * Math.cos(theta), u, 0);
+  };
+  const apex = (i: number) => push(0, CONE_HEIGHT / 2, 0, i / segments, 1);
+  for (let i = 0; i < segments; i++) {
+    base(i);
+    base(i + 1);
+    apex(i + 1);
+  }
+  return data;
+}
+
+interface Resources {
+  cone: Program;
+  dust: Program;
+  coneBuffer: WebGLBuffer;
+  dustBuffer: WebGLBuffer;
+}
+
 /**
  * Mounts the spotlight on `canvas`. `host` is the hero section whose visibility
  * gates rendering. Returns null when WebGL is unavailable.
@@ -112,8 +268,6 @@ const CONE_FRAGMENT = /* glsl */ `
 export function mountHeroSpotlight(canvas: HTMLCanvasElement, host: HTMLElement): HeroSpotlightHandle | null {
   const profile = pickProfile();
 
-  // Create the context ourselves: when WebGL is unavailable (blocked GPU, privacy
-  // settings) three.js would log an error to the console before throwing.
   const attributes: WebGLContextAttributes = {
     antialias: false,
     alpha: true,
@@ -124,64 +278,7 @@ export function mountHeroSpotlight(canvas: HTMLCanvasElement, host: HTMLElement)
   const gl = canvas.getContext('webgl2', attributes) ?? canvas.getContext('webgl', attributes);
   if (!gl) return null;
 
-  let renderer: THREE.WebGLRenderer;
-  try {
-    renderer = new THREE.WebGLRenderer({ canvas, context: gl, ...attributes });
-  } catch (error) {
-    // The hero is complete without the beams; note why they are missing and carry on.
-    console.warn('[hero] spotlight renderer could not start', error);
-    return null;
-  }
-
-  const software = isSoftwareRenderer(renderer.getContext());
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 50);
-  camera.position.set(0, 0, 5);
-
-  // ─── Volumetric cones (spotlight beams) ────────────────────────────────
-  const coneGeo = new THREE.ConeGeometry(3, 8, profile.coneSegments, 1, true);
-  const coneMaterial = (opacity: number) =>
-    new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      uniforms: {
-        uTime: { value: 0 },
-        uColor: { value: new THREE.Color('#C9A84C') },
-        uOpacity: { value: opacity },
-      },
-      vertexShader: CONE_VERTEX,
-      fragmentShader: CONE_FRAGMENT,
-    });
-
-  const mat1 = coneMaterial(0.08);
-  const cone1 = new THREE.Mesh(coneGeo, mat1);
-  cone1.position.set(0, 2, -2);
-  cone1.rotation.z = Math.PI;
-  scene.add(cone1);
-
-  // Secondary beam (dimmer, offset left)
-  const mat2 = coneMaterial(0.04);
-  const cone2 = new THREE.Mesh(coneGeo, mat2);
-  cone2.position.set(-1.5, 2.5, -3);
-  cone2.rotation.z = Math.PI;
-  cone2.rotation.x = 0.15;
-  cone2.scale.setScalar(0.7);
-  scene.add(cone2);
-
-  // Third beam (dimmer, offset right)
-  const mat3 = coneMaterial(0.04);
-  const cone3 = new THREE.Mesh(coneGeo, mat3);
-  cone3.position.set(1.5, 2.5, -3);
-  cone3.rotation.z = Math.PI;
-  cone3.rotation.x = -0.15;
-  cone3.scale.setScalar(0.7);
-  scene.add(cone3);
-
-  // ─── Floating gold dust ────────────────────────────────────────────────
   const dustCount = profile.dustCount;
-  const dustGeo = new THREE.BufferGeometry();
   const dustPositions = new Float32Array(dustCount * 3);
   const dustVelocities = new Float32Array(dustCount * 3);
   for (let i = 0; i < dustCount; i++) {
@@ -192,17 +289,52 @@ export function mountHeroSpotlight(canvas: HTMLCanvasElement, host: HTMLElement)
     dustVelocities[i * 3 + 1] = Math.random() * 0.004 + 0.001;
     dustVelocities[i * 3 + 2] = (Math.random() - 0.5) * 0.002;
   }
-  const dustAttribute = new THREE.BufferAttribute(dustPositions, 3);
-  dustGeo.setAttribute('position', dustAttribute);
-  const dustMat = new THREE.PointsMaterial({
-    color: 0xc9a84c,
-    size: 0.025,
-    transparent: true,
-    opacity: 0.5,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  scene.add(new THREE.Points(dustGeo, dustMat));
+  const coneData = coneVertices(profile.coneSegments);
+  const coneVertexCount = profile.coneSegments * 3;
+
+  const createResources = (): Resources | null => {
+    try {
+      const coneBuffer = gl.createBuffer();
+      const dustBuffer = gl.createBuffer();
+      if (!coneBuffer || !dustBuffer) throw new Error('could not create a buffer');
+      gl.bindBuffer(gl.ARRAY_BUFFER, coneBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, coneData, gl.STATIC_DRAW);
+      gl.bindBuffer(gl.ARRAY_BUFFER, dustBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, dustPositions, gl.DYNAMIC_DRAW);
+      return {
+        cone: link(gl, CONE_VERTEX, CONE_FRAGMENT),
+        dust: link(gl, DUST_VERTEX, DUST_FRAGMENT),
+        coneBuffer,
+        dustBuffer,
+      };
+    } catch (error) {
+      // The hero is complete without the beams; note why they are missing and carry on.
+      console.warn('[hero] spotlight renderer could not start', error);
+      return null;
+    }
+  };
+
+  let resources = createResources();
+  if (!resources) return null;
+
+  const software = isSoftwareRenderer(gl);
+
+  // ─── Beams: pose, per-beam opacity and time offset ──────────────────────
+  interface Beam {
+    x: number;
+    y: number;
+    z: number;
+    rotationX: number;
+    scale: number;
+    opacity: number;
+    timeOffset: number;
+  }
+  const primary: Beam = { x: 0, y: 2, z: -2, rotationX: 0, scale: 1, opacity: 0.08, timeOffset: 0 };
+  // Secondary beams: dimmer, offset left and right.
+  const left: Beam = { x: -1.5, y: 2.5, z: -3, rotationX: 0.15, scale: 0.7, opacity: 0.04, timeOffset: 1 };
+  const right: Beam = { x: 1.5, y: 2.5, z: -3, rotationX: -0.15, scale: 0.7, opacity: 0.04, timeOffset: 2 };
+  // Farthest first (the two side beams are level, the left one was added first), then the primary beam.
+  const beamsBackToFront = [left, right, primary];
 
   // ─── Sizing ─────────────────────────────────────────────────────────────
   let scale = software ? SOFTWARE_START_SCALE : 1;
@@ -211,16 +343,84 @@ export function mountHeroSpotlight(canvas: HTMLCanvasElement, host: HTMLElement)
   let frozen = false;
   let cssWidth = 0;
   let cssHeight = 0;
+  let pixelRatio = 1;
+  let projection = perspective(1);
+  let contextLost = false;
+
+  const drawCones = (r: Resources, time: number) => {
+    gl.useProgram(r.cone.handle);
+    gl.bindBuffer(gl.ARRAY_BUFFER, r.coneBuffer);
+    const position = r.cone.attribute('position');
+    const uv = r.cone.attribute('uv');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 20, 0);
+    gl.enableVertexAttribArray(uv);
+    gl.vertexAttribPointer(uv, 2, gl.FLOAT, false, 20, 12);
+    gl.uniformMatrix4fv(r.cone.uniform('projectionMatrix'), false, projection);
+    gl.uniform3f(r.cone.uniform('uColor'), CONE_COLOR[0], CONE_COLOR[1], CONE_COLOR[2]);
+
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    for (const beam of beamsBackToFront) {
+      gl.uniformMatrix4fv(
+        r.cone.uniform('modelViewMatrix'),
+        false,
+        modelView(beam.x, beam.y, beam.z, beam.rotationX, Math.PI, beam.scale),
+      );
+      gl.uniform1f(r.cone.uniform('uTime'), time + beam.timeOffset);
+      gl.uniform1f(r.cone.uniform('uOpacity'), beam.opacity);
+      // A cone is seen from inside and outside: the far wall is blended first, then the near wall.
+      gl.frontFace(gl.CW);
+      gl.drawArrays(gl.TRIANGLES, 0, coneVertexCount);
+      gl.frontFace(gl.CCW);
+      gl.drawArrays(gl.TRIANGLES, 0, coneVertexCount);
+    }
+    gl.disableVertexAttribArray(position);
+    gl.disableVertexAttribArray(uv);
+  };
+
+  const drawDust = (r: Resources) => {
+    gl.useProgram(r.dust.handle);
+    gl.bindBuffer(gl.ARRAY_BUFFER, r.dustBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, dustPositions);
+    const position = r.dust.attribute('position');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 0, 0);
+    gl.uniformMatrix4fv(r.dust.uniform('projectionMatrix'), false, projection);
+    gl.uniformMatrix4fv(r.dust.uniform('modelViewMatrix'), false, modelView(0, 0, 0, 0, 0, 1));
+    gl.uniform1f(r.dust.uniform('uSize'), DUST_SIZE * pixelRatio);
+    gl.uniform1f(r.dust.uniform('uScale'), cssHeight * 0.5);
+    gl.uniform3f(r.dust.uniform('uColor'), DUST_COLOR[0], DUST_COLOR[1], DUST_COLOR[2]);
+    gl.uniform1f(r.dust.uniform('uOpacity'), DUST_OPACITY);
+
+    gl.disable(gl.CULL_FACE);
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ONE, gl.ONE);
+    gl.drawArrays(gl.POINTS, 0, dustCount);
+    gl.disableVertexAttribArray(position);
+  };
+
+  let clock = 0;
+
+  const render = () => {
+    if (!resources || contextLost) return;
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    drawCones(resources, clock);
+    drawDust(resources);
+  };
 
   const applySize = (width: number, height: number) => {
     cssWidth = Math.max(1, Math.round(width));
     cssHeight = Math.max(1, Math.round(height));
-    renderer.setPixelRatio(pixelRatioFor(profile, cssWidth, cssHeight, scale));
-    // updateStyle=false: the canvas is sized by CSS (100% of the hero).
-    renderer.setSize(cssWidth, cssHeight, false);
-    camera.aspect = cssWidth / cssHeight;
-    camera.updateProjectionMatrix();
-    if (frozen) renderer.render(scene, camera); // setSize clears the canvas; repaint the frozen frame
+    pixelRatio = pixelRatioFor(profile, cssWidth, cssHeight, scale);
+    // The canvas is sized by CSS (100% of the hero); only the drawing buffer is allocated here.
+    canvas.width = Math.floor(cssWidth * pixelRatio);
+    canvas.height = Math.floor(cssHeight * pixelRatio);
+    gl.viewport(0, 0, Math.round(cssWidth * pixelRatio), Math.round(cssHeight * pixelRatio));
+    projection = perspective(cssWidth / cssHeight);
+    if (frozen) render(); // resizing clears the canvas; repaint the frozen frame
   };
 
   const initialRect = host.getBoundingClientRect();
@@ -240,7 +440,6 @@ export function mountHeroSpotlight(canvas: HTMLCanvasElement, host: HTMLElement)
   resizeObserver.observe(host);
 
   // ─── Loop ───────────────────────────────────────────────────────────────
-  let clock = 0;
   let rafId = 0;
   let running = false;
   let inView = true;
@@ -258,15 +457,12 @@ export function mountHeroSpotlight(canvas: HTMLCanvasElement, host: HTMLElement)
 
     const frameStart = performance.now();
     clock += dt * CLOCK_SPEED;
-    mat1.uniforms.uTime.value = clock;
-    mat2.uniforms.uTime.value = clock + 1.0;
-    mat3.uniforms.uTime.value = clock + 2.0;
 
     // Slow spotlight sway
-    cone1.rotation.x = Math.sin(clock * 0.3) * 0.08;
-    cone1.position.x = Math.sin(clock * 0.2) * 0.3;
-    cone2.rotation.x = Math.sin(clock * 0.25 + 1) * 0.1 + 0.15;
-    cone3.rotation.x = Math.sin(clock * 0.25 + 2) * 0.1 - 0.15;
+    primary.rotationX = Math.sin(clock * 0.3) * 0.08;
+    primary.x = Math.sin(clock * 0.2) * 0.3;
+    left.rotationX = Math.sin(clock * 0.25 + 1) * 0.1 + 0.15;
+    right.rotationX = Math.sin(clock * 0.25 + 2) * 0.1 - 0.15;
 
     // Drift the dust (velocities are authored per 60 Hz frame)
     const step = dt * 60;
@@ -281,9 +477,8 @@ export function mountHeroSpotlight(canvas: HTMLCanvasElement, host: HTMLElement)
       dustPositions[i * 3 + 1] = y;
       dustPositions[i * 3 + 2] = z;
     }
-    dustAttribute.needsUpdate = true;
 
-    renderer.render(scene, camera);
+    render();
 
     // Frame-cost governor: measure what this layer costs the main thread. If the average
     // exceeds the budget, shrink the buffer; once it cannot shrink further, stop animating
@@ -318,6 +513,21 @@ export function mountHeroSpotlight(canvas: HTMLCanvasElement, host: HTMLElement)
     }
   };
 
+  // The browser may take the GL context away (a backgrounded mobile tab, GPU reset).
+  // Cancelling the event lets it hand the context back, and the programs are rebuilt then.
+  const onContextLost = (event: Event) => {
+    event.preventDefault();
+    contextLost = true;
+  };
+  const onContextRestored = () => {
+    resources = createResources();
+    contextLost = false;
+    applySize(cssWidth, cssHeight);
+    render();
+  };
+  canvas.addEventListener('webglcontextlost', onContextLost);
+  canvas.addEventListener('webglcontextrestored', onContextRestored);
+
   const intersectionObserver = new IntersectionObserver((entries) => {
     const entry = entries[entries.length - 1];
     if (!entry) return;
@@ -336,14 +546,16 @@ export function mountHeroSpotlight(canvas: HTMLCanvasElement, host: HTMLElement)
       intersectionObserver.disconnect();
       resizeObserver.disconnect();
       document.removeEventListener('visibilitychange', sync);
-      coneGeo.dispose();
-      mat1.dispose();
-      mat2.dispose();
-      mat3.dispose();
-      dustGeo.dispose();
-      dustMat.dispose();
-      renderer.dispose();
-      renderer.forceContextLoss();
+      canvas.removeEventListener('webglcontextlost', onContextLost);
+      canvas.removeEventListener('webglcontextrestored', onContextRestored);
+      if (resources) {
+        gl.deleteBuffer(resources.coneBuffer);
+        gl.deleteBuffer(resources.dustBuffer);
+        gl.deleteProgram(resources.cone.handle);
+        gl.deleteProgram(resources.dust.handle);
+        resources = null;
+      }
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
     },
   };
 }
