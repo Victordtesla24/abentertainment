@@ -4,7 +4,7 @@ import {
   validateCredentials,
   createSessionToken,
   getSessionCookieName,
-  validateSessionToken,
+  getAdminSession,
 } from '@/lib/auth';
 import { generateCsrfToken, setCsrfCookie, CSRF_COOKIE } from '@/lib/csrf';
 import { validateOrigin, corsHeaders } from '@/lib/cors';
@@ -74,9 +74,11 @@ export async function POST(request: NextRequest) {
     const sessionToken = createSessionToken();
     const csrfToken = generateCsrfToken();
 
+    // The token is also returned in the body so the admin client can present
+    // it in an Authorization header when the browser refuses the cookie.
     const response = NextResponse.json(
-      { success: true, csrfToken },
-      { headers: corsHeaders(origin) }
+      { success: true, csrfToken, token: sessionToken },
+      { headers: { ...corsHeaders(origin), 'Cache-Control': 'no-store' } }
     );
 
     response.cookies.set(getSessionCookieName(), sessionToken, {
@@ -106,8 +108,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const token = request.cookies.get(getSessionCookieName())?.value;
-  if (!token || !validateSessionToken(token)) {
+  if (!getAdminSession(request)) {
     return NextResponse.json(
       { authenticated: false },
       { status: 401, headers: corsHeaders(origin) }

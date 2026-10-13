@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminDashboard from '@/components/admin/AdminDashboard';
-import { adminFetch, setCsrfToken, setAuthToken } from '@/lib/admin-fetch';
+import { adminFetch, setCsrfToken } from '@/lib/admin-fetch';
 import type { Event, Sponsor, GalleryImage, SiteSettings, Video, HeroImage, TimelineChapter, Testimonial, SiteMetric } from '@/lib/data';
 
 const DEFAULT_SETTINGS: SiteSettings = {
@@ -55,7 +55,6 @@ export default function AdminPage() {
         if (auth.csrfToken) {
           // Re-arm the CSRF double-submit header for this tab.
           setCsrfToken(auth.csrfToken);
-          setAuthToken(auth.csrfToken);
         }
 
         if (!isCancelled) {

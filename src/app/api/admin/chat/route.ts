@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileP = promisify(execFile);
-import { getSessionCookieName, validateSessionToken } from '@/lib/auth';
+import { getAdminSession, type AdminSessionSource } from '@/lib/auth';
 import { validateCsrfToken } from '@/lib/csrf';
 import { getAllowedOrigins } from '@/lib/cors';
 import {
@@ -350,14 +350,10 @@ function getClientIp(request: NextRequest): string {
   return request.headers.get('x-real-ip') || 'unknown';
 }
 
-function requireAuth(request: NextRequest): boolean {
-  // Read cookie directly from request (works with force-static unlike cookies() from next/headers)
-  const session = request.cookies.get(getSessionCookieName());
-  return session ? validateSessionToken(session.value) : false;
-}
-
 export async function POST(request: NextRequest) {
-  if (!requireAuth(request)) {
+  // Session from the httpOnly cookie or the Authorization: Bearer header (see getAdminSession).
+  const session: AdminSessionSource | null = getAdminSession(request);
+  if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -451,7 +447,7 @@ export async function POST(request: NextRequest) {
   if (!chatOrigin || !getAllowedOrigins().includes(chatOrigin)) {
     return NextResponse.json({ error: 'Forbidden: origin not allowed' }, { status: 403 });
   }
-  if (!validateCsrfToken(request)) {
+  if (session === 'cookie' && !validateCsrfToken(request)) {
     return NextResponse.json({ error: 'Forbidden: invalid CSRF token' }, { status: 403 });
   }
 
