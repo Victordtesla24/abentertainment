@@ -147,7 +147,8 @@
     "category": "gallery",
     "width": 1200,
     "height": 800,
-    "createdAt": "2026-04-14T07:57:26.047Z"
+    "createdAt": "2026-04-14T07:57:26.047Z",
+    "order": 15
   },
   {
     "id": "img-1776153487074",
@@ -157,7 +158,8 @@
     "category": "events",
     "width": 1200,
     "height": 800,
-    "createdAt": "2026-04-14T07:58:07.074Z"
+    "createdAt": "2026-04-14T07:58:07.074Z",
+    "order": 16
   },
   {
     "id": "img-1780909785710",
@@ -167,17 +169,8 @@
     "category": "event",
     "width": 1200,
     "height": 800,
-    "createdAt": "2026-06-08T09:09:45.710Z"
-  },
-  {
-    "id": "img-1780910153345",
-    "src": "https://photos.google.com/share/AF1QipPdWn2S4bBtf9H-PJiV2GOaoyDz5T967M9pfVdL6V5KueIC4KGpvgmbOWX-uqiEqw?key=cE83amY1dFljWkVzZXRBTmRIV2YzMHR3QzJmRW5n",
-    "alt": "Event image",
-    "eventId": "evt-swaranirmiti-2026",
-    "category": "event",
-    "width": 1200,
-    "height": 800,
-    "createdAt": "2026-06-08T09:15:53.345Z"
+    "createdAt": "2026-06-08T09:09:45.710Z",
+    "order": 17
   },
   {
     "id": "img-1781182983533",
@@ -189,5 +182,95 @@
     "height": 800,
     "createdAt": "2026-06-11T13:03:03.533Z",
     "order": 19
+  },
+  {
+    "id": "img-1786010650006",
+    "src": "/api/uploads/gallery/1786010638138-image.jpg",
+    "alt": "event photo 1",
+    "eventId": "evt-1780911052955",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-08-06T10:04:10.006Z"
+  },
+  {
+    "id": "img-1786010785553",
+    "src": "/api/uploads/gallery/1786010784254-image__1_.jpg",
+    "alt": "event photo 2",
+    "eventId": "evt-1780911052955",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-08-06T10:06:25.553Z"
+  },
+  {
+    "id": "img-1786011162831",
+    "src": "/api/uploads/gallery/1786011161380-image__2_.jpg",
+    "alt": "event photo 3",
+    "eventId": "evt-1780911052955",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-08-06T10:12:42.831Z"
+  },
+  {
+    "id": "img-1786011226272",
+    "src": "/api/uploads/gallery/1786011224732-image__3_.jpg",
+    "alt": "event photo 4",
+    "eventId": "evt-1780911052955",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-08-06T10:13:46.272Z"
+  },
+  {
+    "id": "img-1786011331246",
+    "src": "/api/uploads/gallery/1786011325917-image__4_.jpg",
+    "alt": "event photo 5",
+    "eventId": "evt-1780911052955",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-08-06T10:15:31.246Z"
+  },
+  {
+    "id": "img-1786011570704",
+    "src": "/api/uploads/gallery/1786011569232-image__5_.jpg",
+    "alt": "event photo 6",
+    "eventId": "evt-1780911052955",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-08-06T10:19:30.704Z"
+  },
+  {
+    "id": "img-1786011660373",
+    "src": "/api/uploads/gallery/1786011658589-image__6_.jpg",
+    "alt": "event photo 7",
+    "eventId": "evt-1780911052955",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-08-06T10:21:00.373Z"
+  },
+  {
+    "id": "img-1786011829004",
+    "src": "/api/uploads/gallery/1786011827256-image__7_.jpg",
+    "alt": "event photo 7",
+    "eventId": "evt-1780911052955",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-08-06T10:23:49.004Z"
+  },
+  {
+    "id": "img-1786011847205",
+    "src": "/api/uploads/gallery/1786011845810-image__8_.jpg",
+    "alt": "event photo 8",
+    "eventId": "evt-1780911052955",
+    "category": "event",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-08-06T10:24:07.205Z"
   }
 ]
