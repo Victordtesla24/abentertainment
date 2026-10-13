@@ -87,6 +87,10 @@ RewriteRule ^docs(/.*)?$ - [F,L]
 RewriteRule ^e2e(/.*)?$ - [F,L]
 RewriteRule ^agent-system(/.*)?$ - [F,L]
 RewriteRule ^\.claude(/.*)?$ - [F,L]
+# The repo's raw public/ tree (served from out/ after the build) and build files are not public:
+# /public/data/*.json held unprojected admin fields (ticket sales and revenue, image overrides).
+RewriteRule ^public(/.*)?$ - [F,L]
+RewriteRule ^(Dockerfile|deploy\.sh)$ - [F,L]
 
 # Media types LiteSpeed does not map by default. Without this, the generated
 # AVIF variants (public/images/**/*-<width>w.avif) are served as text/plain;
