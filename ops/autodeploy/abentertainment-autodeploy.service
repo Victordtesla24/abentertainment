@@ -1,0 +1,15 @@
+[Unit]
+Description=abentertainment: sync /docker/abentertainment to GitHub main and redeploy the API container when server code changed
+Documentation=https://github.com/Victordtesla24/abentertainment/tree/main/ops/autodeploy
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -B /usr/local/sbin/abentertainment-autodeploy
+# A deploy is a docker build (~2-3 min) plus a health wait; the lock inside the script prevents overlap with manual deploys.
+TimeoutStartSec=40min
+Nice=10
+Environment=HOME=/root PYTHONDONTWRITEBYTECODE=1
+NoNewPrivileges=true
+PrivateTmp=true

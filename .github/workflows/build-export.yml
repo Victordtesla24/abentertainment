@@ -1,0 +1,112 @@
+name: Build static export
+
+# The Hostinger site is the committed out/ directory (Hostinger pulls main within seconds of every push).
+# This workflow keeps out/ in step with the sources and with the live public data, on GitHub-hosted runners:
+#
+#   push to main         sources changed            -> rebuild from the pushed commit and the live API data
+#   schedule (15 min)    admin edited live content  -> rebuild only when the live data or the sources changed
+#   workflow_dispatch    manual                     -> "commit" false is a dry run
+#   push to ci/**        build and verify only, never commits
+#
+# The job commits out/ (and nothing else) to main only when it changed, with [skip ci]. The commit is pushed with
+# GITHUB_TOKEN, which never starts another workflow run, so there is no loop; Hostinger's push webhook still fires.
+# If the live API is unreachable or returns empty data, or the verification fails, the job fails and the current
+# out/ stays live. The refreshed data files exist only in the runner workspace.
+
+on:
+  push:
+    branches: [main, 'ci/**']
+    paths-ignore:
+      - 'out/**'
+      - 'docs/**'
+      - 'e2e/**'
+      - 'ops/**'
+      - '.claude/**'
+      - '.context/**'
+      - '**/*.md'
+      - deploy-webhook.php
+      - api-proxy.php
+      - .htaccess
+      - ops-autodeploy-check.txt
+      - playwright.config.ts
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: 'Commit the rebuilt out/ to main (false = dry run)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-export-${{ github.ref == 'refs/heads/main' && 'main' || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+jobs:
+  export:
+    name: Build and publish out/
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      statuses: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      PUBLISH: ${{ (github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.commit)) && 'yes' || 'no' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Decide whether a rebuild is needed
+        id: decide
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            node scripts/refresh-build-data.mjs --check
+          else
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.decide.outputs.needs_build == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.decide.outputs.needs_build == 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Build and verify the export
+        if: steps.decide.outputs.needs_build == 'true'
+        run: bash scripts/ci/build-export.sh
+
+      - name: Hold publication until the VPS API container is rolled (server-side changes only)
+        if: steps.decide.outputs.needs_build == 'true' && github.event_name == 'push' && env.PUBLISH == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: bash scripts/ci/wait-for-vps-api.sh
+
+      - name: Commit out/ when it changed
+        if: steps.decide.outputs.needs_build == 'true'
+        env:
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          if [ "$PUBLISH" = "yes" ]; then export DRY_RUN=0; fi
+          bash scripts/ci/publish-export.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Static export"
+            echo "- trigger: \`$GITHUB_EVENT_NAME\` on \`$GITHUB_REF_NAME\` (\`${GITHUB_SHA::9}\`)"
+            echo "- rebuild needed: \`${{ steps.decide.outputs.needs_build || 'not decided' }}\`"
+            echo "- publishing enabled: \`$PUBLISH\`"
+          } >> "$GITHUB_STEP_SUMMARY"
