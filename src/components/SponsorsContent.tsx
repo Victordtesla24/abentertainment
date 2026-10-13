@@ -5,21 +5,14 @@ import Link from 'next/link';
 import type { Sponsor } from '@/lib/data';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
-// Tiers are free text the admin types, so they are matched case-insensitively ("Platinum" sorts
-// with "platinum"). Maps rather than plain objects: text such as "constructor" must not hit an
-// inherited property.
+// The tier is never shown on the public site; it only decides the order of the cards. Tiers are free
+// text the admin types, so they are matched case-insensitively ("Platinum" sorts with "platinum").
+// A Map rather than a plain object: text such as "constructor" must not hit an inherited property.
 const tierOrder = new Map<string, number>([
   ['platinum', 0],
   ['gold', 1],
   ['silver', 2],
   ['bronze', 3],
-]);
-
-const tierColors = new Map<string, string>([
-  ['platinum', '#E5E4E2'],
-  ['gold', '#C9A84C'],
-  ['silver', '#C0C0C0'],
-  ['bronze', '#CD7F32'],
 ]);
 
 const tierKey = (tier: string | undefined): string => (tier ?? '').trim().toLowerCase();
@@ -36,8 +29,6 @@ function externalHref(url: string | undefined): string | undefined {
 }
 
 function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
-  const tierLabel = (sponsor.tier ?? '').trim();
-  const tierColor = tierColors.get(tierKey(sponsor.tier)) || '#C9A84C';
   const href = externalHref(sponsor.url);
   const name = (sponsor.name ?? '').trim();
   // Records saved before the company-name field existed fall back to the display name.
@@ -48,22 +39,6 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 
   const content = (
     <>
-      {tierLabel && (
-        <div className="flex items-center justify-between mb-6">
-          <span
-            className="px-3 py-1 text-xs font-body font-semibold uppercase tracking-wider"
-            style={{
-              color: tierColor,
-              borderWidth: 1,
-              borderStyle: 'solid',
-              borderColor: `${tierColor}40`,
-            }}
-          >
-            {tierLabel}
-          </span>
-        </div>
-      )}
-
       <div className="h-20 flex items-center justify-center mb-6 bg-white/90 rounded p-3">
         {sponsor.logo ? (
           <img

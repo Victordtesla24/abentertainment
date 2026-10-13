@@ -10,7 +10,7 @@
  *      placeholder sponsors, handles 0 / 1 / 2 / many sponsors with a seamless
  *      loop and the original animation timing
  *   3. Sponsors page: hidden sponsors are not listed, company name shown, free-text
- *      tiers sort case-insensitively
+ *      tiers sort case-insensitively but are never displayed anywhere on the public site
  *   4. Admin API protection and server-side validation
  *   5. Admin panel: add (with an uploaded logo), edit, hide and delete a
  *      sponsor, and the carousel follows
@@ -444,7 +444,7 @@ test.describe('Sponsors page', () => {
     await expect(page.getByText('Secret Sponsor')).toHaveCount(0);
   });
 
-  test('free-text tiers sort case-insensitively with the classic ones; no tier sorts last without a badge', async ({ page }) => {
+  test('free-text tiers only decide the order: case-insensitive, classic tiers first, no tier last', async ({ page }) => {
     writeStore([
       makeSponsor(0, { name: 'Silver One', tier: 'silver', order: 0 }),
       makeSponsor(1, { name: 'Plat Capital', tier: 'Platinum', order: 1 }),
@@ -457,9 +457,35 @@ test.describe('Sponsors page', () => {
     await expect(page.getByRole('heading', { name: 'Plat Capital' })).toBeVisible({ timeout: 15000 });
     const names = await page.locator('main h3').allTextContents();
     expect(names).toEqual(['Plat Capital', 'Plat Lower', 'Gold Shouted', 'Silver One', 'No Tier', 'Media Friend']);
-    // The card of a sponsor with no tier has no empty badge row.
-    const noTierCard = page.locator('a, div.group', { has: page.getByRole('heading', { name: 'No Tier' }) }).first();
-    await expect(noTierCard.locator('span.uppercase')).toHaveCount(0);
+  });
+
+  test('the tier is never shown: no tier text or badge on the Sponsors page, the home page or the events page', async ({ page }) => {
+    writeStore([
+      makeSponsor(0, { name: 'Tier Test One', tier: 'platinum' }),
+      makeSponsor(1, { name: 'Tier Test Two', tier: 'ZZTierMarker Gold Partner' }),
+      makeSponsor(2, { name: 'Tier Test Three', tier: '' }),
+    ]);
+    for (const route of ['/sponsors', '/', '/events']) {
+      await page.goto(route);
+      await expect(page.locator('footer')).toBeAttached({ timeout: 15000 });
+      await page.waitForTimeout(1500);
+      const rendered = await page.evaluate(() => {
+        const clone = document.documentElement.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll('script, style').forEach((node) => node.remove());
+        return { text: document.body.innerText, markup: clone.outerHTML };
+      });
+      expect(rendered.text, `${route} text`).not.toContain('ZZTierMarker');
+      expect(rendered.markup, `${route} markup`).not.toContain('ZZTierMarker');
+    }
+    await page.goto('/sponsors');
+    const cards = page.locator('main .grid > *');
+    await expect(cards).toHaveCount(3, { timeout: 15000 });
+    for (const card of await cards.all()) {
+      // No badge, and no header row above the logo chip.
+      await expect(card.locator('span.uppercase')).toHaveCount(0);
+      expect(await card.evaluate((element) => element.firstElementChild?.className ?? '')).toContain('h-20');
+    }
+    expect((await page.locator('main').innerText()).toLowerCase()).not.toContain('platinum');
   });
 
   test('the stored sponsors keep their order: tier rank (case-insensitive), then the admin order', async ({ page }) => {
