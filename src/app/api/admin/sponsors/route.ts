@@ -62,7 +62,7 @@ function audit(request: NextRequest, action: string, details: Record<string, unk
 /** Control characters (including newlines and tabs) have no place in a one-line label. */
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 
-/** Validate a free-text label such as the tier: trimmed, at most LABEL_MAX_LENGTH characters, no control characters; empty is allowed. */
+/** Validate a free-text label such as the tier or category: trimmed, at most LABEL_MAX_LENGTH characters, no control characters; empty is allowed. */
 function parseLabel(value: unknown, label: string): { value?: string; error?: string } {
   if (typeof value !== 'string') return { error: `${label} must be text` };
   const trimmed = value.trim();
@@ -93,6 +93,7 @@ interface SponsorInput {
   logo?: string;
   url?: string;
   tier?: string;
+  category?: string;
   description?: string;
   order?: number;
   visible?: boolean;
@@ -140,6 +141,12 @@ function parseSponsorInput(body: Record<string, unknown>): { input: SponsorInput
     const tier = parseLabel(body.tier, 'Tier');
     if (tier.error) errors.push(tier.error);
     else input.tier = tier.value;
+  }
+
+  if (body.category !== undefined) {
+    const category = parseLabel(body.category, 'Category');
+    if (category.error) errors.push(category.error);
+    else input.category = category.value;
   }
 
   if (body.description !== undefined) {
@@ -223,6 +230,7 @@ export const POST = withAuth(async (request: NextRequest) => {
         logo: input.logo ?? '',
         url: input.url ?? '',
         tier: input.tier ?? '',
+        category: input.category ?? '',
         description: input.description ?? '',
         ...(typeof input.revenue === 'number' ? { revenue: input.revenue } : {}),
         ...(typeof input.contractValue === 'number' ? { contractValue: input.contractValue } : {}),

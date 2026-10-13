@@ -25,6 +25,11 @@ function sponsorCompany(sponsor: Sponsor): string {
   return (sponsor.companyName ?? '').trim() || sponsorName(sponsor);
 }
 
+/** Free-text label the admin gave the sponsor ("Sponsor", "Partner", ...); empty when there is none. */
+function sponsorCategory(sponsor: Sponsor): string {
+  return (sponsor.category ?? '').trim();
+}
+
 /** The sponsor's website if it is a real http(s) address; empty or placeholder values (such as "#") get no link. */
 function externalHref(url: string | undefined): string | undefined {
   if (!url) return undefined;
@@ -51,7 +56,8 @@ function sameSponsors(a: Sponsor[], b: Sponsor[]): boolean {
         sponsor.name === other.name &&
         sponsor.companyName === other.companyName &&
         sponsor.logo === other.logo &&
-        sponsor.url === other.url
+        sponsor.url === other.url &&
+        sponsorCategory(sponsor) === sponsorCategory(other)
       );
     })
   );
@@ -67,9 +73,14 @@ function initialsOf(company: string): string {
     .toUpperCase();
 }
 
+const NAME_CLASS = 'text-white/50 text-[10px] font-body whitespace-nowrap group-hover/item:text-[#C9A84C] transition-colors duration-500';
+const CATEGORY_CLASS = 'text-[8px] uppercase tracking-[0.2em] text-[#C9A84C]/70 font-body whitespace-nowrap group-hover/item:text-[#C9A84C] transition-colors duration-500';
+
 function SponsorItem({ sponsor, duplicate }: { sponsor: Sponsor; duplicate: boolean }) {
   const href = externalHref(sponsor.url);
   const company = sponsorCompany(sponsor);
+  const category = sponsorCategory(sponsor);
+  const name = <span className={NAME_CLASS}>{sponsorName(sponsor)}</span>;
   return (
     <a
       href={href}
@@ -95,9 +106,15 @@ function SponsorItem({ sponsor, duplicate }: { sponsor: Sponsor; duplicate: bool
           <span className="text-[10px] font-bold text-[#0A0A0A]/70 leading-none">{initialsOf(company)}</span>
         )}
       </div>
-      <span className="text-white/50 text-[10px] font-body whitespace-nowrap group-hover/item:text-[#C9A84C] transition-colors duration-500">
-        {sponsorName(sponsor)}
-      </span>
+      {category ? (
+        // Only a sponsor with a category gets a second line; the rest render exactly as before.
+        <span className="flex flex-col gap-0.5">
+          {name}
+          <span className={CATEGORY_CLASS}>{category}</span>
+        </span>
+      ) : (
+        name
+      )}
     </a>
   );
 }
