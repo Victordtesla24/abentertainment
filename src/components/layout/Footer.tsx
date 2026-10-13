@@ -2,28 +2,64 @@
 
 import Link from 'next/link';
 import OptimizedImage from '@/components/ui/OptimizedImage';
-import { useState, FormEvent } from 'react';
+import { useRef, useState, FormEvent } from 'react';
 import { usePathname } from 'next/navigation';
 import { SITE_CONFIG, NAVIGATION, telHref } from '@/lib/constants';
 import SponsorBanner from '@/components/ui/SponsorBanner';
 import type { Sponsor } from '@/lib/data';
 import { useHydrated } from '@/lib/use-hydrated';
+import { getApiUrl } from '@/lib/api-config';
+
+const NEWSLETTER_RETRY_MESSAGE = 'Something went wrong. Please try again.';
 
 export default function Footer({ initialSponsors = [] }: { initialSponsors?: Sponsor[] }) {
   const pathname = usePathname();
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [newsletterError, setNewsletterError] = useState('');
+  // Honeypot: hidden from visitors, so it stays empty unless a bot fills it in.
+  const [website, setWebsite] = useState('');
+  // Set the moment a send starts, so a second submit in the same instant cannot start another.
+  const sendingRef = useRef(false);
   const hydrated = useHydrated();
 
   if (pathname.startsWith('/admin')) return null;
 
   const currentYear = new Date().getFullYear();
 
-  function handleNewsletterSubmit(e: FormEvent) {
+  // Also runs when the export's loader replays a submit made before hydration (requestSubmit):
+  // by then the typed address has been put back into the field, so `email` holds it.
+  async function handleNewsletterSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!email.trim()) return;
-    setSubscribed(true);
-    setEmail('');
+    const address = email.trim();
+    if (!address || sendingRef.current) return;
+    sendingRef.current = true;
+    setSending(true);
+    setNewsletterError('');
+    try {
+      const response = await fetch(getApiUrl('/api/newsletter'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: address, website, page: pathname }),
+      });
+      const data: { success?: boolean } | null = await response.json().catch(() => null);
+      if (response.status === 200 && data?.success === true) {
+        setSubscribed(true);
+        setEmail('');
+      } else if (response.status === 400) {
+        setNewsletterError('Please enter a valid email address');
+      } else if (response.status === 429) {
+        setNewsletterError('Too many attempts, please try again shortly');
+      } else {
+        setNewsletterError(NEWSLETTER_RETRY_MESSAGE);
+      }
+    } catch {
+      setNewsletterError(NEWSLETTER_RETRY_MESSAGE);
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
   }
 
   const footerColumns = {
@@ -57,26 +93,62 @@ export default function Footer({ initialSponsors = [] }: { initialSponsors?: Spo
             {subscribed ? (
               <p className="text-[#C9A84C] font-body text-sm font-medium">Thank you for subscribing!</p>
             ) : (
-              <form
-                onSubmit={handleNewsletterSubmit}
-                data-await-hydration={hydrated ? undefined : ''}
-                className="flex gap-3 w-full md:w-auto"
-              >
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  required
-                  className="min-w-0 flex-1 md:flex-none md:w-72 px-4 py-3 bg-white/5 border border-[#C9A84C]/20 text-white text-base sm:text-sm font-body placeholder-white/30 focus:outline-none focus:border-[#C9A84C]/50"
-                />
-                <button
-                  type="submit"
-                  className="px-6 py-3 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-sm font-bold font-body uppercase tracking-wider hover:shadow-[0_0_15px_rgba(201,168,76,0.3)] transition-all duration-300 whitespace-nowrap"
+              <div className="w-full md:w-auto">
+                <form
+                  onSubmit={handleNewsletterSubmit}
+                  data-await-hydration={hydrated ? undefined : ''}
+                  className="flex gap-3 w-full md:w-auto"
                 >
-                  Subscribe
-                </button>
-              </form>
+                  {/* Honeypot — hidden from real visitors, filled in by bots */}
+                  <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+                    <label htmlFor="newsletter-website">Website</label>
+                    <input
+                      id="newsletter-website"
+                      type="text"
+                      name="website"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={website}
+                      onChange={(e) => setWebsite(e.target.value)}
+                    />
+                  </div>
+                  <input
+                    type="email"
+                    name="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (newsletterError) setNewsletterError('');
+                    }}
+                    placeholder="Enter your email"
+                    required
+                    aria-invalid={newsletterError ? true : undefined}
+                    aria-describedby={newsletterError ? 'newsletter-error' : undefined}
+                    className="min-w-0 flex-1 md:flex-none md:w-72 px-4 py-3 bg-white/5 border border-[#C9A84C]/20 text-white text-base sm:text-sm font-body placeholder-white/30 focus:outline-none focus:border-[#C9A84C]/50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sending}
+                    className="px-6 py-3 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-sm font-bold font-body uppercase tracking-wider hover:shadow-[0_0_15px_rgba(201,168,76,0.3)] transition-all duration-300 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    Subscribe
+                  </button>
+                </form>
+                {newsletterError && (
+                  // A zero-height anchor under the form: the message hangs below it inside the section's padding, so
+                  // showing it moves nothing. The form itself stays unpositioned on purpose: positioning it would paint
+                  // the field above the footer's ambient glow instead of under it (a 1-level colour shift).
+                  <div className="relative">
+                    <p
+                      id="newsletter-error"
+                      role="alert"
+                      className="absolute left-0 right-0 top-0 mt-2 text-xs font-body text-red-400"
+                    >
+                      {newsletterError}
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
