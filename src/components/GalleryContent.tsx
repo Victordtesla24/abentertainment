@@ -62,12 +62,16 @@ function EventFolderCard({
               {event.title}
             </h3>
           </div>
+          {/* The link is the 44 px target (min-h-11, its 4.75 px overhang above and below given back by the
+              negative margin); the visible bordered box, 34.5 px high, is the span inside it. */}
           <EventLink
             slug={event.slug}
             staticSlugs={staticEventSlugs}
-            className="text-[11px] font-body font-semibold tracking-[0.15em] uppercase text-[#C9A84C] border border-[#C9A84C]/30 hover:bg-[#C9A84C]/10 transition-colors px-4 py-2 rounded-sm"
+            className="group/view flex items-center min-h-11 -my-[4.75px] text-[11px] font-body font-semibold tracking-[0.15em] uppercase text-[#C9A84C]"
           >
-            View event →
+            <span className="border border-[#C9A84C]/30 group-hover/view:bg-[#C9A84C]/10 transition-colors px-4 py-2 rounded-sm">
+              View event →
+            </span>
           </EventLink>
         </div>
         {cover && (

@@ -68,9 +68,9 @@ export default function CookieConsent() {
       {isVisible && (
         <motion.div
           ref={bannerRef}
-          initial={{ opacity: 0, y: 20, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.95 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
           transition={{ duration: 0.35, ease: [0.25, 1, 0.5, 1] }}
           className="fixed left-3 right-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[1000] sm:bottom-6 sm:left-6 sm:right-auto sm:max-w-sm [@media(max-height:480px)]:right-24"
           role="dialog"

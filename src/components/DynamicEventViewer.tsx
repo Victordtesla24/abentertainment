@@ -268,7 +268,7 @@ export default function DynamicEventViewer() {
         <div className="container-eu">
           <Link
             href="/events"
-            className="inline-flex items-center gap-2 text-[#C9A84C] text-sm font-body font-semibold uppercase tracking-[0.15em] hover:text-white transition-colors duration-300 mb-10"
+            className="inline-flex items-center gap-2 text-[#C9A84C] text-sm font-body font-semibold uppercase tracking-[0.15em] hover:text-white transition-colors duration-300 py-3 -mt-3 mb-7"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -412,7 +412,7 @@ export default function DynamicEventViewer() {
                   </p>
                   <Link
                     href="/events"
-                    className="inline-block mt-4 text-[#C9A84C] font-body font-semibold text-sm hover:text-white transition-colors duration-300"
+                    className="inline-block mt-1 py-3 -mb-3 text-[#C9A84C] font-body font-semibold text-sm hover:text-white transition-colors duration-300"
                   >
                     View Upcoming Events
                   </Link>

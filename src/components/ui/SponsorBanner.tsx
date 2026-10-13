@@ -89,7 +89,7 @@ function SponsorItem({ sponsor, duplicate }: { sponsor: Sponsor; duplicate: bool
       // Repeated copies exist only to keep the strip full: hide them from assistive tech and the tab order.
       aria-hidden={duplicate ? true : undefined}
       tabIndex={duplicate ? -1 : undefined}
-      className="flex items-center gap-3 flex-shrink-0 group/item"
+      className="flex items-center gap-3 flex-shrink-0 py-0.5 -my-0.5 pointer-coarse:[footer_&]:my-0 group/item"
     >
       <div className="w-10 h-10 flex items-center justify-center rounded bg-white/90 p-1 opacity-60 group-hover/item:opacity-100 transition-all duration-500">
         {sponsor.logo ? (
