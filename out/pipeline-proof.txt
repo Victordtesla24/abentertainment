@@ -1,0 +1,2 @@
+pipeline proof 2026-10-13T22:37:10Z
+This file exists only to prove push-to-deploy end to end (Actions export + VPS container + Hostinger). It is removed again right after.
