@@ -98,6 +98,11 @@ function resolveProviders(env: Record<string, string | undefined>): Provider[] {
   return providers;
 }
 
+/** Which AI providers are configured, by id only (never a key): for the admin status screen. */
+export function configuredAiProviders(env: Record<string, string | undefined> = process.env): Array<'openai' | 'openrouter'> {
+  return resolveProviders(env).map((provider) => provider.id);
+}
+
 /** The model id a provider expects, given the (possibly empty) setting. */
 function modelFor(provider: Provider, setting: string): string {
   const wanted = setting.trim();

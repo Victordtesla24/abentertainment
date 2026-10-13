@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/redis';
 import { getAllowedOrigins } from '@/lib/cors';
 import { addNewsletterSubscriber } from '@/lib/data';
 import { clientIp, describeError, maskEmail, sanitizeSourcePath } from '@/lib/newsletter';
+import { queueWelcome } from '@/lib/email/sender';
 
 /**
  * Public newsletter signup (the footer "Stay Updated" form).
@@ -16,6 +17,10 @@ import { clientIp, describeError, maskEmail, sanitizeSourcePath } from '@/lib/ne
  *
  * An address that is already subscribed gets the same 200 {success:true} as a new one, so the form
  * cannot be used to find out who is on the list. Nothing here logs a whole address.
+ *
+ * A NEW subscriber is saved first; their welcome email is then attempted in the background, after the
+ * response (src/lib/email/sender.ts). It goes out only if the quality gate passes for the exact message,
+ * and whatever happens to it is written to the send log: it can never fail or delay the signup.
  */
 
 const MAX_EMAIL_LENGTH = 254; // longest address SMTP allows (RFC 5321)
@@ -106,6 +111,9 @@ export async function POST(request: NextRequest) {
         { status: 503, headers: NO_STORE },
       );
     }
+
+    // The welcome email is queued only for a NEW address, and only after the subscriber is safely stored.
+    if (result.status === 'created') queueWelcome(result.subscriber.id);
 
     // 'created' and 'exists' look the same from outside.
     return NextResponse.json({ success: true }, { status: 200, headers: NO_STORE });

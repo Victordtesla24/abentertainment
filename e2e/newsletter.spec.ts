@@ -179,13 +179,16 @@ test.describe('POST /api/newsletter', () => {
   });
 
   test('an address that is already subscribed gets the same answer and the list does not change', async ({ request }) => {
+    // The welcome state of a stored record moves on in the background after a signup (the welcome email is attempted
+    // and its outcome is recorded), so who is on the list is compared: identity, address, time and source.
+    const who = (list: Subscriber[]) => list.map(({ id, email, createdAt, source }) => ({ id, email, createdAt, source }));
     const first = await subscribe(request, { email: 'dup@example.com' });
     const before = readStore();
     const second = await subscribe(request, { email: '  DUP@example.com ' });
     expect(first.status()).toBe(200);
     expect(second.status()).toBe(200);
     expect(await second.json()).toEqual(await first.json());
-    expect(readStore()).toEqual(before);
+    expect(who(readStore())).toEqual(who(before));
     expect(before).toHaveLength(1);
   });
 
