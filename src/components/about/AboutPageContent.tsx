@@ -9,6 +9,7 @@ import OptimizedImage from '@/components/ui/OptimizedImage';
 import type { SiteMetric } from '@/lib/data';
 import { buildFootprintSentence, formatMetricValue, metricGridColumns } from '@/lib/site-metrics';
 import { useSiteMetrics } from '@/lib/use-site-metrics';
+import { FIGURE_FIT_STYLE, FIGURE_TILE_CLASS, figureGridStyle, widestFigureEm } from '@/lib/metric-fit';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -101,8 +102,10 @@ function AnimatedStat({ value, label }: { value: string; label: string }) {
 
   return (
     <div ref={ref} className="text-center group">
+      {/* --figure-size repeats text-4xl / md:text-5xl / lg:text-6xl: the fit may only ever make the figure smaller. */}
       <div
-        className="text-4xl md:text-5xl lg:text-6xl font-display font-black mb-2 leading-none gold-shimmer"
+        className="text-4xl md:text-5xl lg:text-6xl [--figure-size:2.25rem] md:[--figure-size:3rem] lg:[--figure-size:3.75rem] font-display font-black mb-2 leading-none gold-shimmer"
+        style={FIGURE_FIT_STYLE}
         aria-label={value}
       >
         {isInView ? displayed : '0'}
@@ -120,17 +123,19 @@ function AnimatedStat({ value, label }: { value: string; label: string }) {
 function StatsGrid({ metrics }: { metrics: SiteMetric[] }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
+  const figures = metrics.map((stat) => formatMetricValue(stat.value, stat.suffix));
   return (
     <motion.div
       ref={ref}
       className={`grid ${metricGridColumns(metrics.length)} gap-8 md:gap-12`}
+      style={figureGridStyle(widestFigureEm(figures, 'black'))}
       initial="hidden"
       animate={inView ? 'visible' : 'hidden'}
       variants={staggerContainer}
     >
-      {metrics.map((stat) => (
-        <motion.div key={stat.id} variants={staggerItem}>
-          <AnimatedStat value={formatMetricValue(stat.value, stat.suffix)} label={stat.label} />
+      {metrics.map((stat, index) => (
+        <motion.div key={stat.id} variants={staggerItem} className={FIGURE_TILE_CLASS}>
+          <AnimatedStat value={figures[index]} label={stat.label} />
         </motion.div>
       ))}
     </motion.div>

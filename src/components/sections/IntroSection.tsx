@@ -11,6 +11,7 @@ import {
   pickBadgeMetrics,
 } from '@/lib/site-metrics';
 import { useSiteMetrics } from '@/lib/use-site-metrics';
+import { FIGURE_FIT_STYLE, FIGURE_TILE_CLASS, figureGridStyle, widestFigureEm } from '@/lib/metric-fit';
 import OptimizedImage from '@/components/ui/OptimizedImage';
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
@@ -49,6 +50,7 @@ export function IntroSection({ initialMetrics }: { initialMetrics: SiteMetric[] 
   // Build-time snapshot first, then the live admin-managed values.
   const metrics = useSiteMetrics(initialMetrics);
   const badgeMetrics = pickBadgeMetrics(metrics);
+  const figures = metrics.map((stat) => formatMetricValue(stat.value, stat.suffix));
 
   return (
     <section className="bg-[#0A0A0A] relative overflow-hidden">
@@ -60,7 +62,10 @@ export function IntroSection({ initialMetrics }: { initialMetrics: SiteMetric[] 
       {metrics.length > 0 && (
         <div className="border-b border-[#C9A84C]/8">
           <div className="container-eu py-12">
-            <div className={`grid ${metricGridColumns(metrics.length)} gap-8`}>
+            <div
+              className={`grid ${metricGridColumns(metrics.length)} gap-8`}
+              style={figureGridStyle(widestFigureEm(figures, 'bold'))}
+            >
               {metrics.map((stat, index) => (
                 <motion.div
                   key={stat.id}
@@ -68,10 +73,14 @@ export function IntroSection({ initialMetrics }: { initialMetrics: SiteMetric[] 
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.7, delay: index * 0.15, ease: EASE }}
                   viewport={{ once: true }}
-                  className="text-center group"
+                  className={`text-center group ${FIGURE_TILE_CLASS}`}
                 >
-                  <div className="text-4xl md:text-5xl font-display font-bold text-[#C9A84C] mb-2 drop-shadow-[0_0_20px_rgba(201,168,76,0.2)]">
-                    <AnimatedCounter value={formatMetricValue(stat.value, stat.suffix)} />
+                  {/* --figure-size repeats text-4xl / md:text-5xl: the fit may only ever make the figure smaller. */}
+                  <div
+                    className="text-4xl md:text-5xl [--figure-size:2.25rem] md:[--figure-size:3rem] font-display font-bold text-[#C9A84C] mb-2 drop-shadow-[0_0_20px_rgba(201,168,76,0.2)]"
+                    style={FIGURE_FIT_STYLE}
+                  >
+                    <AnimatedCounter value={figures[index]} />
                   </div>
                   <div className="text-white/50 text-[10px] uppercase tracking-[0.25em] font-body group-hover:text-white/70 transition-colors duration-500">
                     {stat.label}
