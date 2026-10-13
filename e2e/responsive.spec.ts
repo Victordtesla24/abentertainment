@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * Responsive rendering checks (WI-5): every public page must render completely at
@@ -42,6 +42,30 @@ async function open(page: Page, path: string) {
   await page.goto(`${BASE}${path}`, { waitUntil: 'load' });
   // Let entrance animations and lazy sections settle before measuring.
   await page.waitForTimeout(1500);
+}
+
+/**
+ * Bounding box of an element that may still be animating (the chat launcher slides up while
+ * the cookie banner enters): resolves once two reads 100 ms apart agree.
+ */
+async function settledBox(locator: Locator) {
+  let previous = await locator.boundingBox();
+  for (let attempt = 0; attempt < 30; attempt++) {
+    await locator.page().waitForTimeout(100);
+    const current = await locator.boundingBox();
+    if (
+      previous &&
+      current &&
+      previous.x === current.x &&
+      previous.y === current.y &&
+      previous.width === current.width &&
+      previous.height === current.height
+    ) {
+      return current;
+    }
+    previous = current;
+  }
+  throw new Error('element kept moving for 3 s');
 }
 
 async function horizontalOverflow(page: Page) {
@@ -143,8 +167,8 @@ test.describe('phone navigation and overlays', () => {
     await expect(banner).toBeVisible({ timeout: 6000 });
     const launcher = page.getByRole('button', { name: /concierge chat/i });
 
-    const a = (await banner.boundingBox())!;
-    const b = (await launcher.boundingBox())!;
+    const a = await settledBox(banner);
+    const b = await settledBox(launcher);
     const overlaps = a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
     expect(overlaps).toBe(false);
   });
