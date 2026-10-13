@@ -1,0 +1,563 @@
+#!/usr/bin/env python3
+"""abentertainment-autodeploy: keep the VPS checkout and the API container in step with GitHub main.
+
+Run by abentertainment-autodeploy.timer (every 20 s, oneshot, root). One run does, in order:
+
+  1. take the deploy lock (the same lock file the manual deploy scripts use, so two deploys never overlap);
+  2. ask GitHub for the tip of main (`git ls-remote`, a single tiny request); stop when nothing changed;
+  3. fetch main and fast-forward the production checkout WITHOUT touching anything that differs locally:
+     live data files, docker-compose.yml, uploaded media, deploy.sh. An incoming change to a path that has local
+     modifications is skipped (the live version stays), never merged and never overwritten. There is no reset
+     --hard, no clean and no stash: only plumbing (checkout of unmodified paths, update-ref, read-tree);
+  4. when a file that goes into the Docker image changed (anything but out/, docs, workflows, ops, markdown,
+     data mirrors), rebuild: tag the running image as :prev, `docker compose build`, `up -d`, probe health, and
+     roll back to :prev automatically when health does not come back.
+
+A build failure leaves the running container untouched. A failed deploy is retried with a growing back-off, and
+at once when a newer commit arrives. Nothing is ever written to GitHub and no secret is read or stored: main of
+this public repository is read anonymously over HTTPS.
+
+Usage: abentertainment-autodeploy [--dry-run] [--status]
+Settings come from AD_* environment variables (defaults are the production values; the test-suite overrides them).
+"""
+from __future__ import annotations
+
+import fcntl
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+
+REPO_DIR = os.environ.get("AD_REPO_DIR", "/docker/abentertainment")
+REMOTE = os.environ.get("AD_REMOTE", "origin")
+BRANCH = os.environ.get("AD_BRANCH", "main")
+STATE_FILE = os.environ.get("AD_STATE_FILE", "/var/lib/abentertainment-autodeploy/state.json")
+LOCK_FILE = os.environ.get("AD_LOCK_FILE", "/var/lock/agent-ops-deploy-abentertainment.lock")
+LOG_FILE = os.environ.get("AD_LOG_FILE", "/var/log/agent-ops/deploy-abentertainment.log")
+IMAGE = os.environ.get("AD_IMAGE", "abentertainment-app")
+HEALTH_URLS = [u for u in os.environ.get("AD_HEALTH_URLS", "http://127.0.0.1:3000/api/events,http://127.0.0.1:3000/").split(",") if u]
+HEALTH_WAIT = int(os.environ.get("AD_HEALTH_WAIT", "150"))
+BUILD_TIMEOUT = int(os.environ.get("AD_BUILD_TIMEOUT", "1500"))
+LSREMOTE_TIMEOUT = int(os.environ.get("AD_LSREMOTE_TIMEOUT", "25"))
+FETCH_TIMEOUT = int(os.environ.get("AD_FETCH_TIMEOUT", "180"))
+MAX_BACKOFF = 30 * 60
+# Commit status the workflow waits for before it publishes a front-end that may need new API routes.
+GH_REPO = os.environ.get("AD_GH_REPO", "Victordtesla24/abentertainment")
+GH_STATUS = os.environ.get("AD_GH_STATUS", "1") != "0"
+STATUS_CONTEXT = "vps/api-deploy"
+
+# Paths that can never change the Docker image or the running API (matched on repo-relative paths).
+IGNORED_FOR_REBUILD = re.compile(
+    r"^(out/|docs/|e2e/|ops/|\.github/|\.claude/|\.context/|agent-system/|data/|public/data/|scripts/ci/)"
+    r"|\.md$"
+    r"|^(deploy-webhook\.php|api-proxy\.php|\.htaccess|ops-autodeploy-check\.txt|playwright\.config\.ts|\.gitignore"
+    r"|scripts/refresh-build-data\.mjs)$"
+)
+
+DRY_RUN = "--dry-run" in sys.argv
+STATUS_ONLY = "--status" in sys.argv
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------------------------------------------
+def now() -> float:
+    return time.time()
+
+
+def stamp() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def log(message: str, level: str = "INFO") -> None:
+    line = f"[{stamp()}] autodeploy abentertainment: {level + ': ' if level != 'INFO' else ''}{message}"
+    print(line, flush=True)
+    if DRY_RUN or STATUS_ONLY or not LOG_FILE:
+        return
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+    except OSError as error:
+        print(f"[{stamp()}] cannot write {LOG_FILE}: {error}", file=sys.stderr)
+
+
+def run(cmd: list[str], *, cwd: str | None = None, timeout: int = 120, input_bytes: bytes | None = None,
+        env_extra: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0", LC_ALL="C")
+    if env_extra:
+        env.update(env_extra)
+    try:
+        return subprocess.run(cmd, cwd=cwd, input=input_bytes, capture_output=True, timeout=timeout, env=env)
+    except subprocess.TimeoutExpired as error:
+        return subprocess.CompletedProcess(cmd, 124, error.stdout or b"", (error.stderr or b"") + b"\ntimeout")
+
+
+def text(data: bytes) -> str:
+    return data.decode("utf-8", "surrogateescape")
+
+
+def git(*args: str, timeout: int = 120, input_bytes: bytes | None = None) -> subprocess.CompletedProcess:
+    return run(["git", "-c", f"safe.directory={REPO_DIR}", "-C", REPO_DIR, "--literal-pathspecs", *args],
+               timeout=timeout, input_bytes=input_bytes)
+
+
+def git_out(*args: str, timeout: int = 120) -> str:
+    result = git(*args, timeout=timeout)
+    if result.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)} failed: {text(result.stderr).strip()[:300]}")
+    return text(result.stdout).strip()
+
+
+def tail(data: bytes, lines: int = 12) -> str:
+    return "\n    ".join(text(data).strip().splitlines()[-lines:])
+
+
+def load_state() -> dict:
+    try:
+        with open(STATE_FILE, encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(state: dict) -> None:
+    if DRY_RUN or STATUS_ONLY:
+        return
+    os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+    tmp = STATE_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(state, handle, indent=2, sort_keys=True)
+    os.replace(tmp, STATE_FILE)
+
+
+def warn_once(state: dict, key: str, message: str, every: int = 600) -> None:
+    """Log a recurring condition at most once per `every` seconds."""
+    marks = state.setdefault("warned", {})
+    if now() - marks.get(key, 0) >= every:
+        marks[key] = now()
+        log(message, "WARN")
+
+
+def post_status(state: dict, sha: str, status: str, description: str) -> None:
+    """Best-effort commit status on GitHub (uses the VPS's existing `gh` login; nothing is stored in GitHub).
+
+    The build-export workflow holds back the front-end until this reads `success` for the pushed commit, so the
+    new API routes exist before Hostinger serves pages that call them. A failure to post never affects a deploy.
+    """
+    if not GH_STATUS or DRY_RUN or STATUS_ONLY:
+        return
+    result = run(["gh", "api", "-X", "POST", f"repos/{GH_REPO}/statuses/{sha}", "-f", f"state={status}",
+                  "-f", f"context={STATUS_CONTEXT}", "-f", f"description={description[:140]}"], timeout=25)
+    if result.returncode != 0:
+        warn_once(state, "gh-status", f"could not post commit status {status} for {sha[:9]}: {tail(result.stderr, 2)}")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# git: remote probe and safe fast-forward
+# ---------------------------------------------------------------------------------------------------------------
+def remote_tip() -> str | None:
+    result = git("ls-remote", REMOTE, f"refs/heads/{BRANCH}", timeout=LSREMOTE_TIMEOUT)
+    if result.returncode != 0:
+        return None
+    first = text(result.stdout).split()
+    return first[0] if first and re.fullmatch(r"[0-9a-f]{40}", first[0]) else None
+
+
+def is_ancestor(older: str, newer: str) -> bool:
+    return git("merge-base", "--is-ancestor", older, newer).returncode == 0
+
+
+def raw_changes(old: str, new: str) -> list[tuple[str, str, str, str]]:
+    """(status, path, old_blob, new_blob) for every path that differs between two commits."""
+    raw = git("diff", "--raw", "--no-renames", "--no-abbrev", "-z", old, new, timeout=120).stdout
+    parts = text(raw).split("\0")
+    changes = []
+    index = 0
+    while index + 1 < len(parts) and parts[index].startswith(":"):
+        meta = parts[index].split(" ")
+        changes.append((meta[4][0], parts[index + 1], meta[2], meta[3]))
+        index += 2
+    return changes
+
+
+def local_blobs(paths: list[str]) -> dict[str, str | None]:
+    """Git blob id of each path as it is on disk now (None = missing, '' = something that is not a file)."""
+    result: dict[str, str | None] = {}
+    regular = []
+    for path in paths:
+        full = os.path.join(REPO_DIR, path)
+        if os.path.islink(full):
+            proc = run(["git", "hash-object", "--stdin"], input_bytes=os.readlink(full).encode("utf-8", "surrogateescape"))
+            result[path] = text(proc.stdout).strip()
+        elif os.path.isfile(full):
+            regular.append(path)
+        elif os.path.lexists(full):
+            result[path] = ""
+        else:
+            result[path] = None
+    for start in range(0, len(regular), 500):
+        batch = regular[start:start + 500]
+        if any("\n" in path for path in batch):
+            for path in batch:
+                proc = git("hash-object", "--no-filters", "--", path)
+                result[path] = text(proc.stdout).strip()
+            continue
+        proc = git("hash-object", "--no-filters", "--stdin-paths", input_bytes=("\n".join(batch) + "\n").encode("utf-8", "surrogateescape"))
+        hashes = text(proc.stdout).split()
+        if proc.returncode != 0 or len(hashes) != len(batch):
+            raise RuntimeError(f"hash-object failed for a batch of {len(batch)} paths: {text(proc.stderr).strip()[:200]}")
+        result.update(zip(batch, hashes))
+    return result
+
+
+def plan_sync(old: str, new: str) -> tuple[list[str], list[str], list[tuple[str, str]], list[str]]:
+    """Decide, per changed path, whether it can be applied. Returns (write, delete, kept, all_paths)."""
+    changes = raw_changes(old, new)
+    on_disk = local_blobs([path for _, path, _, _ in changes])
+    write: list[str] = []
+    delete: list[str] = []
+    kept: list[tuple[str, str]] = []
+    for status, path, old_blob, new_blob in changes:
+        here = on_disk[path]
+        if here == "":
+            kept.append((path, "a directory or special file is in the way"))
+        elif status == "D":
+            if here is None:
+                continue
+            if here == old_blob:
+                delete.append(path)
+            else:
+                kept.append((path, "modified locally; upstream deleted it"))
+        elif status == "A":
+            if here is None:
+                write.append(path)
+            elif here != new_blob:
+                kept.append((path, "a different local file exists at the incoming path"))
+        else:  # M, T
+            if here is None:
+                kept.append((path, "deleted locally; upstream modified it"))
+            elif here == old_blob:
+                write.append(path)
+            elif here != new_blob:
+                kept.append((path, "modified locally; upstream changed it too"))
+    return write, delete, kept, [path for _, path, _, _ in changes]
+
+
+def apply_sync(old: str, new: str, write: list[str], delete: list[str]) -> None:
+    """Bring the checkout to `new`. Order matters: files, then the index, then the branch ref. A run killed in the
+    middle is finished by the next run (paths already equal to the incoming blobs are skipped, the index may equal
+    either tree, the ref moves last with a compare-and-swap on the old value)."""
+    for start in range(0, len(write), 200):
+        batch = write[start:start + 200]
+        result = git("checkout", new, "--", *batch)
+        if result.returncode != 0:
+            raise RuntimeError(f"checkout of {len(batch)} paths failed: {text(result.stderr).strip()[:300]}")
+    for path in delete:
+        full = os.path.join(REPO_DIR, path)
+        os.remove(full)
+        directory = os.path.dirname(full)
+        while directory != REPO_DIR and os.path.isdir(directory) and not os.listdir(directory):
+            os.rmdir(directory)
+            directory = os.path.dirname(directory)
+    reindex = git("read-tree", new)
+    if reindex.returncode != 0:
+        raise RuntimeError(f"read-tree failed: {text(reindex.stderr).strip()[:300]}")
+    moved = git("update-ref", "-m", f"autodeploy: fast-forward to {new[:9]}", f"refs/heads/{BRANCH}", new, old)
+    if moved.returncode != 0:
+        raise RuntimeError(f"update-ref failed: {text(moved.stderr).strip()[:300]}")
+
+
+def checkout_is_quiet(new: str) -> str | None:
+    """None when the checkout may be advanced to `new`; otherwise the reason it must wait."""
+    if os.path.exists(os.path.join(REPO_DIR, ".git", "index.lock")):
+        return "git index is locked (another git command is running in the checkout)"
+    if git("symbolic-ref", "--short", "HEAD").stdout.decode().strip() != BRANCH:
+        return f"the checkout is not on {BRANCH}"
+    staged = git("write-tree")
+    if staged.returncode != 0:
+        return "the index has unmerged entries"
+    allowed = {git_out("rev-parse", "HEAD^{tree}"), git_out("rev-parse", f"{new}^{{tree}}")}
+    if text(staged.stdout).strip() not in allowed:
+        return "changes are staged in the checkout"
+    return None
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# docker: build, health, rollback
+# ---------------------------------------------------------------------------------------------------------------
+def compose(*args: str, timeout: int) -> subprocess.CompletedProcess:
+    return run(["docker", "compose", *args], cwd=REPO_DIR, timeout=timeout)
+
+
+def image_id(reference: str) -> str | None:
+    result = run(["docker", "image", "inspect", "--format", "{{.Id}}", reference])
+    return text(result.stdout).strip() if result.returncode == 0 else None
+
+
+def probe(url: str) -> int:
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "abentertainment-autodeploy"}), timeout=10) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        return error.code
+    except (urllib.error.URLError, OSError, ValueError):
+        return 0
+
+
+def wait_healthy() -> bool:
+    """Healthy = every probe URL answers 200 in two rounds three seconds apart, within HEALTH_WAIT seconds."""
+    deadline = now() + HEALTH_WAIT
+    streak = 0
+    while now() < deadline:
+        codes = [probe(url) for url in HEALTH_URLS]
+        if all(code == 200 for code in codes):
+            streak += 1
+            if streak >= 2:
+                return True
+            time.sleep(3)
+            continue
+        streak = 0
+        time.sleep(5)
+    log(f"health did not come back within {HEALTH_WAIT}s (last: {dict(zip(HEALTH_URLS, [probe(u) for u in HEALTH_URLS]))})", "ERROR")
+    return False
+
+
+def deploy(state: dict, head: str) -> bool:
+    started = now()
+    previous = image_id(f"{IMAGE}:latest")
+    old_prev = image_id(f"{IMAGE}:prev")
+    if previous:
+        run(["docker", "tag", previous, f"{IMAGE}:prev"])
+    log(f"rebuilding {IMAGE} for {head[:9]} (running image {previous[7:19] if previous else 'none'} kept as {IMAGE}:prev)")
+    built = compose("build", timeout=BUILD_TIMEOUT)
+    if built.returncode != 0:
+        log("docker compose build failed; the running container is untouched:\n    " + tail(built.stderr or built.stdout), "ERROR")
+        return fail_deploy(state, head, "build failed")
+    started_up = compose("up", "-d", timeout=300)
+    healthy = started_up.returncode == 0 and wait_healthy()
+    if healthy:
+        log(f"SUCCESS: {head[:9]} deployed and healthy in {now() - started:.0f}s (new image {(image_id(f'{IMAGE}:latest') or '?')[7:19]})")
+        state.update(deployed_head=head, needs_rebuild=False, fail_count=0, fail_head=None, next_retry=0)
+        post_status(state, head, "success", "API container rebuilt and healthy")
+        current_prev = image_id(f"{IMAGE}:prev")
+        if old_prev and old_prev not in (previous, current_prev, image_id(f"{IMAGE}:latest")):
+            run(["docker", "rmi", old_prev])
+        return True
+    if started_up.returncode != 0:
+        log("docker compose up failed:\n    " + tail(started_up.stderr or started_up.stdout), "ERROR")
+    if previous:
+        log(f"ROLLING BACK to the previous image {previous[7:19]}", "ERROR")
+        run(["docker", "tag", f"{IMAGE}:prev", f"{IMAGE}:latest"])
+        compose("up", "-d", "--no-build", timeout=300)
+        if wait_healthy():
+            log("ROLLED BACK: the previous image is serving and healthy", "ERROR")
+        else:
+            log("ROLLBACK FAILED: the previous image is not healthy either; manual action needed", "ERROR")
+    else:
+        log("no previous image exists to roll back to", "ERROR")
+    return fail_deploy(state, head, "health check failed")
+
+
+def fail_deploy(state: dict, head: str, reason: str) -> bool:
+    count = (state.get("fail_count", 0) if state.get("fail_head") == head else 0) + 1
+    delay = min(MAX_BACKOFF, 120 * 2 ** (count - 1))
+    state.update(needs_rebuild=True, fail_count=count, fail_head=head, next_retry=now() + delay)
+    log(f"deploy of {head[:9]} failed ({reason}); attempt {count}, next automatic retry in {delay // 60} min or on the next commit", "ERROR")
+    post_status(state, head, "failure", f"API deploy failed ({reason}); the previous container is serving")
+    return False
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# main
+# ---------------------------------------------------------------------------------------------------------------
+def sync_forward(state: dict, head: str, tip: str) -> tuple[str, str]:
+    """Fast-forward the checkout from `head` to `tip`, keeping everything that differs on disk.
+
+    Returns (head, outcome); outcome is "ok", "busy" (the checkout is in use, retried next run), "failed" or "dry"."""
+    reason = checkout_is_quiet(tip)
+    if reason:
+        warn_once(state, "busy", f"not advancing the checkout now: {reason}")
+        return head, "busy"
+    write, delete, kept, paths = plan_sync(head, tip)
+    skipped = {path for path, _ in kept}
+    # only paths that now carry the incoming content can change the image; a path kept as it is on disk cannot
+    relevant = [path for path in paths if path not in skipped and not IGNORED_FOR_REBUILD.search(path)]
+    log(f"{REMOTE}/{BRANCH} moved {head[:9]} -> {tip[:9]}: {len(paths)} paths ({len(write)} updated, {len(delete)} removed, "
+        f"{len(kept)} kept as they are on disk); {len(relevant)} affect the image")
+    for path, why in kept:
+        log(f"kept the live {path} ({why})")
+    if DRY_RUN:
+        for path in relevant[:20]:
+            log(f"  would trigger a rebuild: {path}")
+        log(f"dry run: would fast-forward{' and rebuild' if relevant or state.get('needs_rebuild') else ''}; nothing was changed")
+        return head, "dry"
+    try:
+        apply_sync(head, tip, write, delete)
+    except RuntimeError as error:
+        warn_once(state, "syncfail", f"sync failed after a partial update (re-checked next run): {error}")
+        return head, "failed"
+    state["handled_tip"] = tip
+    if relevant:
+        state["needs_rebuild"] = True
+    if state.get("needs_rebuild"):
+        post_status(state, tip, "pending", "API container rebuild starting")
+    else:
+        post_status(state, tip, "success", "no server change; API container unchanged")
+    if git("diff", "--cached", "--quiet").returncode != 0:
+        log("index differs from HEAD after the sync (unexpected)", "WARN")
+    return tip, "ok"
+
+
+def acquire_lock(wait_seconds: int = 0) -> int | None:
+    """Take the deploy lock shared with the manual deploy scripts and deploy-hook.sh; None when it is busy."""
+    os.makedirs(os.path.dirname(LOCK_FILE), exist_ok=True)
+    lock_fd = os.open(LOCK_FILE, os.O_CREAT | os.O_RDWR, 0o644)
+    deadline = now() + wait_seconds
+    while True:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return lock_fd
+        except OSError:
+            if now() >= deadline:
+                os.close(lock_fd)
+                return None
+            time.sleep(3)
+
+
+def resolve_ref(ref: str) -> str | None:
+    for candidate in (ref, f"{REMOTE}/{ref}"):
+        result = git("rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}")
+        if result.returncode == 0:
+            return text(result.stdout).strip()
+    return None
+
+
+def deploy_now(ref: str | None) -> int:
+    """`deploy.sh [ref]` (called by agent-ops deploy-hook.sh): bring the checkout and the container to origin/main
+    or to `ref`, now. Same safe algorithm as the timer; a ref can only move the checkout FORWARD (fast-forward)."""
+    inherited = os.environ.get("AD_LOCK_INHERITED") == "1"  # deploy-hook.sh already holds the lock on fd 9
+    if not inherited and acquire_lock(wait_seconds=1500) is None:
+        log("another deploy is running and did not finish within 25 minutes", "ERROR")
+        return 7
+    state = load_state()
+    head = git_out("rev-parse", "HEAD")
+    state.setdefault("deployed_head", head)
+    state.setdefault("needs_rebuild", False)
+    fetched = git("fetch", "--no-tags", "--quiet", REMOTE, f"+refs/heads/{BRANCH}:refs/remotes/origin/{BRANCH}", timeout=FETCH_TIMEOUT)
+    if fetched.returncode != 0:
+        log(f"git fetch failed: {tail(fetched.stderr, 3)}", "ERROR")
+        return 3
+    if ref:
+        target = resolve_ref(ref)
+        if target is None:
+            log(f"{ref!r} is not a commit known to this checkout or {REMOTE}", "ERROR")
+            return 2
+    else:
+        target = git_out("rev-parse", f"refs/remotes/{REMOTE}/{BRANCH}")
+    if target != head:
+        if is_ancestor(head, target):
+            head, outcome = sync_forward(state, head, target)
+            if outcome == "dry":
+                return 0
+            if outcome != "ok":
+                save_state(state)
+                return 4
+        elif is_ancestor(target, head):
+            if ref:
+                log(f"refusing to move the production checkout back from {head[:9]} to {target[:9]}: this checkout carries live "
+                    "data, so it only ever moves forward (to roll the API back use the :prev image)", "ERROR")
+                return 5
+            log(f"local {head[:9]} is already ahead of {REMOTE}/{BRANCH} {target[:9]}")
+        else:
+            log(f"local {head[:9]} and {target[:9]} have diverged; nothing is changed", "ERROR")
+            return 5
+    if not state.get("needs_rebuild"):
+        log(f"nothing to do: {head[:9]} is deployed")
+        save_state(state)
+        return 0
+    if DRY_RUN:
+        log("dry run: a rebuild is pending")
+        return 0
+    post_status(state, head, "pending", "API container rebuild starting")
+    ok = deploy(state, head)
+    save_state(state)
+    return 0 if ok else 1
+
+
+def main() -> int:
+    if "--deploy-now" in sys.argv:
+        ref = sys.argv[sys.argv.index("--ref") + 1] if "--ref" in sys.argv else None
+        return deploy_now(ref)
+
+    lock_fd = acquire_lock()
+    if lock_fd is None:
+        return 0  # a deploy (this one or a manual one) is running
+
+    state = load_state()
+    head = git_out("rev-parse", "HEAD")
+    if "deployed_head" not in state:
+        state.update(deployed_head=head, needs_rebuild=False)
+        log(f"first run: taking {head[:9]} as the deployed baseline")
+        save_state(state)
+
+    if STATUS_ONLY:
+        print(json.dumps({"head": head, "state": state}, indent=2, sort_keys=True))
+        return 0
+
+    tip = remote_tip()
+    if tip is None:
+        warn_once(state, "lsremote", f"cannot read {REMOTE}/{BRANCH} from GitHub (network or rate limit); will keep retrying")
+        save_state(state)
+        return 0
+
+    pending = bool(state.get("needs_rebuild")) and now() >= state.get("next_retry", 0)
+    if (tip == head or tip == state.get("handled_tip")) and not pending:
+        return 0  # idle: nothing new upstream, nothing waiting to be rebuilt
+
+    if tip != head:
+        if git("cat-file", "-e", f"{tip}^{{commit}}").returncode != 0:
+            fetched = git("fetch", "--no-tags", "--quiet", REMOTE, f"+refs/heads/{BRANCH}:refs/remotes/origin/{BRANCH}", timeout=FETCH_TIMEOUT)
+            if fetched.returncode != 0:
+                warn_once(state, "fetch", f"git fetch failed: {tail(fetched.stderr, 3)}")
+                save_state(state)
+                return 0
+        if tip != state.get("fail_head"):
+            state["fail_count"], state["next_retry"] = 0, 0
+        if is_ancestor(head, tip):
+            head, outcome = sync_forward(state, head, tip)
+            if outcome == "dry":
+                return 0
+            if outcome != "ok":
+                save_state(state)
+                return 1 if outcome == "failed" else 0
+        elif is_ancestor(tip, head):
+            warn_once(state, f"ahead-{tip}", f"local {head[:9]} is already ahead of {REMOTE}/{BRANCH} {tip[:9]} (a manual deploy before the push); nothing to do", every=3600)
+            state["handled_tip"] = tip
+        else:
+            warn_once(state, f"diverged-{tip}", f"local {head[:9]} and {REMOTE}/{BRANCH} {tip[:9]} have diverged; nothing is changed (resolve by hand)", every=3600)
+            state["handled_tip"] = tip
+            save_state(state)
+            return 1
+
+    pending = bool(state.get("needs_rebuild")) and now() >= state.get("next_retry", 0)
+    if not pending:
+        save_state(state)
+        return 0
+    if DRY_RUN:
+        log("dry run: a rebuild is pending")
+        return 0
+    ok = deploy(state, head)
+    save_state(state)
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as error:  # a crash must be visible in the journal and the log, never silent
+        log(f"unexpected error: {error!r}", "ERROR")
+        raise

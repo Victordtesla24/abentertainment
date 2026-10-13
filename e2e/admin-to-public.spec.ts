@@ -177,9 +177,21 @@ test.describe('Data File Sync — data/ ↔ public/data/', () => {
       }
       const dataContent = readFileSync(dataPath, 'utf-8');
       const publicContent = readFileSync(publicPath, 'utf-8');
-      expect(JSON.parse(dataContent)).toEqual(JSON.parse(publicContent));
+      const expected = JSON.parse(dataContent);
+      // siteImageOverrides is admin-only: the public copy of the settings never carries it.
+      if (file === 'settings.json') delete expected.siteImageOverrides;
+      expect(JSON.parse(publicContent)).toEqual(expected);
     });
   }
+
+  test('public/data/settings.json carries no admin-only field (siteImageOverrides)', () => {
+    const publicPath = join(PUBLIC_DATA_DIR, 'settings.json');
+    if (!existsSync(publicPath)) {
+      test.skip();
+      return;
+    }
+    expect(JSON.parse(readFileSync(publicPath, 'utf-8'))).not.toHaveProperty('siteImageOverrides');
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

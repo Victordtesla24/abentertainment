@@ -16,6 +16,11 @@ const isStaticExport = process.env.NEXT_EXPORT === 'true';
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  // The CI export build (scripts/ci/build-export.sh) sets NEXT_BUILD_ID to a hash of its inputs, so identical
+  // inputs give an identical out/ and a changed input gives a new build id (the manifests under
+  // _next/static/<id>/ are cached for a year, so the id must change whenever the output does). Without it
+  // (every other build) Next.js generates a random id as before.
+  generateBuildId: async () => process.env.NEXT_BUILD_ID || null,
   // Static export for Hostinger shared hosting (trailingSlash needed for static HTML paths)
   // Standalone output for VPS/Docker server mode (no trailingSlash to avoid 308 on API routes)
   ...(isStaticExport

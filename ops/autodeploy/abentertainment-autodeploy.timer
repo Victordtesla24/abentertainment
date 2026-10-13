@@ -1,0 +1,11 @@
+[Unit]
+Description=abentertainment: poll GitHub main every 20 seconds (a no-change poll is one tiny git ls-remote)
+
+[Timer]
+OnBootSec=90s
+# counted from the END of the previous run, so a long deploy never stacks up further runs
+OnUnitInactiveSec=20s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
