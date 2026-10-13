@@ -37,6 +37,9 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
   const cardClassName =
     'group block bg-[#111111]/40 border border-[#C9A84C]/10 hover:border-[#C9A84C]/40 p-8 transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_32px_rgba(204,138,28,0.1)]';
 
+  // The logos load lazily: React preloads every server-rendered <img> in <head>, which would pull all of
+  // them (and their megabytes) ahead of the hero. width/height only give the not-yet-loaded image a 1:1
+  // placeholder; w-auto/h-auto leave the drawn size to max-h-14/max-w-full/object-contain, as before.
   const content = (
     <>
       <div className="h-20 flex items-center justify-center mb-6 bg-white/90 rounded p-3">
@@ -44,7 +47,11 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
           <img
             src={sponsor.logo}
             alt={`${company} logo`}
-            className="max-h-14 max-w-full object-contain"
+            width={56}
+            height={56}
+            loading="lazy"
+            decoding="async"
+            className="h-auto w-auto max-h-14 max-w-full object-contain"
           />
         ) : (
           <span className="text-lg font-display font-bold text-[rgba(255,255,255,0.4)] group-hover:text-[#C9A84C] transition-colors duration-300">
