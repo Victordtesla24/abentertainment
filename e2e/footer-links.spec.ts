@@ -51,8 +51,9 @@ async function measure(page: Page) {
     const walker = document.createTreeWalker(document.querySelector('footer') as Node, NodeFilter.SHOW_TEXT);
     let outside = 0;
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      // the sponsor marquee scrolls its logos through the viewport edges on purpose
-      if (!node.textContent?.trim() || node.parentElement?.closest('[aria-label="Our sponsors"]')) continue;
+      // the sponsor marquee scrolls its logos through the viewport edges on purpose, and a form's honeypot field
+      // (aria-hidden) is parked far off screen on purpose
+      if (!node.textContent?.trim() || node.parentElement?.closest('[aria-label="Our sponsors"], [aria-hidden="true"]')) continue;
       const range = document.createRange();
       range.selectNodeContents(node);
       for (const rect of range.getClientRects()) {

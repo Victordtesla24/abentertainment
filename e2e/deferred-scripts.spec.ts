@@ -230,12 +230,21 @@ test.describe('public forms are never submitted natively before React is in char
 
   /**
    * Main-frame document loads (the first visit, plus any native form submission or reload), and every
-   * request the page makes to the contact API (answered locally after `answerAfterMs`, never sent anywhere).
+   * request the page makes to the contact and newsletter APIs (answered locally, the contact one after
+   * `answerAfterMs`, never sent anywhere). Any other write to an API is aborted and listed in `blocked`, so a
+   * form test can never reach a real endpoint, whatever backend the page was served from.
    */
   async function watch(page: Page, answerAfterMs = 0) {
     const navigations: string[] = [];
     page.on('request', (request) => {
       if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations.push(request.url());
+    });
+    const blocked: string[] = [];
+    // registered first, so the stubs below take precedence over it
+    await page.route('**/api/**', (route) => {
+      if (route.request().method() === 'GET') return route.fallback();
+      blocked.push(`${route.request().method()} ${new URL(route.request().url()).pathname}`);
+      return route.abort();
     });
     const posts: string[] = [];
     await page.route('**/api/contact', async (route) => {
@@ -243,7 +252,12 @@ test.describe('public forms are never submitted natively before React is in char
       if (answerAfterMs > 0) await new Promise((resolve) => setTimeout(resolve, answerAfterMs));
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
     });
-    return { navigations, posts };
+    const newsletterPosts: string[] = [];
+    await page.route('**/api/newsletter', async (route) => {
+      newsletterPosts.push(route.request().postData() ?? '');
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+    });
+    return { navigations, posts, newsletterPosts, blocked };
   }
 
   /**
@@ -312,7 +326,7 @@ test.describe('public forms are never submitted natively before React is in char
   });
 
   test('Subscribe before hydration does not navigate; the typed address is subscribed once the form is live', async ({ page }) => {
-    const { navigations } = await watch(page);
+    const { navigations, newsletterPosts, blocked } = await watch(page);
     await openHeldBack(page, '/about/');
     await page.getByPlaceholder('Enter your email').fill('fan@example.com');
     const subscribe = page.getByRole('button', { name: 'Subscribe' });
@@ -323,9 +337,13 @@ test.describe('public forms are never submitted natively before React is in char
     expect(navigations, 'a native GET would reload the page').toHaveLength(1);
     await expect(page.getByText('Thank you for subscribing!')).toBeVisible({ timeout: 20000 });
     expect(navigations).toHaveLength(1);
+    expect(newsletterPosts, 'the held submit is sent once, with the typed address').toHaveLength(1);
+    expect(newsletterPosts[0]).toContain('fan@example.com');
+    expect(blocked).toEqual([]);
   });
 
   test('text typed into the newsletter field before hydration survives it and is usable afterwards', async ({ page }) => {
+    const { newsletterPosts, blocked } = await watch(page);
     await openHeldBack(page, '/about/');
     const field = page.getByPlaceholder('Enter your email');
     await field.fill('typed@example.com');
@@ -337,6 +355,9 @@ test.describe('public forms are never submitted natively before React is in char
     await aimAt(page, subscribe);
     await subscribe.tap();
     await expect(page.getByText('Thank you for subscribing!')).toBeVisible();
+    expect(newsletterPosts).toHaveLength(1);
+    expect(newsletterPosts[0]).toContain('typed@example.com');
+    expect(blocked).toEqual([]);
   });
 
   test('a submit that React has already taken, while the hold is still on the form, is sent once and not replayed', async ({ page }) => {
