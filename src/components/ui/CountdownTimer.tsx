@@ -44,7 +44,10 @@ export default function CountdownTimer({ targetDate, label = 'Event starts in' }
     return () => clearInterval(timer);
   }, [targetDate]);
 
-  if (!mounted || !timeLeft) return null;
+  // Before mount the countdown is unknown: reserve its footprint so the cards below it
+  // do not jump when it appears. Once mounted, an ended event collapses it.
+  if (!mounted) return <div className="min-h-[7.9rem]" aria-hidden="true" />;
+  if (!timeLeft) return null;
 
   const segments = [
     { value: timeLeft.days, label: 'Days' },
@@ -56,10 +59,10 @@ export default function CountdownTimer({ targetDate, label = 'Event starts in' }
   return (
     <div className="py-4">
       <p className="text-[#C9A84C]/60 text-xs uppercase tracking-[0.2em] font-body mb-3">{label}</p>
-      <div className="flex gap-3" role="timer" aria-label={label}>
+      <div className="grid grid-cols-4 gap-2 sm:gap-3" role="timer" aria-label={label}>
         {segments.map((seg) => (
-          <div key={seg.label} className="text-center">
-            <div className="bg-white/[0.03] border border-[#C9A84C]/15 px-3 py-2 min-w-[56px]">
+          <div key={seg.label} className="min-w-0 text-center">
+            <div className="bg-white/[0.03] border border-[#C9A84C]/15 px-1 sm:px-3 py-2">
               <span className="text-2xl font-display font-bold text-white tabular-nums">
                 {String(seg.value).padStart(2, '0')}
               </span>

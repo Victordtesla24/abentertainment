@@ -148,7 +148,7 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
             <button
               key={category.id}
               onClick={() => setSelectedCategory(category.id)}
-              className={`px-6 py-2.5 text-xs uppercase tracking-[0.12em] font-body font-semibold transition-all duration-500 ${
+              className={`px-6 py-2.5 pointer-coarse:min-h-11 text-xs uppercase tracking-[0.12em] font-body font-semibold transition-all duration-500 ${
                 selectedCategory === category.id
                   ? 'bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black shadow-[0_0_20px_rgba(201,168,76,0.3)]'
                   : 'border border-[#C9A84C]/15 text-white/50 hover:border-[#C9A84C]/40 hover:text-[#C9A84C] hover:bg-[#C9A84C]/[0.03]'
@@ -169,7 +169,7 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
             viewport={{ once: true, amount: 0.3 }}
           >
             <div className="text-center mb-6">
-              <span className="text-[#C9A84C]/60 text-xs uppercase tracking-[0.3em] font-body font-semibold">
+              <span className="text-[#C9A84C]/80 text-xs uppercase tracking-[0.3em] font-body font-semibold">
                 Featured Event
               </span>
             </div>
@@ -275,7 +275,7 @@ export default function EventsShowcase({ events: initialEvents }: { events: Even
 
         {filteredEvents.length === 0 && (
           <motion.div className="text-center py-20" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-            <p className="text-white/40 text-lg font-body">No events found in this category.</p>
+            <p className="text-white/60 text-lg font-body">No events found in this category.</p>
           </motion.div>
         )}
 

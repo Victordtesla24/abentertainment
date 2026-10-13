@@ -473,7 +473,7 @@ export default function AboutPageContent({ initialMetrics }: { initialMetrics: S
               <p className="text-[#C9A84C]/50 text-[10px] uppercase tracking-[0.25em] font-body mb-1">Phone</p>
               <a
                 href={telHref(SITE_CONFIG.contact.phone)}
-                className="text-white/70 hover:text-[#C9A84C] transition-colors font-body text-sm"
+                className="inline-flex min-h-11 items-center text-white/70 hover:text-[#C9A84C] transition-colors font-body text-sm"
               >
                 {SITE_CONFIG.contact.phone}
               </a>
@@ -483,7 +483,7 @@ export default function AboutPageContent({ initialMetrics }: { initialMetrics: S
               <p className="text-[#C9A84C]/50 text-[10px] uppercase tracking-[0.25em] font-body mb-1">Email</p>
               <a
                 href={`mailto:${SITE_CONFIG.contact.email}`}
-                className="text-white/70 hover:text-[#C9A84C] transition-colors font-body text-sm"
+                className="inline-flex min-h-11 items-center text-white/70 hover:text-[#C9A84C] transition-colors font-body text-sm [overflow-wrap:anywhere]"
               >
                 {SITE_CONFIG.contact.email}
               </a>

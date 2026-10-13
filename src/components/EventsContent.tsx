@@ -112,7 +112,7 @@ function FilterBar({
   hasActiveFilters: boolean;
 }) {
   const selectClass =
-    'bg-white/[0.03] border border-[#C9A84C]/15 text-white/80 text-sm font-body px-4 py-2.5 appearance-none cursor-pointer focus:outline-none focus:border-[#C9A84C]/40 transition-all duration-300 min-w-[160px]';
+    'bg-white/[0.03] border border-[#C9A84C]/15 text-white/80 text-sm font-body px-4 py-2.5 pointer-coarse:min-h-11 w-full sm:w-auto appearance-none cursor-pointer focus:outline-none focus:border-[#C9A84C]/40 transition-all duration-300 sm:min-w-[160px]';
 
   return (
     <div className="flex flex-wrap items-center gap-3 mb-10">
@@ -159,7 +159,7 @@ function FilterBar({
       {hasActiveFilters && (
         <button
           onClick={onClear}
-          className="px-4 py-2.5 text-[#C9A84C] text-sm font-body font-medium hover:text-[#D4B65C] transition-colors duration-300"
+          className="px-4 py-2.5 pointer-coarse:min-h-11 text-[#C9A84C] text-sm font-body font-medium hover:text-[#D4B65C] transition-colors duration-300"
         >
           Clear Filters
         </button>
@@ -180,7 +180,7 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
     : 'object-contain';
 
   return (
-    <Link href={`/events/${event.slug}`}>
+    <Link href={`/events/${event.slug}`} className="block">
       <Tilt
         tiltMaxAngleX={4}
         tiltMaxAngleY={4}
@@ -250,7 +250,7 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
           <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent opacity-60" />
 
           {/* Category badge - bottom left */}
-          <div className="absolute bottom-4 left-4 px-3 py-1 bg-[#C9A84C] text-white text-xs font-body font-semibold uppercase tracking-wider">
+          <div className="absolute bottom-4 left-4 px-3 py-1 bg-[#C9A84C] text-black text-xs font-body font-semibold uppercase tracking-wider">
             {event.category}
           </div>
 
@@ -267,10 +267,10 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
           <h3 className="text-xl font-display font-bold text-white group-hover:text-[#C9A84C] transition-colors duration-300">
             {event.title}
           </h3>
-          <p className="text-[rgba(255,255,255,0.4)] text-sm font-body line-clamp-2">
+          <p className="text-[rgba(255,255,255,0.6)] text-sm font-body line-clamp-2">
             {event.description}
           </p>
-          <div className="space-y-2 border-t border-[#C9A84C]/10 pt-3 text-sm text-[rgba(255,255,255,0.4)] font-body">
+          <div className="space-y-2 border-t border-[#C9A84C]/10 pt-3 text-sm text-[rgba(255,255,255,0.6)] font-body">
             <p>{formatDate(event.date)}</p>
             <p>{event.venue}</p>
             {!isPast && (
@@ -508,7 +508,9 @@ function EventsContentInner({ events: initialEvents, sponsors = [], contactEmail
               aria-label="Upcoming events"
             >
               {upcomingEvents.map((event) => (
-                <EventCard key={event.id} event={event} />
+                <div key={event.id} role="listitem">
+                  <EventCard event={event} />
+                </div>
               ))}
             </div>
           </div>
@@ -519,15 +521,15 @@ function EventsContentInner({ events: initialEvents, sponsors = [], contactEmail
       {upcomingEvents.length === 0 && !hasActiveFilters && (
         <section className="pb-16">
           <div className="container-eu">
-            <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-12 text-center">
+            <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-6 sm:p-12 text-center">
               <p className="text-white text-lg font-body">
                 No upcoming events currently scheduled. Please check back soon.
               </p>
-              <p className="text-[rgba(255,255,255,0.4)] mt-4 font-body">
+              <p className="text-[rgba(255,255,255,0.6)] mt-4 font-body">
                 For event inquiries, contact us at{' '}
                 <a
                   href={`mailto:${contactEmail}`}
-                  className="text-[#C9A84C] hover:underline"
+                  className="text-[#C9A84C] underline underline-offset-2 hover:no-underline [overflow-wrap:anywhere]"
                 >
                   {contactEmail}
                 </a>
@@ -550,7 +552,9 @@ function EventsContentInner({ events: initialEvents, sponsors = [], contactEmail
               aria-label="Past events"
             >
               {pastEvents.map((event) => (
-                <EventCard key={event.id} event={event} isPast />
+                <div key={event.id} role="listitem">
+                  <EventCard event={event} isPast />
+                </div>
               ))}
             </div>
           </div>

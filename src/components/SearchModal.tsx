@@ -183,7 +183,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] px-4"
+          className="fixed inset-0 z-[100] flex items-start justify-center pt-[8dvh] sm:pt-[10dvh] px-4"
           role="dialog"
           aria-modal="true"
           aria-label="Search events"
@@ -242,6 +242,17 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-white/30 border border-white/10 rounded">
                 ESC
               </kbd>
+              {/* Touch devices have no Escape key */}
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close search"
+                className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center text-white/50 hover:text-[#C9A84C] sm:hidden"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
             {/* Accessible live region for result count */}
@@ -256,7 +267,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             </div>
 
             {/* Results */}
-            <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
+            <div className="max-h-[min(60dvh,28rem)] overflow-y-auto overscroll-contain">
               {query.length > 0 && results.length === 0 && (
                 <div className="px-5 py-8 text-center">
                   <p className="text-white/40 font-body text-sm">

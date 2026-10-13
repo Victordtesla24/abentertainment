@@ -161,7 +161,7 @@ export default function GalleryContent({ initialImages, initialEvents }: Gallery
             <h2 className="text-xs tracking-[0.3em] uppercase text-[#C9A84C] font-body font-semibold mb-2 border-l-2 border-[#C9A84C] pl-3">
               Upcoming Events
             </h2>
-            <p className="text-white/40 text-sm font-body mb-8 pl-3">
+            <p className="text-white/60 text-sm font-body mb-8 pl-3">
               Preview art and announcement imagery for shows on the horizon.
             </p>
             {upcomingFolders.map(({ ev, images }) => (
@@ -175,7 +175,7 @@ export default function GalleryContent({ initialImages, initialEvents }: Gallery
             <h2 className="text-xs tracking-[0.3em] uppercase text-[#C9A84C] font-body font-semibold mb-2 border-l-2 border-[#C9A84C] pl-3 mt-4">
               Past Events
             </h2>
-            <p className="text-white/40 text-sm font-body mb-8 pl-3">
+            <p className="text-white/60 text-sm font-body mb-8 pl-3">
               A permanent archive of every performance we have produced.
             </p>
             {pastFolders.map(({ ev, images }) => (
@@ -189,7 +189,7 @@ export default function GalleryContent({ initialImages, initialEvents }: Gallery
             <h2 className="text-xs tracking-[0.3em] uppercase text-[#C9A84C] font-body font-semibold mb-2 border-l-2 border-[#C9A84C] pl-3 mt-12">
               Other Moments
             </h2>
-            <p className="text-white/40 text-sm font-body mb-8 pl-3">
+            <p className="text-white/60 text-sm font-body mb-8 pl-3">
               Imagery not yet tagged to a specific event.
             </p>
             <GalleryLightbox images={uncategorisedLightbox} />

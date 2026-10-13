@@ -131,7 +131,7 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
           <div className="lg:col-span-2 space-y-8">
             <div>
               <div className="flex flex-wrap items-center gap-3 mb-4">
-                <span className="px-3 py-1 bg-[#C9A84C] text-white text-xs font-body font-semibold uppercase tracking-wider">
+                <span className="px-3 py-1 bg-[#C9A84C] text-black text-xs font-body font-semibold uppercase tracking-wider">
                   {event.category}
                 </span>
                 {isPast && (
@@ -141,9 +141,9 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
                 )}
               </div>
 
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-white mb-6 leading-[1.1]">
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-white mb-6 leading-[1.1]">
                 {event.title}
-              </h1>
+              </h2>
 
               <p className="text-white/60 font-body text-lg leading-relaxed">
                 {event.longDescription || event.description}
@@ -164,7 +164,7 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
                   <h2 className="text-2xl font-display font-bold text-white">
                     Event Gallery
                   </h2>
-                  <span className="text-[#C9A84C]/60 text-sm font-body">
+                  <span className="text-[#C9A84C]/80 text-sm font-body">
                     {galleryImages.length} {galleryImages.length === 1 ? 'photo' : 'photos'}
                   </span>
                 </div>
@@ -174,7 +174,7 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
 
             {!galleryLoading && galleryImages.length === 0 && isPast && (
               <div className="mt-12 bg-[#111111]/30 border border-[#C9A84C]/10 p-8 text-center">
-                <p className="text-white/40 font-body text-sm">
+                <p className="text-white/60 font-body text-sm">
                   No gallery photos have been added for this event yet.
                 </p>
               </div>
@@ -186,30 +186,30 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
               <h3 className="text-xl font-display text-[#C9A84C] mb-4">Event Details</h3>
 
               <div>
-                <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Date</p>
+                <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Date</p>
                 <p className="text-white font-body font-medium">{formatDate(event.date)}</p>
               </div>
 
               {formatTime(event.date) && (
                 <div>
-                  <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Time</p>
+                  <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Time</p>
                   <p className="text-white font-body font-medium">{formatTime(event.date)}</p>
                 </div>
               )}
 
               <div>
-                <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Venue</p>
+                <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Venue</p>
                 <p className="text-white font-body font-medium">{event.venue}</p>
               </div>
 
               <div>
-                <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Price</p>
+                <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Price</p>
                 <p className="text-white font-body font-medium">From ${event.price} {event.currency}</p>
               </div>
 
               {event.capacity && (
                 <div>
-                  <p className="text-xs text-[#C9A84C]/60 uppercase tracking-[0.2em] mb-1 font-body">Capacity</p>
+                  <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Capacity</p>
                   <p className="text-white font-body font-medium">{event.capacity.toLocaleString()} seats</p>
                 </div>
               )}
@@ -246,14 +246,14 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
                     Get Tickets
                   </a>
                 ) : (
-                  <p className="text-white/40 font-body text-sm">Tickets coming soon. Check back for updates.</p>
+                  <p className="text-white/60 font-body text-sm">Tickets coming soon. Check back for updates.</p>
                 )}
               </div>
             )}
 
             {isPast && (
               <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-8 text-center">
-                <p className="text-white/40 font-body text-sm">
+                <p className="text-white/60 font-body text-sm">
                   This event has ended. Browse our upcoming events for more cultural experiences.
                 </p>
                 <Link
