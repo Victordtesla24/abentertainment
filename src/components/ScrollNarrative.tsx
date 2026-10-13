@@ -1,12 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 import OptimizedImage from '@/components/ui/OptimizedImage';
-
-gsap.registerPlugin(ScrollTrigger);
 
 /**
  * ScrollNarrative — GSAP Scroll-Triggered Narrative Transitions (Phase 4, Spec 4.3)
@@ -14,6 +10,9 @@ gsap.registerPlugin(ScrollTrigger);
  * A cinematic scroll-based storytelling section that reveals AB Entertainment's
  * story through parallax layers, text reveals, and dramatic transitions.
  * Uses GSAP ScrollTrigger for buttery-smooth scroll-linked animations.
+ *
+ * GSAP and ScrollTrigger (~110 KB) are fetched only when the section is about to
+ * scroll into view; the content is complete and visible before they arrive.
  */
 
 interface NarrativeSlide {
@@ -85,7 +84,6 @@ export default function ScrollNarrative() {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const root = document.documentElement;
 
     // Respect prefers-reduced-motion: make all content immediately visible
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -104,113 +102,160 @@ export default function ScrollNarrative() {
       return;
     }
 
-    const ctx = gsap.context(() => {
-      // Pin the container for horizontal-style scroll
-      const slides = slidesRef.current.filter(Boolean) as HTMLDivElement[];
+    // Phones skip the scrubbed blur: re-rasterising text every scrolled frame is the
+    // costliest part of this section on a mobile GPU, and fade + rise reads the same.
+    const reveals = window.matchMedia('(max-width: 767px)').matches
+      ? { pre: {}, preTo: {}, title: {}, titleTo: {} }
+      : {
+          pre: { filter: 'blur(4px)' },
+          preTo: { filter: 'blur(0px)' },
+          title: { filter: 'blur(8px)' },
+          titleTo: { filter: 'blur(0px)' },
+        };
 
-      slides.forEach((slide, i) => {
-        const preTitle = slide.querySelector('.narrative-pretitle');
-        const title = slide.querySelector('.narrative-title');
-        const body = slide.querySelector('.narrative-body');
-        const stat = slide.querySelector('.narrative-stat');
-        const line = slide.querySelector('.narrative-line');
-        const bg = slide.querySelector('.narrative-bg');
+    let cancelled = false;
+    let ctx: { revert: () => void } | null = null;
 
-        // Create a timeline for each slide
-        const tl = gsap.timeline({
-          scrollTrigger: {
-            trigger: slide,
-            start: 'top 80%',
-            end: 'top 20%',
-            scrub: 1,
-            toggleActions: 'play none none reverse',
-            onUpdate: (self) => {
-              const mix = (i + self.progress) / Math.max(slides.length, 1);
-              const glow = 0.04 + mix * 0.14;
-              const darkness = 0.7 + mix * 0.18;
-              root.style.setProperty('--ab-narrative-glow', glow.toFixed(3));
-              root.style.setProperty('--ab-narrative-darkness', darkness.toFixed(3));
+    const start = async () => {
+      const [{ gsap }, { ScrollTrigger }] = await Promise.all([import('gsap'), import('gsap/ScrollTrigger')]);
+      if (cancelled) return;
+      gsap.registerPlugin(ScrollTrigger);
+
+      ctx = gsap.context(() => {
+        const slides = slidesRef.current.filter(Boolean) as HTMLDivElement[];
+
+        slides.forEach((slide, i) => {
+          const preTitle = slide.querySelector('.narrative-pretitle');
+          const title = slide.querySelector('.narrative-title');
+          const body = slide.querySelector('.narrative-body');
+          const stat = slide.querySelector('.narrative-stat');
+          const line = slide.querySelector('.narrative-line');
+          const bg = slide.querySelector('.narrative-bg');
+
+          // Create a timeline for each slide
+          const tl = gsap.timeline({
+            scrollTrigger: {
+              trigger: slide,
+              start: 'top 80%',
+              end: 'top 20%',
+              scrub: 1,
+              toggleActions: 'play none none reverse',
+              onUpdate: (self) => {
+                const mix = (i + self.progress) / Math.max(slides.length, 1);
+                const glow = 0.04 + mix * 0.14;
+                const darkness = 0.7 + mix * 0.18;
+                // Scoped to this section: the variables only feed its own background, and
+                // setting them on <html> would restyle the whole document every frame.
+                container.style.setProperty('--ab-narrative-glow', glow.toFixed(3));
+                container.style.setProperty('--ab-narrative-darkness', darkness.toFixed(3));
+              },
             },
-          },
+          });
+
+          // Background parallax
+          if (bg) {
+            gsap.fromTo(bg, {
+              yPercent: -20,
+            }, {
+              yPercent: 20,
+              ease: 'none',
+              scrollTrigger: {
+                trigger: slide,
+                start: 'top bottom',
+                end: 'bottom top',
+                scrub: true,
+              },
+            });
+          }
+
+          // Staggered text reveal
+          if (preTitle) {
+            tl.fromTo(preTitle,
+              { opacity: 0, y: 30, ...reveals.pre },
+              { opacity: 1, y: 0, ...reveals.preTo, duration: 0.4 },
+              0
+            );
+          }
+
+          if (line) {
+            tl.fromTo(line,
+              { scaleX: 0 },
+              { scaleX: 1, duration: 0.6 },
+              0.15
+            );
+          }
+
+          if (title) {
+            tl.fromTo(title,
+              { opacity: 0, y: 50, ...reveals.title },
+              { opacity: 1, y: 0, ...reveals.titleTo, duration: 0.6 },
+              0.2
+            );
+          }
+
+          if (body) {
+            tl.fromTo(body,
+              { opacity: 0, y: 30 },
+              { opacity: 1, y: 0, duration: 0.5 },
+              0.4
+            );
+          }
+
+          if (stat) {
+            tl.fromTo(stat,
+              { opacity: 0, scale: 0.8, y: 20 },
+              { opacity: 1, scale: 1, y: 0, duration: 0.5 },
+              0.5
+            );
+          }
+
+          // Fade out on scroll past (except last slide)
+          if (i < slides.length - 1) {
+            gsap.to(slide.querySelector('.narrative-content'), {
+              opacity: 0,
+              y: -30,
+              scrollTrigger: {
+                trigger: slide,
+                start: 'bottom 60%',
+                end: 'bottom 30%',
+                scrub: true,
+              },
+            });
+          }
         });
+      }, container);
 
-        // Background parallax
-        if (bg) {
-          gsap.fromTo(bg, {
-            yPercent: -20,
-          }, {
-            yPercent: 20,
-            ease: 'none',
-            scrollTrigger: {
-              trigger: slide,
-              start: 'top bottom',
-              end: 'bottom top',
-              scrub: true,
-            },
-          });
-        }
-
-        // Staggered text reveal
-        if (preTitle) {
-          tl.fromTo(preTitle,
-            { opacity: 0, y: 30, filter: 'blur(4px)' },
-            { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.4 },
-            0
-          );
-        }
-
-        if (line) {
-          tl.fromTo(line,
-            { scaleX: 0 },
-            { scaleX: 1, duration: 0.6 },
-            0.15
-          );
-        }
-
-        if (title) {
-          tl.fromTo(title,
-            { opacity: 0, y: 50, filter: 'blur(8px)' },
-            { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.6 },
-            0.2
-          );
-        }
-
-        if (body) {
-          tl.fromTo(body,
-            { opacity: 0, y: 30 },
-            { opacity: 1, y: 0, duration: 0.5 },
-            0.4
-          );
-        }
-
-        if (stat) {
-          tl.fromTo(stat,
-            { opacity: 0, scale: 0.8, y: 20 },
-            { opacity: 1, scale: 1, y: 0, duration: 0.5 },
-            0.5
-          );
-        }
-
-        // Fade out on scroll past (except last slide)
-        if (i < slides.length - 1) {
-          gsap.to(slide.querySelector('.narrative-content'), {
-            opacity: 0,
-            y: -30,
-            scrollTrigger: {
-              trigger: slide,
-              start: 'bottom 60%',
-              end: 'bottom 30%',
-              scrub: true,
-            },
-          });
+      // The triggers are created after the page has loaded, so a visitor may already be
+      // past a chapter's end: a scrubbed animation only moves when its progress changes,
+      // which would leave that chapter hidden. Put every animation where the scroll position says it is.
+      ScrollTrigger.refresh();
+      ScrollTrigger.getAll().forEach((trigger) => {
+        if (trigger.animation && trigger.trigger instanceof Node && container.contains(trigger.trigger)) {
+          trigger.animation.totalProgress(trigger.progress);
         }
       });
-    }, container);
+    };
+
+    // Load the animation library only when the section is within ~a screen of view.
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        start().catch((error: unknown) => {
+          // The narrative is fully readable without the scroll choreography.
+          console.warn('[narrative] scroll animation unavailable', error);
+        });
+      },
+      { rootMargin: '800px 0px' }
+    );
+    observer.observe(container);
 
     return () => {
-      root.style.removeProperty('--ab-narrative-glow');
-      root.style.removeProperty('--ab-narrative-darkness');
-      ctx.revert();
+      cancelled = true;
+      observer.disconnect();
+      container.style.removeProperty('--ab-narrative-glow');
+      container.style.removeProperty('--ab-narrative-darkness');
+      ctx?.revert();
     };
   }, []);
 

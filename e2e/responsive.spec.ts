@@ -38,8 +38,13 @@ const PAGES = [
   '/terms/',
 ];
 
+/** React puts a __reactFiber key on every DOM node it has hydrated. */
+const hydrated = () => Object.keys(document.body.firstElementChild ?? {}).some((key) => key.startsWith('__reactFiber'));
+
 async function open(page: Page, path: string) {
   await page.goto(`${BASE}${path}`, { waitUntil: 'load' });
+  // Controls only respond once the page has hydrated (the export starts its scripts after the first paint).
+  await page.waitForFunction(hydrated, undefined, { timeout: 15000 });
   // Let entrance animations and lazy sections settle before measuring.
   await page.waitForTimeout(1500);
 }
