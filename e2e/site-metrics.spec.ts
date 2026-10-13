@@ -58,6 +58,13 @@ async function showStats(page: Page): Promise<void> {
   await page.getByText('Audience Reach', { exact: true }).first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
 }
 
+/** Slide 3 of the hero carousel carries the metrics strap-line. */
+async function showMetricsSlide(page: Page): Promise<void> {
+  // The dots sit at the top of the page, under scroll-linked parallax: go there first, then press the dot.
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  await page.locator('button[aria-label="Go to slide 3"]').dispatchEvent('click');
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. PUBLIC API — contract
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -133,7 +140,7 @@ test.describe('Site metrics — pages follow the API', () => {
       await expect(tiles.nth(index)).toContainText(metric.label);
     }
 
-    await page.locator('button[aria-label="Go to slide 3"]').click();
+    await showMetricsSlide(page);
     const strapline = page.locator('section[aria-label="Hero slideshow"] p').first();
     for (const metric of live.filter((m) => m.id !== 'countries')) {
       await expect(strapline).toContainText(`${figure(metric)} `, { timeout: 15000 });
@@ -294,7 +301,7 @@ test.describe('Site metrics — admin CRUD (requires ADMIN_TEST_PASSWORD)', () =
       await expect(homeTiles(page)).toHaveCount(live.length);
       const tile = homeTiles(page).filter({ hasText: label });
       await expect(tile.locator('div.text-4xl')).toHaveText('7+', { timeout: 30000 });
-      await page.locator('button[aria-label="Go to slide 3"]').click();
+      await showMetricsSlide(page);
       await expect(page.locator('section[aria-label="Hero slideshow"] p').first()).toContainText(`7+ ${label}`, { timeout: 15000 });
 
       await page.goto('/about/');
