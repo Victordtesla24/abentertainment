@@ -93,7 +93,7 @@ function EventNotFound({ slug }: { slug: string }) {
         </p>
         <Link
           href="/events"
-          className="inline-block bg-[#C9A84C] hover:bg-[#D4B65C] text-white font-display font-bold text-sm uppercase tracking-wider py-4 px-8 transition-colors duration-300"
+          className="inline-block bg-[#C9A84C] hover:bg-[#D4B65C] text-black font-display font-bold text-sm uppercase tracking-wider py-4 px-8 transition-colors duration-300"
         >
           Browse All Events
         </Link>

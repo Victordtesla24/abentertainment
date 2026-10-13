@@ -199,7 +199,7 @@ export default function SponsorBanner({ initialSponsors = [] }: { initialSponsor
     <div aria-label="Our sponsors" className="w-full bg-[#0A0A0A] border-b border-[#C9A84C]/10 overflow-hidden">
       {/* "Sponsored by" label */}
       <div className="flex justify-center pt-3 pb-1">
-        <span className="text-[7px] text-[#C9A84C]/40 uppercase tracking-[0.3em] font-body">
+        <span className="text-[7px] text-[#C9A84C]/70 uppercase tracking-[0.3em] font-body">
           Our Sponsors
         </span>
       </div>

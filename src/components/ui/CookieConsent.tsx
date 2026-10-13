@@ -123,13 +123,13 @@ export default function CookieConsent() {
               <div className="flex items-center gap-2 mt-3">
                 <button
                   onClick={() => setShowSettings(!showSettings)}
-                  className="px-3.5 py-2 pointer-coarse:min-h-11 border border-white/10 text-white/40 text-xs uppercase tracking-wider font-body hover:border-[#C9A84C]/30 hover:text-white/60 transition-all duration-300 rounded"
+                  className="px-3.5 py-2 pointer-coarse:min-h-11 border border-white/10 text-white/50 text-xs uppercase tracking-wider font-body hover:border-[#C9A84C]/30 hover:text-white/60 transition-all duration-300 rounded"
                 >
                   Settings
                 </button>
                 <button
                   onClick={declineCookies}
-                  className="px-3.5 py-2 pointer-coarse:min-h-11 border border-white/10 text-white/40 text-xs uppercase tracking-wider font-body hover:border-white/25 hover:text-white/60 transition-all duration-300 rounded"
+                  className="px-3.5 py-2 pointer-coarse:min-h-11 border border-white/10 text-white/50 text-xs uppercase tracking-wider font-body hover:border-white/25 hover:text-white/60 transition-all duration-300 rounded"
                 >
                   Decline
                 </button>
