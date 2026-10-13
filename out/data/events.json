@@ -39,8 +39,6 @@
     "ticketUrl": "",
     "videoUrl": "",
     "featuredVideo": "",
-    "ticketsSold": 0,
-    "ticketRevenue": 0,
     "hook": "",
     "cast": ""
   },
@@ -65,8 +63,6 @@
     "ticketUrl": "",
     "videoUrl": "",
     "featuredVideo": "",
-    "ticketsSold": 0,
-    "ticketRevenue": 0,
     "hook": "",
     "cast": ""
   },
@@ -91,8 +87,6 @@
     "ticketUrl": "",
     "videoUrl": "",
     "featuredVideo": "",
-    "ticketsSold": 0,
-    "ticketRevenue": 0,
     "hook": "",
     "cast": ""
   },
@@ -136,8 +130,6 @@
     "updatedAt": "2026-06-08T11:35:36.152Z",
     "videoUrl": "",
     "featuredVideo": "",
-    "ticketsSold": 0,
-    "ticketRevenue": 0,
     "order": 1,
     "hook": "",
     "cast": ""
@@ -163,8 +155,6 @@
     "order": 0,
     "videoUrl": "",
     "featuredVideo": "",
-    "ticketsSold": 0,
-    "ticketRevenue": 0,
     "hook": "",
     "cast": "",
     "heroImage": ""
