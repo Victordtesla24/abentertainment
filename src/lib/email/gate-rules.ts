@@ -303,10 +303,13 @@ function checkRendered(rendered: RenderedEmail, fields: EmailFields, ctx: Render
 
   // every link in the HTML: https on an allowed host, or the sender's own mailto and tel links
   const phoneDigits = ctx.sender.contactPhone.replace(/[^+\d]/g, '');
+  const ownLinks = [ctx.siteUrl, ctx.social.instagram.replace(/\/+$/, ''), ctx.social.facebook.replace(/\/+$/, '')];
   for (const m of html.matchAll(/\shref\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)) {
     const href = decodeEntities(m[1] ?? m[2] ?? '').trim();
     if (/^mailto:/i.test(href) && href.slice(7).split('?')[0].toLowerCase() === ctx.sender.contactEmail.toLowerCase()) continue;
     if (/^tel:/i.test(href) && href.slice(4).replace(/[^+\d]/g, '') === phoneDigits) continue;
+    // the footer's own links (the site and its social profiles) are the layout's, not editable content
+    if (ownLinks.some((own) => href === own || href.startsWith(`${own}/`))) continue;
     const found = checkUrl(href, 'layout', allowed);
     if (found.length) issues.push(issue('layout', 'html_link_not_allowed', `A link in the email is not allowed: ${href}`, undefined, false));
   }

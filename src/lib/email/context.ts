@@ -19,6 +19,7 @@ export function buildRenderContext(unsubscribeUrl: string, now: Date = new Date(
     logoUrl: `${siteUrl}/images/AB_Logo_transparent-256w.png`,
     siteUrl,
     year: now.getUTCFullYear(),
+    social: { instagram: SITE_CONFIG.social.instagram, facebook: SITE_CONFIG.social.facebook },
     sender: {
       name: SITE_CONFIG.name,
       city: SITE_CONFIG.contact.address.city,

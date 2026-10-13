@@ -3,7 +3,8 @@
  *
  * The deterministic rules, the AI reviewer's client (against a stubbed fetch, no key, no network), the fix loop (against
  * a scripted AI stand-in), the hash-bound approval and the check made again at every send. Tests render with the TEST
- * FIXTURE layout (e2e/fixtures), never the real brand layout, and nothing talks to a real AI service.
+ * FIXTURE layout (e2e/fixtures) so each rule can be broken one thing at a time; the real brand layout has its own spec
+ * (newsletter-email-layout.spec.ts). Nothing talks to a real AI service.
  */
 
 import { test, expect, Page } from '@playwright/test';
@@ -243,8 +244,8 @@ test.describe('quality gate (in-process)', () => {
     expect(dirty.issues.find((i) => i.code === 'off_brand_font')?.message).toMatch(/Comic Sans MS/);
   });
 
-  test('the shipped layout is not installed: the gate blocks everything and renders nothing', () => {
-    const outcome = check({}, shipped.getLayout());
+  test('a layout that is not installed: the gate blocks everything and renders nothing', () => {
+    const outcome = check({}, shipped.makeNotInstalledLayout());
     expect(outcome.rendered).toBeNull();
     expect(codes(outcome)).toContain('layout_not_installed');
     expect(outcome.issues.find((i) => i.code === 'layout_not_installed')?.fixable).toBe(false);
@@ -461,7 +462,7 @@ test.describe('quality gate (in-process)', () => {
 
   test('loop: with no brand layout installed nothing is reviewed and nothing is fixed', async () => {
     const stub = new StubAi([passingReview()], [fixResult({ subject: 'x' })]);
-    const result = await run({}, stub, settings(), shipped.getLayout());
+    const result = await run({}, stub, settings(), shipped.makeNotInstalledLayout());
     expect(result).toMatchObject({ passed: false, stopReason: 'layout_not_installed' });
     expect(result.rounds[0].deterministic.map((i) => i.code)).toContain('layout_not_installed');
     expect(stub.reviewCalls).toHaveLength(0);
@@ -599,7 +600,7 @@ test.describe('quality gate (in-process)', () => {
     expect(gate.verifyForSend(input({ template: { ...active, enabled: false } }))).toMatchObject({ ok: false, reason: 'disabled' });
     expect(gate.verifyForSend(input())).toMatchObject({ ok: false, reason: 'no_active_version' }); // the stored template, not yet activated
     expect(gate.verifyForSend(input({ template: { ...active, activeVersion: 7 } }))).toMatchObject({ ok: false, reason: 'no_active_version' });
-    expect(gate.verifyForSend(input({ template: active, layout: shipped.getLayout() }))).toMatchObject({ ok: false, reason: 'layout_not_installed' });
+    expect(gate.verifyForSend(input({ template: active, layout: shipped.makeNotInstalledLayout() }))).toMatchObject({ ok: false, reason: 'layout_not_installed' });
     const unapproved = await store.updateEmailTemplate(template.id, { fields: { subject: 'A different subject line' } });
     expect(gate.verifyForSend(input({ template: unapproved, version: 2 }))).toMatchObject({ ok: false, reason: 'not_approved' });
     const stale = gate.verifyForSend(input({ template: active, guidelines: guidelines(2, 'rules changed') }));
@@ -698,7 +699,7 @@ test.describe('admin API: review, preview and activation', () => {
     expect((await request.post('/api/admin/newsletter/preview', { data: {}, headers: origin })).status()).toBe(401);
   });
 
-  test('the review runs and is fully inspectable: with no brand layout installed it blocks, names why, and approves nothing', async ({ page }) => {
+  test('the review runs and is fully inspectable: the brand layout renders and passes the deterministic checks, no AI reviewer is configured, so it blocks, names why, and approves nothing', async ({ page }) => {
     test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
     await adminLogin(page);
     const templates = await adminApi(page, 'GET', '/api/admin/newsletter/templates');
@@ -713,11 +714,11 @@ test.describe('admin API: review, preview and activation', () => {
     expect(started.status).toBe(200);
     expect(started.body).toMatchObject({ status: 'done', approvedVersion: null, error: null });
     const result = started.body?.result as { passed: boolean; stopReason: string; rounds: Array<{ round: number; fields: Record<string, string>; deterministic: Array<{ code: string; field: string; fixable: boolean }>; ai: unknown; passed: boolean }>; maxRounds: number; threshold: number; finalHash: string };
-    expect(result).toMatchObject({ passed: false, stopReason: 'layout_not_installed', maxRounds: 3, threshold: 85 });
+    expect(result).toMatchObject({ passed: false, stopReason: 'ai_unavailable', maxRounds: 3, threshold: 85 });
     expect(result.rounds).toHaveLength(1);
-    expect(result.rounds[0]).toMatchObject({ round: 1, ai: null, passed: false });
+    expect(result.rounds[0]).toMatchObject({ round: 1, ai: null, passed: false, aiError: 'unavailable', deterministic: [] });
     expect(result.rounds[0].fields.subject).toBe('Welcome to AB Entertainment');
-    expect(result.rounds[0].deterministic.find((i) => i.code === 'layout_not_installed')).toMatchObject({ field: 'layout', fixable: false });
+    expect((result.rounds[0] as { aiErrorDetail?: string }).aiErrorDetail).toMatch(/No AI reviewer is configured/);
     expect(result.finalHash).toMatch(/^[0-9a-f]{64}$/);
 
     // the same result is read back, and it is saved on the version
@@ -727,7 +728,7 @@ test.describe('admin API: review, preview and activation', () => {
     const after = await adminApi(page, 'GET', '/api/admin/newsletter/templates');
     const version = (after.body?.templates as Array<{ versions: Array<{ approval?: unknown; review?: { passed: boolean; stopReason: string } }> }>)[0].versions[0];
     expect(version.approval).toBeUndefined();
-    expect(version.review).toMatchObject({ passed: false, stopReason: 'layout_not_installed' });
+    expect(version.review).toMatchObject({ passed: false, stopReason: 'ai_unavailable' });
     expect((await adminApi(page, 'GET', '/api/admin/newsletter/review?id=tpl-nope&version=1')).status).toBe(404);
     expect((await adminApi(page, 'GET', '/api/admin/newsletter/review')).status).toBe(400);
   });
@@ -737,16 +738,19 @@ test.describe('admin API: review, preview and activation', () => {
     await adminLogin(page);
     const preview = await adminApi(page, 'POST', '/api/admin/newsletter/preview', { fields: { subject: 'Hi', heading: 'a heading' } });
     expect(preview.status).toBe(200);
-    expect(preview.body?.layout).toEqual({ id: 'none', version: '0', installed: false });
-    expect(preview.body?.html).toBeNull();
+    expect(preview.body?.layout).toMatchObject({ id: 'ab-entertainment', installed: true });
+    expect((preview.body?.layout as { version: string }).version).toMatch(/^1\.[0-9a-f]{10}$/);
+    expect(typeof preview.body?.html).toBe('string'); // the layout renders whatever it is given; the issues say what is wrong with it
     const issues = (preview.body?.issues as Array<{ code: string }>).map((i) => i.code);
-    expect(issues).toEqual(expect.arrayContaining(['layout_not_installed', 'subject_too_short', 'heading_not_title_case', 'body_missing']));
+    expect(issues).toEqual(expect.arrayContaining(['subject_too_short', 'heading_not_title_case', 'body_missing']));
+    expect(issues).not.toContain('layout_not_installed');
     const templates = await adminApi(page, 'GET', '/api/admin/newsletter/templates');
     const welcome = (templates.body?.templates as Array<{ id: string }>)[0];
     const saved = await adminApi(page, 'POST', '/api/admin/newsletter/preview', { id: welcome.id, version: 1 });
     expect(saved.status).toBe(200);
     expect((saved.body?.fields as { subject: string }).subject).toBe('Welcome to AB Entertainment');
-    expect((saved.body?.issues as Array<{ code: string }>).map((i) => i.code)).toEqual(['layout_not_installed']);
+    expect((saved.body?.issues as Array<{ code: string }>).map((i) => i.code)).toEqual([]); // the seeded welcome passes every deterministic check in the brand layout
+    expect(String(saved.body?.html)).toContain('The AB Entertainment Community');
     expect((await adminApi(page, 'POST', '/api/admin/newsletter/preview', { fields: { subject: 'two\nlines' } })).status).toBe(400);
     expect((await adminApi(page, 'POST', '/api/admin/newsletter/preview', { id: 'tpl-nope', version: 1 })).status).toBe(404);
   });
