@@ -4,14 +4,10 @@ import dynamic from 'next/dynamic';
 import { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { LazyMotion, domAnimation } from 'framer-motion';
+import ThreeCanvas from '@/components/ui/ThreeCanvas';
 
-// Dynamic imports for heavy client components — saves ~680KB from initial bundle
-const ThreeCanvas = dynamic(() => import('@/components/ui/ThreeCanvas'), {
-  ssr: false,
-  loading: () => (
-    <div className="fixed inset-0 -z-10 pointer-events-none bg-[#0A0A0A]" aria-hidden="true" />
-  ),
-});
+// ThreeCanvas is now two plain CSS layers (no WebGL, no script of its own), so it is rendered with
+// the page and the server HTML already has the final backdrop. The overlays below load on demand.
 const ChatWidget = dynamic(() => import('@/components/ui/ChatWidget'), { ssr: false });
 const BackToTop = dynamic(() => import('@/components/ui/BackToTop'), { ssr: false });
 const CookieConsent = dynamic(() => import('@/components/ui/CookieConsent'), { ssr: false });

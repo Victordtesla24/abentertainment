@@ -67,8 +67,8 @@ export const metadata: Metadata = {
     images: ['/images/og-image.jpg'],
   },
   icons: {
-    icon: '/images/AB_Logo_transparent.png',
-    apple: '/images/AB_Logo_transparent.png',
+    icon: [{ url: '/images/AB_Logo_transparent-128w.png', sizes: '128x128', type: 'image/png' }],
+    apple: '/images/AB_Logo_transparent-256w.png',
   },
   robots: {
     index: true,
