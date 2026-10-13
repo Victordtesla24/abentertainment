@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
+import { afterLoadAndIdle } from '@/lib/perf/schedule';
 import { buildHeroSubtitle } from '@/lib/site-metrics';
 import { useSiteMetrics } from '@/lib/use-site-metrics';
 import type { SiteMetric } from '@/lib/data';
@@ -13,7 +14,6 @@ import {
 } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
-import * as THREE from 'three';
 import styles from './CinematicHero.module.css';
 
 // ─── Hero Slide Data ────────────────────────────────────────────────────────
@@ -62,214 +62,37 @@ const FALLBACK_EM_PER_CHAR = 0.68;
 const TITLE_FIT_FACTOR = 0.97;
 
 // ─── Volumetric Spotlight WebGL Layer ───────────────────────────────────────
+/**
+ * Decorative beams + dust. The renderer (and three.js itself) is loaded only
+ * after the page has finished loading and the main thread is idle, so it can
+ * never delay first paint, hydration or the load event.
+ */
 function VolumetricSpotlight({ className }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const frameRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const host = canvas?.parentElement;
+    if (!canvas || !host) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-    // Detect low-power devices
-    const isLowPower = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (isLowPower) return;
-
-    const gl =
-      canvas.getContext('webgl2', { alpha: true, antialias: false }) ||
-      canvas.getContext('webgl', { alpha: true, antialias: false });
-    if (!gl) {
-      return;
-    }
-
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({
-        canvas,
-        context: gl,
-        antialias: false,
-        alpha: true,
-      });
-    } catch {
-      // Gracefully degrade when WebGL is unavailable so the hero still renders.
-      return;
-    }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-
-    const scene = new THREE.Scene();
-
-    const camera = new THREE.PerspectiveCamera(
-      60,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      50
-    );
-    camera.position.set(0, 0, 5);
-
-    // ─── Volumetric Cone (Spotlight beam) ──────────────────────────────
-    const coneGeo = new THREE.ConeGeometry(3, 8, 32, 1, true);
-    const coneMat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      uniforms: {
-        uTime: { value: 0 },
-        uColor: { value: new THREE.Color('#C9A84C') },
-        uOpacity: { value: 0.08 },
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        varying float vY;
-        void main() {
-          vUv = uv;
-          vY = position.y;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float uTime;
-        uniform vec3 uColor;
-        uniform float uOpacity;
-        varying vec2 vUv;
-        varying float vY;
-
-        void main() {
-          // Gradient from tip (bright) to base (transparent)
-          float gradient = smoothstep(-4.0, 4.0, vY);
-          float alpha = gradient * uOpacity;
-
-          // Edge falloff
-          float dist = distance(vUv, vec2(0.5, vUv.y));
-          alpha *= smoothstep(0.5, 0.2, dist);
-
-          // Animated shimmer
-          float shimmer = sin(vUv.y * 20.0 + uTime * 2.0) * 0.15 + 0.85;
-          alpha *= shimmer;
-
-          // Dust particles effect
-          float dust = sin(vUv.x * 40.0 + uTime) * sin(vUv.y * 30.0 - uTime * 0.5);
-          dust = smoothstep(0.7, 1.0, dust) * 0.3;
-          alpha += dust * gradient;
-
-          gl_FragColor = vec4(uColor, alpha);
-        }
-      `,
+    let cancelled = false;
+    let mounted: { dispose(): void } | null = null;
+    const cancelSchedule = afterLoadAndIdle(() => {
+      import('@/lib/three-engine/HeroSpotlight')
+        .then(({ mountHeroSpotlight }) => {
+          if (!cancelled) mounted = mountHeroSpotlight(canvas, host);
+        })
+        .catch((error: unknown) => {
+          // The hero is complete without the beams; report, don't break the page.
+          console.warn('[hero] spotlight unavailable', error);
+        });
     });
-
-    const cone = new THREE.Mesh(coneGeo, coneMat);
-    cone.position.set(0, 2, -2);
-    cone.rotation.z = Math.PI;
-    scene.add(cone);
-
-    // Secondary spotlight beam (dimmer, offset)
-    const cone2 = cone.clone();
-    const mat2 = coneMat.clone();
-    mat2.uniforms.uOpacity.value = 0.04;
-    cone2.material = mat2;
-    cone2.position.set(-1.5, 2.5, -3);
-    cone2.rotation.z = Math.PI;
-    cone2.rotation.x = 0.15;
-    cone2.scale.setScalar(0.7);
-    scene.add(cone2);
-
-    // Third beam from right
-    const cone3 = cone.clone();
-    const mat3 = coneMat.clone();
-    mat3.uniforms.uOpacity.value = 0.04;
-    cone3.material = mat3;
-    cone3.position.set(1.5, 2.5, -3);
-    cone3.rotation.z = Math.PI;
-    cone3.rotation.x = -0.15;
-    cone3.scale.setScalar(0.7);
-    scene.add(cone3);
-
-    // ─── Floating gold dust particles ──────────────────────────────────
-    const dustCount = 120;
-    const dustGeo = new THREE.BufferGeometry();
-    const dustPositions = new Float32Array(dustCount * 3);
-    const dustVelocities = new Float32Array(dustCount * 3);
-
-    for (let i = 0; i < dustCount; i++) {
-      dustPositions[i * 3] = (Math.random() - 0.5) * 8;
-      dustPositions[i * 3 + 1] = (Math.random() - 0.5) * 6;
-      dustPositions[i * 3 + 2] = (Math.random() - 0.5) * 4 - 1;
-      dustVelocities[i * 3] = (Math.random() - 0.5) * 0.003;
-      dustVelocities[i * 3 + 1] = Math.random() * 0.004 + 0.001;
-      dustVelocities[i * 3 + 2] = (Math.random() - 0.5) * 0.002;
-    }
-
-    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
-
-    const dustMat = new THREE.PointsMaterial({
-      color: 0xC9A84C,
-      size: 0.025,
-      transparent: true,
-      opacity: 0.5,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-
-    const dustParticles = new THREE.Points(dustGeo, dustMat);
-    scene.add(dustParticles);
-
-    // ─── Animation Loop ────────────────────────────────────────────────
-    let time = 0;
-
-    function animate() {
-      frameRef.current = requestAnimationFrame(animate);
-      time += 0.01;
-
-      // Update shader uniforms
-      coneMat.uniforms.uTime.value = time;
-      mat2.uniforms.uTime.value = time + 1.0;
-      mat3.uniforms.uTime.value = time + 2.0;
-
-      // Slow spotlight sway
-      cone.rotation.x = Math.sin(time * 0.3) * 0.08;
-      cone.position.x = Math.sin(time * 0.2) * 0.3;
-
-      cone2.rotation.x = Math.sin(time * 0.25 + 1) * 0.1 + 0.15;
-      cone3.rotation.x = Math.sin(time * 0.25 + 2) * 0.1 - 0.15;
-
-      // Update dust particles
-      const positions = dustGeo.getAttribute('position') as THREE.BufferAttribute;
-      for (let i = 0; i < dustCount; i++) {
-        let x = positions.getX(i) + dustVelocities[i * 3];
-        let y = positions.getY(i) + dustVelocities[i * 3 + 1];
-        const z = positions.getZ(i) + dustVelocities[i * 3 + 2];
-
-        // Wrap around
-        if (y > 4) y = -3;
-        if (x > 5) x = -5;
-        if (x < -5) x = 5;
-
-        positions.setXYZ(i, x, y, z);
-      }
-      positions.needsUpdate = true;
-
-      renderer.render(scene, camera);
-    }
-
-    animate();
-
-    // Resize handler
-    const handleResize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    };
-    window.addEventListener('resize', handleResize);
 
     return () => {
-      cancelAnimationFrame(frameRef.current);
-      window.removeEventListener('resize', handleResize);
-      renderer.dispose();
-      coneGeo.dispose();
-      coneMat.dispose();
-      mat2.dispose();
-      mat3.dispose();
-      dustGeo.dispose();
-      dustMat.dispose();
+      cancelled = true;
+      cancelSchedule();
+      mounted?.dispose();
     };
   }, []);
 
@@ -277,6 +100,7 @@ function VolumetricSpotlight({ className }: { className?: string }) {
     <canvas
       ref={canvasRef}
       className={className}
+      aria-hidden="true"
       style={{
         position: 'absolute',
         inset: 0,
