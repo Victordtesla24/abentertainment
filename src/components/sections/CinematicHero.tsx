@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
+import { buildHeroSubtitle } from '@/lib/site-metrics';
+import { useSiteMetrics } from '@/lib/use-site-metrics';
+import type { SiteMetric } from '@/lib/data';
 import {
   motion,
   AnimatePresence,
@@ -32,10 +35,12 @@ const heroSlides = [
     id: 'slide-3',
     badge: 'Discover',
     title: 'UNFORGETTABLE MOMENTS',
-    subtitle: '6+ Events · 25+ Team · 25,000+ Audience Reach',
     bg: '/images/hero-audience.jpg',
   },
 ];
+
+// This slide has no stored subtitle: its strap-line is built from the live site metrics.
+const METRICS_SLIDE_ID = 'slide-3';
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
 const SLIDE_DURATION = 8000;
@@ -268,10 +273,13 @@ function VolumetricSpotlight({ className }: { className?: string }) {
 }
 
 // ─── Main CinematicHero ─────────────────────────────────────────────────────
-export function CinematicHero() {
+export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[] }) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [slides, setSlides] = useState(heroSlides);
+  const metrics = useSiteMetrics(initialMetrics);
+  const activeSubtitle =
+    slides[currentSlide].id === METRICS_SLIDE_ID ? buildHeroSubtitle(metrics) : slides[currentSlide].subtitle;
 
   // Fetch live hero settings so admin changes appear without rebuild, and keep
   // polling so an idle visitor sees them too.
@@ -482,7 +490,7 @@ export function CinematicHero() {
               transition={{ duration: 0.8, delay: 0.8, ease: EASE }}
               className="text-lg md:text-xl lg:text-2xl text-white/70 font-body font-light tracking-wide max-w-2xl mx-auto"
             >
-              {slides[currentSlide].subtitle}
+              {activeSubtitle}
             </motion.p>
           </motion.div>
         </AnimatePresence>

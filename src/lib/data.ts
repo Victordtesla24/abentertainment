@@ -9,6 +9,7 @@
 
 import { readFile, writeFile, mkdir, rename } from 'fs/promises';
 import { join } from 'path';
+import { normalizeSiteMetrics, toPublicSiteMetrics } from '@/lib/site-metrics';
 
 const DATA_DIR = join(process.cwd(), 'data');
 // PUBLIC_DATA_DIR writes mirror admin changes to the static-export data
@@ -41,6 +42,7 @@ const PUBLIC_MIRRORED = new Set<string>([
   'videos.json',
   'hero-images.json',
   'timeline.json',
+  'site-metrics.json',
   'testimonials.json',
   'pages.json',
   'settings.json',
@@ -197,6 +199,25 @@ export interface TimelineChapter {
   backgroundImage?: string;
   accent: string;
   order: number;
+  updatedAt: string;
+}
+
+/** Text appended to a site metric's number everywhere it is shown ("25,000+", "25K", "95%"). */
+export type SiteMetricSuffix = '' | '+' | 'K' | 'M' | '%';
+
+/**
+ * One admin-editable headline number (events produced, team size, audience
+ * reach, …). data/site-metrics.json is the single source of truth: the landing
+ * page, the about page, the hero copy, the SEO description and the customer
+ * chatbot all render from it.
+ */
+export interface SiteMetric {
+  id: string;
+  label: string;
+  value: number;
+  suffix: SiteMetricSuffix;
+  displayOrder: number;
+  visible: boolean;
   updatedAt: string;
 }
 
@@ -420,6 +441,13 @@ const SEED_PAGES: PageTitle[] = [
   { slug: '/contact', title: 'Contact', updatedAt: '2025-01-01T00:00:00Z' },
 ];
 
+const SEED_SITE_METRICS: SiteMetric[] = [
+  { id: 'events', label: 'Events', value: 6, suffix: '+', displayOrder: 0, visible: true, updatedAt: '2026-10-13T00:00:00Z' },
+  { id: 'team', label: 'Team Members', value: 25, suffix: '+', displayOrder: 1, visible: true, updatedAt: '2026-10-13T00:00:00Z' },
+  { id: 'audience', label: 'Audience Reach', value: 25000, suffix: '+', displayOrder: 2, visible: true, updatedAt: '2026-10-13T00:00:00Z' },
+  { id: 'countries', label: 'Countries', value: 2, suffix: '', displayOrder: 3, visible: true, updatedAt: '2026-10-13T00:00:00Z' },
+];
+
 // ─── Data Access Functions ───────────────────────────────────────────────────
 
 /**
@@ -519,6 +547,9 @@ function serializePublicMirror<T>(filename: string, data: T): string {
   }
   if (filename === 'sponsors.json' && Array.isArray(data)) {
     return JSON.stringify((data as Sponsor[]).map(toPublicSponsor), null, 2);
+  }
+  if (filename === 'site-metrics.json' && Array.isArray(data)) {
+    return JSON.stringify(toPublicSiteMetrics(data as SiteMetric[]), null, 2);
   }
   return JSON.stringify(data, null, 2);
 }
@@ -697,6 +728,54 @@ export async function getTimeline(): Promise<TimelineChapter[]> {
 
 export async function saveTimeline(chapters: TimelineChapter[]): Promise<void> {
   await writeJsonFile('timeline.json', chapters);
+}
+
+// ─── Site metrics ────────────────────────────────────────────────────────────
+// The single source of truth for every headline number on the public site. The
+// store is re-read from disk on every call (no in-memory copy), so a save is
+// visible to the very next request.
+
+const SITE_METRICS_FILE = 'site-metrics.json';
+
+/** Every metric, hidden ones included, in display order — for the admin panel. */
+export async function getSiteMetrics(): Promise<SiteMetric[]> {
+  const raw = await readJsonFile<unknown>(SITE_METRICS_FILE, SEED_SITE_METRICS);
+  if (!Array.isArray(raw)) {
+    console.error(`[data] ${SITE_METRICS_FILE} is not a list — serving the seed metrics`);
+    return normalizeSiteMetrics(SEED_SITE_METRICS);
+  }
+  const metrics = normalizeSiteMetrics(raw);
+  if (metrics.length !== raw.length) {
+    console.error(`[data] ${SITE_METRICS_FILE}: ignored ${raw.length - metrics.length} invalid or duplicate record(s)`);
+  }
+  return metrics;
+}
+
+export async function saveSiteMetrics(metrics: SiteMetric[]): Promise<void> {
+  await writeJsonFile(SITE_METRICS_FILE, metrics);
+}
+
+/** Visible metrics only, in display order — for every public surface. */
+export async function getPublicSiteMetrics(): Promise<SiteMetric[]> {
+  return toPublicSiteMetrics(await getSiteMetrics());
+}
+
+/**
+ * Read-modify-write the metrics under the per-file lock so two concurrent
+ * admin saves cannot overwrite each other. `mutate` receives the normalised
+ * current list and returns the list to persist plus a value for the caller; if
+ * it throws, nothing is written.
+ */
+export async function updateSiteMetrics<T>(
+  mutate: (current: SiteMetric[]) => { metrics: SiteMetric[]; result: T },
+): Promise<T> {
+  const outcome = { result: undefined as T };
+  await updateJsonFile<unknown>(SITE_METRICS_FILE, SEED_SITE_METRICS, (current) => {
+    const next = mutate(normalizeSiteMetrics(current));
+    outcome.result = next.result;
+    return next.metrics;
+  });
+  return outcome.result;
 }
 
 // ─── Contact submissions ─────────────────────────────────────────────────────

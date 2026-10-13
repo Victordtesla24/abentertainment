@@ -3,9 +3,12 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion, useInView } from 'framer-motion';
-import { useRef, useEffect, useState } from 'react';
-import { ABOUT_CONTENT, SITE_CONFIG, FOUR_PILLARS, TEAM_MEMBERS, STATS, telHref } from '@/lib/constants';
+import { useRef, useEffect, useMemo, useState } from 'react';
+import { ABOUT_CONTENT, SITE_CONFIG, FOUR_PILLARS, TEAM_MEMBERS, telHref } from '@/lib/constants';
 import PageHero from '@/components/ui/PageHero';
+import type { SiteMetric } from '@/lib/data';
+import { buildFootprintSentence, formatMetricValue, metricGridColumns } from '@/lib/site-metrics';
+import { useSiteMetrics } from '@/lib/use-site-metrics';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -76,7 +79,8 @@ function AnimatedStat({ value, label }: { value: string; label: string }) {
   useEffect(() => {
     if (!isInView) return;
     const numeric = parseFloat(value.replace(/[^0-9.]/g, ''));
-    const suffix = value.replace(/[0-9.]/g, '');
+    // The suffix is only the unit ("+", "K", "%") — thousands separators belong to the number.
+    const suffix = value.replace(/[0-9.,]/g, '');
     if (isNaN(numeric)) { setDisplayed(value); return; }
     const duration = 1600;
     const steps = 40;
@@ -87,7 +91,9 @@ function AnimatedStat({ value, label }: { value: string; label: string }) {
       const progress = step / steps;
       const eased = 1 - Math.pow(1 - progress, 3);
       const current = Math.round(numeric * eased);
-      setDisplayed(current + suffix);
+      // Intermediate frames carry thousands separators like the home counter; the
+      // last frame is exactly the store-derived string ("25,000+").
+      setDisplayed(step >= steps ? value : current.toLocaleString('en-US') + suffix);
       if (step >= steps) clearInterval(timer);
     }, stepTime);
     return () => clearInterval(timer);
@@ -103,6 +109,31 @@ function AnimatedStat({ value, label }: { value: string; label: string }) {
       </div>
       <p className="text-white/40 text-xs uppercase tracking-[0.25em] font-body">{label}</p>
     </div>
+  );
+}
+
+// ─── Stats Grid ───────────────────────────────────────────────────────────────
+
+// The reveal is driven by an `animate` label (not `whileInView`) so a tile that
+// joins after the strip has already been revealed — an admin adds a metric
+// while a visitor is on the page — inherits "visible" instead of staying hidden.
+function StatsGrid({ metrics }: { metrics: SiteMetric[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: '-80px' });
+  return (
+    <motion.div
+      ref={ref}
+      className={`grid ${metricGridColumns(metrics.length)} gap-8 md:gap-12`}
+      initial="hidden"
+      animate={inView ? 'visible' : 'hidden'}
+      variants={staggerContainer}
+    >
+      {metrics.map((stat) => (
+        <motion.div key={stat.id} variants={staggerItem}>
+          <AnimatedStat value={formatMetricValue(stat.value, stat.suffix)} label={stat.label} />
+        </motion.div>
+      ))}
+    </motion.div>
   );
 }
 
@@ -135,7 +166,21 @@ function Reveal({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function AboutPageContent() {
+export default function AboutPageContent({ initialMetrics }: { initialMetrics: SiteMetric[] }) {
+  // Build-time snapshot first, then the live admin-managed values.
+  const metrics = useSiteMetrics(initialMetrics);
+
+  // The "Our Story" card closes with a sentence built from the live metrics.
+  const storySections = useMemo(
+    () =>
+      ABOUT_CONTENT.sections.map((section) =>
+        section.heading === 'Our Story'
+          ? { ...section, body: [...section.body, buildFootprintSentence(metrics)] }
+          : section,
+      ),
+    [metrics],
+  );
+
   return (
     <div className="bg-[#0A0A0A]">
 
@@ -149,27 +194,17 @@ export default function AboutPageContent() {
       />
 
       {/* ── 2. Stats Strip ──────────────────────────────────────────────────── */}
-      <section className="relative py-16 md:py-20 border-b border-[#C9A84C]/8 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(201,168,76,0.04)_0%,transparent_65%)]" />
-        <div className="film-grain" />
-        <div className="container-eu relative z-10">
-          <motion.div
-            className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-80px' }}
-            variants={staggerContainer}
-          >
-            {STATS.map((stat) => (
-              <motion.div key={stat.label} variants={staggerItem}>
-                <AnimatedStat value={stat.value} label={stat.label} />
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-        {/* Gold line accents */}
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/20 to-transparent" />
-      </section>
+      {metrics.length > 0 && (
+        <section className="relative py-16 md:py-20 border-b border-[#C9A84C]/8 overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(201,168,76,0.04)_0%,transparent_65%)]" />
+          <div className="film-grain" />
+          <div className="container-eu relative z-10">
+            <StatsGrid metrics={metrics} />
+          </div>
+          {/* Gold line accents */}
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/20 to-transparent" />
+        </section>
+      )}
 
       {/* ── 3. Mission Statement ────────────────────────────────────────────── */}
       <section className="relative py-24 md:py-32 overflow-hidden">
@@ -216,7 +251,7 @@ export default function AboutPageContent() {
 
           {/* Story grid — 2×2 with chapter numbering */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-            {ABOUT_CONTENT.sections.map((section, idx) => (
+            {storySections.map((section, idx) => (
               <Reveal key={idx} delay={idx * 0.1}>
                 <div className="glass-card hover-shine group relative h-full p-8 lg:p-10">
                   {/* Chapter watermark */}

@@ -4,7 +4,8 @@ import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import { buildRateLimitHeaders, checkRateLimit } from '@/lib/redis';
 import { SITE_CONFIG } from '@/lib/constants';
-import { getEvents, getSettings } from '@/lib/data';
+import { getEvents, getPublicSiteMetrics, getSettings } from '@/lib/data';
+import { buildChatMetricsFact } from '@/lib/site-metrics';
 
 export const maxDuration = 30;
 
@@ -110,14 +111,17 @@ export async function POST(request: NextRequest) {
       content: typeof msg.content === 'string' ? msg.content.slice(0, 4000) : '',
     }));
 
+    // The headline figures come from the admin-managed site metrics, so the bot
+    // never quotes numbers that differ from what the website shows.
+    const metricsFact = buildChatMetricsFact(await getPublicSiteMetrics());
+
     const systemPrompt = `You are the AB Concierge — the warm, knowledgeable cultural event advisor for AB Entertainment, Melbourne's premier Indian & Marathi performing arts company. You serve as a personal guide helping patrons discover, book, and enjoy extraordinary cultural experiences.
 
 PERSONALITY: Be genuinely enthusiastic, elegantly conversational, and deeply knowledgeable. You love Indian & Marathi arts and culture. Respond with warmth, detail, and a touch of theatrical flair. Use natural paragraph breaks for readability. Format longer answers with bullet points when listing multiple items.
 
 AB ENTERTAINMENT — KEY FACTS:
 - Founded with a vision to bring authentic Indian & Marathi cultural experiences to Melbourne
-- 6+ major events produced, 25+ team members, 25,000+ audience reached across AU & NZ
-- Specialises in premium Marathi theatre, classical music concerts, comedy, and cultural festivals
+${metricsFact ? `- ${metricsFact}\n` : ''}- Specialises in premium Marathi theatre, classical music concerts, comedy, and cultural festivals
 - Contact: ${SITE_CONFIG.contact.phone} / ${SITE_CONFIG.contact.email}
 - Website: ${SITE_CONFIG.url}
 

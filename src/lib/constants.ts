@@ -8,10 +8,16 @@
  *   Text:      rgba(255,255,255,0.5)
  */
 
+import siteMetricsSnapshot from '../../data/site-metrics.json';
+import { buildSiteDescription, normalizeSiteMetrics } from '@/lib/site-metrics';
+
 export const SITE_CONFIG = {
   name: 'AB Entertainment',
   tagline: "Melbourne's Premier Indian & Marathi Performing Arts Experience",
-  description: '6+ Events, 25+ Team, 25,000+ Audience Reach — Digital footprint across Australia and New Zealand',
+  // Derived from the admin-managed metrics store (data/site-metrics.json) as it
+  // stood at build time — the SEO tags are static, so an admin edit reaches them
+  // at the next build while every on-page metric updates live.
+  description: buildSiteDescription(normalizeSiteMetrics(siteMetricsSnapshot)),
   url: process.env.NEXT_PUBLIC_SITE_URL || 'https://abentertainment.com.au',
   contact: {
     phone: '(+61) 430082646',
@@ -74,9 +80,10 @@ export const ABOUT_CONTENT = {
   sections: [
     {
       heading: 'Our Story',
+      // AboutPageContent appends this card's closing "With … events, … team and … audience reach"
+      // sentence, built from the live site metrics, so no figure is written here.
       body: [
         'AB Entertainment was born from a vision to bring authentic Indian and Marathi cultural experiences to Melbourne. What began as a passionate initiative has grown into one of Australia\'s most respected platforms for subcontinental performing arts.',
-        'With 6+ major events, a 25+ member team, and over 25,000 audience reach, our digital footprint extends across Australia and New Zealand.',
       ],
     },
     {
@@ -126,13 +133,6 @@ export const NAVIGATION = [
   { label: 'Sponsors', href: '/sponsors' },
   { label: 'Community', href: '/community' },
   { label: 'Contact', href: '/contact' },
-];
-
-export const STATS = [
-  { value: '6+', label: 'Events' },
-  { value: '25+', label: 'Team Members' },
-  { value: '25,000+', label: 'Audience Reach' },
-  { value: '2', label: 'Countries' },
 ];
 
 export const PAST_EVENTS = [
