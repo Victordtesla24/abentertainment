@@ -1,8 +1,16 @@
 'use client';
 
 import { motion, useInView } from 'framer-motion';
-import { STATS } from '@/lib/constants';
-import { useRef, useState, useEffect } from 'react';
+import { Fragment, useRef, useState, useEffect } from 'react';
+import type { SiteMetric } from '@/lib/data';
+import {
+  formatMetricValue,
+  formatMetricValueCompact,
+  metricBadgeLabel,
+  metricGridColumns,
+  pickBadgeMetrics,
+} from '@/lib/site-metrics';
+import { useSiteMetrics } from '@/lib/use-site-metrics';
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
 
@@ -18,22 +26,29 @@ function AnimatedCounter({ value, suffix = '' }: { value: string; suffix?: strin
     if (isNaN(target)) { setDisplay(value); return; }
     const duration = 2000;
     const start = performance.now();
+    let frame = 0;
     const animate = (now: number) => {
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 4);
       const current = Math.floor(eased * target);
       setDisplay(current.toLocaleString());
-      if (progress < 1) requestAnimationFrame(animate);
+      if (progress < 1) frame = requestAnimationFrame(animate);
       else setDisplay(value);
     };
-    requestAnimationFrame(animate);
+    frame = requestAnimationFrame(animate);
+    // A live metrics update changes `value` mid-count: stop the superseded run.
+    return () => cancelAnimationFrame(frame);
   }, [isInView, value]);
 
   return <div ref={ref}>{display}{suffix}</div>;
 }
 
-export function IntroSection() {
+export function IntroSection({ initialMetrics }: { initialMetrics: SiteMetric[] }) {
+  // Build-time snapshot first, then the live admin-managed values.
+  const metrics = useSiteMetrics(initialMetrics);
+  const badgeMetrics = pickBadgeMetrics(metrics);
+
   return (
     <section className="bg-[#0A0A0A] relative overflow-hidden">
       {/* Ambient glow */}
@@ -41,36 +56,38 @@ export function IntroSection() {
       <div className="section-divider-top" />
 
       {/* Stats bar */}
-      <div className="border-b border-[#C9A84C]/8">
-        <div className="container-eu py-12">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {STATS.map((stat, index) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: index * 0.15, ease: EASE }}
-                viewport={{ once: true }}
-                className="text-center group"
-              >
-                <div className="text-4xl md:text-5xl font-display font-bold text-[#C9A84C] mb-2 drop-shadow-[0_0_20px_rgba(201,168,76,0.2)]">
-                  <AnimatedCounter value={stat.value} />
-                </div>
-                <div className="text-white/50 text-[10px] uppercase tracking-[0.25em] font-body group-hover:text-white/70 transition-colors duration-500">
-                  {stat.label}
-                </div>
+      {metrics.length > 0 && (
+        <div className="border-b border-[#C9A84C]/8">
+          <div className="container-eu py-12">
+            <div className={`grid ${metricGridColumns(metrics.length)} gap-8`}>
+              {metrics.map((stat, index) => (
                 <motion.div
-                  initial={{ scaleX: 0 }}
-                  whileInView={{ scaleX: 1 }}
-                  transition={{ duration: 0.8, delay: 0.5 + index * 0.1 }}
+                  key={stat.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.7, delay: index * 0.15, ease: EASE }}
                   viewport={{ once: true }}
-                  className="w-8 h-[1px] bg-[#C9A84C]/20 mx-auto mt-3 origin-center"
-                />
-              </motion.div>
-            ))}
+                  className="text-center group"
+                >
+                  <div className="text-4xl md:text-5xl font-display font-bold text-[#C9A84C] mb-2 drop-shadow-[0_0_20px_rgba(201,168,76,0.2)]">
+                    <AnimatedCounter value={formatMetricValue(stat.value, stat.suffix)} />
+                  </div>
+                  <div className="text-white/50 text-[10px] uppercase tracking-[0.25em] font-body group-hover:text-white/70 transition-colors duration-500">
+                    {stat.label}
+                  </div>
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    whileInView={{ scaleX: 1 }}
+                    transition={{ duration: 0.8, delay: 0.5 + index * 0.1 }}
+                    viewport={{ once: true }}
+                    className="w-8 h-[1px] bg-[#C9A84C]/20 mx-auto mt-3 origin-center"
+                  />
+                </motion.div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main intro content */}
       <div className="container-eu py-24 md:py-32">
@@ -174,22 +191,19 @@ export function IntroSection() {
               </div>
 
               {/* Stats badge */}
-              <div className="flex items-center justify-center gap-6 py-3 border-t border-b border-[#C9A84C]/8">
-                <div className="text-center">
-                  <p className="text-[#C9A84C] font-display font-bold text-xl">6+</p>
-                  <p className="text-white/50 text-[8px] uppercase tracking-widest font-body">Events</p>
+              {badgeMetrics.length > 0 && (
+                <div className="flex items-center justify-center gap-6 py-3 border-t border-b border-[#C9A84C]/8">
+                  {badgeMetrics.map((metric, index) => (
+                    <Fragment key={metric.id}>
+                      {index > 0 && <div className="w-px h-8 bg-[#C9A84C]/15" />}
+                      <div className="text-center">
+                        <p className="text-[#C9A84C] font-display font-bold text-xl">{formatMetricValueCompact(metric.value, metric.suffix)}</p>
+                        <p className="text-white/50 text-[8px] uppercase tracking-widest font-body">{metricBadgeLabel(metric)}</p>
+                      </div>
+                    </Fragment>
+                  ))}
                 </div>
-                <div className="w-px h-8 bg-[#C9A84C]/15" />
-                <div className="text-center">
-                  <p className="text-[#C9A84C] font-display font-bold text-xl">25K+</p>
-                  <p className="text-white/50 text-[8px] uppercase tracking-widest font-body">Reach</p>
-                </div>
-                <div className="w-px h-8 bg-[#C9A84C]/15" />
-                <div className="text-center">
-                  <p className="text-[#C9A84C] font-display font-bold text-xl">2</p>
-                  <p className="text-white/50 text-[8px] uppercase tracking-widest font-body">Countries</p>
-                </div>
-              </div>
+              )}
             </div>
           </motion.div>
         </div>

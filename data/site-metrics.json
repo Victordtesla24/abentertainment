@@ -1,0 +1,38 @@
+[
+  {
+    "id": "events",
+    "label": "Events",
+    "value": 6,
+    "suffix": "+",
+    "displayOrder": 0,
+    "visible": true,
+    "updatedAt": "2026-10-13T00:00:00Z"
+  },
+  {
+    "id": "team",
+    "label": "Team Members",
+    "value": 25,
+    "suffix": "+",
+    "displayOrder": 1,
+    "visible": true,
+    "updatedAt": "2026-10-13T00:00:00Z"
+  },
+  {
+    "id": "audience",
+    "label": "Audience Reach",
+    "value": 25000,
+    "suffix": "+",
+    "displayOrder": 2,
+    "visible": true,
+    "updatedAt": "2026-10-13T00:00:00Z"
+  },
+  {
+    "id": "countries",
+    "label": "Countries",
+    "value": 2,
+    "suffix": "",
+    "displayOrder": 3,
+    "visible": true,
+    "updatedAt": "2026-10-13T00:00:00Z"
+  }
+]

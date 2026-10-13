@@ -8,10 +8,10 @@ import CTASection from '@/components/CTASection';
 import ScrollNarrative from '@/components/ScrollNarrative';
 import VideoHighlights from '@/components/VideoHighlights';
 import { ScrollReveal, StageLightingOverlay } from '@/components/ui/ScrollReveal';
-import { getPublicEvents } from '@/lib/data';
+import { getPublicEvents, getPublicSiteMetrics } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
 
-import type { Event } from '@/lib/data';
+import type { Event, SiteMetric } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: SITE_CONFIG.name,
@@ -27,19 +27,29 @@ export default async function Home() {
     console.error('Error loading events:', error);
   }
 
+  // Build-time (or revalidated) snapshot of the admin-managed metrics; the
+  // components then fetch the live values from /api/metrics.
+  let metrics: SiteMetric[] = [];
+
+  try {
+    metrics = await getPublicSiteMetrics();
+  } catch (error) {
+    console.error('Error loading site metrics:', error);
+  }
+
   return (
     <>
       {/* Scroll-driven theatrical lighting overlay — vignette + gold bloom */}
       <StageLightingOverlay />
 
-      <CinematicHero />
+      <CinematicHero initialMetrics={metrics} />
 
       {/* Dramatic section entrance — VisionSection emerges from darkness */}
       <ScrollReveal variant="dramatic" duration={1.3}>
         <VisionSection />
       </ScrollReveal>
 
-      <IntroSection />
+      <IntroSection initialMetrics={metrics} />
       <VideoHighlights />
       <ScrollNarrative />
 

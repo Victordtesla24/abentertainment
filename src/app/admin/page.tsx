@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import { adminFetch, setCsrfToken, setAuthToken } from '@/lib/admin-fetch';
-import type { Event, Sponsor, GalleryImage, SiteSettings, Video, HeroImage, TimelineChapter, Testimonial } from '@/lib/data';
+import type { Event, Sponsor, GalleryImage, SiteSettings, Video, HeroImage, TimelineChapter, Testimonial, SiteMetric } from '@/lib/data';
 
 const DEFAULT_SETTINGS: SiteSettings = {
   chatModel: 'gpt-4o-mini',
@@ -26,6 +26,7 @@ export default function AdminPage() {
   const [heroImages, setHeroImages] = useState<HeroImage[]>([]);
   const [timeline, setTimeline] = useState<TimelineChapter[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [metrics, setMetrics] = useState<SiteMetric[]>([]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -60,7 +61,7 @@ export default function AdminPage() {
         if (!isCancelled) {
           setIsAuthed(true);
           // Fetch all data in parallel
-          const [eventsRes, sponsorsRes, galleryRes, settingsRes, videosRes, heroRes, timelineRes, testimonialsRes] = await Promise.allSettled([
+          const [eventsRes, sponsorsRes, galleryRes, settingsRes, videosRes, heroRes, timelineRes, testimonialsRes, metricsRes] = await Promise.allSettled([
             adminFetch('/api/admin/events').then(r => r.ok ? r.json() : null),
             adminFetch('/api/admin/sponsors').then(r => r.ok ? r.json() : null),
             adminFetch('/api/admin/gallery').then(r => r.ok ? r.json() : null),
@@ -69,6 +70,7 @@ export default function AdminPage() {
             adminFetch('/api/admin/hero-images').then(r => r.ok ? r.json() : null),
             adminFetch('/api/admin/timeline').then(r => r.ok ? r.json() : null),
             adminFetch('/api/admin/testimonials').then(r => r.ok ? r.json() : null),
+            adminFetch('/api/admin/metrics').then(r => r.ok ? r.json() : null),
           ]);
 
           if (!isCancelled) {
@@ -80,6 +82,7 @@ export default function AdminPage() {
             if (heroRes.status === 'fulfilled' && heroRes.value) setHeroImages(heroRes.value.images || []);
             if (timelineRes.status === 'fulfilled' && timelineRes.value) setTimeline(timelineRes.value.chapters || []);
             if (testimonialsRes.status === 'fulfilled' && testimonialsRes.value) setTestimonials(testimonialsRes.value.testimonials || []);
+            if (metricsRes.status === 'fulfilled' && metricsRes.value) setMetrics(metricsRes.value.metrics || []);
           }
         }
       } catch {
@@ -118,6 +121,7 @@ export default function AdminPage() {
       initialHeroImages={heroImages}
       initialTimeline={timeline}
       initialTestimonials={testimonials}
+      initialMetrics={metrics}
     />
   );
 }

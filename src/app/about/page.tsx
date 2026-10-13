@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import AboutPageContent from '@/components/about/AboutPageContent';
+import { getPublicSiteMetrics } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'About',
@@ -16,6 +17,9 @@ export const metadata: Metadata = {
   },
 };
 
-export default function AboutPage() {
-  return <AboutPageContent />;
+export default async function AboutPage() {
+  // Build-time (or revalidated) snapshot of the admin-managed metrics; the
+  // page then fetches the live values from /api/metrics.
+  const metrics = await getPublicSiteMetrics();
+  return <AboutPageContent initialMetrics={metrics} />;
 }
