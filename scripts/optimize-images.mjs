@@ -1,48 +1,46 @@
 #!/usr/bin/env node
 
 /**
- * Build-time image optimization for static export (#13).
+ * Build-time image optimisation for the static export.
  *
- * Since Next.js image optimization is disabled (output: 'export'),
- * this script generates responsive WebP variants at build time.
+ * Next.js image optimisation is disabled (output: 'export'), so responsive
+ * variants are generated here and served as plain files. For every source image
+ * (jpg/jpeg/png) that matches a profile in scripts/image-profiles.mjs this writes
+ * <name>-<width>w.avif, <name>-<width>w.webp and a legacy fallback
+ * <name>-<width>w.jpg (or .png when the artwork has transparency) for each
+ * nominal width. OptimizedImage builds its <picture> markup from the same plan.
+ *
+ * Idempotent: existing outputs are left untouched, so the generated files can be
+ * committed and only new sources cost time. Any failure aborts the build — a
+ * missing variant would otherwise ship as a broken image.
  *
  * Usage:
  *   node scripts/optimize-images.mjs
- *
- * What it does:
- *   - Scans public/images/ for JPG/PNG files
- *   - Generates WebP versions alongside originals
- *   - Creates responsive sizes (640w, 1024w) for hero/event images
- *   - Skips already-optimized files (idempotent)
  */
 
-import { readdir, stat, access } from 'fs/promises';
-import { join, extname, basename, dirname } from 'path';
+import { readdir, access, rename, unlink } from 'node:fs/promises';
+import { join, extname, relative, sep } from 'node:path';
 import sharp from 'sharp';
+import { MODERN_FORMATS, isVariantFile, profileFor, variantPath } from './image-profiles.mjs';
 
-const PUBLIC_DIR = join(process.cwd(), 'public', 'images');
-const RESPONSIVE_WIDTHS = [640, 1024];
-const QUALITY_WEBP = 80;
-const QUALITY_AVIF = 50;
-const QUALITY_JPEG = 85;
-const MAX_FILE_SIZE_KB = 200;
+const IMAGES_DIR = join(process.cwd(), 'public', 'images');
+const SOURCE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png']);
+/** Site background — used to flatten transparent artwork when the fallback is JPEG. */
+const FLATTEN_BACKGROUND = '#0A0A0A';
 
-// Directories that benefit from responsive sizes
-const RESPONSIVE_DIRS = ['heroes', 'events', 'gallery'];
-
-async function* walkDir(dir) {
+async function* walk(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = join(dir, entry.name);
     if (entry.isDirectory()) {
-      yield* walkDir(fullPath);
+      yield* walk(fullPath);
     } else {
       yield fullPath;
     }
   }
 }
 
-async function fileExists(path) {
+async function exists(path) {
   try {
     await access(path);
     return true;
@@ -51,125 +49,81 @@ async function fileExists(path) {
   }
 }
 
-async function optimizeImage(filePath) {
-  const ext = extname(filePath).toLowerCase();
-  if (!['.jpg', '.jpeg', '.png'].includes(ext)) return;
-
-  const name = basename(filePath, ext);
-  const dir = dirname(filePath);
-  const relDir = dir.replace(PUBLIC_DIR, '').replace(/^\//, '');
-
-  // 1. Generate WebP version of original
-  const webpPath = join(dir, `${name}.webp`);
-  if (!(await fileExists(webpPath))) {
-    try {
-      await sharp(filePath)
-        .webp({ quality: QUALITY_WEBP, effort: 6 })
-        .toFile(webpPath);
-      console.log(`  ✓ WebP: ${relDir}/${name}.webp`);
-    } catch (err) {
-      console.warn(`  ✗ Failed WebP for ${name}: ${err.message}`);
-    }
-  }
-
-  // 1b. Generate AVIF version of original (best compression)
-  const avifPath = join(dir, `${name}.avif`);
-  if (!(await fileExists(avifPath))) {
-    try {
-      await sharp(filePath)
-        .avif({ quality: QUALITY_AVIF, effort: 5 })
-        .toFile(avifPath);
-      console.log(`  ✓ AVIF: ${relDir}/${name}.avif`);
-    } catch (err) {
-      console.warn(`  ✗ Failed AVIF for ${name}: ${err.message}`);
-    }
-  }
-
-  // 2. Generate responsive sizes for hero/event/gallery images
-  const shouldResize = RESPONSIVE_DIRS.some((d) => relDir.startsWith(d));
-  if (!shouldResize) return;
-
-  const metadata = await sharp(filePath).metadata();
-  if (!metadata.width) return;
-
-  for (const width of RESPONSIVE_WIDTHS) {
-    // When the source image is narrower than the requested responsive width,
-    // we still emit the variant — capped at the source width — so OptimizedImage's
-    // srcSet entries always resolve to a real file. Without this, browsers
-    // selecting the larger srcSet candidate at certain viewports get a 404.
-    const targetWidth = Math.min(width, metadata.width);
-
-    const resizedName = `${name}-${width}w`;
-
-    // Resized AVIF (best compression)
-    const resizedAvif = join(dir, `${resizedName}.avif`);
-    if (!(await fileExists(resizedAvif))) {
-      try {
-        await sharp(filePath)
-          .resize(targetWidth)
-          .avif({ quality: QUALITY_AVIF, effort: 5 })
-          .toFile(resizedAvif);
-        console.log(`  ✓ ${width}w AVIF: ${relDir}/${resizedName}.avif`);
-      } catch (err) {
-        console.warn(`  ✗ Failed ${width}w AVIF for ${name}: ${err.message}`);
-      }
-    }
-
-    // Resized WebP
-    const resizedWebp = join(dir, `${resizedName}.webp`);
-    if (!(await fileExists(resizedWebp))) {
-      try {
-        await sharp(filePath)
-          .resize(targetWidth)
-          .webp({ quality: QUALITY_WEBP, effort: 6 })
-          .toFile(resizedWebp);
-        console.log(`  ✓ ${width}w WebP: ${relDir}/${resizedName}.webp`);
-      } catch (err) {
-        console.warn(`  ✗ Failed ${width}w WebP for ${name}: ${err.message}`);
-      }
-    }
-
-    // Resized JPEG/PNG (fallback)
-    const resizedJpeg = join(dir, `${resizedName}${ext}`);
-    if (!(await fileExists(resizedJpeg))) {
-      try {
-        await sharp(filePath)
-          .resize(targetWidth)
-          .jpeg({ quality: QUALITY_JPEG })
-          .toFile(resizedJpeg);
-        console.log(`  ✓ ${width}w JPEG: ${relDir}/${resizedName}${ext}`);
-      } catch (err) {
-        console.warn(`  ✗ Failed ${width}w JPEG for ${name}: ${err.message}`);
-      }
-    }
+/** @param {import('sharp').Sharp} pipeline */
+function encode(pipeline, format, hasAlpha) {
+  switch (format) {
+    case 'avif':
+      return pipeline.avif({ quality: 50, effort: 5 });
+    case 'webp':
+      return pipeline.webp({ quality: 78, effort: 5 });
+    case 'jpg':
+      return (hasAlpha ? pipeline.flatten({ background: FLATTEN_BACKGROUND }) : pipeline).jpeg({
+        quality: 80,
+        mozjpeg: true,
+        progressive: true,
+      });
+    case 'png':
+      return pipeline.png({ compressionLevel: 9, palette: true, quality: 85, effort: 7 });
+    default:
+      throw new Error(`Unsupported output format: ${format}`);
   }
 }
 
-async function main() {
-  console.log('🖼  Optimizing images for static export...\n');
+async function generateVariants(sourcePath, relPath, profile) {
+  const metadata = await sharp(sourcePath).metadata();
+  if (!metadata.width) throw new Error(`Cannot read dimensions of ${relPath}`);
 
-  let count = 0;
+  const formats = [...MODERN_FORMATS, profile.fallback];
+  let created = 0;
+
+  for (const width of profile.widths) {
+    for (const format of formats) {
+      const outPath = join(IMAGES_DIR, variantPath(relPath, width, format));
+      if (await exists(outPath)) continue;
+
+      // Never upscale: a source narrower than the nominal width keeps its own resolution.
+      const pipeline = sharp(sourcePath).rotate().resize({ width: Math.min(width, metadata.width), withoutEnlargement: true });
+      // Write-then-rename: an interrupted run can never leave a truncated file that the
+      // "already exists" check above would accept as finished.
+      const partialPath = `${outPath}.partial`;
+      await encode(pipeline, format, Boolean(metadata.hasAlpha)).toFile(partialPath);
+      await rename(partialPath, outPath);
+      created++;
+      console.log(`  + ${variantPath(relPath, width, format)}`);
+    }
+  }
+  return created;
+}
+
+async function main() {
+  console.log('Optimizing images for static export...\n');
+
+  let sources = 0;
+  let created = 0;
+
   try {
-    for await (const filePath of walkDir(PUBLIC_DIR)) {
-      const ext = extname(filePath).toLowerCase();
-      if (['.jpg', '.jpeg', '.png'].includes(ext)) {
-        // Skip already-generated responsive variants
-        if (/-\d+w\.(jpg|jpeg|png|webp|avif)$/.test(filePath)) continue;
-        // Skip AVIF files (they are generated, not source)
-        if (extname(filePath).toLowerCase() === '.avif') continue;
-        await optimizeImage(filePath);
-        count++;
+    for await (const filePath of walk(IMAGES_DIR)) {
+      if (filePath.endsWith('.partial')) {
+        await unlink(filePath); // debris from an interrupted run
+        continue;
       }
+      if (!SOURCE_EXTENSIONS.has(extname(filePath).toLowerCase())) continue;
+      const relPath = relative(IMAGES_DIR, filePath).split(sep).join('/');
+      if (isVariantFile(relPath)) continue;
+      const profile = profileFor(relPath);
+      if (!profile) continue;
+      sources++;
+      created += await generateVariants(filePath, relPath, profile);
     }
   } catch (err) {
     if (err.code === 'ENOENT') {
-      console.log('  No public/images/ directory found — skipping.\n');
+      console.log('  No public/images/ directory found - skipping.\n');
       return;
     }
     throw err;
   }
 
-  console.log(`\n✅ Processed ${count} source images.\n`);
+  console.log(`\nDone: ${sources} source images checked, ${created} variants created.\n`);
 }
 
 main().catch((err) => {

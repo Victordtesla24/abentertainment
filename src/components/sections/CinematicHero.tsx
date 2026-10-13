@@ -12,8 +12,8 @@ import {
   useScroll,
   useTransform,
 } from 'framer-motion';
-import Image from 'next/image';
 import Link from 'next/link';
+import OptimizedImage from '@/components/ui/OptimizedImage';
 import styles from './CinematicHero.module.css';
 
 // ─── Hero Slide Data ────────────────────────────────────────────────────────
@@ -120,6 +120,11 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
   const metrics = useSiteMetrics(initialMetrics);
   const activeSubtitle =
     slides[currentSlide].id === METRICS_SLIDE_ID ? buildHeroSubtitle(metrics) : slides[currentSlide].subtitle;
+  // The first view animates in with CSS (see CinematicHero.module.css) so it paints
+  // without waiting for hydration; later slides animate with framer-motion.
+  const [introDone, setIntroDone] = useState(false);
+  const [upNext, setUpNext] = useState(false);
+  const intro = (cls: string) => (introDone ? '' : cls);
 
   // Fetch live hero settings so admin changes appear without rebuild, and keep
   // polling so an idle visitor sees them too.
@@ -202,7 +207,19 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
     return () => clearInterval(interval);
   }, [isPaused]);
 
-  const titleEm = TITLE_WIDTH_EM[slides[currentSlide].title] ?? slides[currentSlide].title.length * FALLBACK_EM_PER_CHAR;
+  // The CSS intro belongs to the very first view only; once the slideshow has
+  // moved on, framer-motion animates every slide in.
+  useEffect(() => {
+    if (currentSlide !== 0) setIntroDone(true);
+  }, [currentSlide]);
+
+  // Warm the next slide's image once the page is idle so the crossfade never
+  // waits on the network.
+  useEffect(() => afterLoadAndIdle(() => setUpNext(true)), []);
+
+  const slide = slides[currentSlide];
+  const nextSlide = slides[(currentSlide + 1) % slides.length];
+  const titleEm = TITLE_WIDTH_EM[slide.title] ?? slide.title.length * FALLBACK_EM_PER_CHAR;
   const titleFit = `calc((100cqw - 2rem) * ${TITLE_FIT_FACTOR} / ${titleEm})`;
 
   return (
@@ -221,29 +238,37 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
       {/* Animated Background Images with Ken Burns */}
       <motion.div className="absolute inset-0" style={{ y: parallaxBg, scale: heroScale }}>
         {/* Ken Burns image slideshow background */}
-        <AnimatePresence mode="sync">
+        <AnimatePresence mode="sync" initial={false}>
           <motion.div
-            key={slides[currentSlide].bg + currentSlide}
+            key={slide.bg + currentSlide}
             className="absolute inset-0"
             initial={{ opacity: 0, scale: 1.15 }}
             animate={{ opacity: 1, scale: 1.0 }}
             exit={{ opacity: 0, scale: 1.05 }}
             transition={{ duration: 2.2, ease: EASE }}
           >
-            <img
-              src={slides[currentSlide].bg}
-              alt=""
-              aria-hidden="true"
-              width={1920}
-              height={1080}
-              className="w-full h-[130%] object-cover"
-              style={{ filter: 'saturate(0.85) contrast(1.1)' }}
-              loading={currentSlide === 0 ? 'eager' : 'lazy'}
-              fetchPriority={currentSlide === 0 ? 'high' : 'auto'}
-            />
+            <div className={`absolute inset-0 ${intro(styles.backdropIn)}`}>
+              <OptimizedImage
+                src={slide.bg}
+                alt=""
+                width={1920}
+                height={1072}
+                sizes="100vw"
+                priority={currentSlide === 0 && !introDone}
+                className="w-full h-[130%] object-cover"
+                style={{ filter: 'saturate(0.85) contrast(1.1)' }}
+              />
+            </div>
           </motion.div>
         </AnimatePresence>
       </motion.div>
+
+      {/* Next slide's artwork, fetched at low priority while the current one plays */}
+      {upNext && (
+        <div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 h-px w-px overflow-hidden opacity-0">
+          <OptimizedImage src={nextSlide.bg} alt="" width={1920} height={1072} sizes="100vw" fetchPriority="low" />
+        </div>
+      )}
 
       {/* Cinematic overlays */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/90 z-[1]" />
@@ -262,47 +287,41 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
       {/* Hero Content — min-h/padding (not a fixed height) so a short viewport grows
           the hero instead of clipping the logo under the nav or the buttons below. */}
       <motion.div
-        className="relative z-10 w-full min-h-dvh flex flex-col items-center justify-center text-center py-20"
+        className={`relative z-10 w-full min-h-dvh flex flex-col items-center justify-center text-center py-20 ${intro(styles.contentIn)}`}
         style={{ y: parallaxContent, opacity: heroOpacity }}
-        initial={{ opacity: 0, y: 24, filter: 'blur(10px)' }}
-        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-        transition={{ duration: 0.9, ease: EASE }}
       >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.7, filter: 'blur(10px)' }}
-          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          transition={{ duration: 1.5, ease: EASE }}
-          className="mb-10"
-        >
+        <div className={`mb-10 ${intro(styles.logoIn)}`}>
           <div className="relative w-32 h-32 md:w-40 md:h-40 mx-auto">
             <div className="absolute inset-0 rounded-full bg-[#C9A84C]/10 blur-2xl animate-pulse" />
-            <Image
+            <OptimizedImage
               src="/images/AB_Logo_transparent.png"
               alt="AB Entertainment Logo"
-              fill
-              className="object-contain drop-shadow-[0_0_30px_rgba(201,168,76,0.4)]"
+              width={500}
+              height={500}
+              sizes="(min-width: 768px) 160px, 128px"
               priority
+              className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_0_30px_rgba(201,168,76,0.4)]"
             />
           </div>
-        </motion.div>
+        </div>
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={currentSlide}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
-            className="@container w-full max-w-5xl px-4 sm:px-6"
+            className={`@container w-full max-w-5xl px-4 sm:px-6 ${intro(styles.slideIn)}`}
           >
             <motion.div
               initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               transition={{ duration: 0.8, delay: 0.1, ease: EASE }}
-              className="mb-6"
+              className={`mb-6 ${intro(styles.badgeIn)}`}
             >
               <span className="inline-block px-6 py-2.5 bg-gradient-to-r from-[#C9A84C]/10 via-[#C9A84C]/20 to-[#C9A84C]/10 border border-[#C9A84C]/25 text-[#C9A84C] text-sm md:text-base font-body font-medium tracking-[0.2em] uppercase backdrop-blur-md">
-                {slides[currentSlide].badge}
+                {slide.badge}
               </span>
             </motion.div>
 
@@ -311,17 +330,17 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
               initial={{ opacity: 0, y: 40, filter: 'blur(8px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               transition={{ duration: 1, delay: 0.3, ease: EASE }}
-              className={`${styles.title} w-full px-0 sm:px-4 font-black leading-[0.9] tracking-tight uppercase mb-7 whitespace-nowrap`}
+              className={`${styles.title} w-full px-0 sm:px-4 font-black leading-[0.9] tracking-tight uppercase mb-7 whitespace-nowrap ${intro(styles.titleIn)}`}
               style={{ fontFamily: 'var(--font-display), Georgia, serif', '--fit': titleFit } as React.CSSProperties}
             >
-              <span className="gold-shimmer">{slides[currentSlide].title}</span>
+              <span className="gold-shimmer">{slide.title}</span>
             </motion.h1>
 
             <motion.div
               initial={{ scaleX: 0 }}
               animate={{ scaleX: 1 }}
               transition={{ duration: 1.2, delay: 0.6, ease: EASE }}
-              className="flex items-center justify-center gap-3 mb-7 origin-center"
+              className={`flex items-center justify-center gap-3 mb-7 origin-center ${intro(styles.dividerIn)}`}
             >
               <div className="w-16 h-[1px] bg-gradient-to-r from-transparent to-[#C9A84C]/50" />
               <div className="w-1.5 h-1.5 rotate-45 bg-[#C9A84C]/60" />
@@ -332,7 +351,7 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.8, ease: EASE }}
-              className="text-lg md:text-xl lg:text-2xl text-white/70 font-body font-light tracking-wide max-w-2xl mx-auto"
+              className={`text-lg md:text-xl lg:text-2xl text-white/70 font-body font-light tracking-wide max-w-2xl mx-auto ${intro(styles.subtitleIn)}`}
             >
               {activeSubtitle}
             </motion.p>
@@ -340,12 +359,7 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
         </AnimatePresence>
 
         {/* CTA Buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 25 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 1.0, ease: EASE }}
-          className="mt-12 flex flex-col sm:flex-row gap-5"
-        >
+        <div className={`mt-12 flex flex-col sm:flex-row gap-5 ${intro(styles.actionsIn)}`}>
           <Link
             href="/events"
             className="group relative px-10 py-4 bg-gradient-to-r from-[#C9A84C] via-[#D4B65C] to-[#C9A84C] text-black text-sm uppercase tracking-[0.15em] font-body font-bold overflow-hidden transition-all duration-500 hover:shadow-[0_0_40px_rgba(201,168,76,0.4)] hover:scale-[1.02]"
@@ -359,15 +373,10 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
           >
             Contact Us
           </Link>
-        </motion.div>
+        </div>
 
         {/* Carousel dots — a 44px-tall hit area around each 2px bar (negative margin keeps the layout height) */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.4 }}
-          className="mt-14 flex items-center"
-        >
+        <div className={`mt-14 flex items-center ${intro(styles.dotsIn)}`}>
           {slides.map((_, index) => (
             <button
               key={index}
@@ -396,21 +405,19 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
               </span>
             </button>
           ))}
-        </motion.div>
+        </div>
       </motion.div>
 
       {/* Bottom cinematic fade */}
       <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/60 to-transparent z-20 pointer-events-none" />
 
       {/* Scroll indicator */}
-      <motion.div
-        className="absolute bottom-10 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-3"
-        animate={{ y: [0, 8, 0] }}
-        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-      >
-        <span className="text-[#C9A84C]/70 text-[9px] uppercase tracking-[0.3em] font-body">Scroll</span>
-        <div className="w-[1px] h-10 bg-gradient-to-b from-[#C9A84C]/40 to-[#C9A84C]" />
-      </motion.div>
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-3">
+        <div className={`flex flex-col items-center gap-3 ${styles.scrollHint}`}>
+          <span className="text-[#C9A84C]/70 text-[9px] uppercase tracking-[0.3em] font-body">Scroll</span>
+          <div className="w-[1px] h-10 bg-gradient-to-b from-[#C9A84C]/40 to-[#C9A84C]" />
+        </div>
+      </div>
     </section>
   );
 }

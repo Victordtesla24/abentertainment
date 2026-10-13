@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useScroll, useTransform, motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import Image from 'next/image';
+import OptimizedImage from '@/components/ui/OptimizedImage';
 import { usePathname } from 'next/navigation';
 import { NAVIGATION } from '@/lib/constants';
 import SearchModal from '@/components/SearchModal';
@@ -91,8 +91,8 @@ export function Navigation() {
         <div className="container-eu py-4 flex items-center justify-between">
           <Link href="/" className="group flex items-center gap-3 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2">
             <div className="relative w-12 h-12 overflow-hidden">
-              <Image src="/images/AB_Logo_transparent.png" alt="AB Entertainment" fill
-                className="object-contain drop-shadow-[0_0_10px_rgba(201,168,76,0.3)] group-hover:drop-shadow-[0_0_16px_rgba(201,168,76,0.6)] transition-all duration-500" priority />
+              <OptimizedImage src="/images/AB_Logo_transparent.png" alt="AB Entertainment" width={500} height={500} sizes="48px" priority preload={false}
+                className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_0_10px_rgba(201,168,76,0.3)] group-hover:drop-shadow-[0_0_16px_rgba(201,168,76,0.6)] transition-all duration-500" />
             </div>
             <div className="flex flex-col">
               <span className="text-white font-body text-[11px] uppercase tracking-[0.25em] font-semibold leading-tight">AB Entertainment</span>
@@ -146,7 +146,7 @@ export function Navigation() {
         <div className="px-4 py-3 flex items-center justify-between">
           <Link href="/" className="flex min-h-11 items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-2">
             <div className="relative w-10 h-10 overflow-hidden">
-              <Image src="/images/AB_Logo_transparent.png" alt="AB Entertainment" fill className="object-contain" priority />
+              <OptimizedImage src="/images/AB_Logo_transparent.png" alt="AB Entertainment" width={500} height={500} sizes="40px" priority preload={false} className="absolute inset-0 h-full w-full object-contain" />
             </div>
             <span className="text-white font-body text-[10px] uppercase tracking-[0.2em] font-semibold">AB Entertainment</span>
           </Link>

@@ -1,11 +1,11 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { motion, useInView } from 'framer-motion';
 import { useRef, useEffect, useMemo, useState } from 'react';
 import { ABOUT_CONTENT, SITE_CONFIG, FOUR_PILLARS, TEAM_MEMBERS, telHref } from '@/lib/constants';
 import PageHero from '@/components/ui/PageHero';
+import OptimizedImage from '@/components/ui/OptimizedImage';
 import type { SiteMetric } from '@/lib/data';
 import { buildFootprintSentence, formatMetricValue, metricGridColumns } from '@/lib/site-metrics';
 import { useSiteMetrics } from '@/lib/use-site-metrics';
@@ -305,13 +305,13 @@ export default function AboutPageContent({ initialMetrics }: { initialMetrics: S
 
                   {/* Photo — full bleed with cinematic overlays */}
                   <div className="relative h-[420px] md:h-[480px] overflow-hidden bg-[#111]">
-                    <Image
+                    <OptimizedImage
                       src={member.image}
                       alt={member.name}
-                      fill
+                      width={480}
+                      height={480}
                       sizes="(max-width: 768px) 100vw, 50vw"
-                      className="object-cover object-top transition-transform duration-1000 group-hover:scale-105"
-                      priority={idx === 0}
+                      className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-1000 group-hover:scale-105"
                     />
                     {/* Gradient overlays */}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/20 to-transparent opacity-90" />
@@ -406,24 +406,6 @@ export default function AboutPageContent({ initialMetrics }: { initialMetrics: S
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(201,168,76,0.05)_0%,transparent_60%)]" />
         <div className="film-grain" />
 
-        {/* Floating particles */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          {Array.from({ length: 10 }, (_, i) => (
-            <div
-              key={i}
-              className="particle particle-gold"
-              style={{
-                left: `${(i * 10 + 5) % 100}%`,
-                bottom: `${(i * 6) % 25}%`,
-                width: 1.5 + (i % 3) * 0.5,
-                height: 1.5 + (i % 3) * 0.5,
-                '--duration': `${10 + (i % 5) * 3}s`,
-                '--delay': `${i * 1.3}s`,
-              } as React.CSSProperties}
-            />
-          ))}
-        </div>
-
         <motion.div
           className="container-eu relative z-10 text-center"
           initial="hidden"
@@ -435,12 +417,13 @@ export default function AboutPageContent({ initialMetrics }: { initialMetrics: S
           <motion.div variants={staggerItem} className="mb-10">
             <div className="relative w-20 h-20 mx-auto">
               <div className="absolute inset-0 bg-[#C9A84C]/10 blur-2xl rounded-full" />
-              <Image
+              <OptimizedImage
                 src="/images/AB_Logo_transparent.png"
                 alt=""
-                fill
-                className="object-contain opacity-30"
-                aria-hidden="true"
+                width={500}
+                height={500}
+                sizes="80px"
+                className="absolute inset-0 h-full w-full object-contain opacity-30"
               />
             </div>
           </motion.div>

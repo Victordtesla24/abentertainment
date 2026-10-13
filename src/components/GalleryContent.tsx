@@ -2,12 +2,13 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
+import OptimizedImage from '@/components/ui/OptimizedImage';
+import { firstUsableImageUrl, isUsableImageUrl } from '@/lib/perf/image-source';
 import type { GalleryImage, Event } from '@/lib/data';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
-type LightboxImage = { src: string; alt: string; title: string };
+type LightboxImage = { src: string; alt: string; title: string; width?: number; height?: number };
 
 function groupByEvent(images: GalleryImage[]): Map<string, GalleryImage[]> {
   const map = new Map<string, GalleryImage[]>();
@@ -23,21 +24,21 @@ function groupByEvent(images: GalleryImage[]): Map<string, GalleryImage[]> {
 function buildFolderImages(event: Event, galleryForEvent: GalleryImage[]): LightboxImage[] {
   const out: LightboxImage[] = [];
   const seen = new Set<string>();
-  const add = (src: string | undefined, alt: string, title: string) => {
-    if (!src || seen.has(src)) return;
+  const add = (src: string | undefined, alt: string, title: string, size?: { width?: number; height?: number }) => {
+    if (!isUsableImageUrl(src) || seen.has(src)) return;
     seen.add(src);
-    out.push({ src, alt, title });
+    out.push({ src, alt, title, width: size?.width, height: size?.height });
   };
   add(event.heroImage, `${event.title} — Hero`, event.category);
   add(event.image, event.title, event.category);
   for (const g of galleryForEvent) {
-    add(g.src, g.alt || event.title, g.category || event.category);
+    add(g.src, g.alt || event.title, g.category || event.category, { width: g.width, height: g.height });
   }
   return out;
 }
 
 function EventFolderCard({ event, images }: { event: Event; images: LightboxImage[] }) {
-  const cover = event.heroImage || event.image || images[0]?.src;
+  const cover = firstUsableImageUrl(event.heroImage, event.image, images[0]?.src);
   const date = new Date(event.date).toLocaleDateString('en-AU', {
     day: 'numeric', month: 'long', year: 'numeric',
   });
@@ -62,13 +63,13 @@ function EventFolderCard({ event, images }: { event: Event; images: LightboxImag
         </div>
         {cover && (
           <div className="relative aspect-[16/9] w-full overflow-hidden rounded-sm border border-[#C9A84C]/20 mb-4">
-            <Image
+            <OptimizedImage
               src={cover}
               alt={`${event.title} cover`}
-              fill
-              className="object-cover"
+              width={1600}
+              height={900}
+              className="absolute inset-0 h-full w-full object-cover"
               sizes="(max-width: 768px) 100vw, (max-width: 1280px) 90vw, 1200px"
-              unoptimized
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A]/80 via-transparent to-transparent" />
             <div className="absolute bottom-4 left-4 text-[10px] text-white/60 uppercase tracking-[0.2em] font-body">
@@ -131,10 +132,12 @@ export default function GalleryContent({ initialImages, initialEvents }: Gallery
   const upcomingFolders = renderableFolders(upcomingEvents);
 
   const uncategorised = grouped.get('__uncategorised__') || [];
-  const uncategorisedLightbox: LightboxImage[] = uncategorised.map((img) => ({
+  const uncategorisedLightbox: LightboxImage[] = uncategorised.filter((img) => isUsableImageUrl(img.src)).map((img) => ({
     src: img.src,
     alt: img.alt,
     title: img.category || 'Uncategorised',
+    width: img.width,
+    height: img.height,
   }));
 
   const hasAnything =

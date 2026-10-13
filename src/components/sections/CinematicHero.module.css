@@ -1,4 +1,141 @@
 /*
+ * First-view entrance choreography for the home hero.
+ *
+ * These run as plain CSS so the hero is painted — and animates — from the first
+ * frame, without waiting for the JavaScript bundle to download and hydrate. The
+ * server-rendered markup is already in its final state; `backwards` fill only
+ * applies the "from" keyframe while an animation waits for its delay, so once an
+ * animation ends the element simply keeps the style React rendered and
+ * framer-motion can take over (slide changes, scroll-linked parallax) with no
+ * jump. Timings mirror the framer-motion transitions they replace.
+ */
+
+@keyframes backdropIn {
+  from {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+/*
+ * The content block and the logo enter by moving and sharpening, not by fading from
+ * opacity 0: the logo is the page's largest contentful paint, and Chrome only reports
+ * an element once it is painted at non-zero opacity, so a fade would postpone the
+ * LCP until the animation was well under way (measured 1.1 s instead of 0.2 s).
+ * Everything inside the block that is not the LCP element still fades in.
+ */
+@keyframes contentIn {
+  from {
+    transform: translateY(24px);
+    filter: blur(10px);
+  }
+}
+
+@keyframes logoIn {
+  from {
+    transform: scale(0.7);
+    filter: blur(10px);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise20 {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+    filter: blur(4px);
+  }
+}
+
+@keyframes rise40 {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+    filter: blur(8px);
+  }
+}
+
+@keyframes rise15 {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+}
+
+@keyframes rise25 {
+  from {
+    opacity: 0;
+    transform: translateY(25px);
+  }
+}
+
+@keyframes growX {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes scrollHint {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+}
+
+.backdropIn {
+  animation: backdropIn 2.2s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+}
+
+.contentIn {
+  animation: contentIn 0.9s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+}
+
+.logoIn {
+  animation: logoIn 1.5s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+}
+
+.slideIn {
+  animation: fadeIn 0.5s ease backwards;
+}
+
+.badgeIn {
+  animation: rise20 0.8s cubic-bezier(0.25, 1, 0.5, 1) 0.1s backwards;
+}
+
+.titleIn {
+  animation: rise40 1s cubic-bezier(0.25, 1, 0.5, 1) 0.3s backwards;
+}
+
+.dividerIn {
+  animation: growX 1.2s cubic-bezier(0.25, 1, 0.5, 1) 0.6s backwards;
+}
+
+.subtitleIn {
+  animation: rise15 0.8s cubic-bezier(0.25, 1, 0.5, 1) 0.8s backwards;
+}
+
+.actionsIn {
+  animation: rise25 0.8s cubic-bezier(0.25, 1, 0.5, 1) 1s backwards;
+}
+
+.dotsIn {
+  animation: fadeIn 0.4s ease 1.4s backwards;
+}
+
+/* The scroll cue bobs forever; transform-only, so it never leaves the compositor. */
+.scrollHint {
+  animation: scrollHint 2.5s ease-in-out infinite;
+}
+
+/*
  * Single-line headline that always fits: --fit is the largest font size that keeps
  * the whole title inside the heading's content box (set per title from its length),
  * --cap is the designed size for the breakpoint. A JS measurement can still shrink
@@ -37,5 +174,21 @@
 @media (min-width: 1280px) {
   .title {
     --cap: 7.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdropIn,
+  .contentIn,
+  .logoIn,
+  .slideIn,
+  .badgeIn,
+  .titleIn,
+  .dividerIn,
+  .subtitleIn,
+  .actionsIn,
+  .dotsIn,
+  .scrollHint {
+    animation: none;
   }
 }

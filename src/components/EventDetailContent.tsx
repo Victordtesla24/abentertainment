@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import CountdownTimer from '@/components/ui/CountdownTimer';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
+import OptimizedImage from '@/components/ui/OptimizedImage';
+import { isUsableImageUrl } from '@/lib/perf/image-source';
 import { getApiUrl } from '@/lib/api-config';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 import type { Event, GalleryImage } from '@/lib/data';
@@ -44,7 +46,7 @@ function buildEventGalleryImages(event: Event, galleryImages: GalleryImage[]): L
   const out: LightboxImage[] = [];
   const seen = new Set<string>();
   const add = (src: string | undefined, alt: string, title?: string) => {
-    if (!src || seen.has(src)) return;
+    if (!isUsableImageUrl(src) || seen.has(src)) return;
     seen.add(src);
     out.push({ src, alt, title });
   };
@@ -150,9 +152,16 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
               </p>
             </div>
 
-            {event.image && (
+            {isUsableImageUrl(event.image) && (
               <div className="relative overflow-hidden border border-[#C9A84C]/10">
-                <img src={event.image} alt={event.title} className="w-full h-auto object-cover" />
+                <OptimizedImage
+                  src={event.image}
+                  alt={event.title}
+                  width={940}
+                  height={788}
+                  sizes="(max-width: 1024px) 100vw, 66vw"
+                  className="w-full h-auto object-cover"
+                />
               </div>
             )}
 

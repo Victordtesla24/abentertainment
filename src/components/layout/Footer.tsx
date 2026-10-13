@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
+import OptimizedImage from '@/components/ui/OptimizedImage';
 import { useState, FormEvent } from 'react';
 import { usePathname } from 'next/navigation';
 import { SITE_CONFIG, NAVIGATION, telHref } from '@/lib/constants';
@@ -116,7 +116,7 @@ export default function Footer({ initialSponsors = [] }: { initialSponsors?: Spo
             <div className="flex items-center gap-3 mb-6">
               <div className="relative w-14 h-14">
                 <div className="absolute inset-0 bg-[#C9A84C]/5 blur-xl rounded-full" />
-                <Image src="/images/AB_Logo_transparent.png" alt="AB Entertainment" fill className="object-contain" />
+                <OptimizedImage src="/images/AB_Logo_transparent.png" alt="AB Entertainment" width={500} height={500} sizes="56px" className="absolute inset-0 h-full w-full object-contain" />
               </div>
               <div>
                 <h2 className="text-lg font-display text-white font-semibold leading-tight">{SITE_CONFIG.name}</h2>

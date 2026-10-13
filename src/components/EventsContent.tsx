@@ -3,15 +3,12 @@
 import { Suspense, useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import Tilt from 'react-parallax-tilt';
 import type { Event, Sponsor } from '@/lib/data';
 import SponsorBanner from '@/components/ui/SponsorBanner';
+import OptimizedImage from '@/components/ui/OptimizedImage';
+import { isUsableImageUrl } from '@/lib/perf/image-source';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
-
-/** Tiny 1x1 transparent placeholder for blur-up loading. */
-const BLUR_DATA_URL =
-  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMSIgaGVpZ2h0PSIxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMxYTFhMmUiLz48L3N2Zz4=';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -172,7 +169,6 @@ function FilterBar({
 
 function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }) {
   const badge = getStatusBadge(event);
-  const useNextImage = event.image.startsWith('/');
   // Upcoming events show the FULL poster (object-contain, no hover zoom that
   // would re-crop it); past events stay cropped thumbnails.
   const imageFit = isPast
@@ -219,27 +215,19 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
 
         {/* Image */}
         <div className={`relative ${isPast ? 'h-52' : 'h-64'} overflow-hidden bg-gradient-to-br from-[#111111] to-[#0A0A0A]`}>
-          {event.image && useNextImage && (
-            <Image
+          {isUsableImageUrl(event.image) && (
+            <OptimizedImage
               src={event.image}
               alt={event.title}
-              fill
+              width={940}
+              height={788}
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              placeholder="blur"
-              blurDataURL={BLUR_DATA_URL}
-              className={imageFit}
-            />
-          )}
-          {event.image && !useNextImage && (
-            <img
-              src={event.image}
-              alt={event.title}
-              className={`h-full w-full ${imageFit}`}
-              loading="lazy"
+              blurPlaceholder
+              className={`absolute inset-0 h-full w-full ${imageFit}`}
             />
           )}
           {/* Branded placeholder when an event has no image yet — avoids a blank box. */}
-          {!event.image && (
+          {!isUsableImageUrl(event.image) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 select-none" aria-hidden="true">
               <span className="font-display font-bold text-4xl text-[#C9A84C]/25">AB</span>
               <span className="text-[10px] uppercase tracking-[0.25em] font-body text-[#C9A84C]/30">

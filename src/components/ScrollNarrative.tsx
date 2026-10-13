@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
+import OptimizedImage from '@/components/ui/OptimizedImage';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -243,12 +244,13 @@ export default function ScrollNarrative() {
           <div className="narrative-bg absolute inset-0 pointer-events-none overflow-hidden">
             {slide.backgroundImage ? (
               <>
-                <img
+                <OptimizedImage
                   src={slide.backgroundImage}
                   alt=""
+                  width={1376}
+                  height={768}
+                  sizes="100vw"
                   className="absolute inset-0 w-full h-full object-cover opacity-20"
-                  loading="lazy"
-                  aria-hidden="true"
                 />
                 <div className="absolute inset-0" style={{
                   background: `linear-gradient(${index % 2 === 0 ? 'to right' : 'to left'}, rgba(10,10,10,0.95) 30%, rgba(10,10,10,0.6) 60%, rgba(10,10,10,0.4) 100%)`,
