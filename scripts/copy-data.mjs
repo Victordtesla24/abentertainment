@@ -8,8 +8,8 @@
  * public/data/ (and therefore out/data/ on the live site) is publicly served,
  * so it must never carry admin-internal data — exactly like the mirror that
  * src/lib/data.ts writes after every admin change: event ticket sales,
- * sponsor revenue/contract values, sponsors an admin has hidden and hidden
- * metrics are left out.
+ * sponsor revenue/contract values, sponsors an admin has hidden, hidden
+ * metrics and the admin-only image-override map of the settings are left out.
  */
 
 import { copyFile, mkdir, readFile, writeFile } from 'fs/promises';
@@ -33,6 +33,13 @@ const PUBLIC_PROJECTIONS = {
     return sponsors
       .filter((sponsor) => sponsor && sponsor.visible !== false)
       .map(({ revenue, contractValue, ...rest }) => rest);
+  },
+  // Same projection as toPublicSettings() in src/lib/data.ts: siteImageOverrides is an admin-only map
+  // (the admin gallery edits it, no public page reads it), so it is left out of the public copy.
+  'settings.json': (settings) => {
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('expected a JSON object');
+    const { siteImageOverrides, ...rest } = settings;
+    return rest;
   },
   // Hidden metrics must never reach the publicly-served copy.
   'site-metrics.json': (metrics) => {

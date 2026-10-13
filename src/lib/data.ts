@@ -784,6 +784,17 @@ export function toPublicSponsor(sponsor: Sponsor): Sponsor {
   return pub;
 }
 
+/**
+ * Strip admin-only settings from a SiteSettings before any public/client use. siteImageOverrides is
+ * edited by the admin gallery and read by no public page, so the public copy (public/data/settings.json,
+ * and out/data/settings.json on the live site) does not carry it; the canonical copy keeps it.
+ */
+export function toPublicSettings(settings: SiteSettings): SiteSettings {
+  const pub = { ...settings };
+  delete pub.siteImageOverrides;
+  return pub;
+}
+
 /** Whether a sponsor appears on public surfaces. Records saved before `visible` existed count as visible. */
 export function isSponsorVisible(sponsor: Sponsor): boolean {
   return sponsor.visible !== false;
@@ -809,6 +820,9 @@ function serializePublicMirror<T>(filename: string, data: T): string {
   }
   if (filename === 'site-metrics.json' && Array.isArray(data)) {
     return JSON.stringify(toPublicSiteMetrics(data as SiteMetric[]), null, 2);
+  }
+  if (filename === 'settings.json' && data && typeof data === 'object' && !Array.isArray(data)) {
+    return JSON.stringify(toPublicSettings(data as unknown as SiteSettings), null, 2);
   }
   return JSON.stringify(data, null, 2);
 }
