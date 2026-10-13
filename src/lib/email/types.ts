@@ -188,6 +188,8 @@ export interface RenderContext {
   /** The public site, for example https://abentertainment.com.au */
   siteUrl: string;
   year: number;
+  /** The social profiles the footer links to (the design system's footer pattern). */
+  social: { instagram: string; facebook: string };
   /** Sender identity for the footer (the Spam Act requires it). */
   sender: {
     name: string;

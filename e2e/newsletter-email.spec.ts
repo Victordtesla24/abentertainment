@@ -282,11 +282,14 @@ test.describe('email modules (in-process)', () => {
     expect(found.fonts.map((family) => family.toLowerCase()).sort()).toEqual(['arial', 'comic sans ms', 'open sans', 'verdana']);
   });
 
-  test('the shipped layout is not installed, and says so', async () => {
-    const { getLayout, LayoutNotInstalledError } = require('@/lib/email/layout') as typeof import('@/lib/email/layout');
-    const layout = getLayout();
-    expect(layout.installed).toBe(false);
-    expect(() => layout.render(seed.SEED_WELCOME_FIELDS, {} as never)).toThrow(LayoutNotInstalledError);
+  test('the not-installed layout renders nothing and says so; the shipped layout is the installed brand layout', async () => {
+    const { getLayout, makeNotInstalledLayout, LayoutNotInstalledError } = require('@/lib/email/layout') as typeof import('@/lib/email/layout');
+    const none = makeNotInstalledLayout();
+    expect(none).toMatchObject({ id: 'none', version: '0', installed: false });
+    expect(() => none.render(seed.SEED_WELCOME_FIELDS, {} as never)).toThrow(LayoutNotInstalledError);
+    const brand = getLayout();
+    expect(brand).toMatchObject({ id: 'ab-entertainment', installed: true });
+    expect(brand.version).toMatch(/^1\.[0-9a-f]{10}$/);
   });
 });
 
@@ -383,7 +386,8 @@ test.describe('admin API: templates, settings and guidelines', () => {
     expect(list.cacheControl).toBe('no-store');
     const templates = list.body?.templates as Array<{ id: string; key: string; versions: unknown[]; enabled: boolean }>;
     expect(templates.map((t) => t.key)).toEqual(['newsletter_welcome']);
-    expect(list.body?.layout).toEqual({ id: 'none', version: '0', installed: false });
+    expect(list.body?.layout).toMatchObject({ id: 'ab-entertainment', installed: true });
+    expect((list.body?.layout as { version: string }).version).toMatch(/^1\.[0-9a-f]{10}$/);
     expect(list.body?.welcomeKey).toBe('newsletter_welcome');
     expect(SERVER_FILES.some((file) => existsSync(join(SERVER_DATA_DIR, file)))).toBe(false); // reading writes nothing
 

@@ -16,7 +16,7 @@
     "capacity": 800,
     "createdAt": "2024-12-01T00:00:00Z",
     "updatedAt": "2026-06-08T11:35:45.713Z",
-    "order": 5
+    "order": 6
   },
   {
     "id": "evt-shikayla-gelo-ek",
@@ -35,7 +35,7 @@
     "capacity": 1000,
     "createdAt": "2025-02-01T00:00:00Z",
     "updatedAt": "2026-06-08T11:35:40.393Z",
-    "order": 3,
+    "order": 4,
     "ticketUrl": "",
     "videoUrl": "",
     "featuredVideo": "",
@@ -59,7 +59,7 @@
     "capacity": 600,
     "createdAt": "2025-03-01T00:00:00Z",
     "updatedAt": "2026-06-08T11:35:38.336Z",
-    "order": 2,
+    "order": 3,
     "ticketUrl": "",
     "videoUrl": "",
     "featuredVideo": "",
@@ -82,7 +82,7 @@
     "capacity": 2400,
     "createdAt": "2025-03-15T00:00:00Z",
     "updatedAt": "2026-06-08T11:35:43.464Z",
-    "order": 4,
+    "order": 5,
     "longDescription": "",
     "ticketUrl": "",
     "videoUrl": "",
@@ -108,7 +108,7 @@
     "ticketUrl": "",
     "createdAt": "2026-04-14T02:48:17.593Z",
     "updatedAt": "2026-06-08T09:57:30.354Z",
-    "order": 8
+    "order": 9
   },
   {
     "id": "evt-1780907187831",
@@ -130,7 +130,7 @@
     "updatedAt": "2026-06-08T11:35:36.152Z",
     "videoUrl": "",
     "featuredVideo": "",
-    "order": 1,
+    "order": 2,
     "hook": "",
     "cast": ""
   },
@@ -144,15 +144,15 @@
     "longDescription": "Caught in an unavoidable situation, three generations of the Ganpule family estranged from one another find themselves stuck in three different countries. Though they cannot physically reach each other, they stay connected through social media, where they argue, tease, laugh, and create utter chaos together.\n\nAmid this lively exchange, the bonds that had once weakened begin to mend, bringing them closer again. The story highlights a simple yet powerful idea: the dreams of one generation often become the freedom of the next… but how do we preserve relationships while embracing that freedom?\n\nA lively, humorous, and emotionally resonant play.\n\nAamchya Pidhichi Goshtach Vegali!",
     "price": 0,
     "currency": "AUD",
-    "status": "upcoming",
+    "status": "past",
     "ticketStatus": "available",
-    "image": "/api/uploads/events/1780910960406-WhatsApp_Image_2026-06-06_at_21.38.33.jpeg",
+    "image": "https://photos.google.com/photo/AF1QipMbE3_Um-maAhLOKcxdm4ty-fopEOzZNz_wRA-Y",
     "category": "Comedy|Drama",
     "capacity": 0,
     "ticketUrl": "https://www.tugoz.com/events/ab-entertainment/apgv",
     "createdAt": "2026-06-08T09:30:52.955Z",
-    "updatedAt": "2026-06-08T11:36:04.984Z",
-    "order": 0,
+    "updatedAt": "2026-10-13T17:04:03.017Z",
+    "order": 1,
     "videoUrl": "",
     "featuredVideo": "",
     "hook": "",
@@ -177,7 +177,7 @@
     "ticketUrl": "",
     "createdAt": "2026-06-08T09:51:14.927Z",
     "updatedAt": "2026-06-08T09:57:30.921Z",
-    "order": 7
+    "order": 8
   },
   {
     "id": "evt-1780918524200",
@@ -198,6 +198,31 @@
     "ticketUrl": "",
     "createdAt": "2026-06-08T11:35:24.200Z",
     "updatedAt": "2026-06-08T11:35:45.713Z",
-    "order": 6
+    "order": 7
+  },
+  {
+    "id": "evt-1791911034858",
+    "title": "Vinod Rathod Live In Concert",
+    "slug": "vinod-rathod-live-in-concert",
+    "date": "2026-11-15",
+    "venue": "Melbourne",
+    "description": "Vinod Rathod Live In Concert - More details coming soon...",
+    "longDescription": "",
+    "price": 250,
+    "currency": "AUD",
+    "status": "upcoming",
+    "ticketStatus": "available",
+    "image": "",
+    "heroImage": "",
+    "category": "Concert",
+    "capacity": 0,
+    "ticketUrl": "",
+    "createdAt": "2026-10-13T17:03:54.858Z",
+    "updatedAt": "2026-10-13T17:05:15.263Z",
+    "order": 0,
+    "videoUrl": "",
+    "featuredVideo": "",
+    "hook": "",
+    "cast": ""
   }
 ]
