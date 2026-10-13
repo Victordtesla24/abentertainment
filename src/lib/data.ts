@@ -82,6 +82,8 @@ export interface Event {
 export interface Sponsor {
   id: string;
   name: string;
+  /** Company the logo belongs to; used as the logo's alt text. Records saved before this field existed fall back to `name`. */
+  companyName?: string;
   logo: string;
   url: string;
   tier: 'platinum' | 'gold' | 'silver' | 'bronze';
@@ -89,7 +91,10 @@ export interface Sponsor {
   revenue?: number;
   contractValue?: number;
   order?: number;
+  /** Hidden sponsors stay in the admin list but are left off every public surface. Absent means visible. */
+  visible?: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface GalleryImage {
@@ -334,40 +339,264 @@ const SEED_EVENTS: Event[] = [
 
 const SEED_SPONSORS: Sponsor[] = [
   {
-    id: 'sp-1',
-    name: 'Melbourne Arts Council',
-    logo: '/images/sponsors/mac.png',
-    url: 'https://www.melbourne.vic.gov.au',
+    id: 'sp-1781324946234',
+    name: 'Food Core Marketing',
+    companyName: 'Food Core Marketing',
+    logo: '/api/uploads/sponsors/1781332726647-Screenshot_2026-06-13_at_16.38.21.png',
+    url: 'https://www.facebook.com/p/FCM-Food-core-Marketing-100079680443086/',
     tier: 'platinum',
-    description: 'Supporting multicultural arts and community expression across Melbourne.',
-    createdAt: '2024-01-01T00:00:00Z',
+    description: '',
+    order: 5,
+    visible: true,
+    updatedAt: '2026-06-13T04:29:06.234Z',
+    createdAt: '2026-06-13T04:29:06.234Z',
   },
   {
-    id: 'sp-2',
-    name: 'Victorian Multicultural Commission',
-    logo: '/images/sponsors/vmc.png',
-    url: 'https://www.multiculturalcommission.vic.gov.au',
-    tier: 'gold',
-    description: 'Championing diversity and inclusion in the arts.',
-    createdAt: '2024-01-01T00:00:00Z',
+    id: 'sp-1781324997039',
+    name: 'Nanche Group',
+    companyName: 'Nanche Group',
+    logo: '/api/uploads/sponsors/1781332767115-Screenshot_2026-06-13_at_16.39.15.png',
+    url: 'https://nanchegroup.com.au/',
+    tier: 'platinum',
+    description: '',
+    order: 6,
+    visible: true,
+    updatedAt: '2026-06-13T04:29:57.039Z',
+    createdAt: '2026-06-13T04:29:57.039Z',
   },
   {
-    id: 'sp-3',
-    name: 'SBS Australia',
-    logo: '/images/sponsors/sbs.png',
-    url: 'https://www.sbs.com.au',
-    tier: 'gold',
-    description: 'Australia\'s multicultural broadcaster.',
-    createdAt: '2024-01-01T00:00:00Z',
+    id: 'sp-1781325038053',
+    name: 'PATCO Creations',
+    companyName: 'PATCO Creations',
+    logo: '/api/uploads/sponsors/1781332828670-Screenshot_2026-06-13_at_16.40.18.png',
+    url: 'https://www.patcocreations.com.au/',
+    tier: 'platinum',
+    description: '',
+    order: 7,
+    visible: true,
+    updatedAt: '2026-06-13T04:30:38.053Z',
+    createdAt: '2026-06-13T04:30:38.053Z',
   },
   {
-    id: 'sp-4',
-    name: 'Indian Association of Melbourne',
-    logo: '/images/sponsors/iam.jpg',
-    url: '#',
+    id: 'sp-1781325118577',
+    name: 'Trishan Constructions',
+    companyName: 'Trishan Constructions',
+    logo: '/api/uploads/sponsors/1781332878089-Screenshot_2026-06-13_at_16.41.05.png',
+    url: 'https://trishanconstruction.com.au/',
+    tier: 'platinum',
+    description: '',
+    order: 8,
+    visible: true,
+    updatedAt: '2026-06-13T04:31:58.577Z',
+    createdAt: '2026-06-13T04:31:58.577Z',
+  },
+  {
+    id: 'sp-1781325168502',
+    name: 'Real Wealth',
+    companyName: 'Real Wealth',
+    logo: '/api/uploads/sponsors/1781332955244-Screenshot_2026-06-13_at_16.41.55.png',
+    url: 'https://www.realwealth.au/',
+    tier: 'platinum',
+    description: '',
+    order: 9,
+    visible: true,
+    updatedAt: '2026-06-13T04:32:48.502Z',
+    createdAt: '2026-06-13T04:32:48.502Z',
+  },
+  {
+    id: 'sp-1781325195838',
+    name: 'Web Planners',
+    companyName: 'Web Planners',
+    logo: '/api/uploads/sponsors/1781332989198-Screenshot_2026-06-13_at_16.42.58.png',
+    url: 'https://www.webplanners.com.au/',
+    tier: 'platinum',
+    description: '',
+    order: 10,
+    visible: true,
+    updatedAt: '2026-06-13T04:33:15.838Z',
+    createdAt: '2026-06-13T04:33:15.838Z',
+  },
+  {
+    id: 'sp-1781325249021',
+    name: 'Active Aluminium',
+    companyName: 'Active Aluminium',
+    logo: '/api/uploads/sponsors/1781333051847-Screenshot_2026-06-13_at_16.43.51.png',
+    url: 'https://activewindows.com.au/',
+    tier: 'platinum',
+    description: '',
+    order: 11,
+    visible: true,
+    updatedAt: '2026-06-13T04:34:09.021Z',
+    createdAt: '2026-06-13T04:34:09.021Z',
+  },
+  {
+    id: 'sp-1781325287320',
+    name: 'INFRA Projects Group',
+    companyName: 'INFRA Projects Group',
+    logo: '/api/uploads/sponsors/1781333087333-Screenshot_2026-06-13_at_16.44.36.png',
+    url: 'https://infra-projects.com.au/',
+    tier: 'platinum',
+    description: '',
+    order: 12,
+    visible: true,
+    updatedAt: '2026-06-13T04:34:47.320Z',
+    createdAt: '2026-06-13T04:34:47.320Z',
+  },
+  {
+    id: 'sp-1781325379888',
+    name: 'Property Portfolio Strategist',
+    companyName: 'Property Portfolio Strategist',
+    logo: '/api/uploads/sponsors/1781333735523-Screenshot_2026-06-13_at_16.55.26.png',
+    url: 'website.com',
     tier: 'silver',
-    description: 'Connecting and celebrating Indian communities in Melbourne.',
-    createdAt: '2024-01-01T00:00:00Z',
+    description: '',
+    order: 15,
+    visible: true,
+    updatedAt: '2026-06-13T04:36:19.888Z',
+    createdAt: '2026-06-13T04:36:19.888Z',
+  },
+  {
+    id: 'sp-1781332168263',
+    name: 'Satisar Travels',
+    companyName: 'Satisar Travels',
+    logo: '/api/uploads/sponsors/1781333790865-Screenshot_2026-06-13_at_16.56.20.png',
+    url: 'https://satisartravels.com/',
+    tier: 'silver',
+    description: 'Travel Partner',
+    order: 0,
+    visible: true,
+    updatedAt: '2026-06-13T06:29:28.263Z',
+    createdAt: '2026-06-13T06:29:28.263Z',
+  },
+  {
+    id: 'sp-1781332233000',
+    name: 'Bombay Rocks',
+    companyName: 'Bombay Rocks',
+    logo: '/api/uploads/sponsors/1781332610947-Screenshot_2026-06-13_at_13.55.56.png',
+    url: 'https://bombayrocks.com.au/',
+    tier: 'silver',
+    description: 'Catering Partner',
+    order: 1,
+    visible: true,
+    updatedAt: '2026-06-13T06:30:33.000Z',
+    createdAt: '2026-06-13T06:30:33.000Z',
+  },
+  {
+    id: 'sp-1781332267957',
+    name: 'Curry Leaf',
+    companyName: 'Curry Leaf',
+    logo: '/api/uploads/sponsors/1781333844101-Screenshot_2026-06-13_at_16.57.07.png',
+    url: 'https://curryleafonbrightononline.com.au/',
+    tier: 'silver',
+    description: 'Catering Partner',
+    order: 2,
+    visible: true,
+    updatedAt: '2026-06-13T06:31:07.957Z',
+    createdAt: '2026-06-13T06:31:07.957Z',
+  },
+  {
+    id: 'sp-1781332318450',
+    name: 'Rosa Mexicano',
+    companyName: 'Rosa Mexicano',
+    logo: '/api/uploads/sponsors/1781333884940-Screenshot_2026-06-13_at_16.57.53.png',
+    url: 'https://rosamexicano.com.au/',
+    tier: 'silver',
+    description: 'Restaurant Partner',
+    order: 3,
+    visible: true,
+    updatedAt: '2026-06-13T06:31:58.450Z',
+    createdAt: '2026-06-13T06:31:58.450Z',
+  },
+  {
+    id: 'sp-1781332357670',
+    name: 'Kwik Kopy',
+    companyName: 'Kwik Kopy',
+    logo: '/api/uploads/sponsors/1781333924839-Screenshot_2026-06-13_at_16.58.31.png',
+    url: 'https://kwikkopy.com.au/',
+    tier: 'silver',
+    description: 'Print Partner',
+    order: 4,
+    visible: true,
+    updatedAt: '2026-06-13T06:32:37.670Z',
+    createdAt: '2026-06-13T06:32:37.670Z',
+  },
+  {
+    id: 'sp-1781334045453',
+    name: 'Radio Masti',
+    companyName: 'Radio Masti',
+    logo: '/api/uploads/sponsors/1781334041621-Screenshot_2026-06-13_at_17.00.26.png',
+    url: 'https://www.southernfm.com.au/show/radio-masti/',
+    tier: 'silver',
+    description: 'Community Supporter ',
+    order: 15,
+    visible: true,
+    updatedAt: '2026-06-13T07:00:45.453Z',
+    createdAt: '2026-06-13T07:00:45.453Z',
+  },
+  {
+    id: 'sp-1781334159001',
+    name: 'Natyadarpan Indian Theatre Academy',
+    companyName: 'Natyadarpan Indian Theatre Academy',
+    logo: '/api/uploads/sponsors/1781334093658-Screenshot_2026-06-13_at_17.01.24.png',
+    url: 'https://natyadarpan.com.au/',
+    tier: 'silver',
+    description: 'Community Supporter',
+    order: 17,
+    visible: true,
+    updatedAt: '2026-06-13T07:02:39.001Z',
+    createdAt: '2026-06-13T07:02:39.001Z',
+  },
+  {
+    id: 'sp-1781334278356',
+    name: 'Sindhu Cultural Community ',
+    companyName: 'Sindhu Cultural Community ',
+    logo: '/api/uploads/sponsors/1781334275973-Screenshot_2026-06-13_at_17.03.08-removebg-preview.png',
+    url: 'https://www.facebook.com/sindhuculturalcommunity/',
+    tier: 'silver',
+    description: 'Community Supporter',
+    order: 18,
+    visible: true,
+    updatedAt: '2026-06-13T07:04:38.356Z',
+    createdAt: '2026-06-13T07:04:38.356Z',
+  },
+  {
+    id: 'sp-1781334377584',
+    name: 'Sankalp-Ek Nishchay Incorporated',
+    companyName: 'Sankalp-Ek Nishchay Incorporated',
+    logo: '/api/uploads/sponsors/1781334337217-Screenshot_2026-06-13_at_17.04.58-removebg-preview.png',
+    url: 'https://www.sankalpeknishchay.com/',
+    tier: 'silver',
+    description: 'Community Supporter',
+    order: 19,
+    visible: true,
+    updatedAt: '2026-06-13T07:06:17.584Z',
+    createdAt: '2026-06-13T07:06:17.584Z',
+  },
+  {
+    id: 'sp-1781335858456',
+    name: 'ASK Financials ',
+    companyName: 'ASK Financials ',
+    logo: '/api/uploads/sponsors/1781335834885-Screenshot_2026-06-13_at_17.30.11.png',
+    url: 'https://askfinancials.com.au/',
+    tier: 'silver',
+    description: '',
+    order: 13,
+    visible: true,
+    updatedAt: '2026-06-13T07:30:58.456Z',
+    createdAt: '2026-06-13T07:30:58.456Z',
+  },
+  {
+    id: 'sp-1781336028780',
+    name: 'BMS Smash Repairs',
+    companyName: 'BMS Smash Repairs',
+    logo: '/api/uploads/sponsors/1781336011087-Screenshot_2026-06-13_at_17.33.00.png',
+    url: 'https://www.bmssmashrepairs.com.au/',
+    tier: 'silver',
+    description: '',
+    order: 14,
+    visible: true,
+    updatedAt: '2026-06-13T07:33:48.780Z',
+    createdAt: '2026-06-13T07:33:48.780Z',
   },
 ];
 
@@ -540,13 +769,28 @@ export function toPublicSponsor(sponsor: Sponsor): Sponsor {
   return pub;
 }
 
+/** Whether a sponsor appears on public surfaces. Records saved before `visible` existed count as visible. */
+export function isSponsorVisible(sponsor: Sponsor): boolean {
+  return sponsor.visible !== false;
+}
+
+/** Display order: `order` ascending (records without one last), then oldest first. */
+export function compareSponsorsForDisplay(a: Sponsor, b: Sponsor): number {
+  const byOrder = (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER);
+  if (byOrder !== 0) return byOrder;
+  const createdA = a.createdAt ?? '';
+  const createdB = b.createdAt ?? '';
+  return createdA < createdB ? -1 : createdA > createdB ? 1 : 0;
+}
+
 /** Serialize the public/data/ mirror copy of a file, stripping internal fields for the entities that carry them. */
 function serializePublicMirror<T>(filename: string, data: T): string {
   if (filename === 'events.json' && Array.isArray(data)) {
     return JSON.stringify((data as Event[]).map(toPublicEvent), null, 2);
   }
   if (filename === 'sponsors.json' && Array.isArray(data)) {
-    return JSON.stringify((data as Sponsor[]).map(toPublicSponsor), null, 2);
+    // Hidden sponsors must not be publicly downloadable from the mirror either.
+    return JSON.stringify((data as Sponsor[]).filter(isSponsorVisible).map(toPublicSponsor), null, 2);
   }
   if (filename === 'site-metrics.json' && Array.isArray(data)) {
     return JSON.stringify(toPublicSiteMetrics(data as SiteMetric[]), null, 2);
@@ -651,9 +895,31 @@ export async function saveSponsors(sponsors: Sponsor[]): Promise<void> {
   await writeJsonFile('sponsors.json', sponsors);
 }
 
-/** Sponsors for public/unauthenticated responses — admin-internal revenue/contract fields stripped. */
+/**
+ * Read-modify-write the sponsors store under the per-file lock, so overlapping
+ * admin actions cannot overwrite each other's change. `mutate` returns the new
+ * list plus a value for the caller; throwing from it aborts without writing.
+ * It must not modify `current` in place — that array may be the seed fallback.
+ */
+export async function updateSponsors<R>(
+  mutate: (current: Sponsor[]) => { sponsors: Sponsor[]; result: R },
+): Promise<R> {
+  return withFileLock('sponsors.json', async () => {
+    const current = await readJsonFile<Sponsor[]>('sponsors.json', SEED_SPONSORS);
+    const { sponsors, result } = mutate(current);
+    await writeJsonFileUnlocked('sponsors.json', sponsors);
+    return result;
+  });
+}
+
+/** Sponsors that appear on the public site, in display order — admin-hidden sponsors excluded. */
+export async function getVisibleSponsors(): Promise<Sponsor[]> {
+  return (await getSponsors()).filter(isSponsorVisible).sort(compareSponsorsForDisplay);
+}
+
+/** Visible sponsors in display order for public/unauthenticated responses — admin-internal revenue/contract fields stripped. */
 export async function getPublicSponsors(): Promise<Sponsor[]> {
-  return (await getSponsors()).map(toPublicSponsor);
+  return (await getVisibleSponsors()).map(toPublicSponsor);
 }
 
 export async function getGalleryImages(): Promise<GalleryImage[]> {
