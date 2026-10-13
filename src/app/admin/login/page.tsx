@@ -1,12 +1,24 @@
 'use client';
 
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, FormEvent, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { getApiUrl } from '@/lib/api-config';
 import { setCsrfToken, setAuthToken } from '@/lib/admin-fetch';
 
 const AUTH_PATH = '/api/admin/auth';
+
+/**
+ * Runs from the static HTML as soon as the form is parsed — before React has
+ * hydrated the page. Until hydration the Sign In button is type="button" (the
+ * form has two text fields, so Enter cannot trigger an implicit submission
+ * either), which means nothing can submit the form natively. This script only
+ * records that the visitor asked to sign in with both fields filled, so the
+ * request can be sent the moment the real submit handler is attached.
+ */
+const EARLY_INTENT_SCRIPT = `(function(){var s=document.currentScript,f=s&&s.closest('form');if(!f)return;function filled(){return f.elements.username&&f.elements.password&&f.elements.username.value.trim()!==''&&f.elements.password.value!=='';}function mark(){if(filled())window.__abAdminLoginIntent=true;}f.addEventListener('click',function(e){var t=e.target;if(t&&t.closest&&t.closest('button'))mark();});f.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target&&e.target.tagName==='INPUT')mark();});})();`;
+
+type IntentWindow = Window & { __abAdminLoginIntent?: boolean };
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -16,7 +28,10 @@ export default function AdminLoginPage() {
   // which reloads the page with the fields cleared and never calls the API —
   // on slow phones the login "does nothing". `ready` keeps Sign In disabled
   // until the handler is attached; the inputs stay usable and are uncontrolled,
-  // so anything typed before hydration is kept and read on submit.
+  // so anything typed before hydration is kept and read on submit. A Sign In
+  // tap or Enter press made before hydration is remembered (EARLY_INTENT_SCRIPT)
+  // and completed as soon as the page is ready.
+  const formRef = useRef<HTMLFormElement>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,6 +41,15 @@ export default function AdminLoginPage() {
   useEffect(() => {
     setReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    const w = window as IntentWindow;
+    if (w.__abAdminLoginIntent && formRef.current) {
+      w.__abAdminLoginIntent = false;
+      formRef.current.requestSubmit();
+    }
+  }, [ready]);
 
   useEffect(() => {
     if (!rateLimited) return;
@@ -136,7 +160,7 @@ export default function AdminLoginPage() {
             <div className="w-10 h-[1px] bg-gradient-to-l from-transparent to-[#C9A84C]/40" />
           </div>
 
-          <form onSubmit={handleSubmit} method="post" className="space-y-5">
+          <form ref={formRef} onSubmit={handleSubmit} method="post" className="space-y-5">
             <div>
               <label htmlFor="username" className="block text-xs font-body font-medium text-white/40 uppercase tracking-wider mb-2">
                 Username
@@ -183,12 +207,14 @@ export default function AdminLoginPage() {
             )}
 
             <button
-              type="submit"
-              disabled={!ready || loading || rateLimited}
+              type={ready ? 'submit' : 'button'}
+              aria-busy={!ready || loading}
+              disabled={loading || rateLimited}
               className="w-full py-3.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black font-body font-bold text-sm uppercase tracking-[0.12em] hover:shadow-[0_0_25px_rgba(201,168,76,0.35)] transition-all duration-400 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {!ready ? 'Loading…' : loading ? 'Signing in...' : 'Sign In'}
             </button>
+            <script dangerouslySetInnerHTML={{ __html: EARLY_INTENT_SCRIPT }} />
           </form>
         </div>
 
