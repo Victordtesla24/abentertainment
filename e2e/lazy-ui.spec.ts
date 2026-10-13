@@ -11,14 +11,23 @@ import { test, expect } from '@playwright/test';
 
 const BASE = process.env.E2E_BASE_URL ?? '';
 
+/** React puts a __reactFiber key on every DOM node it has hydrated. */
+const hydrated = () => Object.keys(document.body.firstElementChild ?? {}).some((key) => key.startsWith('__reactFiber'));
+
 test.describe('on-demand interface', () => {
   test.beforeEach(async ({ page }) => {
     // Keep the cookie banner out of the way of the controls under test.
     await page.addInitScript(() => localStorage.setItem('cookie_consent', 'accepted'));
   });
 
+  // Controls only respond once the page has hydrated.
+  const open = async (page: import('@playwright/test').Page, path: string) => {
+    await page.goto(`${BASE}${path}`);
+    await page.waitForFunction(hydrated, undefined, { timeout: 15000 });
+  };
+
   test('search dialog opens from the button, takes input and closes on Escape', async ({ page }) => {
-    await page.goto(`${BASE}/`);
+    await open(page, '/');
     await page.getByRole('button', { name: 'Search events' }).first().click();
 
     const dialog = page.getByRole('dialog', { name: 'Search events' });
@@ -33,14 +42,13 @@ test.describe('on-demand interface', () => {
   });
 
   test('search dialog opens with the keyboard shortcut', async ({ page }) => {
-    await page.goto(`${BASE}/about/`);
-    await page.waitForLoadState('networkidle');
+    await open(page, '/about/');
     await page.keyboard.press('Control+k');
     await expect(page.getByRole('dialog', { name: 'Search events' })).toBeVisible();
   });
 
   test('chat launcher opens the concierge window and keeps the conversation when closed', async ({ page }) => {
-    await page.goto(`${BASE}/`);
+    await open(page, '/');
     await page.getByRole('button', { name: 'Open concierge chat' }).click();
 
     await expect(page.getByRole('heading', { name: 'AB Concierge' })).toBeVisible();
@@ -54,7 +62,7 @@ test.describe('on-demand interface', () => {
   });
 
   test('story chapter text is revealed by the scroll animation once the section is reached', async ({ page }) => {
-    await page.goto(`${BASE}/`);
+    await open(page, '/');
     const section = page.getByRole('region', { name: 'Our Story' });
     const title = section.locator('.narrative-title').first();
 
