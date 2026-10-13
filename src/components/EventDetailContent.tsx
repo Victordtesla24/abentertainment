@@ -216,7 +216,7 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
                 <p className="text-white font-body font-medium">From ${event.price} {event.currency}</p>
               </div>
 
-              {event.capacity && (
+              {typeof event.capacity === 'number' && event.capacity > 0 && (
                 <div>
                   <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Capacity</p>
                   <p className="text-white font-body font-medium">{event.capacity.toLocaleString()} seats</p>
