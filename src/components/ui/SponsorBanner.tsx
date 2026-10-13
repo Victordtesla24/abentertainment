@@ -82,7 +82,15 @@ function SponsorItem({ sponsor, duplicate }: { sponsor: Sponsor; duplicate: bool
     >
       <div className="w-10 h-10 flex items-center justify-center rounded bg-white/90 p-1 opacity-60 group-hover/item:opacity-100 transition-all duration-500">
         {sponsor.logo ? (
-          <img src={sponsor.logo} alt={company} className="max-w-full max-h-full object-contain" />
+          <img
+            src={sponsor.logo}
+            alt={company}
+            width={32}
+            height={32}
+            loading="lazy"
+            decoding="async"
+            className="max-w-full max-h-full object-contain"
+          />
         ) : (
           <span className="text-[10px] font-bold text-[#0A0A0A]/70 leading-none">{initialsOf(company)}</span>
         )}
