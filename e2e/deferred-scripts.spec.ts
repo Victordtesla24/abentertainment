@@ -204,3 +204,122 @@ test.describe('taps made before hydration are not lost', () => {
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   });
 });
+
+test.describe('public forms are never submitted natively before React is in charge', () => {
+  test.skip(!BASE, 'needs a static export (set E2E_BASE_URL)');
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  /** CPU 4x slower, framework chunks held back 900 ms, idle path off: the page stays un-hydrated long enough to act on. */
+  async function openHeldBack(page: Page, path: string) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    await page.route('**/_next/static/chunks/*.js', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      await route.continue();
+    });
+    await page.addInitScript(() => {
+      localStorage.setItem('cookie_consent', 'accepted');
+      window.requestIdleCallback = () => 0;
+    });
+    await page.goto(`${BASE}${path}`, { waitUntil: 'load' });
+    const scripts = await page.evaluate(
+      () => document.querySelectorAll('script[src*="/_next/static/chunks/"]:not([nomodule])').length,
+    );
+    expect(scripts, 'no framework script exists yet').toBe(0);
+  }
+
+  /**
+   * Main-frame document loads (the first visit, plus any native form submission or reload), and every
+   * request the page makes to the contact API (answered locally, never sent anywhere).
+   */
+  async function watch(page: Page) {
+    const navigations: string[] = [];
+    page.on('request', (request) => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations.push(request.url());
+    });
+    const posts: string[] = [];
+    await page.route('**/api/contact', async (route) => {
+      posts.push(route.request().postData() ?? '');
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+    });
+    return { navigations, posts };
+  }
+
+  async function fillContactForm(page: Page) {
+    await page.locator('#contact-name').fill('Pre Hydration');
+    await page.locator('#contact-email').fill('pre.hydration@example.com');
+    await page.locator('#contact-phone').fill('0400000000');
+    await page.locator('#contact-subject').selectOption('event-inquiry');
+    await page.locator('#contact-message').fill('A message typed before the page was interactive.');
+  }
+
+  test('Send before hydration does not navigate; the message is sent once when the form is live', async ({ page }) => {
+    const { navigations, posts } = await watch(page);
+    await openHeldBack(page, '/contact/');
+    await fillContactForm(page);
+    await page.getByRole('button', { name: 'Send Message' }).tap();
+
+    await page.waitForTimeout(600);
+    expect(navigations, 'a native GET would navigate to /contact/?name=...').toHaveLength(1);
+    expect(page.url()).not.toContain('?');
+    await expect.poll(() => posts.length, { timeout: 20000 }).toBe(1);
+    expect(posts[0]).toContain('A message typed before the page was interactive.');
+    await expect(page.getByRole('heading', { name: 'Message Sent' })).toBeVisible();
+    await page.waitForTimeout(1500);
+    expect(posts, 'sent exactly once').toHaveLength(1);
+    expect(navigations).toHaveLength(1);
+  });
+
+  test('Enter in a field before hydration does not navigate either, and sends once', async ({ page }) => {
+    const { navigations, posts } = await watch(page);
+    await openHeldBack(page, '/contact/');
+    await fillContactForm(page);
+    await page.locator('#contact-email').press('Enter');
+
+    await page.waitForTimeout(600);
+    expect(navigations).toHaveLength(1);
+    expect(page.url()).not.toContain('?');
+    await expect.poll(() => posts.length, { timeout: 20000 }).toBe(1);
+    await expect(page.getByRole('heading', { name: 'Message Sent' })).toBeVisible();
+    await page.waitForTimeout(1500);
+    expect(posts).toHaveLength(1);
+  });
+
+  test('Subscribe before hydration does not navigate; the typed address is subscribed once the form is live', async ({ page }) => {
+    const { navigations } = await watch(page);
+    await openHeldBack(page, '/about/');
+    await page.getByPlaceholder('Enter your email').fill('fan@example.com');
+    await page.getByRole('button', { name: 'Subscribe' }).tap();
+
+    await page.waitForTimeout(600);
+    expect(navigations, 'a native GET would reload the page').toHaveLength(1);
+    await expect(page.getByText('Thank you for subscribing!')).toBeVisible({ timeout: 20000 });
+    expect(navigations).toHaveLength(1);
+  });
+
+  test('text typed into the newsletter field before hydration survives it and is usable afterwards', async ({ page }) => {
+    await openHeldBack(page, '/about/');
+    const field = page.getByPlaceholder('Enter your email');
+    await field.fill('typed@example.com');
+    await field.press('Shift');
+    await page.waitForFunction(hydrated, undefined, { timeout: 20000 });
+    await expect(field).toHaveValue('typed@example.com');
+
+    await page.getByRole('button', { name: 'Subscribe' }).tap();
+    await expect(page.getByText('Thank you for subscribing!')).toBeVisible();
+  });
+
+  test('a form submitted after hydration is sent once, with nothing replayed', async ({ page }) => {
+    const { navigations, posts } = await watch(page);
+    await page.addInitScript(() => localStorage.setItem('cookie_consent', 'accepted'));
+    await page.goto(`${BASE}/contact/`, { waitUntil: 'load' });
+    await page.waitForFunction(hydrated, undefined, { timeout: 20000 });
+    await fillContactForm(page);
+    await page.getByRole('button', { name: 'Send Message' }).tap();
+
+    await expect(page.getByRole('heading', { name: 'Message Sent' })).toBeVisible();
+    await page.waitForTimeout(1500);
+    expect(posts).toHaveLength(1);
+    expect(navigations).toHaveLength(1);
+  });
+});

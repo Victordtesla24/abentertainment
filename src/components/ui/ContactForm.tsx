@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { getApiUrl } from '@/lib/api-config';
+import { useHydrated } from '@/lib/use-hydrated';
 
 type FormStatus = 'idle' | 'submitting' | 'success' | 'error';
 
@@ -25,6 +26,7 @@ const contactSchema = z.object({
 type ContactFormData = z.infer<typeof contactSchema>;
 
 export default function ContactForm() {
+  const hydrated = useHydrated();
   const [status, setStatus] = useState<FormStatus>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -114,7 +116,13 @@ export default function ContactForm() {
           </button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        // Until React has hydrated the form, a submit must not turn into a native GET that puts the
+        // message in the URL: the export's loader holds it and replays it once the form is live.
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          data-await-hydration={hydrated ? undefined : ''}
+          className="space-y-6"
+        >
           {/* Honeypot fields — hidden from real users, filled by bots */}
           <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
             <label htmlFor="contact-company">Company</label>

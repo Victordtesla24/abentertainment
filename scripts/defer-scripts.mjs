@@ -19,6 +19,16 @@
  *   - a safety timer expires (2 s after the paint entry is missing, 3 s regardless).
  * Pages stay fully readable and every link works as a plain link while the scripts arrive.
  *
+ * Public forms never submit natively before React is in charge. The contact and newsletter forms
+ * render `data-await-hydration` until they are hydrated (see useHydrated); a submit or an Enter
+ * press in such a form before then is cancelled (a native GET would put the message in the URL),
+ * remembered once per form, and replayed with requestSubmit() when the attribute goes. Text typed
+ * into the form meanwhile is remembered too and put back through the fields' own input/change
+ * events once React is live: react-hook-form wipes its fields to their default values when it
+ * attaches, and React's controlled inputs ignore text they did not render, so without this the
+ * visitor's words would vanish and the replayed submit would be empty. Forms without the
+ * attribute (and all admin pages) are untouched.
+ *
  * Nothing the visitor does is lost. React replays the clicks it sees while it hydrates, but
  * it cannot see a tap that happens before its own scripts exist, so the loader keeps the
  * first completed click on a <button> or [role=button] (links navigate natively; form
@@ -124,6 +134,64 @@ const LOADER_SOURCE = `
     }
     setTimeout(idle, 2000);
   }
+  var heldForms = [];
+  var watchedForms = [];
+  var typed = [];
+  function guarded(form) {
+    return !!form && form.nodeName === 'FORM' && form.hasAttribute('data-await-hydration');
+  }
+  function valueSetter(field) {
+    var tag = field.tagName;
+    var proto = tag === 'INPUT' ? HTMLInputElement.prototype : tag === 'TEXTAREA' ? HTMLTextAreaElement.prototype : tag === 'SELECT' ? HTMLSelectElement.prototype : null;
+    return proto ? Object.getOwnPropertyDescriptor(proto, 'value').set : null;
+  }
+  function restoreTyped(form) {
+    typed.forEach(function (entry) {
+      var field = entry[0];
+      var value = entry[1];
+      var set = field.form === form && value ? valueSetter(field) : null;
+      if (!set) return;
+      var type = field.tagName === 'SELECT' ? 'change' : 'input';
+      set.call(field, '');
+      field.dispatchEvent(new Event(type, { bubbles: true }));
+      set.call(field, value);
+      field.dispatchEvent(new Event(type, { bubbles: true }));
+    });
+    typed = typed.filter(function (entry) { return entry[0].form !== form; });
+  }
+  function whenReleased(form, deadline, then) {
+    if (!document.documentElement.contains(form) || Date.now() > deadline) return;
+    if (guarded(form)) {
+      setTimeout(function () { whenReleased(form, deadline, then); }, 50);
+      return;
+    }
+    then();
+  }
+  function onSubmit(event) {
+    var form = event.target;
+    if (!guarded(form)) return;
+    event.preventDefault();
+    if (heldForms.indexOf(form) !== -1) return;
+    heldForms.push(form);
+    var submitter = event.submitter;
+    start();
+    whenReleased(form, Date.now() + 8000, function () {
+      restoreTyped(form);
+      if (form.requestSubmit) form.requestSubmit(submitter || undefined);
+      else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+  }
+  function onType(event) {
+    var field = event.target;
+    var form = field && field.form;
+    if (!guarded(form) || !valueSetter(field) || /^(checkbox|radio|file|submit|button)$/.test(field.type)) return;
+    var known = typed.filter(function (entry) { return entry[0] === field; })[0];
+    if (known) known[1] = field.value;
+    else typed.push([field, field.value]);
+    if (watchedForms.indexOf(form) !== -1) return;
+    watchedForms.push(form);
+    whenReleased(form, Date.now() + 8000, function () { restoreTyped(form); });
+  }
   function replay(target, deadline) {
     if (superseded || !document.documentElement.contains(target)) return;
     if (hydrated(target)) {
@@ -147,6 +215,9 @@ const LOADER_SOURCE = `
   events.forEach(function (name) { addEventListener(name, start, { capture: true, once: true, passive: true }); });
   addEventListener('click', onClick, true);
   addEventListener('click', onLaterClick, true);
+  addEventListener('submit', onSubmit, true);
+  addEventListener('input', onType, true);
+  addEventListener('change', onType, true);
   if (document.readyState === 'complete') afterPaint();
   else addEventListener('load', afterPaint, { once: true });
   setTimeout(afterPaint, 3000);

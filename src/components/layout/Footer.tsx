@@ -7,11 +7,13 @@ import { usePathname } from 'next/navigation';
 import { SITE_CONFIG, NAVIGATION, telHref } from '@/lib/constants';
 import SponsorBanner from '@/components/ui/SponsorBanner';
 import type { Sponsor } from '@/lib/data';
+import { useHydrated } from '@/lib/use-hydrated';
 
 export default function Footer({ initialSponsors = [] }: { initialSponsors?: Sponsor[] }) {
   const pathname = usePathname();
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const hydrated = useHydrated();
 
   if (pathname.startsWith('/admin')) return null;
 
@@ -55,7 +57,11 @@ export default function Footer({ initialSponsors = [] }: { initialSponsors?: Spo
             {subscribed ? (
               <p className="text-[#C9A84C] font-body text-sm font-medium">Thank you for subscribing!</p>
             ) : (
-              <form onSubmit={handleNewsletterSubmit} className="flex gap-3 w-full md:w-auto">
+              <form
+                onSubmit={handleNewsletterSubmit}
+                data-await-hydration={hydrated ? undefined : ''}
+                className="flex gap-3 w-full md:w-auto"
+              >
                 <input
                   type="email"
                   value={email}
