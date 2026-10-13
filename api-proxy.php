@@ -4,13 +4,13 @@
  *
  * Hostinger shared hosting (LiteSpeed) cannot proxy directly via .htaccess [P] flag.
  * This PHP script acts as a transparent reverse proxy, forwarding requests to the
- * VPS (HTTPS, certificate verified) and relaying responses back to the browser.
+ * VPS at 187.77.12.13:3001 and relaying responses back to the browser.
  *
  * .htaccess routes: /api/* → api-proxy.php?__path=/api/*
  *                   /uploads/* → api-proxy.php?__path=/uploads/*
  */
 
-$VPS_HOST = 'https://abapi.srv1356245.hstgr.cloud';
+$VPS_HOST = 'http://187.77.12.13:3000';
 
 // Get the API path from the query parameter set by .htaccess rewrite
 $apiPath = isset($_GET['__path']) ? $_GET['__path'] : '';
@@ -86,11 +86,6 @@ curl_setopt_array($ch, [
     CURLOPT_CONNECTTIMEOUT => 10,
     CURLOPT_FOLLOWLOCATION => true,
     CURLOPT_MAXREDIRS => 3,
-    // TLS to the VPS: always verify the certificate and the host name, and connect over IPv4 so the VPS sees this
-    // server's stable IPv4 address (the one its reverse proxy trusts for X-Forwarded-For).
-    CURLOPT_SSL_VERIFYPEER => true,
-    CURLOPT_SSL_VERIFYHOST => 2,
-    CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
 ]);
 
 if ($requestBody && in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'])) {
