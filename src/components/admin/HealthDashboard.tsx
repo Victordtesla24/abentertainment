@@ -11,6 +11,7 @@ import { TicketSalesChart } from './telemetry/TicketSalesChart';
 import { EventAnalytics } from './telemetry/EventAnalytics';
 import { AdminConsoleTelemetry } from './telemetry/AdminConsoleTelemetry';
 import type { Event, Sponsor } from '@/lib/data';
+import { SITE_CONFIG } from '@/lib/constants';
 import useSWR from 'swr';
 
 // ─── SWR Fetcher ─────────────────────────────────────────────────────────────
@@ -867,7 +868,7 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
       <div className="bg-[#0A0A0A] border border-white/5 p-4">
         <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-2">Developer Escalation</p>
         <p className="text-[11px] font-body text-white/50">
-          For critical issues the AI Agent cannot resolve, contact: <span className="text-[#C9A84C]">{process.env.NEXT_PUBLIC_ESCALATION_EMAIL || healthData?.developer || 'Vikram (sarkar.vikram@gmail.com)'}</span>
+          For critical issues the AI Agent cannot resolve, contact: <span className="text-[#C9A84C]">{process.env.NEXT_PUBLIC_ESCALATION_EMAIL || healthData?.developer || `abentertainment support (${SITE_CONFIG.contact.email})`}</span>
         </p>
       </div>
 

@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { LazyMotion, domAnimation } from 'framer-motion';
 
 // Dynamic imports for heavy client components — saves ~680KB from initial bundle
@@ -16,13 +17,19 @@ const BackToTop = dynamic(() => import('@/components/ui/BackToTop'), { ssr: fals
 const CookieConsent = dynamic(() => import('@/components/ui/CookieConsent'), { ssr: false });
 
 export default function ClientProviders({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  // The public-site overlays (concierge chat FAB, back-to-top, cookie banner)
+  // are fixed-position and stack above the admin login form on phones, where
+  // the cookie banner (z-[1000]) and chat FAB cover the Sign In button. The
+  // admin area has its own chrome, so none of them belong on /admin routes.
+  const isAdmin = pathname.startsWith('/admin');
   return (
     <LazyMotion features={domAnimation}>
       <ThreeCanvas />
       {children}
-      <ChatWidget />
-      <BackToTop />
-      <CookieConsent />
+      {!isAdmin && <ChatWidget />}
+      {!isAdmin && <BackToTop />}
+      {!isAdmin && <CookieConsent />}
     </LazyMotion>
   );
 }

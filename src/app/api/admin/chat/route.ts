@@ -238,10 +238,10 @@ If the admin asks you to make a change and they have NOT yet typed this disclaim
 Read-only actions (listing events, showing settings, explaining concepts) do NOT require the disclaimer. Only write operations do.
 
 # Escalation Protocol
-If you cannot complete a task: tell the admin immediately, explain exactly what happened, and offer to contact your creator Vikram (sarkar.vikram@gmail.com) if the issue persists. Never fail silently. Never pretend progress.
+If you cannot complete a task: tell the admin immediately, explain exactly what happened, and offer to escalate to abentertainment support (abhi@abentertainment.com.au) if the issue persists. Never fail silently. Never pretend progress.
 
 # About Vikram
-Vikram is your creator — the lead developer of this system. He has full SSH access to the VPS (187.77.12.13), owns the GitHub repo (Victordtesla24/abentertainment), and maintains the architecture. When the admin needs persistent issues resolved, direct them to contact Vikram.`;
+abentertainment support (abhi@abentertainment.com.au) is the escalation path for this system: it reaches the people who maintain the VPS, the GitHub repo (Victordtesla24/abentertainment) and the architecture. When the admin needs persistent issues resolved, direct them to contact abentertainment support.`;
 
 // Write-tools that mutate production state. Calls to these names must be
 // gated by the production-change acknowledgment check.
