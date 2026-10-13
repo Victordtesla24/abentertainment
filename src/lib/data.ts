@@ -170,6 +170,21 @@ export interface ContactSubmission {
   createdAt: string;
 }
 
+/** Where a subscriber's welcome email stands. Subscribers who joined before the email capability have none (they are never sent one). */
+export interface WelcomeState {
+  /** pending: waiting to be sent (nothing configured or approved yet, a cap, a provider problem); sending: claimed by a send in progress; sent: delivered to the provider; failed: refused for good; skipped: not to be sent. */
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped';
+  /** Why it is not sent (a short code such as "not_approved" or "provider_not_ready"), never an address or a secret. */
+  reason?: string;
+  attemptedAt?: string;
+  sentAt?: string;
+  templateKey?: string;
+  version?: number;
+  /** The provider's message id. */
+  messageId?: string;
+  updatedAt: string;
+}
+
 /** One address on the newsletter list (admin-internal: never part of any public projection). */
 export interface NewsletterSubscriber {
   id: string;
@@ -178,6 +193,10 @@ export interface NewsletterSubscriber {
   createdAt: string;
   /** Path of the page the visitor subscribed from (for example "/about/"); empty when unknown. */
   source: string;
+  /** Absent means subscribed. An unsubscribed address is never sent anything. */
+  status?: 'subscribed' | 'unsubscribed';
+  unsubscribedAt?: string;
+  welcome?: WelcomeState;
 }
 
 export interface Video {
@@ -1160,11 +1179,14 @@ export async function addNewsletterSubscriber(input: { email: string; source?: s
     const list = await readNewsletterSubscribers();
     if (list.some((subscriber) => subscriber.email === email)) return { status: 'exists' };
     if (list.length >= MAX_NEWSLETTER_SUBSCRIBERS) return { status: 'full' };
+    const createdAt = new Date().toISOString();
     const subscriber: NewsletterSubscriber = {
       id: `nl-${Date.now()}-${randomBytes(4).toString('hex')}`,
       email,
-      createdAt: new Date().toISOString(),
+      createdAt,
       source: input.source ?? '',
+      status: 'subscribed',
+      welcome: { status: 'pending', reason: 'queued', updatedAt: createdAt },
     };
     await writeNewsletterSubscribers([...list, subscriber]);
     return { status: 'created', subscriber };
@@ -1221,5 +1243,26 @@ export async function updateRuntimeJson<T, R>(
     const { next, result } = await mutate(current);
     if (next !== undefined) await atomicWrite(DATA_DIR, filename, JSON.stringify(next, null, 2));
     return result;
+  });
+}
+
+/**
+ * Change one subscriber under the list lock. `mutate` gets a copy and returns the new record (or null to leave it
+ * alone); the result is the stored record, or undefined when there is no such id or nothing changed.
+ */
+export async function updateNewsletterSubscriber(
+  id: string,
+  mutate: (current: NewsletterSubscriber) => NewsletterSubscriber | null,
+): Promise<NewsletterSubscriber | undefined> {
+  return withFileLock<NewsletterSubscriber | undefined>(NEWSLETTER_FILE, async () => {
+    const list = await readNewsletterSubscribers();
+    const index = list.findIndex((subscriber) => subscriber.id === id);
+    if (index === -1) return undefined;
+    const next = mutate(structuredClone(list[index]));
+    if (!next) return undefined;
+    const updated = [...list];
+    updated[index] = next;
+    await writeNewsletterSubscribers(updated);
+    return next;
   });
 }

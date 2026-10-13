@@ -68,6 +68,10 @@ public/data/contact-submissions.json
 data/newsletter-subscribers.json
 public/data/newsletter-subscribers.json
 
+# Email capability stores (templates, settings, brand guidelines, send log) — runtime data only, same rule as the subscriber list
+data/email-*.json
+public/data/email-*.json
+
 # Agent system Docker volumes
 agent-system/.env
 agent-system/node_modules/
