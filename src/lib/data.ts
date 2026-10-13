@@ -1181,3 +1181,45 @@ export async function deleteNewsletterSubscriber(id: string): Promise<Newsletter
     return target;
   });
 }
+
+// ─── Runtime-only JSON stores (admin-internal) ───────────────────────────────
+// Generic helpers for admin-internal files that live in the runtime data directory ONLY, like the
+// newsletter list above: never mirrored to public/data, never synced to the repository data directory
+// (writeJsonFile does both for every file), never in PUBLIC_MIRRORED. Reads are strict: a file that
+// exists but cannot be parsed raises instead of looking empty, so a later write can never replace a
+// store that merely failed to parse. Read-modify-write runs inside the per-file lock.
+
+const RUNTIME_FILE_NAME = /^[a-z0-9][a-z0-9-]{0,60}\.json$/;
+
+function assertRuntimeFileName(filename: string): void {
+  if (!RUNTIME_FILE_NAME.test(filename)) throw new Error('invalid runtime file name');
+}
+
+export async function readRuntimeJson<T>(filename: string, fallback: T): Promise<T> {
+  assertRuntimeFileName(filename);
+  try {
+    return JSON.parse(await readFile(join(DATA_DIR, filename), 'utf-8')) as T;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return fallback;
+    throw err;
+  }
+}
+
+/**
+ * Locked read-modify-write of a runtime-only file. `mutate` gets the current value (or `fallback` when the file
+ * does not exist yet) and returns the result to hand back, plus the next value to store; leave `next` out to
+ * change nothing on disk.
+ */
+export async function updateRuntimeJson<T, R>(
+  filename: string,
+  fallback: T,
+  mutate: (current: T) => { next?: T; result: R } | Promise<{ next?: T; result: R }>,
+): Promise<R> {
+  assertRuntimeFileName(filename);
+  return withFileLock<R>(filename, async () => {
+    const current = await readRuntimeJson<T>(filename, fallback);
+    const { next, result } = await mutate(current);
+    if (next !== undefined) await atomicWrite(DATA_DIR, filename, JSON.stringify(next, null, 2));
+    return result;
+  });
+}
