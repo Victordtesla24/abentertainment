@@ -15,15 +15,16 @@ import { readRuntimeJson, updateRuntimeJson } from '@/lib/data';
 export const SEND_LOG_FILE = 'email-send-log.json';
 export const MAX_LOG_ENTRIES = 2000;
 
-export type SendKind = 'welcome' | 'test';
+export type SendKind = 'welcome' | 'test' | 'unsubscribe';
 
 /**
  * reserved: in flight (or the process died mid-send); sent: accepted by the provider; failed: refused for good;
  * retry: a temporary problem, will be tried again; blocked: not sent because a check or the configuration said no;
  * provider_not_ready: the provider cannot send yet (domain not verified, bad key); rate_limited: a cap or the
- * provider's limit; skipped: deliberately not sent (switched off, unsubscribed).
+ * provider's limit; skipped: deliberately not sent (switched off, unsubscribed); unsubscribed: the recipient followed
+ * the unsubscribe link (kind "unsubscribe") and was removed from the list.
  */
-export type SendOutcome = 'reserved' | 'sent' | 'failed' | 'retry' | 'blocked' | 'provider_not_ready' | 'rate_limited' | 'skipped';
+export type SendOutcome = 'reserved' | 'sent' | 'failed' | 'retry' | 'blocked' | 'provider_not_ready' | 'rate_limited' | 'skipped' | 'unsubscribed';
 
 export interface SendLogEntry {
   id: string;
