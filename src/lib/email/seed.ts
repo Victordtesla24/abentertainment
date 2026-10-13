@@ -7,23 +7,27 @@ import {
   type EmailTemplate,
 } from './types';
 
-/** First-run content of the welcome email, written in the brand voice (see DEFAULT_GUIDELINES_TEXT). */
+/**
+ * First-run content of the welcome email, written in the AB Entertainment voice (premium, theatrical, reverent,
+ * formal but warm; see DEFAULT_GUIDELINES_TEXT). The layout sets the heading's eyebrow and uppercases the
+ * call-to-action label, so the label is written as a short Title Case phrase.
+ */
 export const SEED_WELCOME_FIELDS: EmailFields = {
   subject: 'Welcome to AB Entertainment',
-  preheader: 'Thank you for joining us. Here is what to expect from our stage, our stories and our community.',
-  heading: 'Welcome to the AB Entertainment community',
+  preheader: 'The curtain rises on Indian and Marathi performing arts in Melbourne. Thank you for joining us.',
+  heading: 'Welcome to the AB Entertainment Family',
   body: [
-    'Thank you for joining the AB Entertainment community. We are delighted to welcome you.',
-    'AB Entertainment brings the richness of Indian and Marathi performing arts to audiences across Melbourne, through music, theatre, dance and storytelling that celebrate our shared heritage.',
-    'As a subscriber, you will hear from us about:',
+    'Thank you for joining AB Entertainment. It is an honour to welcome you to an audience that treasures the performing arts of India and Maharashtra.',
+    'Every performance we present is an offering: artists, families and friends gathered in celebration of music, dance, theatre and storytelling carried through generations. We are privileged to bring that heritage to the Melbourne stage, and we are grateful to share it with you.',
+    'As a member of our community, you will receive:',
     [
-      '- Upcoming performances and festivals, with news of new events as they are announced',
+      '- Early word of upcoming performances and festivals',
       '- Stories from the artists and teams who bring each production to life',
-      '- Ways to take part in our community, whether these art forms are new to you or have been loved for a lifetime',
+      '- Invitations to the celebrations that gather our community together',
     ].join('\n'),
-    'We would love to see you at an event soon. Everyone is warmly welcome.',
+    'We look forward to welcoming you in person. Until then, thank you for taking your place in our audience.',
   ].join('\n\n'),
-  ctaLabel: 'See upcoming events',
+  ctaLabel: 'Explore Upcoming Events',
   ctaUrl: 'https://abentertainment.com.au/events/',
 };
 
@@ -61,48 +65,54 @@ export const DEFAULT_SETTINGS: EmailSettings = {
   updatedAt: SEED_TIME,
 };
 
-export const DEFAULT_GUIDELINES_TEXT = `AB ENTERTAINMENT: BRAND VOICE AND EMAIL GUIDELINES
+/**
+ * The voice rules the AI reviewer judges every email against (administrators can edit them in the admin panel).
+ * They follow the AB Entertainment Design System's content fundamentals: premium, theatrical, reverent, formal
+ * but warm; no emoji; Australian English; ALL CAPS calls to action; gold uppercase eyebrows; Title Case headings.
+ */
+export const DEFAULT_GUIDELINES_TEXT = `AB ENTERTAINMENT: CONTENT FUNDAMENTALS FOR EMAIL
 
-Who we are
-AB Entertainment is a Melbourne company that brings Indian and Marathi performing arts to audiences across Victoria: music, theatre, dance and storytelling that celebrate shared heritage and bring communities together. Our audience includes families, long-time lovers of these art forms, newcomers who are curious, and Melbourne's wider multicultural community.
+Voice and tone
+AB Entertainment speaks like a great theatre house: premium, theatrical, reverent and formal, yet warm. We treat the performing arts of India and Maharashtra as a heritage to be honoured, and our audience as guests of honour. Sentences are composed, unhurried and dignified. Warmth comes from sincerity and gratitude, never from slang, hype or over-familiarity. We address the reader as "you" and ourselves as "we" or "AB Entertainment".
 
-How we sound
-1. Warm. We write the way a gracious host speaks: welcoming, personal and sincere. We thank people, and we mean it.
-2. Celebratory. We take quiet pride in the artists, the heritage and the occasions. Joy comes from the subject, never from loud punctuation.
-3. Culturally rich. We speak about the arts with knowledge and respect. Marathi, Hindi and other cultural terms are spelt correctly and used naturally, with context where a newcomer might need it.
-4. Professional. Clear, accurate, well organised and polished. No slang, no filler, no carelessness.
-5. Inclusive. Everyone is welcome: every background, age and level of familiarity. Never assume prior knowledge, religion, language or identity.
+Casing
+- Section headings use Title Case (for example, Welcome to the AB Entertainment Family).
+- Eyebrows, the small labels above a heading, are set in gold uppercase by the layout. Do not write them into the body.
+- Calls to action are ALL CAPS. The layout applies this to the button, so write the label as a short Title Case phrase (for example, Explore Upcoming Events).
+- Body text uses ordinary sentence case. Never write whole sentences in capitals.
 
 Language
-- Australian English spelling and usage (colour, centre, organise, theatre, favourite).
-- Short sentences and short paragraphs. Plain words. One idea per paragraph.
-- Address the reader as "you". Refer to ourselves as "we" or "AB Entertainment".
-- State dates, times and prices only when they are given in the content. Never invent details.
-- At most one exclamation mark in a whole email, and none in a subject line.
+- Australian English (en-AU): colour, centre, organise, theatre, honour, favourite. Use "programme" only for a printed programme.
+- Marathi, Hindi and other cultural terms are spelt correctly and, where a newcomer may need it, introduced with a few plain words of context.
+- Full, formal sentences and short paragraphs, one idea each.
+- State dates, times, venues and prices only when they are supplied in the content. Never invent details.
+
+No emoji
+- No emoji, emoticons or decorative symbols in any field. The layout supplies the brand's ornaments.
+
+Call to action
+- One clear action per email, described by what it does and led by a verb: Explore Upcoming Events, Meet the Artists, Visit Our Gallery. Never "Click here", "Learn more" or "Don't miss out".
 
 What we never do
-- No hype, clickbait or manufactured urgency ("don't miss out", "last chance", "act now", "you won't believe").
-- No ALL CAPS, no excessive punctuation, no emoji in headings or subject lines.
+- No hype, clickbait or manufactured urgency ("last chance", "act now", "you won't believe").
+- No excessive punctuation: at most one exclamation mark in a whole email, and none in the subject.
 - No superlatives we cannot support, and no comparison with other organisations.
 - No stereotypes, jokes at anyone's expense, or political or religious statements.
-- No promises about ticket availability, pricing, discounts or guests unless they are supplied in the content.
+- No promises about availability, pricing, discounts or guests that are not in the supplied content.
 - No placeholder text and no unfinished sentences.
 
 An email should
-- Have a clear, honest subject line that says what the email is (aim for 30 to 60 characters).
-- Have a preheader that adds to the subject instead of repeating it.
-- Have one clear call to action, described by what it does ("See upcoming events"), never "Click here".
-- Be easy to read on a phone in under a minute.
-- Respect the reader's inbox: say who we are and why they are hearing from us. Every email carries a one-click way to unsubscribe, supplied by the layout.
+- Have an honest, dignified subject line that says what the email is (aim for 30 to 60 characters).
+- Have a preheader that continues the subject instead of repeating it.
+- Be gracious to the reader's inbox: it says who we are and why they are hearing from us. Every message carries a one-click way to unsubscribe, supplied by the layout.
 
 How the review scores
 Score each dimension from 0 to 100. The pass mark is set by the administrators (85 by default); anything below it must be fixed before the email can be sent.
 - content: accurate, useful, complete and honest, with a clear purpose.
 - brand: feels like AB Entertainment, in the voice described above.
-- tone: the right emotional register: warm and sincere, never pushy, never flat.
-- language: Australian English, correct spelling and grammar, clear sentences.
-- quality: overall polish, structure and readability as a professional communication piece.
-`.trim();
+- tone: the right emotional register: reverent and formal, yet warm and sincere; never pushy, never flat.
+- language: Australian English, correct spelling and grammar, composed sentences.
+- quality: overall polish, structure and readability as a professional communication piece.`;
 
 export function defaultGuidelines(): BrandGuidelines {
   return { text: DEFAULT_GUIDELINES_TEXT, version: 1, updatedAt: SEED_TIME, updatedBy: 'seed' };

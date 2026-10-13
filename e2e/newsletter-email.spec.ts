@@ -211,8 +211,7 @@ test.describe('email modules (in-process)', () => {
   test('brand guidelines: the written default, a version that rises only when the text changes', async () => {
     const first = await store.getBrandGuidelines();
     expect(first.version).toBe(1);
-    expect(first.text).toContain('Australian English');
-    expect(first.text).toContain('warm');
+    for (const phrase of ['premium, theatrical, reverent', 'formal, yet warm', 'Title Case', 'ALL CAPS', 'No emoji', 'Australian English (en-AU)', 'Explore Upcoming Events']) expect(first.text, phrase).toContain(phrase);
     const text = store.parseGuidelinesText(`${first.text}\n\nAdditional rule: always mention Melbourne.`);
     const second = await store.saveBrandGuidelines(text, 'admin');
     expect(second.version).toBe(2);
