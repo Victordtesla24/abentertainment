@@ -109,19 +109,31 @@ if ($response === false) {
 $responseHeaders = substr($response, 0, $headerSize);
 $responseBody = substr($response, $headerSize);
 
+// Uploaded media gets a new timestamped file name on every upload, so a successful GET of
+// one never goes stale: keep the origin's long-lived Cache-Control and its safety headers
+// (nosniff, and the sandboxing CSP that makes an SVG upload inert when opened directly).
+$isUploadAsset = $method === 'GET' && $httpCode === 200
+    && (strpos($apiPath, '/api/uploads/') === 0 || strpos($apiPath, '/uploads/') === 0);
+$forwardedHeaders = ['content-type:', 'set-cookie:'];
+if ($isUploadAsset) {
+    array_push($forwardedHeaders, 'cache-control:', 'x-content-type-options:', 'content-security-policy:', 'content-disposition:');
+}
+
 // Forward relevant response headers
 foreach (explode("\r\n", $responseHeaders) as $headerLine) {
-    if (stripos($headerLine, 'content-type:') === 0) {
-        header($headerLine);
-    }
-    if (stripos($headerLine, 'set-cookie:') === 0) {
-        header($headerLine, false);
+    foreach ($forwardedHeaders as $headerName) {
+        if (stripos($headerLine, $headerName) === 0) {
+            header($headerLine, $headerName !== 'set-cookie:');
+            break;
+        }
     }
 }
 
-// Prevent browser/CDN caching of API responses so admin changes appear immediately
-header('Cache-Control: no-store, no-cache, must-revalidate');
-header('Pragma: no-cache');
+// Everything else is uncacheable so admin changes appear immediately
+if (!$isUploadAsset) {
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Pragma: no-cache');
+}
 
 // Set CORS headers for the proxied response
 header('Access-Control-Allow-Origin: https://abentertainment.com.au');

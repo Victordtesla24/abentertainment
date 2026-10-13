@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import Tilt from 'react-parallax-tilt';
-import type { Event } from '@/lib/data';
+import type { Event, Sponsor } from '@/lib/data';
 import SponsorBanner from '@/components/ui/SponsorBanner';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
@@ -295,6 +295,8 @@ function EventCard({ event, isPast = false }: { event: Event; isPast?: boolean }
 
 interface EventsContentProps {
   events: Event[];
+  /** Visible sponsors at build time, so the in-page carousel paints with real sponsors before the live poll. */
+  sponsors?: Sponsor[];
   contactEmail: string;
 }
 
@@ -323,7 +325,7 @@ function EventsContentFallback() {
   );
 }
 
-function EventsContentInner({ events: initialEvents, contactEmail }: EventsContentProps) {
+function EventsContentInner({ events: initialEvents, sponsors = [], contactEmail }: EventsContentProps) {
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -556,7 +558,7 @@ function EventsContentInner({ events: initialEvents, contactEmail }: EventsConte
       )}
 
       {/* Sponsor marquee footer */}
-      <SponsorBanner />
+      <SponsorBanner initialSponsors={sponsors} />
     </>
   );
 }

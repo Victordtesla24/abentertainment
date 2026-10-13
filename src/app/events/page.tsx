@@ -1,10 +1,10 @@
 import { Metadata } from 'next';
-import { getPublicEvents } from '@/lib/data';
+import { getPublicEvents, getPublicSponsors } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
 import PageHero from '@/components/ui/PageHero';
 import EventsContent from '@/components/EventsContent';
 
-import type { Event } from '@/lib/data';
+import type { Event, Sponsor } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'Events',
@@ -23,11 +23,18 @@ export const metadata: Metadata = {
 
 export default async function EventsPage() {
   let events: Event[] = [];
+  let sponsors: Sponsor[] = [];
 
   try {
     events = await getPublicEvents();
   } catch (error) {
     console.error('Error loading events:', error);
+  }
+
+  try {
+    sponsors = await getPublicSponsors();
+  } catch (error) {
+    console.error('Error loading sponsors:', error);
   }
 
   return (
@@ -91,7 +98,7 @@ export default async function EventsPage() {
       />
 
       {/* Client-side interactive content with filtering */}
-      <EventsContent events={events} contactEmail={SITE_CONFIG.contact.email} />
+      <EventsContent events={events} sponsors={sponsors} contactEmail={SITE_CONFIG.contact.email} />
     </div>
   );
 }

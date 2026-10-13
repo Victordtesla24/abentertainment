@@ -4,6 +4,12 @@
  * Copy data files to public/ so they can be fetched client-side.
  * Used by the global search modal (SearchModal.tsx) which needs
  * events data available as a static JSON endpoint.
+ *
+ * public/data/ (and therefore out/data/ on the live site) is publicly served,
+ * so it must never carry admin-internal data — exactly like the mirror that
+ * src/lib/data.ts writes after every admin change: event ticket sales,
+ * sponsor revenue/contract values, sponsors an admin has hidden and hidden
+ * metrics are left out.
  */
 
 import { copyFile, mkdir, readFile, writeFile } from 'fs/promises';
@@ -15,6 +21,19 @@ const PUBLIC_DATA_DIR = join(process.cwd(), 'public', 'data');
 // Files whose public copy is a projection of the canonical file rather than a
 // byte-for-byte copy. Must mirror serializePublicMirror() in src/lib/data.ts.
 const PUBLIC_PROJECTIONS = {
+  // Same projection as toPublicEvent() in src/lib/data.ts.
+  'events.json': (events) => {
+    if (!Array.isArray(events)) throw new Error('expected a JSON list');
+    return events.map(({ ticketsSold, ticketRevenue, ...rest }) => rest);
+  },
+  // Same projection as the public sponsors mirror in src/lib/data.ts:
+  // hidden sponsors removed, revenue/contract values stripped.
+  'sponsors.json': (sponsors) => {
+    if (!Array.isArray(sponsors)) throw new Error('expected a JSON list');
+    return sponsors
+      .filter((sponsor) => sponsor && sponsor.visible !== false)
+      .map(({ revenue, contractValue, ...rest }) => rest);
+  },
   // Hidden metrics must never reach the publicly-served copy.
   'site-metrics.json': (metrics) => {
     if (!Array.isArray(metrics)) throw new Error('expected a JSON list');
