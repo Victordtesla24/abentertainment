@@ -86,7 +86,8 @@ export interface Sponsor {
   companyName?: string;
   logo: string;
   url: string;
-  tier: 'platinum' | 'gold' | 'silver' | 'bronze';
+  /** Free-text tier label the admin types (for example "Platinum" or "Media Partner"); empty means no tier. */
+  tier: string;
   description?: string;
   revenue?: number;
   contractValue?: number;

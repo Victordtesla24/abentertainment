@@ -6,30 +6,51 @@ interface RevenueChartProps {
   sponsors: Sponsor[];
 }
 
-const TIER_COLORS: Record<string, string> = {
-  platinum: '#a855f7',
-  gold: '#C9A84C',
-  silver: '#9ca3af',
-  bronze: '#f97316',
-};
+const TIER_COLORS = new Map<string, string>([
+  ['platinum', '#a855f7'],
+  ['gold', '#C9A84C'],
+  ['silver', '#9ca3af'],
+  ['bronze', '#f97316'],
+]);
+/** Colour for a tier an admin typed that is not one of the classic four. */
+const OTHER_TIER_COLOR = '#C9A84C';
+/** Colour for sponsors saved without any tier. */
+const NO_TIER_COLOR = '#6b7280';
 
-const TIER_ORDER: string[] = ['platinum', 'gold', 'silver', 'bronze'];
+const CLASSIC_TIER_ORDER: string[] = ['platinum', 'gold', 'silver', 'bronze'];
+
+/** Sort rank: the classic tiers in their usual order, then any other tier, then sponsors without a tier. */
+function tierRank(key: string): number {
+  const classic = CLASSIC_TIER_ORDER.indexOf(key);
+  if (classic >= 0) return classic;
+  return key ? CLASSIC_TIER_ORDER.length : CLASSIC_TIER_ORDER.length + 1;
+}
 
 export function RevenueChart({ sponsors }: RevenueChartProps) {
-  // Group sponsors by tier, computing revenue from revenue or contractValue
-  const byTier = TIER_ORDER.map((tier) => {
-    const tierSponsors = sponsors.filter((s) => s.tier === tier);
-    return {
-      tier,
-      color: TIER_COLORS[tier] || '#C9A84C',
-      sponsors: tierSponsors.map((s) => ({
-        // A record saved without a name must not crash the whole dashboard.
-        name: s.name?.trim() || 'Unnamed sponsor',
-        revenue: s.revenue ?? s.contractValue ?? 0,
-      })),
-      total: tierSponsors.reduce((sum, s) => sum + (s.revenue ?? s.contractValue ?? 0), 0),
-    };
-  }).filter((g) => g.sponsors.length > 0);
+  // Tiers are free text, so group case-insensitively ("Platinum" with "platinum"), keeping the
+  // spelling first seen as the label. Other tiers keep the order they first appear in (stable sort).
+  const groups = new Map<string, { tier: string; color: string; sponsors: { name: string; revenue: number }[]; total: number }>();
+  for (const s of sponsors) {
+    const label = (s.tier ?? '').trim();
+    const key = label.toLowerCase();
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        tier: label || 'No tier',
+        color: TIER_COLORS.get(key) ?? (key ? OTHER_TIER_COLOR : NO_TIER_COLOR),
+        sponsors: [],
+        total: 0,
+      };
+      groups.set(key, group);
+    }
+    // A record saved without a name must not crash the whole dashboard.
+    const revenue = s.revenue ?? s.contractValue ?? 0;
+    group.sponsors.push({ name: s.name?.trim() || 'Unnamed sponsor', revenue });
+    group.total += revenue;
+  }
+  const byTier = [...groups.entries()]
+    .sort(([a], [b]) => tierRank(a) - tierRank(b))
+    .map(([, group]) => group);
 
   const totalRevenue = byTier.reduce((sum, g) => sum + g.total, 0);
   const maxRevenue = Math.max(...byTier.flatMap((g) => g.sponsors.map((s) => s.revenue)), 1);
