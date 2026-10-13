@@ -11,9 +11,9 @@
  */
 
 import { test, expect, Page } from '@playwright/test';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { cleanUnitDir, loadWithUnitDir, unitDir } from './support/email-unit';
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_TEST_PASSWORD ?? '';
@@ -34,8 +34,6 @@ test.describe.configure({ mode: 'serial' });
 // ═══════════════════════════════════════════════════════════════════════════════
 
 test.describe('email modules (in-process)', () => {
-  let unitDir = '';
-  let previousDir: string | undefined;
   let store: Store;
   let body: Body;
   let hash: Hash;
@@ -44,30 +42,22 @@ test.describe('email modules (in-process)', () => {
   let tokens: Tokens;
   let content: Content;
 
-  test.beforeAll(async () => {
-    previousDir = process.env.AB_DATA_DIR;
-    unitDir = mkdtempSync(join(tmpdir(), 'ab-email-unit-'));
-    process.env.AB_DATA_DIR = unitDir;
-    // require, not import(): Playwright transforms TypeScript on require, and the runtime data directory is read when
-    // the data module first loads, so this must happen here (in the worker, after AB_DATA_DIR is set), not at import time.
-    store = require('@/lib/email/store') as Store;
-    body = require('@/lib/email/body-format') as Body;
-    hash = require('@/lib/email/hash') as Hash;
-    seed = require('@/lib/email/seed') as Seed;
-    types = require('@/lib/email/types') as Types;
-    tokens = require('@/lib/email/design-tokens') as Tokens;
-    content = require('@/lib/email/design-system-content') as Content;
+  test.beforeAll(() => {
+    // require, not import(): Playwright transforms TypeScript on require, and the data module reads the runtime data
+    // directory when it first loads, so the modules load here, inside the worker, with AB_DATA_DIR pointing at the
+    // shared throw-away directory (see support/email-unit.ts).
+    loadWithUnitDir(() => {
+      store = require('@/lib/email/store') as Store;
+      body = require('@/lib/email/body-format') as Body;
+      hash = require('@/lib/email/hash') as Hash;
+      seed = require('@/lib/email/seed') as Seed;
+      types = require('@/lib/email/types') as Types;
+      tokens = require('@/lib/email/design-tokens') as Tokens;
+      content = require('@/lib/email/design-system-content') as Content;
+    });
   });
 
-  test.afterAll(() => {
-    if (previousDir === undefined) delete process.env.AB_DATA_DIR;
-    else process.env.AB_DATA_DIR = previousDir;
-    rmSync(unitDir, { recursive: true, force: true });
-  });
-
-  test.beforeEach(() => {
-    for (const file of readdirSync(unitDir)) rmSync(join(unitDir, file), { force: true });
-  });
+  test.beforeEach(() => cleanUnitDir());
 
   test('the body language: paragraphs, lists, bold, italic and https links; everything else is escaped', () => {
     const styles = { p: 'margin:0 0 12px', ul: 'margin:0', li: 'padding:2px 0', a: 'color:#C9A84C', strong: 'font-weight:700', em: 'font-style:italic' };
@@ -121,7 +111,7 @@ test.describe('email modules (in-process)', () => {
     expect(list[0].versions).toHaveLength(1);
     expect(list[0].versions[0]).toMatchObject({ version: 1, createdBy: 'seed' });
     expect(list[0].versions[0].fields).toEqual(seed.SEED_WELCOME_FIELDS);
-    expect(readdirSync(unitDir)).toEqual([]);
+    expect(readdirSync(unitDir())).toEqual([]);
   });
 
   test('create, duplicate and delete templates; keys are unique and well formed', async () => {
@@ -231,21 +221,21 @@ test.describe('email modules (in-process)', () => {
 
   test('the stores are strict: a file that does not parse raises and is left exactly as it was', async () => {
     const damaged = '[{"id":"tpl-1","versions":[';
-    writeFileSync(join(unitDir, 'email-templates.json'), damaged, 'utf-8');
+    writeFileSync(join(unitDir(), 'email-templates.json'), damaged, 'utf-8');
     await expect(store.getEmailTemplates()).rejects.toThrow();
     await expect(store.createEmailTemplate({ key: 'other_one', name: 'x' })).rejects.toThrow();
-    expect(readFileSync(join(unitDir, 'email-templates.json'), 'utf-8')).toBe(damaged);
-    writeFileSync(join(unitDir, 'email-settings.json'), '{oops', 'utf-8');
+    expect(readFileSync(join(unitDir(), 'email-templates.json'), 'utf-8')).toBe(damaged);
+    writeFileSync(join(unitDir(), 'email-settings.json'), '{oops', 'utf-8');
     await expect(store.getEmailSettings()).rejects.toThrow();
     await expect(store.updateEmailSettings({ hourlyCap: 5 })).rejects.toThrow();
-    expect(readFileSync(join(unitDir, 'email-settings.json'), 'utf-8')).toBe('{oops');
+    expect(readFileSync(join(unitDir(), 'email-settings.json'), 'utf-8')).toBe('{oops');
   });
 
   test('the stores live in the runtime data directory only', async () => {
     await store.createEmailTemplate({ key: 'where_am_i', name: 'x' });
     await store.updateEmailSettings({ hourlyCap: 7 });
     await store.saveBrandGuidelines(store.parseGuidelinesText(`${seed.DEFAULT_GUIDELINES_TEXT}\nMore.`), 'admin');
-    expect(readdirSync(unitDir).sort()).toEqual(['email-guidelines.json', 'email-settings.json', 'email-templates.json']);
+    expect(readdirSync(unitDir()).sort()).toEqual(['email-guidelines.json', 'email-settings.json', 'email-templates.json']);
     for (const file of ['email-templates.json', 'email-settings.json', 'email-guidelines.json']) {
       expect(existsSync(join(process.cwd(), 'public', 'data', file)), `public/data/${file}`).toBe(false);
       expect(existsSync(join(process.cwd(), 'data', file)), `data/${file}`).toBe(false);

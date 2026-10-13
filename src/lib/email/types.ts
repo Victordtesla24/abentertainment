@@ -44,6 +44,8 @@ export interface GateIssue {
   suggestion?: string;
   /** Whether the AI fix step may change the content to resolve it (false: layout, configuration, global). */
   fixable: boolean;
+  /** How serious it is. Deterministic issues are always blockers; the AI reviewer also reports advisory minor ones. */
+  severity?: 'blocker' | 'major' | 'minor';
 }
 
 export const AI_DIMENSIONS = ['content', 'brand', 'tone', 'language', 'quality'] as const;
@@ -70,6 +72,8 @@ export interface GateRound {
   ai: AiReview | null;
   /** Why there is no AI review for this round ("unavailable", "invalid_response", "skipped"). */
   aiError?: string;
+  /** What went wrong with the AI reviewer, in words that name no key or address. */
+  aiErrorDetail?: string;
   passed: boolean;
   /** The fields the AI changed to produce the next round, and why. */
   fixedFields?: string[];

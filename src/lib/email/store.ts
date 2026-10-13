@@ -17,6 +17,9 @@ import {
   type EmailFields,
   type EmailSettings,
   type EmailTemplate,
+  type GateResult,
+  type TemplateApproval,
+  type TemplateReviewRecord,
   type TemplateVersion,
 } from './types';
 
@@ -93,7 +96,7 @@ function parseKey(value: unknown): string {
   return value;
 }
 
-const BLANK_FIELDS: EmailFields = { subject: '', preheader: '', eyebrow: '', heading: '', body: '', ctaLabel: '', ctaUrl: '' };
+export const BLANK_FIELDS: EmailFields = { subject: '', preheader: '', eyebrow: '', heading: '', body: '', ctaLabel: '', ctaUrl: '' };
 
 function pruneVersions(template: EmailTemplate): void {
   if (template.versions.length <= MAX_VERSIONS_PER_TEMPLATE) return;
@@ -237,6 +240,86 @@ export async function deleteEmailTemplate(id: string): Promise<EmailTemplate> {
     const target = list.find((t) => t.id === id);
     if (!target) throw new EmailStoreError('not_found', 'Template not found');
     return { list: list.filter((t) => t.id !== id), result: target };
+  });
+}
+
+/**
+ * Record the outcome of a quality review on the version that was reviewed. When the gate passed with the content
+ * as it was, that version is approved. When the AI fix loop changed the content, the fixed content becomes a NEW
+ * version (created by "ai-fix") that carries the approval; the version that was reviewed keeps its content and is
+ * not approved. A blocked review is recorded on the version without an approval.
+ */
+export async function recordGateOutcome(
+  templateId: string,
+  versionNumber: number,
+  outcome: { result: GateResult; approval: TemplateApproval | null },
+): Promise<{ template: EmailTemplate; approvedVersion: number | null }> {
+  const now = new Date().toISOString();
+  return mutateEmailTemplates((list) => {
+    const index = list.findIndex((t) => t.id === templateId);
+    if (index === -1) throw new EmailStoreError('not_found', 'Template not found');
+    const template: EmailTemplate = structuredClone(list[index]);
+    const reviewed = findVersion(template, versionNumber);
+    if (!reviewed) throw new EmailStoreError('not_found', 'Version not found');
+    const { result, approval } = outcome;
+    const review: TemplateReviewRecord = { at: result.finishedAt, passed: result.passed, stopReason: result.stopReason, rounds: result.rounds };
+    let approvedVersion: number | null = null;
+    if (result.passed && approval) {
+      if (result.finalHash === reviewed.hash) {
+        reviewed.review = review;
+        reviewed.approval = approval;
+        approvedVersion = reviewed.version;
+      } else {
+        const fixed: TemplateVersion = {
+          version: latestVersion(template).version + 1,
+          fields: result.finalFields,
+          hash: result.finalHash,
+          createdAt: now,
+          createdBy: 'ai-fix',
+          parentVersion: reviewed.version,
+          note: `Fixed by the quality review in ${result.rounds.length} round(s)`,
+          review: { ...review, resultVersion: latestVersion(template).version + 1 },
+          approval,
+        };
+        reviewed.review = { ...review, resultVersion: fixed.version };
+        template.versions.push(fixed);
+        pruneVersions(template);
+        approvedVersion = fixed.version;
+      }
+    } else {
+      reviewed.review = review;
+    }
+    template.updatedAt = now;
+    const next = [...list];
+    next[index] = template;
+    return { list: next, result: { template, approvedVersion } };
+  });
+}
+
+/**
+ * Choose the version used for sending (null switches sending of this template off by deactivating it). The caller
+ * supplies the check that the version is approved right now; an unapproved or stale version is refused.
+ */
+export async function setActiveVersion(
+  templateId: string,
+  versionNumber: number | null,
+  refusal: (version: TemplateVersion) => string | null,
+): Promise<EmailTemplate> {
+  return mutateEmailTemplates((list) => {
+    const index = list.findIndex((t) => t.id === templateId);
+    if (index === -1) throw new EmailStoreError('not_found', 'Template not found');
+    const template: EmailTemplate = structuredClone(list[index]);
+    if (versionNumber !== null) {
+      const version = findVersion(template, versionNumber);
+      if (!version) throw new EmailStoreError('not_found', 'Version not found');
+      const reason = refusal(version);
+      if (reason) throw new EmailStoreError('conflict', reason);
+    }
+    template.activeVersion = versionNumber;
+    template.updatedAt = new Date().toISOString();
+    const next = [...list];
+    next[index] = template;
+    return { list: next, result: template };
   });
 }
 

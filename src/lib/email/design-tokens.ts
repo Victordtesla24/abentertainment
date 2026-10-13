@@ -127,9 +127,21 @@ export function isBrandFontFamily(value: string): boolean {
   return ALLOWED_FONTS.has(value.trim().replace(/^["']|["']$/g, '').toLowerCase());
 }
 
+/** Character references in an attribute value, as a browser reads them (the layout may write a quote as &#39;). */
+function decodeCharacterReferences(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);/gi, (_m, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_m, dec: string) => String.fromCodePoint(Number(dec)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
 /** Every inline style value and style block of a piece of HTML, as plain CSS text. */
 function styleText(html: string): string {
-  const attributes = [...html.matchAll(/\sstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)].map((m) => m[1] ?? m[2] ?? '');
+  const attributes = [...html.matchAll(/\sstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)].map((m) => decodeCharacterReferences(m[1] ?? m[2] ?? ''));
   const blocks = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]);
   return [...attributes, ...blocks].join(';');
 }
