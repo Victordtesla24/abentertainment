@@ -14,6 +14,7 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import * as THREE from 'three';
+import styles from './CinematicHero.module.css';
 
 // ─── Hero Slide Data ────────────────────────────────────────────────────────
 const heroSlides = [
@@ -44,6 +45,21 @@ const METRICS_SLIDE_ID = 'slide-3';
 
 const EASE: [number, number, number, number] = [0.25, 1, 0.5, 1];
 const SLIDE_DURATION = 8000;
+
+/**
+ * Advance width of each headline in em (Playfair Display Black, uppercase,
+ * tracking-tight), measured in Chromium with the shipped font. It lets the
+ * stylesheet size the single-line title to its container before any script
+ * runs; titles not listed here fall back to a conservative per-character width.
+ */
+const TITLE_WIDTH_EM: Record<string, number> = {
+  'AB ENTERTAINMENT': 10.14,
+  'CULTURAL EXCELLENCE': 11.81,
+  'UNFORGETTABLE MOMENTS': 14.09,
+};
+const FALLBACK_EM_PER_CHAR = 0.68;
+/** Same breathing room the JS fit leaves (3%). */
+const TITLE_FIT_FACTOR = 0.97;
 
 // ─── Volumetric Spotlight WebGL Layer ───────────────────────────────────────
 function VolumetricSpotlight({ className }: { className?: string }) {
@@ -362,9 +378,12 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
     return () => clearInterval(interval);
   }, [isPaused]);
 
+  const titleEm = TITLE_WIDTH_EM[slides[currentSlide].title] ?? slides[currentSlide].title.length * FALLBACK_EM_PER_CHAR;
+  const titleFit = `calc((100cqw - 2rem) * ${TITLE_FIT_FACTOR} / ${titleEm})`;
+
   return (
     <section
-      className="relative w-full h-dvh min-h-[34rem] overflow-hidden bg-black"
+      className="relative w-full min-h-dvh overflow-hidden bg-black"
       role="region"
       aria-roledescription="carousel"
       aria-label="Hero slideshow"
@@ -416,9 +435,10 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
       {/* Volumetric Spotlight WebGL Layer */}
       <VolumetricSpotlight className="z-[4]" />
 
-      {/* Hero Content */}
+      {/* Hero Content — min-h/padding (not a fixed height) so a short viewport grows
+          the hero instead of clipping the logo under the nav or the buttons below. */}
       <motion.div
-        className="relative z-10 w-full h-full flex flex-col items-center justify-center text-center"
+        className="relative z-10 w-full min-h-dvh flex flex-col items-center justify-center text-center py-20"
         style={{ y: parallaxContent, opacity: heroOpacity }}
         initial={{ opacity: 0, y: 24, filter: 'blur(10px)' }}
         animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
@@ -449,7 +469,7 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
-            className="max-w-5xl px-6"
+            className="@container w-full max-w-5xl px-4 sm:px-6"
           >
             <motion.div
               initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
@@ -467,8 +487,8 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
               initial={{ opacity: 0, y: 40, filter: 'blur(8px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               transition={{ duration: 1, delay: 0.3, ease: EASE }}
-              className="px-4 w-full text-[2.5rem] sm:text-5xl md:text-7xl lg:text-[6rem] xl:text-[7.5rem] font-black leading-[0.9] tracking-tight uppercase mb-7 whitespace-nowrap"
-              style={{ fontFamily: 'var(--font-display), Georgia, serif' }}
+              className={`${styles.title} w-full px-0 sm:px-4 font-black leading-[0.9] tracking-tight uppercase mb-7 whitespace-nowrap`}
+              style={{ fontFamily: 'var(--font-display), Georgia, serif', '--fit': titleFit } as React.CSSProperties}
             >
               <span className="gold-shimmer">{slides[currentSlide].title}</span>
             </motion.h1>
@@ -517,35 +537,39 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
           </Link>
         </motion.div>
 
-        {/* Carousel dots */}
+        {/* Carousel dots — a 44px-tall hit area around each 2px bar (negative margin keeps the layout height) */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.4 }}
-          className="mt-14 flex gap-3 items-center"
+          className="mt-14 flex items-center"
         >
           {slides.map((_, index) => (
             <button
               key={index}
               onClick={() => goToSlide(index)}
               onKeyDown={(e) => handleDotKeyDown(e, index)}
-              className={`relative h-[2px] transition-all duration-700 ease-out overflow-hidden focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-4 ${
-                currentSlide === index
-                  ? 'bg-[#C9A84C]/30 w-12'
-                  : 'bg-white/50 w-3 hover:bg-white/60'
-              }`}
+              className="group relative -my-5 flex h-11 items-center justify-center px-1.5 pointer-coarse:min-w-11 focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-[-2px]"
               aria-current={currentSlide === index ? 'true' : 'false'}
               aria-label={`Go to slide ${index + 1}`}
             >
-              {currentSlide === index && (
-                <motion.div
-                  className="absolute inset-0 bg-[#C9A84C]"
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{ duration: SLIDE_DURATION / 1000, ease: 'linear' }}
-                  style={{ transformOrigin: 'left' }}
-                />
-              )}
+              <span
+                className={`relative block h-[2px] overflow-hidden transition-all duration-700 ease-out ${
+                  currentSlide === index
+                    ? 'bg-[#C9A84C]/30 w-12'
+                    : 'bg-white/50 w-3 group-hover:bg-white/60'
+                }`}
+              >
+                {currentSlide === index && (
+                  <motion.span
+                    className="absolute inset-0 bg-[#C9A84C]"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ duration: SLIDE_DURATION / 1000, ease: 'linear' }}
+                    style={{ transformOrigin: 'left' }}
+                  />
+                )}
+              </span>
             </button>
           ))}
         </motion.div>
