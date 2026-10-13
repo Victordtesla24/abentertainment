@@ -207,10 +207,8 @@ export default function Footer() {
         <div className="container-eu py-3.5 text-center">
           <p className="text-white/45 text-xs font-body leading-relaxed">
             For new website development, business &amp; all technical queries, contact:{' '}
-            <span className="text-white/65">Vik</span>
-            <span className="mx-1.5 text-white/30">|</span>
             <a
-              href="mailto:sarkar.vikram@gmail.com"
+              href={`mailto:${SITE_CONFIG.contact.email}`}
               className="text-[#C9A84C]/85 hover:text-[#C9A84C] transition-colors duration-300 whitespace-nowrap"
             >
               abentertainment support
