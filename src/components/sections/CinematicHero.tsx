@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
-import { afterLoadAndIdle } from '@/lib/perf/schedule';
+import { afterLoadAndIdle, afterLoadDelayAndIdle } from '@/lib/perf/schedule';
 import { buildHeroSubtitle } from '@/lib/site-metrics';
 import { useSiteMetrics } from '@/lib/use-site-metrics';
 import type { SiteMetric } from '@/lib/data';
@@ -62,13 +62,17 @@ const FALLBACK_EM_PER_CHAR = 0.68;
 const TITLE_FIT_FACTOR = 0.97;
 
 // ─── Volumetric Spotlight WebGL Layer ───────────────────────────────────────
+/** The beams are decorative: they start this long after the page has loaded, then fade in. */
+const SPOTLIGHT_DELAY_MS = 4000;
+
 /**
- * Decorative beams + dust. The renderer (and three.js itself) is loaded only
- * after the page has finished loading and the main thread is idle, so it can
- * never delay first paint, hydration or the load event.
+ * Decorative beams + dust. The renderer (and three.js itself, ~125 KB gzipped) is
+ * loaded only well after the page has finished loading and the main thread is idle,
+ * so it can never delay first paint, hydration, the load event or the first taps.
  */
 function VolumetricSpotlight({ className }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -78,16 +82,18 @@ function VolumetricSpotlight({ className }: { className?: string }) {
 
     let cancelled = false;
     let mounted: { dispose(): void } | null = null;
-    const cancelSchedule = afterLoadAndIdle(() => {
+    const cancelSchedule = afterLoadDelayAndIdle(() => {
       import('@/lib/three-engine/HeroSpotlight')
         .then(({ mountHeroSpotlight }) => {
-          if (!cancelled) mounted = mountHeroSpotlight(canvas, host);
+          if (cancelled) return;
+          mounted = mountHeroSpotlight(canvas, host);
+          if (mounted) setVisible(true);
         })
         .catch((error: unknown) => {
           // The hero is complete without the beams; report, don't break the page.
           console.warn('[hero] spotlight unavailable', error);
         });
-    });
+    }, SPOTLIGHT_DELAY_MS);
 
     return () => {
       cancelled = true;
@@ -107,6 +113,8 @@ function VolumetricSpotlight({ className }: { className?: string }) {
         width: '100%',
         height: '100%',
         pointerEvents: 'none',
+        opacity: visible ? 1 : 0,
+        transition: 'opacity 1s ease',
       }}
     />
   );

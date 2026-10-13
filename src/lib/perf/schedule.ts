@@ -35,3 +35,27 @@ export function afterLoadAndIdle(task: () => void, idleTimeoutMs = 2500): () => 
     if (timeoutHandle !== null) clearTimeout(timeoutHandle);
   };
 }
+
+/**
+ * Like {@link afterLoadAndIdle}, but waits `delayMs` after the page has loaded before it
+ * even asks for an idle moment. For decorative work that nobody needs in order to read or
+ * use the page, so it stays out of the load-time profile (and off the main thread while the
+ * page is being hydrated and first interacted with).
+ */
+export function afterLoadDelayAndIdle(task: () => void, delayMs: number): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let cancelIdle: (() => void) | null = null;
+
+  const cancelLoad = afterLoadAndIdle(() => {
+    timer = setTimeout(() => {
+      timer = null;
+      cancelIdle = afterLoadAndIdle(task);
+    }, delayMs);
+  });
+
+  return () => {
+    cancelLoad();
+    if (timer !== null) clearTimeout(timer);
+    cancelIdle?.();
+  };
+}
