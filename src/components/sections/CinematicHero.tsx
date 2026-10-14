@@ -66,6 +66,15 @@ const TITLE_FIT_FACTOR = 0.97;
 const SPOTLIGHT_DELAY_MS = 4000;
 
 /**
+ * The film grain is a 1.5 % overlay of SVG noise that the browser has to rasterise in software before it can commit
+ * the first frame, which holds the main thread for tens of milliseconds just while the page is loading. It is
+ * decorative, so it is applied once the first screen has settled (the element, and its animation, are there from the
+ * start; only its image is added).
+ */
+const GRAIN_DELAY_MS = 4500;
+const GRAIN_NOT_YET: React.CSSProperties = { backgroundImage: 'none' };
+
+/**
  * Decorative beams + dust. The renderer is loaded only well after the page has
  * finished loading and the main thread is idle, so it can never delay first paint,
  * hydration, the load event or the first taps.
@@ -225,6 +234,9 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
   // waits on the network.
   useEffect(() => afterLoadAndIdle(() => setUpNext(true)), []);
 
+  const [grainReady, setGrainReady] = useState(false);
+  useEffect(() => afterLoadDelayAndIdle(() => setGrainReady(true), GRAIN_DELAY_MS), []);
+
   const slide = slides[currentSlide];
   const nextSlide = slides[(currentSlide + 1) % slides.length];
   const titleEm = TITLE_WIDTH_EM[slide.title] ?? slide.title.length * FALLBACK_EM_PER_CHAR;
@@ -284,7 +296,7 @@ export function CinematicHero({ initialMetrics }: { initialMetrics: SiteMetric[]
       <div className="absolute inset-0 z-[2]" style={{
         background: 'radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,0.7) 100%)',
       }} />
-      <div className="film-grain" />
+      <div className="film-grain" style={grainReady ? undefined : GRAIN_NOT_YET} />
       <div className="absolute inset-0 z-[3] opacity-[0.04]" style={{
         background: 'radial-gradient(ellipse at 50% 80%, rgba(201,168,76,0.3), transparent 60%)',
       }} />
