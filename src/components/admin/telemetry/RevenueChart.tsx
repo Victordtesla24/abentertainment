@@ -49,10 +49,8 @@ export function RevenueChart({ sponsors }: RevenueChartProps) {
     <div data-testid="bi-revenue-chart" className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35">Sponsor Revenue (recorded)</p>
-          {total.amounts.length === 0 ? (
-            <p className="text-xs font-body text-white/30 mt-1">Not recorded</p>
-          ) : (
+          <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35">Sponsor revenue (recorded)</p>
+          {total.amounts.length === 0 ? null : (
             <p className="text-lg font-display font-bold text-white mt-0.5">{total.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' · ')}</p>
           )}
           <p className="text-[9px] font-body text-white/25 mt-0.5">{describeCoverage(total.coverage, 'sponsor')}</p>
@@ -75,7 +73,7 @@ export function RevenueChart({ sponsors }: RevenueChartProps) {
 
       {bars.length === 0 ? (
         <div className="py-8 text-center">
-          <p className="text-xs font-body text-white/30">Sponsor revenue is not recorded. Enter Revenue on each sponsor in the Sponsors tab.</p>
+          <p className="text-xs font-body text-white/30">Not recorded. Enter Revenue on each sponsor (Sponsors tab).</p>
         </div>
       ) : (
         <svg
@@ -156,7 +154,10 @@ export function RevenueChart({ sponsors }: RevenueChartProps) {
                   {g.revenue.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' · ')}
                 </p>
               )}
-              <p className="text-[9px] font-body text-white/25">{describeCoverage(g.revenue.coverage, 'sponsor')}</p>
+              <p className="text-[9px] font-body text-white/25">
+                {describeCoverage(g.revenue.coverage, 'sponsor')}
+                {g.revenue.amounts.length === 0 ? '. Enter Revenue (Sponsors tab)' : ''}
+              </p>
             </div>
           ))}
         </div>

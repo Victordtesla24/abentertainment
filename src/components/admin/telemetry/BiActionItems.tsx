@@ -6,6 +6,18 @@ import { CARD, Chip, EmptyNote, Panel } from './biParts';
 
 const TAB_NAME: Record<AdminTab, string> = { events: 'Events', sponsors: 'Sponsors' };
 
+/**
+ * Starts the tab that is about to open at its top: every ancestor of the button that is scrolled (the content column, where it
+ * scrolls) and the page itself. Scrolling only the window would leave a scrolled content column where it is.
+ */
+function scrollToTop(from: HTMLElement): void {
+  for (let node = from.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollTop > 0) node.scrollTo({ top: 0, behavior: 'instant' });
+  }
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
 /** "3 high, 5 medium and 2 low" for the line under the title. */
 function summaryOf(items: readonly ActionItem[]): string {
   const parts = (['high', 'medium', 'low'] as const).flatMap((severity) => {
@@ -20,9 +32,9 @@ function summaryOf(items: readonly ActionItem[]): string {
  * affects, and opens the tab where it is fixed.
  */
 export function BiActionItems({ items, onNavigate }: { items: readonly ActionItem[]; onNavigate?: (tab: AdminTab) => void }) {
-  const open = (tab: AdminTab) => {
+  const open = (tab: AdminTab, button: HTMLElement) => {
     onNavigate?.(tab);
-    window.scrollTo({ top: 0 });
+    scrollToTop(button);
   };
 
   return (
@@ -52,7 +64,7 @@ export function BiActionItems({ items, onNavigate }: { items: readonly ActionIte
                   </p>
                 ))}
                 {onNavigate ? (
-                  <button type="button" onClick={() => open(item.target)} data-testid={`bi-action-${item.id}-open`} className={`${buttonClasses} mt-3`}>
+                  <button type="button" onClick={(event) => open(item.target, event.currentTarget)} data-testid={`bi-action-${item.id}-open`} className={`${buttonClasses} mt-3`}>
                     Open {TAB_NAME[item.target]}
                   </button>
                 ) : null}

@@ -1,7 +1,19 @@
 'use client';
 
-import { describeCoverage, formatMoney, type AdminBi } from '@/lib/admin-bi';
-import { BarRow, Cell, EmptyNote, MoneyInline, Panel, Unit } from './biParts';
+import type { ReactNode } from 'react';
+import { describeCoverage, formatMoney, type AdminBi, type MoneyStat } from '@/lib/admin-bi';
+import { BarRow, Cell, EmptyNote, MoneyInline, Num, Panel, Unit } from './biParts';
+
+/** A tier's money in a line of words: the amounts in the numeric bundle, or "not recorded" in the body font. */
+function tierMoney(stat: MoneyStat): ReactNode {
+  if (stat.amounts.length === 0) return 'not recorded';
+  return stat.amounts.map((entry, index) => (
+    <span key={entry.currency}>
+      {index > 0 ? ' and ' : null}
+      <Num>{formatMoney(entry.amount, entry.currency)}</Num>
+    </span>
+  ));
+}
 
 /** Sponsors by tier, what their contracts and revenue add up to where it is recorded, and how many events they are linked to. */
 export function BiSponsorPanel({ bi }: { bi: AdminBi }) {
@@ -18,10 +30,16 @@ export function BiSponsorPanel({ bi }: { bi: AdminBi }) {
             <Cell label="Sponsors" note={`${sponsors.visible} shown on the website · ${sponsors.hidden} hidden`}>
               {sponsors.total}
             </Cell>
-            <Cell label="Revenue (recorded)" note={describeCoverage(sponsors.revenue.coverage, 'sponsor')}>
+            <Cell
+              label="Sponsor revenue (recorded)"
+              note={`${describeCoverage(sponsors.revenue.coverage, 'sponsor')}${sponsors.revenue.amounts.length === 0 ? '. Enter Revenue on each sponsor (Sponsors tab)' : ''}`}
+            >
               <MoneyInline stat={sponsors.revenue} />
             </Cell>
-            <Cell label="Contract value (recorded)" note={describeCoverage(sponsors.contractValue.coverage, 'sponsor')}>
+            <Cell
+              label="Sponsor contract value (recorded)"
+              note={`${describeCoverage(sponsors.contractValue.coverage, 'sponsor')}${sponsors.contractValue.amounts.length === 0 ? '. Enter Contract Value on each sponsor (Sponsors tab)' : ''}`}
+            >
               <MoneyInline stat={sponsors.contractValue} />
             </Cell>
             <Cell
@@ -34,7 +52,7 @@ export function BiSponsorPanel({ bi }: { bi: AdminBi }) {
               {sponsors.unlinked.count}
             </Cell>
           </dl>
-          <ul className="space-y-3 mt-4 pt-3 border-t border-white/5">
+          <ul className="space-y-3 mt-3 pt-3 border-t border-white/5">
             {sponsors.tiers.map((tier) => (
               <li key={tier.key || 'none'} data-testid={`bi-tier-${tier.key || 'none'}`}>
                 <BarRow
@@ -48,11 +66,9 @@ export function BiSponsorPanel({ bi }: { bi: AdminBi }) {
                   }
                 />
                 <p className="text-[10px] font-body text-white/40 mt-1">
-                  {tier.visible} shown · {tier.hidden} hidden · revenue{' '}
-                  {tier.revenue.amounts.length === 0 ? 'not recorded' : tier.revenue.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' and ')} (
-                  {tier.revenue.coverage.recorded} of {tier.revenue.coverage.total}) · contract value{' '}
-                  {tier.contractValue.amounts.length === 0 ? 'not recorded' : tier.contractValue.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' and ')} (
-                  {tier.contractValue.coverage.recorded} of {tier.contractValue.coverage.total})
+                  <Num>{tier.visible}</Num> shown · <Num>{tier.hidden}</Num> hidden · revenue {tierMoney(tier.revenue)} (<Num>{tier.revenue.coverage.recorded}</Num> of{' '}
+                  <Num>{tier.revenue.coverage.total}</Num>) · contract value {tierMoney(tier.contractValue)} (<Num>{tier.contractValue.coverage.recorded}</Num> of{' '}
+                  <Num>{tier.contractValue.coverage.total}</Num>)
                 </p>
               </li>
             ))}

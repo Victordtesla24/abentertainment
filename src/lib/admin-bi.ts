@@ -454,9 +454,9 @@ export function isoOfDay(day: number): string {
   return new Date(day * MS_PER_DAY).toISOString().slice(0, 10);
 }
 
-/** A day number as "15 Nov 2026". */
-export function formatDay(day: number): string {
-  return new Date(day * MS_PER_DAY).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+/** A day number as "15 Nov 2026", or "15 Nov 26" with a two-digit year (the way the ticket sales table has always written it). */
+export function formatDay(day: number, year: 'numeric' | '2-digit' = 'numeric'): string {
+  return new Date(day * MS_PER_DAY).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year, timeZone: 'UTC' });
 }
 
 /** "Today", "Tomorrow", "in 32 days", "yesterday", "3 days ago". */
@@ -478,8 +478,10 @@ function roundHalfUp(value: number): number {
 }
 
 /**
- * Money the way the Sponsors tab writes it (en-AU, the currency's own symbol), without cents unless the amount has cents.
- * A currency that is not a three-letter code is written as typed, before the number.
+ * Money as an en-AU currency amount with the currency's own symbol. Cents are written only when the amount has them (49.5 is
+ * "$49.50"; 1,234 is "$1,234"). That differs from the Sponsors tab's formatter, which always rounds to the whole unit, so a
+ * recorded price such as $49.50 is never rounded away here. A currency that is not a three-letter code is written as typed,
+ * before the number.
  */
 export function formatMoney(amount: number, currency: string): string {
   const cents = roundHalfUp(amount * 100);

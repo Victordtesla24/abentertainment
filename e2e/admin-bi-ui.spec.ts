@@ -81,6 +81,27 @@ function event(id: string, extra: Partial<Event> = {}): Event {
 const card = (page: Page, id: string) => page.getByTestId(id);
 const refresh = (page: Page) => page.getByRole('button', { name: 'Refresh', exact: true });
 
+/** Every scroll offset of the page: the window's, and the largest offset of any scrolling container (the content column, if it scrolls). */
+const offsets = (page: Page) =>
+  page.evaluate(() => {
+    const scrolled = [...document.querySelectorAll('*')].filter((element) => {
+      const { overflowY } = getComputedStyle(element);
+      return (overflowY === 'auto' || overflowY === 'scroll') && element.scrollTop > 0;
+    });
+    return { window: Math.round(window.scrollY), container: Math.max(0, ...scrolled.map((element) => Math.round(element.scrollTop))) };
+  });
+
+/** Scroll down to an action button, click it, and see the tab it opens start at the very top. */
+async function opensAtTop(page: Page): Promise<void> {
+  const button = page.getByTestId('bi-action-record-ticket-sales-open');
+  await button.scrollIntoViewIfNeeded();
+  const before = await offsets(page);
+  expect(before.window + before.container, 'the page is scrolled down before the click').toBeGreaterThan(0);
+  await button.click();
+  await expect(page.getByRole('button', { name: '+ New Event' })).toBeVisible({ timeout: 20000 });
+  await expect.poll(() => offsets(page)).toEqual({ window: 0, container: 0 });
+}
+
 test.describe.configure({ mode: 'serial' });
 
 test.describe('the admin Dashboard: Business Intelligence', () => {
@@ -234,6 +255,26 @@ test.describe('the admin Dashboard: Business Intelligence', () => {
     await expect(page.getByTestId('bi-action-add-capacity')).toContainText('Add capacity to 4 upcoming events');
   });
 
+  test('an action button starts the opened tab at its top, in the page and in a content column that scrolls', async () => {
+    await opensAtTop(page);
+    await openTab(page, 'Dashboard');
+    await expect(section(page)).toBeVisible({ timeout: 20000 });
+    await expect(note(page)).toHaveAttribute('data-state', 'live', { timeout: 30000 });
+    // the same when the content column is what scrolls (it has overflow-auto, and scrolls once its height is limited)
+    const column = page.locator('div.flex-1.overflow-auto').first();
+    await column.evaluate((element) => {
+      element.style.height = '700px';
+      element.style.maxHeight = '700px';
+    });
+    const button = page.getByTestId('bi-action-record-ticket-sales-open');
+    await button.scrollIntoViewIfNeeded();
+    expect(await column.evaluate((element) => element.scrollTop), 'the column is scrolled down before the click').toBeGreaterThan(0);
+    await button.click();
+    await expect(page.getByRole('button', { name: '+ New Event' })).toBeVisible({ timeout: 20000 });
+    await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  });
+
   // ─── the forecast: marked as an estimate, with its source ─────────────────
 
   test('the forecast is marked as an estimate, says where the sell-through comes from, and keeps the recorded figures apart', async () => {
@@ -325,7 +366,7 @@ test.describe('the admin Dashboard: Business Intelligence', () => {
     await expect(theatre).toContainText('$36,000');
     await expect(theatre).toContainText('National average (2024, paid tickets): Theatre $83.86 · Comedy $74.17');
     await expect(theatre).toContainText('LPA 2015 Theatre average 52%');
-    await expect(theatre).toContainText('Not recorded for any of its 9 events: recorded revenue, sell-through.');
+    await expect(theatre).toContainText('Not recorded for any of its 9 events: ticket revenue (recorded), sell-through. Enter Capacity, Tickets Sold and Ticket Revenue on each event (Events tab).');
     const concert = page.getByTestId('bi-group-live concert');
     await expect(concert).toContainText('Live Concert');
     await expect(concert).toContainText('5 events');
@@ -367,16 +408,109 @@ test.describe('the admin Dashboard: Business Intelligence', () => {
   test('the charts that always showed $0 now say "Not recorded"', async () => {
     const revenue = page.getByTestId('bi-revenue-chart');
     await expect(revenue).toContainText('Not recorded');
-    await expect(revenue).toContainText('Sponsor revenue is not recorded. Enter Revenue on each sponsor in the Sponsors tab.');
+    await expect(revenue).toContainText('Sponsor revenue (recorded)');
+    await expect(revenue).toContainText('Not recorded. Enter Revenue on each sponsor (Sponsors tab).');
+    await expect(revenue).toContainText('recorded for 0 of 20 sponsors');
     const tickets = page.getByTestId('bi-ticket-sales');
-    await expect(tickets).toContainText('Total Sold');
+    await expect(tickets).toContainText('Tickets sold (recorded)');
+    await expect(tickets).toContainText('Ticket revenue (recorded)');
     await expect(tickets).toContainText('Not recorded');
+    await expect(tickets).toContainText('Enter Tickets Sold on each event (Events tab)');
+    await expect(tickets).toContainText('Enter Ticket Revenue on each event (Events tab)');
     await expect(tickets).toContainText('Avg per ticket sold');
+    await expect(tickets).toContainText('Enter Tickets Sold and Ticket Revenue on the same event (Events tab)');
+    // the table keeps its original date format (day, month, two-digit year)
+    await expect(tickets).toContainText('15 Mar 25');
     const status = page.getByTestId('bi-revenue-by-status');
-    await expect(status).toContainText('Past (Recorded)');
-    await expect(status).toContainText('Upcoming & live (if every seat sold)');
+    await expect(status).toContainText('Ticket revenue (recorded), past events');
+    await expect(status).toContainText('Not recorded. Enter Ticket Revenue on each past event (Events tab).');
+    await expect(status).toContainText('Potential gross if sold out, upcoming & live events');
+    await expect(status).toContainText('Not recorded. Enter Price and Capacity on the same event (Events tab).');
     await expect(status).not.toContainText('Combined');
     await expect(status).not.toContainText('Projected');
+  });
+
+  test('the ticket sales table writes a date the way it always has, and says "No date" where the date cannot be read', async () => {
+    writeEvents([event('d-1', { date: '2026-03-05', title: 'Alpha Night' }), event('d-2', { date: 'sometime in spring', title: 'Bravo Night' })]);
+    await refresh(page).click();
+    const rows = page.getByTestId('bi-ticket-sales').locator('tbody tr');
+    await expect(rows.filter({ hasText: 'Alpha Night' })).toContainText('5 Mar 26', { timeout: 30000 });
+    await expect(rows.filter({ hasText: 'Bravo Night' })).toContainText('No date');
+    expect(await sectionText(page)).not.toContain('Invalid Date');
+  });
+
+  test('every "Not recorded" says where to record it', async () => {
+    const without = await section(page).evaluate((root) => {
+      // what is seen: the screen-reader-only words of the per-event table cells are answered by the cards above the table
+      const leaves = [...root.querySelectorAll('*')].filter((element) => element.childElementCount === 0 && !element.classList.contains('sr-only') && (element.textContent ?? '').trim() === 'Not recorded');
+      return leaves.filter((leaf) => {
+        let node: Element | null = leaf;
+        // the pointer is in the same card, cell or row: at most two levels up (a cell's value sits in a <dd>, its note in the next one)
+        for (let level = 0; level < 2 && node; level += 1) {
+          node = node.parentElement;
+          if (node && /\((Events|Sponsors) tab\)/.test(node.textContent ?? '')) return false;
+        }
+        return true;
+      }).map((leaf) => leaf.parentElement?.textContent?.slice(0, 80));
+    });
+    expect(without).toEqual([]);
+    // ...in the family's empty-state bundle where it is a block of its own
+    const blocks = section(page).locator('p.text-center', { hasText: /^Not recorded\./ });
+    expect(await blocks.count()).toBeGreaterThanOrEqual(2);
+    for (const block of await blocks.all()) await expect(block).toHaveClass(/text-xs font-body text-white\/30/);
+  });
+
+  test('one name per concept in every panel, and one phrase for an empty view', async () => {
+    await expect(card(page, 'bi-card-ticket-revenue')).toContainText('Ticket revenue (recorded)');
+    await expect(card(page, 'bi-card-tickets-sold')).toContainText('Tickets sold (recorded)');
+    await expect(card(page, 'bi-card-sponsor-revenue')).toContainText('Sponsor revenue (recorded)');
+    await expect(card(page, 'bi-card-sponsor-contract')).toContainText('Sponsor contract value (recorded)');
+    await expect(page.getByTestId('bi-ticket-sales')).toContainText('Ticket revenue (recorded)');
+    await expect(page.getByTestId('bi-ticket-sales')).toContainText('Tickets sold (recorded)');
+    await expect(page.getByTestId('bi-revenue-by-status')).toContainText('Ticket revenue (recorded)');
+    await expect(page.getByTestId('bi-revenue-chart')).toContainText('Sponsor revenue (recorded)');
+    await expect(page.getByTestId('bi-sponsors')).toContainText('Sponsor revenue (recorded)');
+    await expect(page.getByTestId('bi-sponsors')).toContainText('Sponsor contract value (recorded)');
+    // the rows say it too once something is recorded
+    writeEvents([event('n-1', { price: 50, capacity: 100, ticketsSold: 40, ticketRevenue: 1800 })]);
+    await refresh(page).click();
+    await expect(page.getByTestId('bi-group-general')).toContainText('Ticket revenue (recorded)', { timeout: 30000 });
+    // an empty view says one thing, everywhere
+    await page.getByRole('button', { name: 'Ongoing / Live', exact: true }).click();
+    for (const id of ['bi-categories', 'bi-venues', 'bi-pipeline', 'bi-forecast-upcoming', 'bi-forecast-past', 'bi-revenue-by-status', 'bi-ticket-sales']) {
+      await expect(page.getByTestId(id), id).toContainText('No events in this view.');
+    }
+    expect(await sectionText(page)).not.toMatch(/No (upcoming or live |such )?events(?! in this view)/);
+  });
+
+  test('status colours are the Dashboard\'s own (red, amber, green, purple of HealthDashboard and EventAnalytics), not Tailwind\'s palette shades', async () => {
+    // an urgent event with a gap (high), a live event (green chip), and the estimates (purple)
+    writeEvents([
+      ...LIVE_EVENTS_AS_SAVED,
+      event('c-urgent', { status: 'upcoming', date: '2026-10-20', title: 'Urgent Night', price: 0 }),
+      event('c-live', { status: 'live', date: '2026-10-14', title: 'Live Night', price: 20, capacity: 100 }),
+    ]);
+    await refresh(page).click();
+    await expect(page.getByTestId('bi-pipeline-row-c-live')).toBeVisible({ timeout: 30000 });
+    const colour = (locator: import('@playwright/test').Locator) => locator.evaluate((element) => getComputedStyle(element).color);
+    expect(await colour(page.locator('[data-testid="bi-action-add-prices"] span').first())).toBe('rgb(239, 68, 68)'); // high: #ef4444
+    expect(await colour(page.locator('[data-testid="bi-action-record-contract-values"] span').first())).toBe('rgb(245, 158, 11)'); // medium: #f59e0b
+    expect(await colour(page.getByTestId('bi-pipeline-row-c-live').getByText('Live', { exact: true }))).toBe('rgb(34, 197, 94)'); // #22c55e
+    expect(await colour(page.getByTestId('bi-pipeline-gaps-c-urgent').getByText('No price'))).toBe('rgb(245, 158, 11)');
+    expect(await colour(page.getByTestId('bi-pipeline-row-c-live').getByText('Estimate', { exact: true }).first())).toBe('rgb(168, 85, 247)'); // #a855f7
+    expect(await colour(page.getByTestId('bi-forecast-upcoming').locator('p.text-lg').first())).toBe('rgb(168, 85, 247)');
+    // and no class of Tailwind's own red, amber, green or purple palette is used in the section
+    const html = await section(page).evaluate((root) => root.innerHTML);
+    expect(html).not.toMatch(/(?:text|bg|border|fill|stroke)-(?:red|amber|green|purple)-\d{2,3}/);
+  });
+
+  test('the forecast figures are the family\'s inner-card values (text-lg, display, bold) and fit their card', async () => {
+    const figures = page.getByTestId('bi-forecast-upcoming').locator('p.text-lg');
+    expect(await figures.count()).toBe(3);
+    for (const figure of await figures.all()) {
+      await expect(figure).toHaveClass(/text-lg font-display font-bold/);
+      expect(await figure.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    }
   });
 
   // ─── the filter ───────────────────────────────────────────────────────────
@@ -393,7 +527,7 @@ test.describe('the admin Dashboard: Business Intelligence', () => {
     await page.getByRole('button', { name: 'Past', exact: true }).click();
     await expect(card(page, 'bi-card-average-price')).toContainText('recorded for 1 of 9 events');
     await expect(card(page, 'bi-card-potential-gross')).toContainText('$36,000');
-    await expect(page.getByTestId('bi-pipeline')).toContainText('No upcoming or live events in this view.');
+    await expect(page.getByTestId('bi-pipeline')).toContainText('No events in this view.');
     await expect(page.getByTestId('bi-action-record-ticket-sales')).toContainText('Record ticket sales for 9 past events');
     await expect(page.getByTestId('bi-action-add-capacity')).toHaveCount(0);
 
@@ -401,7 +535,7 @@ test.describe('the admin Dashboard: Business Intelligence', () => {
     await expect(card(page, 'bi-card-average-price')).toContainText('no events in this view');
     await expect(page.getByTestId('bi-categories')).toContainText('No events in this view.');
     await expect(page.getByTestId('bi-venues')).toContainText('No events in this view.');
-    await expect(page.getByTestId('bi-pipeline')).toContainText('No upcoming or live events in this view.');
+    await expect(page.getByTestId('bi-pipeline')).toContainText('No events in this view.');
 
     await page.getByRole('button', { name: 'All', exact: true }).click();
     await expect(card(page, 'bi-card-average-price')).toContainText('recorded for 6 of 14 events');
@@ -551,6 +685,14 @@ test.describe('Business Intelligence fits every device size', () => {
         await expect(button).toBeFocused();
 
         await section(page).screenshot({ path: testInfo.outputPath(`bi-${viewport.name}.png`) });
+
+        // the forecast figures are the family's inner-card values and fit their cards
+        for (const figure of await page.getByTestId('bi-forecast-upcoming').locator('p.text-lg').all()) {
+          expect(await figure.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), 'a forecast figure fits its card').toBe(true);
+        }
+
+        // an action button opens its tab at the top
+        await opensAtTop(page);
         expect(errors, 'console errors and uncaught errors').toEqual([]);
       } finally {
         await context.close();

@@ -14,6 +14,7 @@ import { BiForecastPanel } from './BiForecastPanel';
 import { BiPipelinePanel } from './BiPipelinePanel';
 import { BiGroupPanel } from './BiGroupPanel';
 import { BiSponsorPanel } from './BiSponsorPanel';
+import { AMBER } from './biParts';
 
 /** The public reference data the estimates lean on (src/lib/bi-reference.ts). */
 const REFERENCE: BiReference = {
@@ -37,7 +38,7 @@ export interface BusinessDataSource {
 function DataNote({ source }: { source: BusinessDataSource }) {
   if (source.failed.length > 0) {
     return (
-      <p role="status" data-testid="bi-data-note" data-state="fallback" className="text-[11px] font-body text-amber-500">
+      <p role="status" data-testid="bi-data-note" data-state="fallback" className="text-[11px] font-body" style={{ color: AMBER }}>
         Could not refresh the {source.failed.join(' and ')}: showing the data loaded earlier. Use Refresh to try again.
       </p>
     );
@@ -45,7 +46,7 @@ function DataNote({ source }: { source: BusinessDataSource }) {
   if (source.loading) {
     return (
       <p role="status" data-testid="bi-data-note" data-state="loading" className="text-[10px] font-body text-white/30">
-        {source.updatedAt ? 'Refreshing the admin data…' : 'Checking for the latest admin data…'}
+        {source.updatedAt ? 'Refreshing the admin data...' : 'Checking for the latest admin data...'}
       </p>
     );
   }

@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { describeCoverage, formatCount, formatEstimate, formatMoney, formatPercent, type ForecastAssumptions, type GroupRow } from '@/lib/admin-bi';
 import { buttonClasses } from '../newsletter/shared';
-import { BarRow, Cell, EmptyNote, EstimateLegend, EstimateTag, MoneyInline, Panel, SourceLink, Unit, describeLeftOut, describeSellThrough } from './biParts';
+import { AMBER, BarRow, Cell, EmptyNote, EstimateLegend, EstimateTag, MoneyInline, PURPLE, Panel, SourceLink, Unit, describeLeftOut, describeSellThrough } from './biParts';
 
 const COPY = {
   category: { title: 'Revenue & pricing by category', testId: 'bi-categories', plural: 'categories' },
@@ -14,6 +14,21 @@ const COPY = {
 const COLLAPSED_ROWS = 6;
 
 const events = (count: number) => (count === 1 ? 'event' : 'events');
+
+/** The Events form fields behind each figure, in the order of the form: where an admin records what is missing. */
+const FIELDS_BEHIND: Record<string, readonly string[]> = {
+  'Average price': ['Price'],
+  'Seats offered': ['Capacity'],
+  'Potential gross': ['Price', 'Capacity'],
+  'Ticket revenue (recorded)': ['Ticket Revenue'],
+  'Sell-through': ['Capacity', 'Tickets Sold'],
+};
+const FORM_ORDER = ['Price', 'Capacity', 'Tickets Sold', 'Ticket Revenue'];
+
+/** "Price, Capacity and Ticket Revenue". */
+function listOf(items: readonly string[]): string {
+  return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
 
 function rangeNote(row: GroupRow): string {
   const { ranges, coverage } = row.summary.price;
@@ -80,7 +95,7 @@ function GroupRowView({ row, maxEvents, kind, assumptions }: { row: GroupRow; ma
       note: `if every seat sold at the listed price; price and capacity ${describeCoverage(summary.potentialGross.coverage)}`,
     },
     {
-      label: 'Recorded revenue',
+      label: 'Ticket revenue (recorded)',
       recorded: summary.ticketRevenue.amounts.length > 0,
       value: <MoneyInline stat={summary.ticketRevenue} />,
       note:
@@ -100,7 +115,7 @@ function GroupRowView({ row, maxEvents, kind, assumptions }: { row: GroupRow; ma
       value: (
         <>
           {estimate.map((total) => (
-            <span key={total.currency} className="block text-purple-500">
+            <span key={total.currency} className="block" style={{ color: PURPLE }}>
               {formatEstimate(total.revenue.expected, total.currency)}
               {estimate.length > 1 ? <Unit small>{total.currency}</Unit> : null}
             </span>
@@ -120,6 +135,7 @@ function GroupRowView({ row, maxEvents, kind, assumptions }: { row: GroupRow; ma
   const shown = metrics.filter((metric) => metric.recorded);
   const missing = metrics.filter((metric) => !metric.recorded && metric.label !== 'Expected revenue');
   const noEstimate = estimate.length === 0;
+  const toRecord = FORM_ORDER.filter((field) => missing.some((metric) => FIELDS_BEHIND[metric.label]?.includes(field)) || (noEstimate && (field === 'Price' || field === 'Capacity')));
 
   return (
     <li data-testid={`bi-group-${row.key || 'none'}`}>
@@ -143,18 +159,19 @@ function GroupRowView({ row, maxEvents, kind, assumptions }: { row: GroupRow; ma
         </dl>
       ) : null}
       {missing.length > 0 || noEstimate ? (
-        <p data-testid={`bi-group-${row.key || 'none'}-missing`} className="text-[10px] font-body text-white/30 mt-2">
+        <p data-testid={`bi-group-${row.key || 'none'}-missing`} className="text-xs font-body text-white/30 text-center mt-2">
           {missing.length > 0 ? `Not recorded for ${row.events === 1 ? 'its event' : `any of its ${row.events} events`}: ${missing.map((metric) => metric.label.toLowerCase()).join(', ')}.` : ''}
           {noEstimate ? `${missing.length > 0 ? ' ' : ''}No estimate: ${describeLeftOut(forecast) || 'nothing to estimate'}.` : ''}
+          {toRecord.length > 0 ? ` Enter ${listOf(toRecord)} on each event (Events tab).` : ''}
         </p>
       ) : null}
       {row.similar.length > 0 ? (
-        <p className="text-[10px] font-body text-amber-500 mt-1.5 [overflow-wrap:anywhere]">
+        <p className="text-[10px] font-body mt-1.5 [overflow-wrap:anywhere]" style={{ color: AMBER }}>
           Possible duplicate: the same place is also saved as {row.similar.map((name) => `"${name}"`).join(', ')}.
         </p>
       ) : null}
       {row.variants.length > 0 ? (
-        <p className="text-[10px] font-body text-amber-500 mt-1.5 [overflow-wrap:anywhere]">
+        <p className="text-[10px] font-body mt-1.5 [overflow-wrap:anywhere]" style={{ color: AMBER }}>
           Saved with other spacing or capitals: {row.variants.map((variant) => `"${variant.text}" (${variant.events})`).join(', ')}.
         </p>
       ) : null}

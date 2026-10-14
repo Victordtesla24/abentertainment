@@ -1,7 +1,7 @@
 'use client';
 
 import { formatCount, formatEstimate, formatMoney, formatPercent, type ForecastAssumptions, type PipelineGap, type PipelineRow } from '@/lib/admin-bi';
-import { CARD, Cell, Chip, EmptyNote, EstimateLegend, EstimateTag, NotRecorded, Panel, SourceLink, describeSellThrough } from './biParts';
+import { AMBER, CARD, Cell, Chip, EmptyNote, EstimateLegend, EstimateTag, NotRecorded, PURPLE, Panel, SourceLink, describeSellThrough } from './biParts';
 
 const TICKET_STATUS: Record<PipelineRow['ticketStatus'], string> = {
   available: 'Available',
@@ -29,8 +29,8 @@ function gapLabel(gap: PipelineGap, row: PipelineRow): string {
 /** Why a row has no estimate. */
 function noEstimateReason(row: PipelineRow): string {
   if (row.recordedSales) return 'sales are recorded, so it is reported from them';
-  if (row.price === null) return 'needs a price';
-  return 'needs a capacity, or a venue in the reference data';
+  if (row.price === null) return 'needs a price: enter Price (Events tab)';
+  return 'needs a capacity, or a venue in the reference data: enter Capacity (Events tab)';
 }
 
 function PipelineRowView({ row, assumptions }: { row: PipelineRow; assumptions: ForecastAssumptions }) {
@@ -64,7 +64,9 @@ function PipelineRowView({ row, assumptions }: { row: PipelineRow; assumptions: 
       </div>
 
       <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-3 gap-y-2 mt-2">
-        <Cell label="Price">{row.price === null ? <NotRecorded /> : formatMoney(row.price.amount, row.price.currency)}</Cell>
+        <Cell label="Price" note={row.price === null ? 'Enter Price (Events tab)' : undefined}>
+          {row.price === null ? <NotRecorded /> : formatMoney(row.price.amount, row.price.currency)}
+        </Cell>
         <Cell
           label="Capacity"
           note={
@@ -77,7 +79,10 @@ function PipelineRowView({ row, assumptions }: { row: PipelineRow; assumptions: 
                     (<SourceLink url={row.capacity.venue.source.url}>source</SourceLink>)
                   </>
                 ) : null}
+                . Enter Capacity (Events tab)
               </>
+            ) : row.capacity === null ? (
+              'Enter Capacity (Events tab)'
             ) : undefined
           }
         >
@@ -113,12 +118,16 @@ function PipelineRowView({ row, assumptions }: { row: PipelineRow; assumptions: 
               Open link
             </a>
           ) : (
-            <span className="font-body font-normal text-amber-500">{row.ticketLink === 'malformed' ? 'Not a clean web address' : 'Missing'}</span>
+            <span className="font-body font-normal" style={{ color: AMBER }}>
+              {row.ticketLink === 'malformed' ? 'Not a clean web address' : 'Missing'}
+            </span>
           )}
         </Cell>
         <Cell label="Sponsors">
           {row.sponsors.length === 0 ? (
-            <span className="font-body font-normal text-amber-500">None linked</span>
+            <span className="font-body font-normal" style={{ color: AMBER }}>
+              None linked
+            </span>
           ) : (
             <span className="font-body font-normal">
               {shownSponsors.map((sponsor) => `${sponsor.name}${hiddenNote(sponsor.hidden)}`).join(', ')}
@@ -136,7 +145,7 @@ function PipelineRowView({ row, assumptions }: { row: PipelineRow; assumptions: 
         >
           {row.forecast ? (
             <>
-              <span className="text-purple-500">{formatEstimate(row.forecast.revenue.expected, row.forecast.currency)}</span> <EstimateTag />
+              <span style={{ color: PURPLE }}>{formatEstimate(row.forecast.revenue.expected, row.forecast.currency)}</span> <EstimateTag />
             </>
           ) : (
             <span className="font-body font-normal text-white/30">No estimate</span>
@@ -162,7 +171,7 @@ export function BiPipelinePanel({ rows, assumptions }: { rows: readonly Pipeline
   return (
     <Panel title="Upcoming pipeline" testId="bi-pipeline">
       {rows.length === 0 ? (
-        <EmptyNote>No upcoming or live events in this view.</EmptyNote>
+        <EmptyNote>No events in this view.</EmptyNote>
       ) : (
         <>
           <ul className="space-y-2">

@@ -13,6 +13,15 @@ import { formatMoney, formatPercent, ticketLinkState, type EventSellThrough, typ
 export const TEAL = '#1BBFA1';
 /** The surface of a card inside a panel: the theme has no entry for it. */
 export const CARD = '#111111';
+/**
+ * The status colours the Dashboard writes everywhere (HealthDashboard's GREEN, AMBER and RED, and the purple of what is still to
+ * come in EventAnalytics). The theme has no entry for them and Tailwind's own red, amber, green and purple shades are other
+ * colours, so they are named here once.
+ */
+export const GREEN = '#22c55e';
+export const AMBER = '#f59e0b';
+export const RED = '#ef4444';
+export const PURPLE = '#a855f7';
 
 const panelClasses = 'bg-primary border border-accent/20 rounded-sm p-4';
 
@@ -46,7 +55,12 @@ export function Unit({ children, small = false }: { children: ReactNode; small?:
 
 /** Words that stand where a figure would: nothing is recorded, so nothing is shown (never $0). */
 export function NotRecorded() {
-  return <span className="font-body font-normal text-white/30">Not recorded</span>;
+  return <span className="text-xs font-body font-normal text-white/30">Not recorded</span>;
+}
+
+/** A number in a line of words: the numeric bundle of a row (display font, bold), the words around it stay in the body font. */
+export function Num({ children }: { children: ReactNode }) {
+  return <span className="text-[11px] font-display font-bold text-white/70">{children}</span>;
 }
 
 /** The empty state of a panel: centred, names what is missing and where to record it. */
@@ -153,19 +167,16 @@ export function BarRow({ label, value, percent, labelNote }: { label: string; va
 
 export type ChipTone = 'high' | 'medium' | 'low' | 'gap' | 'estimate' | 'good';
 
-const CHIP_TONES: Record<ChipTone, string> = {
-  high: 'bg-red-500/10 text-red-500',
-  medium: 'bg-amber-500/10 text-amber-500',
-  low: 'bg-white/5 text-white/40',
-  gap: 'bg-amber-500/10 text-amber-500',
-  estimate: 'border border-dashed border-purple-500/40 text-purple-500',
-  good: 'bg-green-500/10 text-green-500',
-};
+/** The colour of each chip but the neutral "low" one. */
+const CHIP_COLORS: Record<Exclude<ChipTone, 'low'>, string> = { high: RED, medium: AMBER, gap: AMBER, estimate: PURPLE, good: GREEN };
 
-/** A small uppercase pill, written the way the Dashboard's issue list writes its severity. */
+/** A small uppercase pill, written the way the Dashboard's issue list writes its severity (the colour with a faint tint of it behind). */
 export function Chip({ tone, children, title }: { tone: ChipTone; children: ReactNode; title?: string }) {
+  const color = tone === 'low' ? null : CHIP_COLORS[tone];
+  const style = color === null ? undefined : tone === 'estimate' ? { color, borderColor: `${color}66` } : { color, backgroundColor: `${color}15` };
+  const classes = tone === 'low' ? 'bg-white/5 text-white/40' : tone === 'estimate' ? 'border border-dashed' : '';
   return (
-    <span title={title} className={`inline-block text-[9px] font-body uppercase tracking-wider px-2 py-0.5 whitespace-nowrap ${CHIP_TONES[tone]}`}>
+    <span title={title} style={style} className={`inline-block text-[9px] font-body uppercase tracking-wider px-2 py-0.5 whitespace-nowrap ${classes}`}>
       {children}
     </span>
   );
@@ -227,12 +238,12 @@ export function EstimateLegend({ assumptions, testId = 'bi-estimate-legend' }: {
     <p data-testid={testId} className="text-[9px] font-body text-white/25 mt-3">
       {assumptions.kind === 'scenario' ? (
         <>
-          <span className="text-purple-500">Estimate: scenarios, not a prediction.</span> No public sell-through benchmark was found, so these are assumptions: low {formatPercent(assumptions.low)} · expected{' '}
+          <span style={{ color: PURPLE }}>Estimate: scenarios, not a prediction.</span> No public sell-through benchmark was found, so these are assumptions: low {formatPercent(assumptions.low)} · expected{' '}
           {formatPercent(assumptions.expected)} · high {formatPercent(assumptions.high)} of capacity sold ({assumptions.label}).
         </>
       ) : (
         <>
-          <span className="text-purple-500">Estimate, not a record.</span> Ticket price × capacity × sell-through. The expected sell-through is the {tag}{' '}
+          <span style={{ color: PURPLE }}>Estimate, not a record.</span> Ticket price × capacity × sell-through. The expected sell-through is the {tag}{' '}
           average of the genre named in the event category (the lowest when it names several; the genre is inferred from the category words), or the {tag} all-category average of{' '}
           {formatPercent(assumptions.expected)} when it names none. Low (
           {formatPercent(assumptions.low)}) and high ({formatPercent(assumptions.high)}) are the lowest and highest genre averages: a range across genres, not an interval for one event. Source: {assumptions.label}

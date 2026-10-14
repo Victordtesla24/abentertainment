@@ -2,6 +2,7 @@
 
 import type { Event } from '@/lib/data';
 import { describeCoverage, eventFacts, formatCount, formatDay, formatMoney, formatPercent, parseEventDay, revenuePerTicket, summarizeEvents } from '@/lib/admin-bi';
+import { CARD, TEAL } from './biParts';
 
 interface TicketSalesChartProps {
   events: Event[];
@@ -28,29 +29,35 @@ export function TicketSalesChart({ events }: TicketSalesChartProps) {
 
       {/* Summary cards: only what is recorded, with the number of events it stands on */}
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-[#111111] border border-white/5 p-3 text-center">
-          <p className="text-[9px] font-body uppercase text-white/30">Total Sold</p>
+        <div className="border border-white/5 p-3 text-center" style={{ backgroundColor: CARD }}>
+          <p className="text-[9px] font-body uppercase text-white/30">Tickets sold (recorded)</p>
           {summary.ticketsSold.value === null ? (
             <p className="text-xs font-body text-white/30 mt-1">Not recorded</p>
           ) : (
             <p className="text-lg font-display font-bold text-white mt-0.5">{formatCount(summary.ticketsSold.value)}</p>
           )}
-          <p className="text-[9px] font-body text-white/25 mt-0.5">{describeCoverage(summary.ticketsSold.coverage)}</p>
+          <p className="text-[9px] font-body text-white/25 mt-0.5">
+            {describeCoverage(summary.ticketsSold.coverage)}
+            {summary.ticketsSold.value === null ? '. Enter Tickets Sold on each event (Events tab)' : ''}
+          </p>
         </div>
-        <div className="bg-[#111111] border border-white/5 p-3 text-center">
-          <p className="text-[9px] font-body uppercase text-white/30">Revenue (recorded)</p>
+        <div className="border border-white/5 p-3 text-center" style={{ backgroundColor: CARD }}>
+          <p className="text-[9px] font-body uppercase text-white/30">Ticket revenue (recorded)</p>
           {summary.ticketRevenue.amounts.length === 0 ? (
             <p className="text-xs font-body text-white/30 mt-1">Not recorded</p>
           ) : (
             summary.ticketRevenue.amounts.map((entry) => (
-              <p key={entry.currency} className="text-lg font-display font-bold text-[#1BBFA1] mt-0.5">
+              <p key={entry.currency} className="text-lg font-display font-bold mt-0.5" style={{ color: TEAL }}>
                 {formatMoney(entry.amount, entry.currency)}
               </p>
             ))
           )}
-          <p className="text-[9px] font-body text-white/25 mt-0.5">{describeCoverage(summary.ticketRevenue.coverage)}</p>
+          <p className="text-[9px] font-body text-white/25 mt-0.5">
+            {describeCoverage(summary.ticketRevenue.coverage)}
+            {summary.ticketRevenue.amounts.length === 0 ? '. Enter Ticket Revenue on each event (Events tab)' : ''}
+          </p>
         </div>
-        <div className="bg-[#111111] border border-white/5 p-3 text-center">
+        <div className="border border-white/5 p-3 text-center" style={{ backgroundColor: CARD }}>
           <p className="text-[9px] font-body uppercase text-white/30">Avg per ticket sold</p>
           {perTicket.rates.length === 0 ? (
             <p className="text-xs font-body text-white/30 mt-1">Not recorded</p>
@@ -62,7 +69,7 @@ export function TicketSalesChart({ events }: TicketSalesChartProps) {
             ))
           )}
           <p className="text-[9px] font-body text-white/25 mt-0.5">
-            {perTicket.rates.length === 0 ? 'needs tickets sold and revenue on the same event' : `recorded revenue / tickets sold, ${describeCoverage(perTicket.coverage)}`}
+            {perTicket.rates.length === 0 ? 'Enter Tickets Sold and Ticket Revenue on the same event (Events tab)' : `recorded revenue / tickets sold, ${describeCoverage(perTicket.coverage)}`}
           </p>
         </div>
       </div>
@@ -70,7 +77,7 @@ export function TicketSalesChart({ events }: TicketSalesChartProps) {
       {/* Per-event breakdown table */}
       {events.length === 0 ? (
         <div className="py-6 text-center">
-          <p className="text-xs font-body text-white/30">No events match the current filter</p>
+          <p className="text-xs font-body text-white/30">No events in this view.</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -90,7 +97,7 @@ export function TicketSalesChart({ events }: TicketSalesChartProps) {
                 const day = parseEventDay(event.date);
                 const utilization = facts.sellThrough === null ? null : facts.sellThrough * 100;
                 const utilColor =
-                  utilization !== null && utilization >= 90 ? '#1BBFA1' : utilization !== null && utilization >= 50 ? '#C9A84C' : 'rgba(255,255,255,0.4)';
+                  utilization !== null && utilization >= 90 ? TEAL : utilization !== null && utilization >= 50 ? '#C9A84C' : 'rgba(255,255,255,0.4)';
 
                 return (
                   <tr key={event.id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
@@ -98,7 +105,7 @@ export function TicketSalesChart({ events }: TicketSalesChartProps) {
                       <p className="text-[11px] font-body text-white/70 truncate max-w-[140px]">{facts.title}</p>
                     </td>
                     <td className="py-2 pr-2">
-                      <p className="text-[10px] font-body text-white/40">{day === null ? 'No date' : formatDay(day)}</p>
+                      <p className="text-[10px] font-body text-white/40">{day === null ? 'No date' : formatDay(day, '2-digit')}</p>
                     </td>
                     <td className="py-2 pr-2 text-right">
                       <p className="text-[11px] font-display font-bold text-white/70">{facts.sold === null ? <NoFigure /> : formatCount(facts.sold)}</p>

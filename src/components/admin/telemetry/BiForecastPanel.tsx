@@ -1,26 +1,26 @@
 'use client';
 
 import { formatEstimate, type AdminBi, type ForecastStat } from '@/lib/admin-bi';
-import { CARD, EmptyNote, EstimateLegend, EstimateTag, Panel, describeLeftOut, scenarioLabels } from './biParts';
+import { CARD, EmptyNote, EstimateLegend, EstimateTag, PURPLE, Panel, describeLeftOut, scenarioLabels } from './biParts';
 
 function ForecastBlock({ title, testId, stat, labels }: { title: string; testId: string; stat: ForecastStat; labels: [string, string, string] }) {
   return (
     <div data-testid={testId}>
       <p className="text-[9px] font-body uppercase tracking-[0.15em] text-white/30 mb-2">{title}</p>
       {stat.events === 0 ? (
-        <p className="text-xs font-body text-white/30">No such events in this view.</p>
+        <EmptyNote>No events in this view.</EmptyNote>
       ) : stat.forecast === 0 ? (
-        <p className="text-xs font-body text-white/30">
-          No estimate yet for these {stat.events} {stat.events === 1 ? 'event' : 'events'}. {describeLeftOut(stat)}.
-        </p>
+        <EmptyNote>
+          No estimate yet for these {stat.events} {stat.events === 1 ? 'event' : 'events'}. {describeLeftOut(stat)}. Enter Price and Capacity on each event (Events tab).
+        </EmptyNote>
       ) : (
         <div className="space-y-2">
           {stat.totals.map((total) => (
-            <div key={total.currency} className="grid grid-cols-3 gap-2 text-center">
+            <div key={total.currency} className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
               {([total.revenue.low, total.revenue.expected, total.revenue.high] as const).map((amount, index) => (
                 <div key={labels[index]} className="border border-white/5 p-3" style={{ backgroundColor: CARD }}>
                   <p className="text-[9px] font-body uppercase tracking-[0.15em] text-white/30">{labels[index]}</p>
-                  <p className={`font-display font-bold text-purple-500 mt-1 ${index === 1 ? 'text-base' : 'text-sm'}`}>
+                  <p className="text-lg font-display font-bold mt-1" style={{ color: PURPLE }}>
                     {formatEstimate(amount, total.currency)}
                   </p>
                   {stat.totals.length > 1 ? <p className="text-[9px] font-body text-white/25 mt-0.5">{total.currency}</p> : null}
@@ -52,7 +52,7 @@ export function BiForecastPanel({ bi }: { bi: AdminBi }) {
       {assumptions.usable ? (
         <div className="space-y-4">
           <ForecastBlock title="Upcoming and live events" testId="bi-forecast-upcoming" stat={upcoming} labels={labels} />
-          <div className="pt-4 border-t border-white/5">
+          <div className="pt-3 border-t border-white/5">
             <ForecastBlock title="Past events with no sales recorded" testId="bi-forecast-past" stat={past} labels={labels} />
           </div>
         </div>

@@ -531,6 +531,9 @@ test.describe('dates: today is the viewer\'s local date, and status is never cha
     expect(bi.isoOfDay(morning)).toBe('2026-10-14');
     expect((bi.parseEventDay('2026-11-15') as number) - morning).toBe(32);
     expect(bi.formatDay(bi.parseEventDay('2026-11-15') as number)).toBe('15 Nov 2026');
+    // the ticket sales table writes the year with two digits, the day without a leading zero
+    expect(bi.formatDay(bi.parseEventDay('2026-11-15') as number, '2-digit')).toBe('15 Nov 26');
+    expect(bi.formatDay(bi.parseEventDay('2025-03-05') as number, '2-digit')).toBe('5 Mar 25');
     // the end of a month and of a year
     expect(bi.isoOfDay(bi.todayDayNumber(new Date(2026, 11, 31, 23, 59)))).toBe('2026-12-31');
     expect(bi.todayDayNumber(new Date(2027, 0, 1, 0, 0)) - bi.todayDayNumber(new Date(2026, 11, 31, 23, 59))).toBe(1);

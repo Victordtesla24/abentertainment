@@ -3,7 +3,7 @@
 import type { Event } from '@/lib/data';
 import { categoryCounts, describeCoverage, formatMoney, orderCurrencies, summarizeEvents, type MoneyStat } from '@/lib/admin-bi';
 import { isPastEvent, isUpcomingEvent } from '@/lib/event-display';
-import { TEAL } from './biParts';
+import { PURPLE, TEAL } from './biParts';
 
 interface EventAnalyticsProps {
   events: Event[];
@@ -21,6 +21,7 @@ function StatusRevenue({
   color,
   dashed = false,
   coverage,
+  pointer,
 }: {
   label: string;
   stat: MoneyStat;
@@ -29,23 +30,27 @@ function StatusRevenue({
   events: number;
   color: string | null;
   dashed?: boolean;
+  /** What the figure stands on. */
   coverage: string;
+  /** Where to record it, shown when nothing is. */
+  pointer: string;
 }) {
   const amountOf = (source: MoneyStat, currency: string) => source.amounts.find((entry) => entry.currency === currency)?.amount ?? 0;
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <span className="text-[11px] font-body text-white/60">{label}</span>
-        {events === 0 ? (
-          <span className="text-xs font-body text-white/30">No events</span>
-        ) : stat.amounts.length === 0 ? (
-          <span className="text-xs font-body text-white/30">Not recorded</span>
-        ) : (
-          <span className={`text-sm font-display font-bold ${color ? '' : 'text-purple-500'}`} style={color ? { color } : undefined}>
+        {events > 0 && stat.amounts.length > 0 ? (
+          <span className="text-sm font-display font-bold" style={{ color: color ?? PURPLE }}>
             {stat.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' · ')}
           </span>
-        )}
+        ) : null}
       </div>
+      {events === 0 ? (
+        <p className="text-xs font-body text-white/30 py-2 text-center">No events in this view.</p>
+      ) : stat.amounts.length === 0 ? (
+        <p className="text-xs font-body text-white/30 py-2 text-center">Not recorded. {pointer}</p>
+      ) : null}
       {currencies.map((currency) => {
         const amount = amountOf(stat, currency);
         if (amount === 0) return null;
@@ -53,7 +58,7 @@ function StatusRevenue({
         return (
           <svg key={currency} width="100%" height="12" viewBox="0 0 300 12" preserveAspectRatio="none" className="mb-1">
             <rect x="0" y="0" width="300" height="12" rx="3" fill="rgba(255,255,255,0.04)" />
-            <rect x="0" y="0" width={width} height="12" rx="3" fill={color ?? undefined} className={color ? undefined : 'fill-purple-500'} opacity="0.6">
+            <rect x="0" y="0" width={width} height="12" rx="3" fill={color ?? PURPLE} opacity="0.6">
               <animate attributeName="width" from="0" to={width} dur="0.8s" fill="freeze" />
             </rect>
             {dashed && <line x1="0" y1="6" x2={width} y2="6" stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 3" />}
@@ -86,7 +91,7 @@ export function EventAnalytics({ events }: EventAnalyticsProps) {
   const STATUS_CARDS = [
     { label: 'Total', value: total, color: '#C9A84C' },
     { label: 'Upcoming', value: upcoming, color: '#a855f7' },
-    { label: 'Live', value: live, color: '#1BBFA1' },
+    { label: 'Live', value: live, color: TEAL },
     { label: 'Past', value: past, color: '#9ca3af' },
   ];
 
@@ -115,7 +120,7 @@ export function EventAnalytics({ events }: EventAnalyticsProps) {
             Categories
           </p>
           {categoryEntries.length === 0 ? (
-            <p className="text-xs font-body text-white/30 py-4 text-center">No events</p>
+            <p className="text-xs font-body text-white/30 py-4 text-center">No events in this view.</p>
           ) : (
             <div className="space-y-2">
               {categoryEntries.map(({ key, label, count }) => {
@@ -145,27 +150,29 @@ export function EventAnalytics({ events }: EventAnalyticsProps) {
             Revenue by Status
           </p>
           {total === 0 ? (
-            <p className="text-xs font-body text-white/30 py-4 text-center">No events</p>
+            <p className="text-xs font-body text-white/30 py-4 text-center">No events in this view.</p>
           ) : (
             <div className="space-y-4">
               <StatusRevenue
-                label="Past (Recorded)"
+                label="Ticket revenue (recorded), past events"
                 stat={pastRevenue}
                 currencies={currencies}
                 counterpart={upcomingPotential}
                 events={pastSummary.events}
                 color={TEAL}
-                coverage={`${describeCoverage(pastRevenue.coverage, 'past event')}${pastRevenue.amounts.length === 0 ? '. Enter Ticket Revenue on each past event (Events tab)' : ''}`}
+                coverage={describeCoverage(pastRevenue.coverage, 'past event')}
+                pointer="Enter Ticket Revenue on each past event (Events tab)."
               />
               <StatusRevenue
-                label="Upcoming & live (if every seat sold)"
+                label="Potential gross if sold out, upcoming & live events"
                 stat={upcomingPotential}
                 currencies={currencies}
                 counterpart={pastRevenue}
                 events={upcomingSummary.events}
                 color={null}
                 dashed
-                coverage={`${upcomingPotential.amounts.length === 0 ? '' : 'at the listed price; '}price and capacity both ${describeCoverage(upcomingPotential.coverage, 'upcoming or live event')}${upcomingPotential.amounts.length === 0 ? '. Enter both on the same event (Events tab)' : ''}`}
+                coverage={`${upcomingPotential.amounts.length === 0 ? '' : 'at the listed price; '}price and capacity both ${describeCoverage(upcomingPotential.coverage, 'upcoming or live event')}`}
+                pointer="Enter Price and Capacity on the same event (Events tab)."
               />
             </div>
           )}
