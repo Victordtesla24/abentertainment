@@ -43,7 +43,7 @@ const TABS: { id: Tab; label: string; desc: string }[] = [
   { id: 'videos', label: 'Videos', desc: 'Video management' },
   { id: 'timeline', label: 'Timeline', desc: 'Our Story chapters' },
   { id: 'testimonials', label: 'Testimonials', desc: 'Customer reviews' },
-  { id: 'newsletter', label: 'Newsletter', desc: 'Subscriber list' },
+  { id: 'newsletter', label: 'Newsletter', desc: 'Subscribers and email' },
   { id: 'metrics', label: 'Site Metrics', desc: 'Landing & about page numbers' },
   { id: 'settings', label: 'Settings', desc: 'Configuration' },
   { id: 'ai', label: 'AI Agent', desc: 'Intelligent assistant' },
