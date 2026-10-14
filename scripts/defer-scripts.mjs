@@ -44,8 +44,16 @@
  * stands down if the visitor clicks the element again after that point, so nothing is
  * activated twice.
  *
- * Admin pages (admin/**) are left exactly as Next.js wrote them: the sign-in page must
- * hydrate as early as possible and has no use for a paint-first schedule.
+ * Admin pages (admin/**) are left exactly as Next.js wrote them, except the sign-in page
+ * (admin/login/). With its scripts requested together with the document, a fast link delivers some
+ * or all of them before the page's first paint, and a throttled load profile (Lighthouse's) then
+ * counts their download and execution in the largest contentful paint: about 1.7 s on a load where
+ * the paint comes first and about 2.7 s on one where it does not, from one load to the next. The
+ * sign-in form cannot be submitted natively before React is in charge: its button is type="button"
+ * until hydration and its two text fields rule out an implicit submission on Enter. A tap or Enter
+ * made before that is remembered by the page itself (the early-intent script in the form) and
+ * completed once the page is ready, so the sign-in page gets the loader's schedule and first-touch
+ * start but not its click replay, which would press the now-live submit button a second time.
  *
  * Usage: node scripts/defer-scripts.mjs [exportDir=out]
  * Set DEFER_SCRIPTS=0 to skip (the export is then exactly what Next.js wrote).
@@ -63,6 +71,12 @@ const MARKER = 'data-ab-deferred-scripts';
 
 /** Pages under these export directories keep their original script tags. */
 const EXCLUDED_DIRECTORIES = ['admin'];
+
+/** Pages inside an excluded directory that get the paint-first schedule anyway, without the click replay. */
+const DEFERRED_EXCLUDED_PAGES = ['admin/login/index.html'];
+
+/** Loader lines that replay a click made before React existed; the sign-in page completes its own early taps. */
+const CLICK_REPLAY_LINES = ["addEventListener('click', onClick, true);", "addEventListener('click', onLaterClick, true);"];
 
 /** First-touch events that start the scripts at once. */
 const INTERACTION_EVENTS = ['pointerdown', 'touchstart', 'keydown', 'wheel'];
@@ -241,13 +255,18 @@ const flatten = (source) =>
     .join('');
 
 /** The inline <script> for one page. */
-function loaderFor(items) {
+function loaderFor(items, { replayClicks = true } = {}) {
   const args = [JSON.stringify(items).replace(/</g, '\\u003c'), JSON.stringify(INTERACTION_EVENTS)].join(',');
-  return `<script ${MARKER}>${flatten(LOADER_SOURCE)}(${args})</script>`;
+  const source = replayClicks
+    ? LOADER_SOURCE
+    : LOADER_SOURCE.split('\n')
+        .filter((line) => !CLICK_REPLAY_LINES.includes(line.trim()))
+        .join('\n');
+  return `<script ${MARKER}>${flatten(source)}(${args})</script>`;
 }
 
 /** Rewrites one page. Returns the number of scripts moved (0 when there was nothing to do). */
-export function deferFrameworkScripts(html) {
+export function deferFrameworkScripts(html, options) {
   if (html.includes(MARKER)) return { html, moved: 0 };
 
   const items = [];
@@ -263,7 +282,7 @@ export function deferFrameworkScripts(html) {
   if (bodyEnd === -1) throw new Error('no </body> to place the script loader before');
   const withoutHints = withoutScripts.replace(SCRIPT_PRELOAD, '');
   const at = withoutHints.lastIndexOf('</body>');
-  return { html: withoutHints.slice(0, at) + loaderFor(items) + withoutHints.slice(at), moved: items.length };
+  return { html: withoutHints.slice(0, at) + loaderFor(items, options) + withoutHints.slice(at), moved: items.length };
 }
 
 async function* htmlFiles(dir) {
@@ -288,13 +307,15 @@ async function main() {
   let moved = 0;
   let skipped = 0;
   for await (const file of htmlFiles(root)) {
-    const [topDirectory] = relative(root, file).split(sep);
-    if (EXCLUDED_DIRECTORIES.includes(topDirectory)) {
+    const path = relative(root, file).split(sep).join('/');
+    const [topDirectory] = path.split('/');
+    const deferredAnyway = DEFERRED_EXCLUDED_PAGES.includes(path);
+    if (EXCLUDED_DIRECTORIES.includes(topDirectory) && !deferredAnyway) {
       skipped++;
       continue;
     }
     const html = await readFile(file, 'utf8');
-    const result = deferFrameworkScripts(html);
+    const result = deferFrameworkScripts(html, deferredAnyway ? { replayClicks: false } : undefined);
     if (result.moved === 0) continue;
     // Post-condition: nothing the browser would fetch with the document may remain.
     for (const [, attributesSource] of result.html.matchAll(SCRIPT_TAG)) {

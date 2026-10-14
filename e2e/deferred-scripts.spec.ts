@@ -49,8 +49,9 @@ test.describe('framework scripts start after the first paint', () => {
     expect(timing.firstScriptStart).toBeGreaterThanOrEqual(timing.fcp);
   });
 
-  test('admin pages keep their original script tags', async ({ request }) => {
-    for (const path of ['/admin/', '/admin/login/']) {
+  // The sign-in page (/admin/login/) is the one admin page that gets the schedule: see admin-login-first-paint.spec.ts.
+  test('the other admin pages keep their original script tags', async ({ request }) => {
+    for (const path of ['/admin/']) {
       const html = await (await request.get(`${BASE}${path}`)).text();
       expect(html, `${path} must not use the loader`).not.toContain('data-ab-deferred-scripts');
       const blocking = [...html.matchAll(/<script\b([^>]*)>\s*<\/script>/g)]
