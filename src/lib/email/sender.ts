@@ -20,11 +20,12 @@
 import { randomUUID } from 'crypto';
 import { getNewsletterSubscribers, updateNewsletterSubscriber, type NewsletterSubscriber, type WelcomeState } from '@/lib/data';
 import { describeError, maskEmail } from '@/lib/newsletter';
-import { configuredAiProviders } from './ai-review';
+import { configuredAiProviders, reviewerChain } from './ai-review';
 import { buildRenderContext, publicBaseUrl } from './context';
 import { approvalState, reviewContext, verifyForSend } from './gate';
 import { getLayout } from './layout';
-import { isEmailAddress, readResendConfig, sendViaResend, type OutboundEmail } from './resend';
+import { isBlocked, readProviderState, recordProviderAttempt, type ProviderState } from './provider-state';
+import { isEmailAddress, readResendConfig, sendViaResend, type OutboundEmail, type ResendResult } from './resend';
 import { appendSendLog, countSentLastHour, reserveSendSlot, settleSendLog, type NewSendLogEntry, type SendOutcome } from './send-log';
 import { getBrandGuidelines, getEmailSettings, getEmailTemplateByKey, findVersion } from './store';
 import { NoSigningSecretError, TEST_SUBSCRIBER_ID, mintUnsubscribeToken, resolveSigningSecret } from './unsubscribe-token';
@@ -124,12 +125,12 @@ async function attemptInner(subscriberId: string, deps: SenderDeps, now: () => D
     return { result: 'skipped', reason };
   }
 
-  /** Not sent, and it stays pending with the reason on record. */
-  async function hold(reason: string, log: { outcome: SendOutcome; detail?: string; code?: string; httpStatus?: number; version?: number; layoutVersion?: string }): Promise<WelcomeAttempt> {
+  /** Not sent, and it stays pending with the reason on record; `retryAt` is when an automatic retry makes sense. */
+  async function hold(reason: string, log: { outcome: SendOutcome; detail?: string; code?: string; httpStatus?: number; version?: number; layoutVersion?: string }, retryAt?: Date): Promise<WelcomeAttempt> {
     const unchanged = welcome!.status === 'pending' && welcome!.reason === reason;
     if (!(deps.source === 'sweep' && unchanged)) await appendSendLog({ ...base, reason, ...log }, now());
     if (!unchanged) await setWelcome(subscriber!.id, (w) => (w.status === 'pending' || isStaleClaim(w, now()) ? { ...w, status: 'pending', reason, updatedAt: isoNow(now) } : null));
-    scheduleWelcomeSweep(deps);
+    scheduleWelcomeSweep(deps, retryDelay(retryAt, now()));
     return { result: 'pending', reason };
   }
 
@@ -169,6 +170,16 @@ async function attemptInner(subscriberId: string, deps: SenderDeps, now: () => D
     return { result: 'failed', reason: 'invalid_address' };
   }
 
+  // 3b. the provider has said no recently (a quota, a rate limit, an unverified domain): an automatic attempt waits it out
+  // instead of asking again; an administrator's own "send waiting welcomes" always tries
+  if (deps.source !== 'admin') {
+    const state = await readProviderStateSafe();
+    if (state && isBlocked(state, now())) {
+      const until = new Date(state.blockedUntil as string);
+      return hold(holdReasonOf(state), { outcome: holdOutcomeOf(state), detail: `Not asking the email provider again until ${until.toISOString()}.${state.lastReason ? ` Last answer: ${state.lastReason}.` : ''}`, code: state.lastCode, httpStatus: state.lastHttpStatus, version: check.version.version, layoutVersion: layout.version }, until);
+    }
+  }
+
   // 4. claim the subscriber (pending -> sending) so no other attempt can send to them
   const claimed = await updateNewsletterSubscriber(subscriber.id, (current) => {
     const w = current.welcome;
@@ -200,6 +211,7 @@ async function attemptInner(subscriberId: string, deps: SenderDeps, now: () => D
     category: template.key,
   };
   const sent = await sendViaResend(config.config, message, { fetchImpl: deps.fetchImpl });
+  const providerState = await recordProviderAttemptSafe(sent, now());
   if (sent.ok) {
     await settleSendLog(slot.entry.id, { outcome: 'sent', messageId: sent.id, httpStatus: sent.status }, now());
     await setWelcome(subscriber.id, (w) => ({ status: 'sent', attemptedAt: w.attemptedAt, sentAt: isoNow(now), templateKey: template.key, version: check.version.version, messageId: sent.id, updatedAt: isoNow(now) }));
@@ -219,7 +231,7 @@ async function attemptInner(subscriberId: string, deps: SenderDeps, now: () => D
   const held = sent.kind === 'provider_not_ready' ? { outcome: 'provider_not_ready' as const, welcomeReason: 'provider_not_ready' } : sent.kind === 'rate_limited' ? { outcome: 'rate_limited' as const, welcomeReason: 'provider_rate_limited' } : { outcome: 'retry' as const, welcomeReason: 'provider_unavailable' };
   await settleSendLog(slot.entry.id, { outcome: held.outcome, ...logPatch }, now());
   await releaseClaim(subscriber.id, held.welcomeReason, now);
-  scheduleWelcomeSweep(deps);
+  scheduleWelcomeSweep(deps, retryDelay(providerState?.blockedUntil ? new Date(providerState.blockedUntil) : undefined, now()));
   return { result: 'pending', reason: held.welcomeReason };
 }
 
@@ -263,33 +275,115 @@ export async function sendPendingWelcomes(deps: SenderDeps = {}, limit = 25): Pr
   return summary;
 }
 
-let sweepTimer: ReturnType<typeof setTimeout> | null = null;
-let sweepsWithoutRest = 0;
+// ─── The sweeper ─────────────────────────────────────────────────────────────
 
-/** Retry queued welcomes in a few minutes (one timer at a time; it reschedules itself while anything is still pending). */
+/**
+ * The timer lives on globalThis, not in this module, so every bundle that loads the sender (each route, and the boot hook
+ * in src/instrumentation.ts) shares one timer and one clock for "when is the next automatic attempt due".
+ */
+interface SweepState {
+  timer: ReturnType<typeof setTimeout> | null;
+  /** Epoch ms the timer is due, or null. */
+  nextAt: number | null;
+  /** Sweeps in a row that still found something waiting. */
+  runs: number;
+}
+
+const sweepHolder = globalThis as unknown as { __abEmailSweep?: SweepState };
+
+function sweepState(): SweepState {
+  if (!sweepHolder.__abEmailSweep) sweepHolder.__abEmailSweep = { timer: null, nextAt: null, runs: 0 };
+  return sweepHolder.__abEmailSweep;
+}
+
+/** Milliseconds until an automatic retry makes sense: the usual interval, or longer when the provider asked us to wait. */
+function retryDelay(retryAt: Date | undefined, now: Date): number {
+  if (!retryAt) return SWEEP_DELAY_MS;
+  return Math.max(SWEEP_DELAY_MS, Math.min(retryAt.getTime() - now.getTime() + 1000, 25 * 3_600_000));
+}
+
+async function readProviderStateSafe(): Promise<ProviderState | null> {
+  try {
+    return await readProviderState();
+  } catch (err) {
+    console.error('[email] could not read the provider state:', describeError(err));
+    return null;
+  }
+}
+
+async function recordProviderAttemptSafe(result: ResendResult, now: Date): Promise<ProviderState | null> {
+  try {
+    return await recordProviderAttempt(result, now);
+  } catch (err) {
+    console.error('[email] could not record the provider state:', describeError(err));
+    return null;
+  }
+}
+
+function holdReasonOf(state: ProviderState): string {
+  return state.lastOutcome === 'rate_limited' ? 'provider_rate_limited' : state.lastOutcome === 'retry' ? 'provider_unavailable' : 'provider_not_ready';
+}
+
+function holdOutcomeOf(state: ProviderState): SendOutcome {
+  return state.lastOutcome === 'rate_limited' ? 'rate_limited' : state.lastOutcome === 'retry' ? 'retry' : 'provider_not_ready';
+}
+
+export function sweeperDisabled(): boolean {
+  return process.env.EMAIL_SWEEP_DISABLED === '1';
+}
+
+/**
+ * Retry queued welcomes after `delayMs` (default five minutes). One timer at a time: an earlier due time replaces a later
+ * one. When it fires it sends what it can and reschedules itself while anything is still waiting, waiting out a provider
+ * hold rather than asking again every few minutes.
+ */
 export function scheduleWelcomeSweep(deps: SenderDeps = {}, delayMs: number = SWEEP_DELAY_MS): void {
-  if (sweepTimer || sweepsWithoutRest >= MAX_CONSECUTIVE_SWEEPS) return;
-  sweepTimer = setTimeout(() => {
-    sweepTimer = null;
-    sweepsWithoutRest += 1;
+  const state = sweepState();
+  if (sweeperDisabled() || state.runs >= MAX_CONSECUTIVE_SWEEPS) return;
+  const dueAt = Date.now() + delayMs;
+  if (state.timer && state.nextAt !== null && state.nextAt <= dueAt) return;
+  if (state.timer) clearTimeout(state.timer);
+  state.nextAt = dueAt;
+  state.timer = setTimeout(() => {
+    state.timer = null;
+    state.nextAt = null;
+    state.runs += 1;
     sendPendingWelcomes({ ...deps, source: 'sweep' })
-      .then((summary) => {
-        if (summary.pending > 0) scheduleWelcomeSweep(deps, delayMs);
-        else sweepsWithoutRest = 0;
+      .then(async (summary) => {
+        if (summary.pending > 0) {
+          const providerState = await readProviderStateSafe();
+          const now = (deps.now ?? (() => new Date()))();
+          scheduleWelcomeSweep(deps, retryDelay(providerState?.blockedUntil ? new Date(providerState.blockedUntil) : undefined, now));
+        } else {
+          state.runs = 0;
+        }
       })
       .catch((err) => console.error('[email] welcome sweep failed:', describeError(err)));
   }, delayMs);
-  sweepTimer.unref?.();
+  state.timer.unref?.();
+}
+
+/** At server start: look for waiting welcomes soon (and keep looking while any are waiting). */
+export function scheduleBootSweep(delayMs = 30_000): void {
+  scheduleWelcomeSweep({}, delayMs);
 }
 
 export function isWelcomeSweepScheduled(): boolean {
-  return sweepTimer !== null;
+  return sweepState().timer !== null;
+}
+
+/** When the next automatic attempt is due (ISO), or null when none is scheduled. */
+export function getNextSweepAt(): string | null {
+  const { timer, nextAt } = sweepState();
+  return timer && nextAt !== null ? new Date(nextAt).toISOString() : null;
 }
 
 export function cancelWelcomeSweep(): void {
-  if (sweepTimer) clearTimeout(sweepTimer);
-  sweepTimer = null;
-  sweepsWithoutRest = 0;
+  const state = sweepState();
+  if (state.timer) clearTimeout(state.timer);
+  state.timer = null;
+  state.nextAt = null;
+  state.runs = 0;
 }
 
 // ─── Test sends ──────────────────────────────────────────────────────────────
@@ -343,6 +437,7 @@ export async function sendTestEmail(input: { to: unknown; templateKey?: string; 
     { to, subject: check.fields.subject, html: check.rendered.html, text: check.rendered.text, unsubscribeUrl, idempotencyKey: `test-${randomUUID()}`, category: template.key },
     { fetchImpl: deps.fetchImpl },
   );
+  await recordProviderAttemptSafe(sent, now());
   if (sent.ok) {
     await settleSendLog(slot.entry.id, { outcome: 'sent', messageId: sent.id, httpStatus: sent.status }, now());
     return { ok: true, messageId: sent.id, version: check.version.version };
@@ -363,8 +458,30 @@ export interface SendingStatus {
   invalid: string[];
   signing: { configured: boolean; source: string | null };
   ai: { providers: string[]; available: boolean };
+  /** Which model judges the emails: the administrator's setting and every (provider, model) that would be tried, in order. */
+  reviewer: { setting: string; chain: Array<{ provider: string; model: string }> };
   layout: { id: string; version: string; installed: boolean };
   publicBaseUrl: string;
+  /**
+   * What the email provider last told us. `blocked`: the last attempt was refused (a quota, a rate limit, an unverified
+   * domain, a temporary error; not the refusal of a single message, which shows the provider is working); `blockedUntil` is when automatic attempts resume (it may be in the past: a retry is due);
+   * `nextAttemptAt` is when the next automatic attempt is scheduled, null when none is.
+   */
+  provider: {
+    state: 'ok' | 'blocked' | 'unknown';
+    lastAttemptAt: string | null;
+    lastOutcome: string | null;
+    lastReason: string | null;
+    lastCode: string | null;
+    lastHttpStatus: number | null;
+    lastDetail: string | null;
+    lastSuccessAt: string | null;
+    blockedUntil: string | null;
+    nextAttemptAt: string | null;
+    automaticRetry: boolean;
+  };
+  /** Welcome emails saved but not yet sent. */
+  waiting: { count: number; oldestAt: string | null; reasons: Record<string, number> };
   welcome: {
     templateKey: string;
     exists: boolean;
@@ -386,8 +503,16 @@ export async function getSendingStatus(deps: SenderDeps = {}): Promise<SendingSt
   const config = readResendConfig(env);
   const signing = resolveSigningSecret(env);
   const layout = deps.layout ?? getLayout();
-  const [template, settings, guidelines, subscribers, sentLastHour] = await Promise.all([getEmailTemplateByKey(WELCOME_TEMPLATE_KEY), getEmailSettings(), getBrandGuidelines(), getNewsletterSubscribers(), countSentLastHour(now())]);
+  const [template, settings, guidelines, subscribers, sentLastHour, providerState] = await Promise.all([getEmailTemplateByKey(WELCOME_TEMPLATE_KEY), getEmailSettings(), getBrandGuidelines(), getNewsletterSubscribers(), countSentLastHour(now()), readProviderStateSafe()]);
   const providers = configuredAiProviders(env);
+  const waitingList = subscribers.filter((s) => s.status !== 'unsubscribed' && (s.welcome?.status === 'pending' || s.welcome?.status === 'sending'));
+  const waitingReasons: Record<string, number> = {};
+  for (const s of waitingList) {
+    const reason = s.welcome?.reason ?? 'queued';
+    waitingReasons[reason] = (waitingReasons[reason] ?? 0) + 1;
+  }
+  const nextSweep = getNextSweepAt();
+  const lastOutcome = providerState?.lastOutcome ?? null;
 
   const blockers: string[] = [];
   if (!config.ok) blockers.push('not_configured');
@@ -420,8 +545,24 @@ export async function getSendingStatus(deps: SenderDeps = {}): Promise<SendingSt
     invalid: config.ok ? [] : config.invalid,
     signing: { configured: Boolean(signing), source: signing?.source ?? null },
     ai: { providers, available: providers.length > 0 },
+    reviewer: { setting: settings.reviewModel, chain: reviewerChain(env, settings.reviewModel) },
     layout: { id: layout.id, version: layout.version, installed: layout.installed },
     publicBaseUrl: publicBaseUrl(),
+    provider: {
+      // a refusal of one message (failed) shows the provider is answering; only a refusal of sending itself is a block
+      state: lastOutcome === null ? 'unknown' : lastOutcome === 'sent' || lastOutcome === 'failed' ? 'ok' : 'blocked',
+      lastAttemptAt: providerState?.lastAttemptAt ?? null,
+      lastOutcome,
+      lastReason: providerState?.lastReason ?? null,
+      lastCode: providerState?.lastCode ?? null,
+      lastHttpStatus: providerState?.lastHttpStatus ?? null,
+      lastDetail: providerState?.lastDetail ?? null,
+      lastSuccessAt: providerState?.lastSuccessAt ?? null,
+      blockedUntil: providerState?.blockedUntil ?? null,
+      nextAttemptAt: nextSweep,
+      automaticRetry: !sweeperDisabled(),
+    },
+    waiting: { count: waitingList.length, oldestAt: waitingList.map((s) => s.createdAt).sort()[0] ?? null, reasons: waitingReasons },
     welcome: {
       templateKey: WELCOME_TEMPLATE_KEY,
       exists: Boolean(template),

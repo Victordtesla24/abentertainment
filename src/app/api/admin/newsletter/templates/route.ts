@@ -4,7 +4,7 @@ import { withAuth } from '@/lib/with-auth';
 import { logAdminAction } from '@/lib/audit';
 import { clientIp } from '@/lib/newsletter';
 import { fail, ok, readJsonObject, storeFailure } from '@/lib/email/api';
-import { approvalState } from '@/lib/email/gate';
+import { approvalState, type ApprovalState } from '@/lib/email/gate';
 import { getLayout } from '@/lib/email/layout';
 import {
   MAX_TEMPLATES,
@@ -22,6 +22,9 @@ import { FIELD_SAVE_LIMITS, WELCOME_TEMPLATE_KEY } from '@/lib/email/types';
  * Admin email templates: list, create, duplicate, edit (an edit of the fields makes a new version), activate a
  * version for sending (only a version whose approval is bound to this exact content, layout and guidelines) and
  * delete. The quality review that approves a version is /api/admin/newsletter/review.
+ *
+ * GET also returns `states`: for every version of every template, whether its approval is still bound to the exact
+ * content, layout and guidelines (approved), has never been earned (unapproved), or no longer applies (stale, and why).
  */
 
 function audit(request: NextRequest, action: string, details: Record<string, unknown>) {
@@ -33,8 +36,16 @@ function audit(request: NextRequest, action: string, details: Record<string, unk
 export const GET = withAuth(async () => {
   try {
     const layout = getLayout();
+    const [templates, guidelines] = await Promise.all([getEmailTemplates(), getBrandGuidelines()]);
+    const states: Record<string, Record<number, ApprovalState>> = {};
+    for (const template of templates) {
+      states[template.id] = {};
+      for (const version of template.versions) states[template.id][version.version] = approvalState(version, layout, guidelines);
+    }
     return ok({
-      templates: await getEmailTemplates(),
+      templates,
+      states,
+      guidelinesVersion: guidelines.version,
       layout: { id: layout.id, version: layout.version, installed: layout.installed },
       welcomeKey: WELCOME_TEMPLATE_KEY,
       limits: { fields: FIELD_SAVE_LIMITS, maxTemplates: MAX_TEMPLATES },

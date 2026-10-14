@@ -2,8 +2,10 @@
  * The AI half of the quality gate: a structured review of a draft email against the written brand guidelines, and a
  * fix step that proposes new wording for the failing fields only.
  *
- * Providers: OpenAI (OPENAI_API_KEY) first, OpenRouter (OPENROUTER_API_KEY) as the fallback. Keys are read from the
- * environment at call time and are never logged, returned or put in an error message. Every answer is validated
+ * Providers, in this order: Anthropic (ANTHROPIC_API_KEY; Claude Opus 5.5, then Claude Sonnet 5.5), OpenAI
+ * (OPENAI_API_KEY) and OpenRouter (OPENROUTER_API_KEY). An administrator can choose the reviewer model in the email
+ * settings: the provider that serves it goes first and the rest of the chain follows as the fallback. Keys are read from
+ * the environment at call time and are never logged, returned or put in an error message. Every answer is validated
  * (zod): anything that is not exactly the expected JSON is rejected, and an unavailable or unusable reviewer means the
  * gate blocks. An email is never treated as reviewed unless a valid review passed it.
  */
@@ -71,26 +73,50 @@ export interface AiClient {
 
 // ─── Providers ───────────────────────────────────────────────────────────────
 
+export type AiProviderId = 'anthropic' | 'openai' | 'openrouter';
+
+export interface ReviewAttempt {
+  provider: AiProviderId;
+  model: string;
+}
+
 interface Provider {
-  id: 'openai' | 'openrouter';
+  id: AiProviderId;
   url: string;
   key: string;
-  defaultModel: string;
   extraHeaders: Record<string, string>;
   structured: boolean;
 }
 
-function resolveProviders(env: Record<string, string | undefined>): Provider[] {
+/** The default reviewer chain: the strongest model first, a second Claude, then the other providers' defaults. */
+export const ANTHROPIC_DEFAULT_MODELS: readonly string[] = ['claude-opus-5-5', 'claude-sonnet-5-5'];
+export const OPENAI_DEFAULT_MODEL = 'gpt-4.1-mini';
+export const OPENROUTER_DEFAULT_MODEL = 'openai/gpt-4.1-mini';
+const ANTHROPIC_VERSION = '2023-06-01';
+
+/**
+ * EMAIL_AI_BASE_URL (tests only) may point the Anthropic and OpenAI endpoints at a loopback address, never at another
+ * host, so a test can stand in for the reviewer without any key or request leaving the machine.
+ */
+function loopbackBase(env: Record<string, string | undefined>): string | null {
+  const override = (env.EMAIL_AI_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  return /^http:\/\/(?:127\.0\.0\.1|localhost):\d{2,5}$/.test(override) ? override : null;
+}
+
+export function resolveProviders(env: Record<string, string | undefined>): Provider[] {
   const providers: Provider[] = [];
+  const loopback = loopbackBase(env);
+  if (env.ANTHROPIC_API_KEY) {
+    providers.push({ id: 'anthropic', url: `${loopback ?? 'https://api.anthropic.com'}/v1/messages`, key: env.ANTHROPIC_API_KEY, extraHeaders: { 'anthropic-version': ANTHROPIC_VERSION }, structured: true });
+  }
   if (env.OPENAI_API_KEY) {
-    providers.push({ id: 'openai', url: 'https://api.openai.com/v1/chat/completions', key: env.OPENAI_API_KEY, defaultModel: 'gpt-4.1-mini', extraHeaders: {}, structured: true });
+    providers.push({ id: 'openai', url: `${loopback ?? 'https://api.openai.com'}/v1/chat/completions`, key: env.OPENAI_API_KEY, extraHeaders: {}, structured: true });
   }
   if (env.OPENROUTER_API_KEY) {
     providers.push({
       id: 'openrouter',
       url: 'https://openrouter.ai/api/v1/chat/completions',
       key: env.OPENROUTER_API_KEY,
-      defaultModel: 'openai/gpt-4.1-mini',
       extraHeaders: { 'HTTP-Referer': 'https://abentertainment.com.au', 'X-Title': 'AB Entertainment email quality gate' },
       structured: false,
     });
@@ -98,17 +124,57 @@ function resolveProviders(env: Record<string, string | undefined>): Provider[] {
   return providers;
 }
 
-/** Which AI providers are configured, by id only (never a key): for the admin status screen. */
-export function configuredAiProviders(env: Record<string, string | undefined> = process.env): Array<'openai' | 'openrouter'> {
+/** Which AI providers are configured, in the order they are tried, by id only (never a key): for the admin status screen. */
+export function configuredAiProviders(env: Record<string, string | undefined> = process.env): AiProviderId[] {
   return resolveProviders(env).map((provider) => provider.id);
 }
 
-/** The model id a provider expects, given the (possibly empty) setting. */
-function modelFor(provider: Provider, setting: string): string {
+/** The provider that serves an explicitly chosen model id (null for "use the default chain"). */
+function ownerOf(setting: string): AiProviderId | null {
+  const wanted = setting.trim().toLowerCase();
+  if (!wanted) return null;
+  if (wanted.startsWith('claude-') || wanted.startsWith('anthropic/')) return 'anthropic';
+  if (wanted.startsWith('openai/')) return 'openai';
+  if (wanted.includes('/')) return 'openrouter';
+  return 'openai';
+}
+
+const stripVendor = (model: string) => (model.includes('/') ? model.slice(model.indexOf('/') + 1) : model);
+
+/** A model setting as an OpenRouter id ("vendor/model"). */
+function openRouterModel(setting: string): string {
   const wanted = setting.trim();
-  if (!wanted) return provider.defaultModel;
-  if (provider.id === 'openai') return wanted.includes('/') ? wanted.slice(wanted.indexOf('/') + 1) : wanted;
-  return wanted.includes('/') ? wanted : `openai/${wanted}`;
+  if (!wanted) return OPENROUTER_DEFAULT_MODEL;
+  if (wanted.includes('/')) return wanted;
+  return wanted.startsWith('claude-') ? `anthropic/${wanted}` : `openai/${wanted}`;
+}
+
+/**
+ * Every (provider, model) the reviewer will try, in order, for the administrator's model setting (empty = the default
+ * chain). A chosen model is tried first on the provider that serves it, then through OpenRouter when that is configured
+ * (the same model by another route); after that the default chain follows (Claude Opus 5.5, Claude Sonnet 5.5, OpenAI's
+ * default, OpenRouter's default), so one provider being down never stops a review. Exact repeats are dropped.
+ */
+export function reviewerChain(env: Record<string, string | undefined>, setting: string): ReviewAttempt[] {
+  const providers = resolveProviders(env);
+  const has = (id: AiProviderId) => providers.some((p) => p.id === id);
+  const wanted = setting.trim();
+  const owner = ownerOf(wanted);
+  const attempts: ReviewAttempt[] = [];
+  const add = (attempt: ReviewAttempt) => {
+    if (!attempts.some((a) => a.provider === attempt.provider && a.model === attempt.model)) attempts.push(attempt);
+  };
+  if (wanted && owner) {
+    if ((owner === 'anthropic' || owner === 'openai') && has(owner)) add({ provider: owner, model: stripVendor(wanted) });
+    if (owner === 'openrouter' && has('openrouter')) add({ provider: 'openrouter', model: wanted });
+    if (owner !== 'openrouter' && has('openrouter')) add({ provider: 'openrouter', model: openRouterModel(wanted) });
+  }
+  for (const provider of providers) {
+    if (provider.id === 'anthropic') for (const model of ANTHROPIC_DEFAULT_MODELS) add({ provider: 'anthropic', model });
+    else if (provider.id === 'openai') add({ provider: 'openai', model: OPENAI_DEFAULT_MODEL });
+    else add({ provider: 'openrouter', model: OPENROUTER_DEFAULT_MODEL });
+  }
+  return attempts;
 }
 
 // ─── Output schemas ──────────────────────────────────────────────────────────
@@ -254,32 +320,40 @@ export interface AiClientOptions {
 export function createAiClient(options: AiClientOptions = {}): AiClient {
   const fetchImpl = options.fetchImpl ?? fetch;
   const env = options.env ?? process.env;
-  const timeoutMs = options.timeoutMs ?? 45_000;
+  const timeoutMs = options.timeoutMs ?? 90_000;
 
   async function once(provider: Provider, model: string, system: string, user: string, schemaName: string, schema: object): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const body: Record<string, unknown> = {
-        model,
-        temperature: 0.2,
-        max_tokens: 2000,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
-        response_format: provider.structured
-          ? { type: 'json_schema', json_schema: { name: schemaName, strict: true, schema } }
-          : { type: 'json_object' },
-      };
+      const anthropic = provider.id === 'anthropic';
+      // Anthropic's Messages API returns structured JSON by forcing a call to one tool whose input schema is the answer;
+      // the others take a JSON-schema (OpenAI) or JSON-object (OpenRouter) response format.
+      const body: Record<string, unknown> = anthropic
+        ? {
+            model,
+            max_tokens: 3000,
+            system,
+            messages: [{ role: 'user', content: user }],
+            tools: [{ name: schemaName, description: 'Submit the result in exactly this shape.', input_schema: schema }],
+            tool_choice: { type: 'tool', name: schemaName },
+          }
+        : {
+            model,
+            temperature: 0.2,
+            max_tokens: 2000,
+            messages: [
+              { role: 'system', content: system },
+              { role: 'user', content: user },
+            ],
+            response_format: provider.structured ? { type: 'json_schema', json_schema: { name: schemaName, strict: true, schema } } : { type: 'json_object' },
+          };
+      const headers: Record<string, string> = anthropic
+        ? { 'Content-Type': 'application/json', 'x-api-key': provider.key, ...provider.extraHeaders }
+        : { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.key}`, ...provider.extraHeaders };
       let response: Response;
       try {
-        response = await fetchImpl(provider.url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.key}`, ...provider.extraHeaders },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        });
+        response = await fetchImpl(provider.url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal });
       } catch (err) {
         const aborted = err instanceof Error && err.name === 'AbortError';
         throw new AiUnavailableError(aborted ? 'timeout' : 'network', `The ${provider.id} reviewer could not be reached (${aborted ? 'timeout' : 'network error'}).`);
@@ -291,6 +365,12 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
       } catch {
         throw new AiInvalidResponseError(`The ${provider.id} reviewer did not return JSON.`);
       }
+      if (anthropic) {
+        const blocks = (payload as { content?: Array<{ type?: string; name?: string; input?: unknown }> } | null)?.content;
+        const call = Array.isArray(blocks) ? blocks.find((block) => block?.type === 'tool_use' && block.name === schemaName) : undefined;
+        if (!call || !call.input || typeof call.input !== 'object') throw new AiInvalidResponseError(`The ${provider.id} reviewer returned no structured answer.`);
+        return JSON.stringify(call.input);
+      }
       const content = (payload as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
       if (typeof content !== 'string' || !content.trim()) throw new AiInvalidResponseError(`The ${provider.id} reviewer returned no content.`);
       return content;
@@ -299,13 +379,16 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
     }
   }
 
-  /** Ask the providers in order; a transient failure is retried once, an unusable key or an outage moves on to the next. */
+  /**
+   * Ask the reviewer chain in order (the administrator's model first, then the defaults); a transient failure is retried
+   * once on the same model, an unusable key, an unknown model or an outage moves on to the next one.
+   */
   async function ask<T>(modelSetting: string, system: string, user: string, schemaName: string, jsonSchema: object, zodSchema: z.ZodType<T>): Promise<{ value: T; provider: string; model: string }> {
     const providers = resolveProviders(env);
-    if (providers.length === 0) throw new AiUnavailableError('no_provider', 'No AI reviewer is configured (OPENAI_API_KEY or OPENROUTER_API_KEY).');
+    if (providers.length === 0) throw new AiUnavailableError('no_provider', 'No AI reviewer is configured (ANTHROPIC_API_KEY, OPENAI_API_KEY or OPENROUTER_API_KEY).');
     let last: Error = new AiUnavailableError('network', 'The AI reviewer is unavailable.');
-    for (const provider of providers) {
-      const model = modelFor(provider, modelSetting);
+    for (const { provider: providerId, model } of reviewerChain(env, modelSetting)) {
+      const provider = providers.find((p) => p.id === providerId) as Provider;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           const content = await once(provider, model, system, user, schemaName, jsonSchema);

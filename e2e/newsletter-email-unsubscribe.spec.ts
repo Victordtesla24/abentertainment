@@ -14,7 +14,7 @@ import { test, expect } from '@playwright/test';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { cleanUnitDir, loadWithUnitDir, unitDir } from './support/email-unit';
-import { HAS_ADMIN_CREDS, MockResend, SERVER_DATA_DIR, adminApi, adminLogin, readSubscribers, seedApprovedTemplate, subscribePublic } from './support/email-http';
+import { HARNESS, HAS_ADMIN_CREDS, HARNESS_SKIP, MockResend, SERVER_DATA_DIR, adminApi, adminLogin, readSubscribers, seedApprovedTemplate, subscribePublic } from './support/email-http';
 
 type Unsub = typeof import('@/lib/email/unsubscribe');
 type Page = typeof import('@/lib/email/unsubscribe-page');
@@ -221,7 +221,7 @@ test.describe('unsubscribe (in-process)', () => {
 // HTTP
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'newsletter-subscribers.json'];
+const FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'email-provider-state.json', 'newsletter-subscribers.json'];
 
 test.describe('unsubscribe over HTTP (Resend mocked on loopback)', () => {
   const saved = new Map<string, string | null>();
@@ -230,11 +230,13 @@ test.describe('unsubscribe over HTTP (Resend mocked on loopback)', () => {
   test.beforeAll(async ({ baseURL }) => {
     const host = new URL(baseURL ?? 'http://localhost:3000').hostname;
     if (host !== 'localhost' && host !== '127.0.0.1') throw new Error(`Refusing to run: baseURL (${baseURL}) is not on this machine.`);
+    if (!HARNESS) return;
     for (const file of FILES) saved.set(file, existsSync(join(SERVER_DATA_DIR, file)) ? readFileSync(join(SERVER_DATA_DIR, file), 'utf-8') : null);
     await mock.start();
   });
 
   test.afterAll(async () => {
+    if (!HARNESS) return;
     await mock.stop();
     for (const [file, content] of saved) {
       if (content === null) rmSync(join(SERVER_DATA_DIR, file), { force: true });
@@ -243,6 +245,7 @@ test.describe('unsubscribe over HTTP (Resend mocked on loopback)', () => {
   });
 
   test.beforeEach(() => {
+    if (!HARNESS) return;
     mock.reset();
     for (const file of FILES) rmSync(join(SERVER_DATA_DIR, file), { force: true });
   });
@@ -257,7 +260,7 @@ test.describe('unsubscribe over HTTP (Resend mocked on loopback)', () => {
   }
 
   test('following the link in a real welcome email changes nothing, however it is fetched; confirming on the page unsubscribes; the list and the log show it', async ({ request, page }) => {
-    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    test.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
     await seedApprovedTemplate();
     const email = `unsub.http.${Date.now()}@example.com`;
     const keep = `keeper.http.${Date.now()}@example.com`;
@@ -322,7 +325,7 @@ test.describe('unsubscribe over HTTP (Resend mocked on loopback)', () => {
   });
 
   test('in a browser: the link opens the confirmation page, nothing happens until the button is pressed, and then the page says it is done', async ({ request, page, baseURL }) => {
-    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    test.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
     await seedApprovedTemplate();
     const email = `browser.http.${Date.now()}@example.com`;
     expect((await subscribePublic(request, email)).status()).toBe(200);
@@ -344,7 +347,7 @@ test.describe('unsubscribe over HTTP (Resend mocked on loopback)', () => {
   });
 
   test('RFC 8058 one-click: a POST of "List-Unsubscribe=One-Click" to the link needs no Origin, cookie or CSRF token, removes the subscriber and answers with a plain 200', async ({ request }) => {
-    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    test.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
     await seedApprovedTemplate();
     const email = `oneclick.http.${Date.now()}@example.com`;
     expect((await subscribePublic(request, email)).status()).toBe(200);
@@ -360,7 +363,7 @@ test.describe('unsubscribe over HTTP (Resend mocked on loopback)', () => {
   });
 
   test('a link that is missing, damaged or tampered with is a 400 branded page and removes nobody; other methods are refused', async ({ request }) => {
-    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    test.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
     await seedApprovedTemplate();
     const email = `tamper.http.${Date.now()}@example.com`;
     expect((await subscribePublic(request, email)).status()).toBe(200);
@@ -395,7 +398,7 @@ test.describe('unsubscribe over HTTP (Resend mocked on loopback)', () => {
   });
 
   test('the unsubscribe link of an admin test email works and removes nobody', async ({ request, page }) => {
-    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    test.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
     await seedApprovedTemplate();
     const keeper = `keeper2.http.${Date.now()}@example.com`;
     expect((await subscribePublic(request, keeper)).status()).toBe(200);
@@ -420,7 +423,7 @@ test.describe('unsubscribe over HTTP (Resend mocked on loopback)', () => {
   });
 
   test('subscribing again after unsubscribing is a fresh signup that is sent a welcome once more', async ({ request }) => {
-    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    test.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
     await seedApprovedTemplate();
     const email = `again.http.${Date.now()}@example.com`;
     expect((await subscribePublic(request, email)).status()).toBe(200);

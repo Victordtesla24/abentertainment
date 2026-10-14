@@ -13,6 +13,7 @@ import { join } from 'path';
 import { cleanUnitDir, loadWithUnitDir } from './support/email-unit';
 import { makeFixtureLayout } from './fixtures/email-layout-fixture';
 import { StubAi, aiIssue, failingReview, fixResult, passingReview, scores } from './fixtures/email-ai-stub';
+import { HARNESS, HARNESS_SKIP } from './support/email-http';
 
 type Rules = typeof import('@/lib/email/gate-rules');
 type GateMod = typeof import('@/lib/email/gate');
@@ -699,8 +700,10 @@ test.describe('admin API: review, preview and activation', () => {
     expect((await request.post('/api/admin/newsletter/preview', { data: {}, headers: origin })).status()).toBe(401);
   });
 
-  test('the review runs and is fully inspectable: the brand layout renders and passes the deterministic checks, no AI reviewer is configured, so it blocks, names why, and approves nothing', async ({ page }) => {
-    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+  test('the review runs and is fully inspectable: the brand layout renders and passes the deterministic checks, the AI reviewer cannot be reached, so it blocks, names why, and approves nothing', async ({ page }) => {
+    // The server must be the email test harness: its AI settings are fake and point at a loopback address where nothing
+    // listens in this spec, so no real AI service is ever called (see e2e/support/email-http.ts).
+    test.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
     await adminLogin(page);
     const templates = await adminApi(page, 'GET', '/api/admin/newsletter/templates');
     const welcome = (templates.body?.templates as Array<{ id: string }>)[0];
@@ -718,7 +721,7 @@ test.describe('admin API: review, preview and activation', () => {
     expect(result.rounds).toHaveLength(1);
     expect(result.rounds[0]).toMatchObject({ round: 1, ai: null, passed: false, aiError: 'unavailable', deterministic: [] });
     expect(result.rounds[0].fields.subject).toBe('Welcome to AB Entertainment');
-    expect((result.rounds[0] as { aiErrorDetail?: string }).aiErrorDetail).toMatch(/No AI reviewer is configured/);
+    expect((result.rounds[0] as { aiErrorDetail?: string }).aiErrorDetail).toMatch(/could not be reached/);
     expect(result.finalHash).toMatch(/^[0-9a-f]{64}$/);
 
     // the same result is read back, and it is saved on the version

@@ -1,209 +1,86 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
-import type { NewsletterSubscriber } from '@/lib/data';
+import type { SendingStatus } from '@/lib/email/sender';
+import SubscribersPanel from './newsletter/SubscribersPanel';
+import TemplatesPanel from './newsletter/TemplatesPanel';
+import GuidelinesPanel from './newsletter/GuidelinesPanel';
+import SendLogPanel from './newsletter/SendLogPanel';
+import SendingStatusPanel from './newsletter/SendingStatusPanel';
+import ProviderNotice from './newsletter/ProviderNotice';
+import { useLatestRequest } from './newsletter/shared';
 
-/** One CSV cell: quoted when it needs to be, and a leading = + - @ (a spreadsheet formula) is defused with an apostrophe. */
-function csvCell(value: string): string {
-  const text = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
+/**
+ * The Newsletter area of the admin portal: the subscriber list, the email templates (write, preview, quality review,
+ * approve, activate, test), the brand guidelines and quality rules, the send log and the sending status.
+ */
 
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
+const SECTIONS = [
+  { id: 'subscribers', label: 'Subscribers' },
+  { id: 'templates', label: 'Email templates' },
+  { id: 'guidelines', label: 'Brand guidelines' },
+  { id: 'log', label: 'Send log' },
+  { id: 'status', label: 'Sending status' },
+] as const;
+
+type SectionId = (typeof SECTIONS)[number]['id'];
 
 export default function NewsletterManager() {
-  const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [query, setQuery] = useState('');
-  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [section, setSection] = useState<SectionId>('subscribers');
+  const [status, setStatus] = useState<SendingStatus | null>(null);
+  const begin = useLatestRequest();
 
-  function showMessage(text: string, error = false) {
-    setMessage({ text, error });
-    setTimeout(() => setMessage(null), 4000);
-  }
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
+  // A quota or provider problem, and any welcome emails waiting because of it, are shown above every section.
+  const loadStatus = useCallback(async () => {
+    const isLatest = begin();
     try {
-      const res = await adminFetch('/api/admin/newsletter');
-      if (!res.ok) {
-        throw new Error(res.status === 401 ? 'Your session has expired. Please sign in again.' : 'Could not load the subscriber list.');
+      const res = await adminFetch('/api/admin/newsletter/status');
+      if (res.ok) {
+        const body = (await res.json()) as SendingStatus;
+        if (isLatest()) setStatus(body);
       }
-      const data = await res.json();
-      setSubscribers(Array.isArray(data.subscribers) ? data.subscribers : []);
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Could not load the subscriber list.');
-    } finally {
-      setLoading(false);
+    } catch {
+      /* the banner is a convenience: the Sending status section reports errors */
     }
-  }, []);
+  }, [begin]);
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  // Newest first.
-  const sorted = useMemo(
-    () => [...subscribers].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [subscribers],
-  );
-
-  const needle = query.trim().toLowerCase();
-  const shown = useMemo(
-    () => (needle ? sorted.filter((s) => s.email.toLowerCase().includes(needle) || (s.source ?? '').toLowerCase().includes(needle)) : sorted),
-    [sorted, needle],
-  );
-
-  async function handleDelete(subscriber: NewsletterSubscriber) {
-    if (!confirm(`Remove ${subscriber.email} from the newsletter list? This cannot be undone.`)) return;
-    setBusyId(subscriber.id);
-    try {
-      const res = await adminFetch('/api/admin/newsletter', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: subscriber.id }),
-      });
-      if (res.status === 404) {
-        // Already gone (removed in another tab): the list was stale, so just bring it up to date.
-        setSubscribers((current) => current.filter((s) => s.id !== subscriber.id));
-        showMessage('That address was already removed.');
-        return;
-      }
-      if (!res.ok) throw new Error('Could not remove the subscriber.');
-      setSubscribers((current) => current.filter((s) => s.id !== subscriber.id));
-      showMessage(`${subscriber.email} removed from the list`);
-    } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Could not remove the subscriber.', true);
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  // Built in the browser from the list already loaded with the admin session: no extra endpoint.
-  function handleExportCsv() {
-    const rows = sorted.map((s) => [s.id, s.email, s.createdAt, s.source ?? ''].map(csvCell).join(','));
-    const csv = ['id,email,createdAt,source', ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `newsletter-subscribers-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }
-
-  const buttonClasses =
-    'px-4 py-2 bg-white/[0.03] text-white/40 text-sm border border-white/[0.08] rounded-sm hover:bg-white/[0.06] hover:text-white/60 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+    loadStatus();
+    const timer = setInterval(loadStatus, 60_000);
+    return () => clearInterval(timer);
+  }, [loadStatus]);
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div>
-          <h2 className="text-xl font-display font-bold text-white">Newsletter Subscribers</h2>
-          <p className="text-white/30 text-[11px] mt-0.5">Addresses collected by the Stay Updated form in the website footer</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={load} className={buttonClasses}>
-            Refresh
-          </button>
-          <button
-            onClick={handleExportCsv}
-            disabled={subscribers.length === 0}
-            className="px-4 py-2 border border-[#C9A84C]/40 text-[#C9A84C] text-sm font-semibold rounded-sm hover:bg-[#C9A84C]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Export CSV
-          </button>
-        </div>
-      </div>
-
-      {/* Status message */}
-      {message && (
-        <div
-          role={message.error ? 'alert' : 'status'}
-          className={`mb-4 px-4 py-2 rounded-sm text-sm font-body ${
-            message.error ? 'bg-red-400/10 text-red-400 border border-red-400/20' : 'bg-[#1BBFA1]/10 text-[#1BBFA1] border border-[#1BBFA1]/20'
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
-
-      {/* Count + search */}
-      <div className="mb-4 flex flex-wrap items-center gap-4">
-        <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm px-4 py-2.5">
-          <p className="text-[10px] text-white/30 uppercase tracking-wider">Subscribers</p>
-          <p data-testid="newsletter-count" className="text-xl font-semibold text-white leading-tight">
-            {subscribers.length}
-          </p>
-        </div>
-        <div className="flex-1 min-w-[220px]">
-          <label htmlFor="newsletter-search" className="sr-only">
-            Search subscribers
-          </label>
-          <input
-            id="newsletter-search"
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by email or page"
-            autoComplete="off"
-            className="w-full px-4 py-2.5 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm font-body placeholder-white/25 focus:outline-none focus:border-[#C9A84C]"
-          />
-        </div>
-        {needle && (
-          <p className="text-[11px] text-white/30">
-            Showing {shown.length} of {subscribers.length}
-          </p>
-        )}
-      </div>
-
-      {loading ? (
-        <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-8 text-center">
-          <p className="text-white/25 text-sm font-body">Loading subscribers...</p>
-        </div>
-      ) : loadError ? (
-        <div role="alert" className="bg-[#0A0A0A] border border-red-400/20 rounded-sm p-8 text-center">
-          <p className="text-red-400 text-sm font-body">{loadError}</p>
-        </div>
-      ) : shown.length === 0 ? (
-        <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-8 text-center">
-          <p className="text-white/25 text-sm font-body">{needle ? 'No subscribers match your search.' : 'No subscribers yet.'}</p>
-          {!needle && (
-            <p className="text-white/15 text-[11px] font-body mt-1">Addresses appear here when visitors use the Stay Updated form in the footer.</p>
-          )}
-        </div>
-      ) : (
-        <ul className="space-y-2" aria-label="Newsletter subscribers">
-          {shown.map((subscriber) => (
-            <li
-              key={subscriber.id}
-              data-subscriber-id={subscriber.id}
-              className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1"
+      {status && section !== 'status' && <ProviderNotice status={status} compact />}
+      <div role="tablist" aria-label="Newsletter sections" className="flex flex-wrap gap-1 mb-6 border-b border-white/[0.06]">
+        {SECTIONS.map((item) => {
+          const selected = item.id === section;
+          return (
+            <button
+              key={item.id}
+              role="tab"
+              id={`newsletter-tab-${item.id}`}
+              aria-selected={selected}
+              aria-controls={`newsletter-panel-${item.id}`}
+              onClick={() => setSection(item.id)}
+              className={`px-4 py-2.5 text-sm font-body border-b-2 -mb-px transition-colors ${
+                selected ? 'text-[#C9A84C] border-[#C9A84C]' : 'text-white/40 border-transparent hover:text-white/70'
+              }`}
             >
-              <span className="text-sm font-body text-white min-w-0 flex-1 basis-56 [overflow-wrap:anywhere]">{subscriber.email}</span>
-              <span className="text-[11px] text-white/35 font-body flex-shrink-0">{formatDate(subscriber.createdAt)}</span>
-              <span className="text-[11px] text-white/25 font-body flex-shrink-0 min-w-[64px]" title="Page the visitor subscribed from">
-                {subscriber.source || 'unknown page'}
-              </span>
-              <button
-                onClick={() => handleDelete(subscriber)}
-                disabled={busyId === subscriber.id}
-                aria-label={`Remove ${subscriber.email}`}
-                className="ml-auto px-3 py-1.5 text-[11px] text-white/40 border border-white/[0.08] rounded-sm hover:text-red-400 hover:border-red-400/30 hover:bg-red-400/[0.06] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div role="tabpanel" id={`newsletter-panel-${section}`} aria-labelledby={`newsletter-tab-${section}`}>
+        {section === 'subscribers' && <SubscribersPanel />}
+        {section === 'templates' && <TemplatesPanel />}
+        {section === 'guidelines' && <GuidelinesPanel />}
+        {section === 'log' && <SendLogPanel />}
+        {section === 'status' && <SendingStatusPanel onNavigate={(target) => setSection(target)} />}
+      </div>
     </div>
   );
 }

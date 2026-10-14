@@ -13,9 +13,9 @@
 import { test, expect } from '@playwright/test';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { HAS_ADMIN_CREDS, MockResend, SERVER_DATA_DIR as DATA_DIR, SITE_ORIGIN, adminApi, adminLogin, readSubscribers, seedApprovedTemplate, subscribePublic as subscribe } from './support/email-http';
+import { HARNESS, HAS_ADMIN_CREDS, HARNESS_SKIP, MockResend, SERVER_DATA_DIR as DATA_DIR, SITE_ORIGIN, adminApi, adminLogin, readSubscribers, seedApprovedTemplate, subscribePublic as subscribe } from './support/email-http';
 
-const FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'newsletter-subscribers.json'];
+const FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'email-provider-state.json', 'newsletter-subscribers.json'];
 
 test.describe.configure({ mode: 'serial' });
 
@@ -26,11 +26,13 @@ test.describe('welcome email over HTTP (Resend mocked on loopback)', () => {
   test.beforeAll(async ({ baseURL }) => {
     const host = new URL(baseURL ?? 'http://localhost:3000').hostname;
     if (host !== 'localhost' && host !== '127.0.0.1') throw new Error(`Refusing to run: baseURL (${baseURL}) is not on this machine.`);
+    if (!HARNESS) return;
     for (const file of FILES) saved.set(file, existsSync(join(DATA_DIR, file)) ? readFileSync(join(DATA_DIR, file), 'utf-8') : null);
     await mock.start();
   });
 
   test.afterAll(async () => {
+    if (!HARNESS) return;
     await mock.stop();
     for (const [file, content] of saved) {
       if (content === null) rmSync(join(DATA_DIR, file), { force: true });
@@ -39,6 +41,7 @@ test.describe('welcome email over HTTP (Resend mocked on loopback)', () => {
   });
 
   test.beforeEach(() => {
+    if (!HARNESS) return;
     mock.reset();
     for (const file of FILES) rmSync(join(DATA_DIR, file), { force: true });
   });
@@ -53,7 +56,7 @@ test.describe('welcome email over HTTP (Resend mocked on loopback)', () => {
   });
 
   test('subscribing sends the welcome: the signup answers at once, the mock receives the exact request, the log and the subscriber carry the message id', async ({ request, page }) => {
-    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    test.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
     await seedApprovedTemplate();
     const email = `Welcome.Http.${Date.now()}@Example.com`;
     const started = Date.now();
@@ -110,7 +113,7 @@ test.describe('welcome email over HTTP (Resend mocked on loopback)', () => {
       configured: true,
       missing: [],
       signing: { configured: true, source: 'SESSION_SECRET' },
-      ai: { providers: [], available: false },
+      ai: { providers: ['anthropic'], available: true },
       layout: { id: 'ab-entertainment', installed: true },
       welcome: { approval: 'approved', activeVersion: 1, readyToSend: true, blockers: [] },
       subscribers: { total: 1, subscribed: 1, unsubscribed: 0, welcomePending: 0, welcomeSent: 1, welcomeFailed: 0, welcomeSkipped: 0 },
@@ -121,7 +124,7 @@ test.describe('welcome email over HTTP (Resend mocked on loopback)', () => {
   });
 
   test('a failing send never breaks the signup: the subscriber is saved, the failure is on record and visible, and it is sent once the provider is ready', async ({ request, page }) => {
-    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    test.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
     await seedApprovedTemplate();
     mock.answers = [{ status: 403, body: { statusCode: 403, name: 'validation_error', message: 'The abentertainment.com.au domain is not verified. Please, add and verify your domain on https://resend.com/domains' } }];
     const email = `pending.http.${Date.now()}@example.com`;
@@ -153,7 +156,7 @@ test.describe('welcome email over HTTP (Resend mocked on loopback)', () => {
   });
 
   test('without an approved template the signup still succeeds and nothing leaves the server; the reason is visible to admins', async ({ request, page }) => {
-    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    test.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
     const email = `unapproved.http.${Date.now()}@example.com`;
     const response = await subscribe(request, email);
     expect(response.status()).toBe(200);
@@ -170,7 +173,7 @@ test.describe('welcome email over HTTP (Resend mocked on loopback)', () => {
   });
 
   test('the admin test send goes through the same gate and transport; refusals say why', async ({ page }) => {
-    test.skip(!HAS_ADMIN_CREDS, 'Set ADMIN_TEST_PASSWORD to run credentialed admin tests.');
+    test.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
     await adminLogin(page);
     const send = (body: unknown) => adminApi(page, 'POST', '/api/admin/newsletter/send', body);
     expect((await send({})).status).toBe(400);
