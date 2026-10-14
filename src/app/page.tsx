@@ -7,7 +7,7 @@ import { TestimonialsSection } from '@/components/TestimonialsSection';
 import CTASection from '@/components/CTASection';
 import ScrollNarrative from '@/components/ScrollNarrative';
 import VideoHighlights from '@/components/VideoHighlights';
-import { ScrollReveal, StageLightingOverlay } from '@/components/ui/ScrollReveal';
+import { HydrateLater, ScrollReveal, StageLightingOverlay } from '@/components/ui/ScrollReveal';
 import { getPublicEvents, getPublicSiteMetrics } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
 import { getStaticEventSlugs } from '@/lib/static-event-slugs';
@@ -47,22 +47,38 @@ export default async function Home() {
 
       <CinematicHero initialMetrics={metrics} />
 
+      {/* Everything below the first screen is hydrated one section at a time once the first screen is usable. */}
       {/* Dramatic section entrance — VisionSection emerges from darkness */}
-      <ScrollReveal variant="dramatic" duration={1.3}>
-        <VisionSection />
-      </ScrollReveal>
+      <HydrateLater id="vision">
+        <ScrollReveal variant="dramatic" duration={1.3}>
+          <VisionSection />
+        </ScrollReveal>
+      </HydrateLater>
 
-      <IntroSection initialMetrics={metrics} />
-      <VideoHighlights />
-      <ScrollNarrative />
+      <HydrateLater id="intro">
+        <IntroSection initialMetrics={metrics} />
+      </HydrateLater>
+      <HydrateLater id="highlights">
+        <VideoHighlights />
+      </HydrateLater>
+      <HydrateLater id="story">
+        <ScrollNarrative />
+      </HydrateLater>
 
       {/* Dramatic section entrance — EventsShowcase rises with stage-light effect */}
-      <ScrollReveal variant="dramatic" duration={1.5} delay={0.05}>
-        <EventsShowcase events={allEvents} staticEventSlugs={staticEventSlugs} />
-      </ScrollReveal>
+      <HydrateLater id="events">
+        <ScrollReveal variant="dramatic" duration={1.5} delay={0.05}>
+          <EventsShowcase events={allEvents} staticEventSlugs={staticEventSlugs} />
+        </ScrollReveal>
+      </HydrateLater>
 
-      <TestimonialsSection />
-      <CTASection />
+      <HydrateLater id="testimonials">
+        <TestimonialsSection />
+      </HydrateLater>
+      <HydrateLater id="cta">
+        <CTASection />
+      </HydrateLater>
+
     </>
   );
 }
