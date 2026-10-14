@@ -20,7 +20,7 @@
  */
 
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { existsSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, rmSync, statSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
 const DATA_DIR = process.env.AB_DATA_DIR ?? join(process.cwd(), 'data');
@@ -55,6 +55,24 @@ function clearStore() {
   rmSync(STORE, { force: true });
 }
 
+/**
+ * A signup is answered before its welcome attempt has finished, and that attempt rewrites the subscriber file a
+ * moment later (it reads the list, then writes it back). If the next test deletes the file in between, the late
+ * write puts the previous test's subscribers back and the next test starts with a store it did not expect.
+ * So wait until the file has been still for a short while before touching it.
+ */
+async function waitForStoreToSettle(): Promise<void> {
+  const stamp = () => (existsSync(STORE) ? `${statSync(STORE).mtimeMs}:${statSync(STORE).size}` : 'absent');
+  let last = stamp();
+  let still = 0;
+  for (let waited = 0; waited < 5000 && still < 3; waited += 100) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const now = stamp();
+    still = now === last ? still + 1 : 0;
+    last = now;
+  }
+}
+
 function subscriber(n: number, overrides: Partial<Subscriber> = {}): Subscriber {
   return {
     id: `nl-e2e-${n}`,
@@ -65,11 +83,14 @@ function subscriber(n: number, overrides: Partial<Subscriber> = {}): Subscriber 
   };
 }
 
-// Each test gets its own client address so the per-IP rate limit of one never touches another.
-let ipCounter = 0;
+// Each test gets its own client address so the per-IP rate limit of one never touches another, whether that other
+// is in this run or in a run that started within the last minute. The count starts at a random place and only
+// goes up, so an address cannot repeat inside a run. (The old pick, the clock modulo 250, did repeat now and then,
+// and the five-a-minute test then met an address that had already been used.)
+let ipCounter = Math.floor(Math.random() * 60000);
 function freshIp(): string {
-  ipCounter += 1;
-  return `198.51.100.${((Date.now() + ipCounter) % 250) + 1}`;
+  ipCounter = (ipCounter + 1) % 65536;
+  return `198.18.${ipCounter >> 8}.${ipCounter & 255}`; // 198.18.0.0/15 is the range reserved for benchmarking
 }
 
 async function subscribe(
@@ -145,12 +166,16 @@ test.beforeAll(({ baseURL }) => {
   backup = existsSync(STORE) ? readFileSync(STORE, 'utf-8') : null;
 });
 
-test.afterAll(() => {
+test.afterAll(async () => {
+  await waitForStoreToSettle(); // a late welcome write must not undo the restore below
   if (backup === null) clearStore();
   else writeFileSync(STORE, backup, 'utf-8');
 });
 
-test.beforeEach(() => clearStore());
+test.beforeEach(async () => {
+  await waitForStoreToSettle();
+  clearStore();
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. PUBLIC API
@@ -341,6 +366,10 @@ test.describe('Footer "Stay Updated" form', () => {
   const errorText = (page: Page) => page.locator('footer [role="alert"]');
 
   async function openPageWithLiveForm(page: Page, path = '/about') {
+    // The browser's own signups share one address, and the route allows five per minute per address: a retry, or
+    // a second run within the minute, would be answered 429. Give every page its own client address, as the API
+    // tests above do.
+    await page.setExtraHTTPHeaders({ 'x-forwarded-for': freshIp() });
     await page.goto(path);
     await field(page).scrollIntoViewIfNeeded();
     // the form is live once the export's hydration marker is gone (the dev server never sets it)
