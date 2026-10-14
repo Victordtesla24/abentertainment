@@ -9,6 +9,7 @@ import { isUsableImageUrl } from '@/lib/perf/image-source';
 import { getApiUrl } from '@/lib/api-config';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 import type { Event, GalleryImage } from '@/lib/data';
+import { isPastEvent } from '@/lib/event-display';
 
 type LightboxImage = { src: string; alt: string; title?: string };
 
@@ -114,7 +115,7 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
   }, [initialEvent.slug]);
   usePolledRefresh(refreshEvent, { immediate: false });
 
-  const isPast = new Date(event.date) <= new Date();
+  const isPast = isPastEvent(event);
 
   return (
     <section className="py-16 md:py-20">

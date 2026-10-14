@@ -9,6 +9,7 @@ import OptimizedImage from '@/components/ui/OptimizedImage';
 import EventLink from '@/components/ui/EventLink';
 import { isUsableImageUrl } from '@/lib/perf/image-source';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
+import { isPastEvent, isUpcomingEvent, sortByAdminOrder } from '@/lib/event-display';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -23,9 +24,8 @@ function formatDate(dateString: string): string {
 
 function getStatusBadge(event: Event): { label: string; color: string } {
   const now = new Date();
-  const eventDate = new Date(event.date);
 
-  if (eventDate <= now) {
+  if (isPastEvent(event)) {
     return { label: 'Past Event', color: 'bg-white/20 text-white/70' };
   }
 
@@ -407,8 +407,6 @@ function EventsContentInner({
   const hasActiveFilters = !!(category || dateRange || location);
 
   // Filter events
-  const now = useMemo(() => new Date(), []);
-
   const filteredEvents = useMemo(() => {
     return events.filter((event) => {
       // Category filter
@@ -430,20 +428,15 @@ function EventsContentInner({
     });
   }, [events, category, location, dateRange]);
 
+  // Upcoming/Past and the order come from the admin portal (status and order), never from the date
   const upcomingEvents = useMemo(
-    () =>
-      filteredEvents
-        .filter((e) => new Date(e.date) > now)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [filteredEvents, now]
+    () => sortByAdminOrder(filteredEvents.filter(isUpcomingEvent)),
+    [filteredEvents]
   );
 
   const pastEvents = useMemo(
-    () =>
-      filteredEvents
-        .filter((e) => new Date(e.date) <= now)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [filteredEvents, now]
+    () => sortByAdminOrder(filteredEvents.filter(isPastEvent)),
+    [filteredEvents]
   );
 
   // Sync URL params on mount
@@ -511,7 +504,7 @@ function EventsContentInner({
               aria-label="Upcoming events"
             >
               {upcomingEvents.map((event) => (
-                <div key={event.id} role="listitem">
+                <div key={event.id} role="listitem" data-event-slug={event.slug}>
                   <EventCard event={event} staticEventSlugs={staticEventSlugs} />
                 </div>
               ))}
@@ -555,7 +548,7 @@ function EventsContentInner({
               aria-label="Past events"
             >
               {pastEvents.map((event) => (
-                <div key={event.id} role="listitem">
+                <div key={event.id} role="listitem" data-event-slug={event.slug}>
                   <EventCard event={event} staticEventSlugs={staticEventSlugs} isPast />
                 </div>
               ))}

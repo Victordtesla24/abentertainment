@@ -10,12 +10,12 @@ import { isUsableImageUrl } from '@/lib/perf/image-source';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 
 import type { Event } from '@/lib/data';
+import { isPastEvent, sortByAdminOrder } from '@/lib/event-display';
 
 function getStatusBadge(event: Event): { label: string; color: string } | null {
   const now = new Date();
-  const eventDate = new Date(event.date);
 
-  if (eventDate <= now) return null;
+  if (isPastEvent(event)) return null;
 
   if (event.ticketStatus === 'sold_out') {
     return { label: 'Sold Out', color: 'bg-red-600 text-white' };
@@ -91,10 +91,7 @@ export default function EventsShowcase({
 
   // Featured event: next upcoming event for the Golden Ticket
   const featuredEvent = useMemo(() => {
-    const now = new Date();
-    return events
-      .filter((e) => new Date(e.date) > now && e.status === 'upcoming')
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] || null;
+    return sortByAdminOrder(events.filter((e) => e.status === 'upcoming'))[0] || null;
   }, [events]);
 
   const allCategories = Array.from(new Set(events.map((e) => e.category)));
@@ -103,12 +100,10 @@ export default function EventsShowcase({
     ...allCategories.map((cat) => ({ id: cat, label: cat })),
   ];
 
-  // Latest first — newest event date at the top of the showcase
-  const filteredEvents = (
+  // Same order as the admin portal's Events section (admin-set order, lower first)
+  const filteredEvents = sortByAdminOrder(
     selectedCategory === 'all' ? events : events.filter((event) => event.category === selectedCategory)
-  )
-    .slice()
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  );
 
   return (
     <section className="relative py-28 bg-[#0A0A0A] overflow-hidden">
@@ -190,11 +185,12 @@ export default function EventsShowcase({
             animate="visible"
             variants={containerVariants}
             key={selectedCategory}
+            data-event-list="home"
           >
             {filteredEvents.map((event) => {
               const badge = getStatusBadge(event);
               return (
-              <motion.div key={event.id} variants={cardVariants} className="group">
+              <motion.div key={event.id} variants={cardVariants} className="group" data-event-slug={event.slug}>
                 <EventLink slug={event.slug} staticSlugs={staticEventSlugs}>
                   <div className="glass-card hover-shine overflow-hidden hover:shadow-[0_12px_50px_rgba(201,168,76,0.1)]">
                     {/* Image — full poster (object-contain), never cropped */}

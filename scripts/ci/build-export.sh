@@ -34,4 +34,6 @@ env -u NEXT_PUBLIC_VPS_API_URL -u NEXT_PUBLIC_ESCALATION_EMAIL \
 
 node scripts/refresh-build-data.mjs --stamp
 node scripts/ci/verify-export.mjs
+# the pre-rendered event lists must follow the admin portal (status decides Upcoming/Past, order decides the sequence)
+node scripts/ci/check-events-order.mjs
 echo "[build-export] out/: $(find out -name index.html | wc -l) html pages, $(du -sh out | cut -f1)"

@@ -7,6 +7,7 @@ import EventLink from '@/components/ui/EventLink';
 import { firstUsableImageUrl, isUsableImageUrl } from '@/lib/perf/image-source';
 import type { GalleryImage, Event } from '@/lib/data';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
+import { isPastEvent, isUpcomingEvent, sortByAdminOrder } from '@/lib/event-display';
 
 type LightboxImage = { src: string; alt: string; title: string; width?: number; height?: number };
 
@@ -123,20 +124,9 @@ export default function GalleryContent({ initialImages, initialEvents, staticEve
   usePolledRefresh(loadGallery);
 
   const grouped = useMemo(() => groupByEvent(galleryImages), [galleryImages]);
-  const now = useMemo(() => new Date(), []);
-
-  const pastEvents = useMemo(() =>
-    events
-      .filter((e) => new Date(e.date) <= now || e.status === 'past')
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [events, now]
-  );
-  const upcomingEvents = useMemo(() =>
-    events
-      .filter((e) => new Date(e.date) > now && e.status !== 'past')
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
-    [events, now]
-  );
+  // Upcoming/Past and the order come from the admin portal (status and order), never from the date
+  const pastEvents = useMemo(() => sortByAdminOrder(events.filter(isPastEvent)), [events]);
+  const upcomingEvents = useMemo(() => sortByAdminOrder(events.filter(isUpcomingEvent)), [events]);
 
   const renderableFolders = (list: Event[]) =>
     list
