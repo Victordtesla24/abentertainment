@@ -12,6 +12,7 @@ import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { cleanUnitDir, loadWithUnitDir, unitDir } from './support/email-unit';
 import { StubAi, passingReview } from './fixtures/email-ai-stub';
+import { ADDRESS, API_KEY, ENV, accepted, json, refused, stubFetch, type Step } from './support/email-send-kit';
 
 type Sender = typeof import('@/lib/email/sender');
 type Resend = typeof import('@/lib/email/resend');
@@ -22,41 +23,6 @@ type Store = typeof import('@/lib/email/store');
 type Gate = typeof import('@/lib/email/gate');
 type LayoutMod = typeof import('@/lib/email/layout');
 type Seed = typeof import('@/lib/email/seed');
-
-const API_KEY = 're_test_0123456789abcdef';
-const ENV: Record<string, string> = {
-  RESEND_API_KEY: API_KEY,
-  EMAIL_FROM: 'AB Entertainment <newsletter@abentertainment.com.au>',
-  EMAIL_REPLY_TO: 'abhi@abentertainment.com.au',
-  SESSION_SECRET: 'unit-test-session-secret-0123456789abcdef',
-};
-const ADDRESS = 'jane.doe@example.com';
-
-interface Call {
-  url: string;
-  method: string;
-  headers: Record<string, string>;
-  raw: string;
-  body: { from: string; to: string[]; subject: string; html: string; text: string; reply_to?: string; headers: Record<string, string>; tags: Array<{ name: string; value: string }> };
-}
-
-type Step = (() => Response) | Error;
-const json = (status: number, payload: unknown, headers: Record<string, string> = {}) => () => new Response(JSON.stringify(payload), { status, headers: { 'content-type': 'application/json', ...headers } });
-const accepted = (id = 're_0001') => json(200, { id });
-const refused = (status: number, name: string, message: string, headers: Record<string, string> = {}) => json(status, { statusCode: status, name, message }, headers);
-
-/** A fetch stub: records each request as sent, answers from the script (the last step repeats). */
-function stubFetch(script: Step[] = [accepted()]) {
-  const calls: Call[] = [];
-  const impl = (async (url: string, init: RequestInit) => {
-    const raw = String(init.body ?? '');
-    calls.push({ url, method: String(init.method), headers: { ...(init.headers as Record<string, string>) }, raw, body: JSON.parse(raw) as Call['body'] });
-    const step = script[Math.min(calls.length - 1, script.length - 1)];
-    if (step instanceof Error) throw step;
-    return step();
-  }) as unknown as typeof fetch;
-  return { impl, calls };
-}
 
 test.describe.configure({ mode: 'serial' });
 
@@ -414,7 +380,9 @@ test.describe('newsletter email sending', () => {
     expect(await run(subscriber.id, notReady)).toEqual({ result: 'pending', reason: 'provider_not_ready' });
     sender.cancelWelcomeSweep(); // the attempt scheduled one for five minutes; replace it with a quick one for the test
     const ready = stubFetch([accepted('re_swept')]);
-    sender.scheduleWelcomeSweep({ fetchImpl: ready.impl, env: ENV }, 40);
+    // the refusal held automatic attempts back for five minutes; by the time the sweeper looks, that has passed
+    const later = () => new Date(Date.now() + 3_600_000);
+    sender.scheduleWelcomeSweep({ fetchImpl: ready.impl, env: ENV, now: later }, 40);
     await expect.poll(async () => (await subscriberOf(subscriber.id)).welcome?.status, { timeout: 5000 }).toBe('sent');
     expect(ready.calls).toHaveLength(1);
     expect((await subscriberOf(subscriber.id)).welcome?.messageId).toBe('re_swept');

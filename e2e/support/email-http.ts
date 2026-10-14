@@ -1,8 +1,16 @@
 /**
- * Shared helpers for the email specs that talk to a local dev server over HTTP: a Resend API mock on loopback, the
- * admin login and admin API calls, a public signup, and seeding an approved welcome template into the server's data
- * directory (what a passing review and activation leave behind; the review itself is covered in-process with a
- * scripted AI). Nothing here can reach a service off this machine: the mock listens on 127.0.0.1 only.
+ * Shared helpers for the email specs that talk to a local dev server over HTTP: mocks of the Resend API and of the AI
+ * reviewer on loopback, the admin login and admin API calls, a public signup, and seeding an approved welcome template
+ * into the server's data directory. Nothing here can reach a service off this machine: the mocks listen on 127.0.0.1.
+ *
+ * THE EMAIL TEST HARNESS. The HTTP specs that send or review need a dev server started with FAKE settings that point
+ * at the mocks (the base URLs are only honoured when they are loopback addresses), for example:
+ *   RESEND_API_KEY=re_local_test_0123456789abcdef  EMAIL_FROM='AB Entertainment <newsletter@abentertainment.com.au>'
+ *   EMAIL_REPLY_TO=abhi@abentertainment.com.au     RESEND_BASE_URL=http://127.0.0.1:3199
+ *   ANTHROPIC_API_KEY=sk-ant-local-test-not-real-0123456789   EMAIL_AI_BASE_URL=http://127.0.0.1:3198
+ *   EMAIL_SWEEP_DISABLED=1 (so no background retry can fire in the middle of a test)
+ * and AB_DATA_DIR pointing at a scratch directory (OPENAI_API_KEY and OPENROUTER_API_KEY unset). Run them with E2E_EMAIL_HARNESS=1 and ADMIN_TEST_PASSWORD set;
+ * without the flag they skip, so a server with real keys is never asked to review or send.
  */
 
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
@@ -14,6 +22,9 @@ import { StubAi, passingReview } from '../fixtures/email-ai-stub';
 
 export const SITE_ORIGIN = 'https://abentertainment.com.au';
 export const MOCK_PORT = 3199;
+export const MOCK_AI_PORT = 3198;
+export const HARNESS = process.env.E2E_EMAIL_HARNESS === '1';
+export const HARNESS_SKIP = 'Needs ADMIN_TEST_PASSWORD and the email test harness (E2E_EMAIL_HARNESS=1, see e2e/support/email-http.ts).';
 export const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin';
 export const ADMIN_PASSWORD = process.env.ADMIN_TEST_PASSWORD ?? '';
 export const HAS_ADMIN_CREDS = Boolean(process.env.ADMIN_TEST_PASSWORD);
@@ -55,6 +66,91 @@ export class MockResend {
       });
       this.server.once('error', reject);
       this.server.listen(MOCK_PORT, '127.0.0.1', () => resolve());
+    });
+  }
+
+  stop(): Promise<void> {
+    return new Promise((resolve) => (this.server ? this.server.close(() => resolve()) : resolve()));
+  }
+}
+
+// ─── the AI reviewer, on loopback ────────────────────────────────────────────
+
+export interface MockAiReview {
+  scores: { content: number; brand: number; tone: number; language: number; quality: number };
+  verdict: 'pass' | 'fail';
+  summary: string;
+  issues: Array<{ dimension: 'content' | 'brand' | 'tone' | 'language' | 'quality'; field: 'subject' | 'preheader' | 'eyebrow' | 'heading' | 'body' | 'cta'; severity: 'blocker' | 'major' | 'minor'; message: string; suggestion: string }>;
+}
+
+export interface MockAiFix {
+  fixes: Record<'subject' | 'preheader' | 'eyebrow' | 'heading' | 'body' | 'ctaLabel' | 'ctaUrl', string | null>;
+  rationale: string;
+}
+
+export const mockPassingReview = (over: Partial<MockAiReview> = {}): MockAiReview => ({
+  scores: { content: 93, brand: 94, tone: 92, language: 95, quality: 93 },
+  verdict: 'pass',
+  summary: 'On brand, accurate and ready to send.',
+  issues: [],
+  ...over,
+});
+
+export const noFixes: MockAiFix['fixes'] = { subject: null, preheader: null, eyebrow: null, heading: null, body: null, ctaLabel: null, ctaUrl: null };
+
+/**
+ * The AI reviewer on loopback, speaking both Anthropic's Messages API (/v1/messages, answers in a forced tool call) and
+ * the OpenAI chat API: answers the review and fix calls from scripted queues (the last answer repeats).
+ */
+export class MockAi {
+  calls: Array<{ kind: 'review' | 'fix'; provider: 'anthropic' | 'openai'; model: string; body: Record<string, unknown> }> = [];
+  reviews: MockAiReview[] = [];
+  fixes: MockAiFix[] = [];
+  /** Wait this long before each answer (to make a review slow enough to watch). */
+  delayMs = 0;
+  private server: Server | null = null;
+
+  reset(): void {
+    this.calls = [];
+    this.reviews = [];
+    this.fixes = [];
+    this.delayMs = 0;
+  }
+
+  start(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.server = createServer((req: IncomingMessage, res: ServerResponse) => {
+        let raw = '';
+        req.on('data', (chunk) => (raw += chunk));
+        req.on('end', () => {
+          let body: Record<string, unknown> = {};
+          try { body = JSON.parse(raw) as Record<string, unknown>; } catch { body = {}; }
+          const anthropic = String(req.url).startsWith('/v1/messages');
+          const schema = anthropic ? (body.tool_choice as { name?: string } | undefined)?.name : (body.response_format as { json_schema?: { name?: string } } | undefined)?.json_schema?.name;
+          const kind = schema === 'email_fix' ? 'fix' : 'review';
+          const index = this.calls.filter((c) => c.kind === kind).length;
+          this.calls.push({ kind, provider: anthropic ? 'anthropic' : 'openai', model: String(body.model ?? ''), body });
+          const queue: Array<MockAiReview | MockAiFix> = kind === 'fix' ? this.fixes : this.reviews;
+          const answer = queue[Math.min(index, queue.length - 1)];
+          setTimeout(() => {
+            if (!answer) {
+              res.writeHead(500, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ error: 'no scripted answer' }));
+              return;
+            }
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(
+              JSON.stringify(
+                anthropic
+                  ? { id: 'msg_mock', type: 'message', role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'toolu_mock', name: schema, input: answer }] }
+                  : { choices: [{ message: { content: JSON.stringify(answer) } }] },
+              ),
+            );
+          }, this.delayMs);
+        });
+      });
+      this.server.once('error', reject);
+      this.server.listen(MOCK_AI_PORT, '127.0.0.1', () => resolve());
     });
   }
 
