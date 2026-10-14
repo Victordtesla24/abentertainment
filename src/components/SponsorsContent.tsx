@@ -117,11 +117,14 @@ export default function SponsorsContent({ initialSponsors }: { initialSponsors: 
       <section className="pb-24">
         <div className="container-eu">
           {sortedSponsors.length > 0 ? (
+            <>
+            <h2 className="sr-only">Our sponsors and partners</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {sortedSponsors.map((sponsor) => (
                 <SponsorCard key={sponsor.id} sponsor={sponsor} />
               ))}
             </div>
+            </>
           ) : (
             <div className="bg-[#111111]/40 border border-[#C9A84C]/10 p-12 text-center">
               <h2 className="text-2xl font-display text-[#C9A84C] mb-4">

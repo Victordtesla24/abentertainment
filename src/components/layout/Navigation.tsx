@@ -147,7 +147,7 @@ export function Navigation() {
               </svg>
             </button>
             <Link href="/contact"
-              className="group relative px-7 py-2.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-xs uppercase tracking-[0.12em] font-body font-bold overflow-hidden transition-all duration-400 hover:shadow-[0_0_25px_rgba(201,168,76,0.35)] focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-4">
+              className="group relative whitespace-nowrap px-7 py-2.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-xs uppercase tracking-[0.12em] font-body font-bold overflow-hidden transition-all duration-400 hover:shadow-[0_0_25px_rgba(201,168,76,0.35)] focus-visible:outline-2 focus-visible:outline-[#C9A84C] focus-visible:outline-offset-4">
               <span className="relative z-10">Contact Us</span>
               <div className="absolute inset-0 bg-gradient-to-r from-[#D4B65C] to-[#E8D5A3] opacity-0 group-hover:opacity-100 transition-opacity duration-400" />
             </Link>

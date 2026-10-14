@@ -58,7 +58,7 @@ export default function CountdownTimer({ targetDate, label = 'Event starts in' }
 
   return (
     <div className="py-4">
-      <p className="text-[#C9A84C]/60 text-xs uppercase tracking-[0.2em] font-body mb-3">{label}</p>
+      <p className="text-[#C9A84C] text-xs uppercase tracking-[0.2em] font-body mb-3">{label}</p>
       <div className="grid grid-cols-4 gap-2 sm:gap-3" role="timer" aria-label={label}>
         {segments.map((seg) => (
           <div key={seg.label} className="min-w-0 text-center">
@@ -67,7 +67,7 @@ export default function CountdownTimer({ targetDate, label = 'Event starts in' }
                 {String(seg.value).padStart(2, '0')}
               </span>
             </div>
-            <span className="text-[10px] text-white/40 font-body uppercase tracking-wider mt-1 block">
+            <span className="text-[10px] text-white/50 font-body uppercase tracking-wider mt-1 block">
               {seg.label}
             </span>
           </div>

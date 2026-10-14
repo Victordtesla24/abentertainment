@@ -213,7 +213,7 @@ export function TestimonialsSection() {
               <button
                 key={index}
                 onClick={() => { setDirection(index > currentIndex ? 1 : -1); setCurrentIndex(index); }}
-                className="group -my-5 flex h-11 items-center justify-center px-[5px] pointer-coarse:min-w-11"
+                className="group -my-5 flex h-11 min-w-6 items-center justify-center px-[5px] pointer-coarse:min-w-11"
                 aria-label={`Go to testimonial ${index + 1}`}
                 aria-current={index === currentIndex}
               >

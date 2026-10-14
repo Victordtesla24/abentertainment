@@ -87,7 +87,7 @@ export default function Footer({ initialSponsors = [] }: { initialSponsors?: Spo
         <div className="container-eu py-12">
           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
             <div>
-              <h3 className="text-xl font-display font-bold text-white mb-1">Stay Updated</h3>
+              <h2 className="text-xl font-display font-bold text-white mb-1">Stay Updated</h2>
               <p className="text-white/50 font-body text-sm">Get notified about upcoming events and exclusive offers.</p>
             </div>
             {subscribed ? (
@@ -292,7 +292,7 @@ export default function Footer({ initialSponsors = [] }: { initialSponsors?: Spo
             For new website development, business &amp; all technical queries, contact:{' '}
             <a
               href={`mailto:${SITE_CONFIG.contact.email}`}
-              className="text-[#C9A84C]/85 hover:text-[#C9A84C] transition-colors duration-300 whitespace-nowrap"
+              className="text-[#C9A84C]/85 underline underline-offset-2 decoration-[#C9A84C]/50 hover:text-[#C9A84C] transition-colors duration-300 whitespace-nowrap"
             >
               abentertainment support
             </a>

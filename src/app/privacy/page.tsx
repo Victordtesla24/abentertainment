@@ -70,7 +70,7 @@ export default function PrivacyPage() {
             </p>
             <p className="text-white font-body leading-relaxed">
               To exercise these rights, please contact us at{' '}
-              <a href={`mailto:${SITE_CONFIG.contact.email}`} className="text-[#C9A84C] hover:underline [overflow-wrap:anywhere]">
+              <a href={`mailto:${SITE_CONFIG.contact.email}`} className="text-[#C9A84C] underline underline-offset-2 decoration-[#C9A84C]/50 [overflow-wrap:anywhere]">
                 {SITE_CONFIG.contact.email}
               </a>.
             </p>
@@ -92,12 +92,12 @@ export default function PrivacyPage() {
               <strong className="text-[#C9A84C]">{SITE_CONFIG.name}</strong>
               <br />
               Email:{' '}
-              <a href={`mailto:${SITE_CONFIG.contact.email}`} className="text-[#C9A84C] hover:underline [overflow-wrap:anywhere]">
+              <a href={`mailto:${SITE_CONFIG.contact.email}`} className="text-[#C9A84C] underline underline-offset-2 decoration-[#C9A84C]/50 [overflow-wrap:anywhere]">
                 {SITE_CONFIG.contact.email}
               </a>
               <br />
               Phone:{' '}
-              <a href={telHref(SITE_CONFIG.contact.phone)} className="text-[#C9A84C] hover:underline [overflow-wrap:anywhere]">
+              <a href={telHref(SITE_CONFIG.contact.phone)} className="text-[#C9A84C] underline underline-offset-2 decoration-[#C9A84C]/50 [overflow-wrap:anywhere]">
                 {SITE_CONFIG.contact.phone}
               </a>
             </address>

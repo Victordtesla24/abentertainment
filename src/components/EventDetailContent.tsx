@@ -252,7 +252,7 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
                     href={event.ticketUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full bg-[#C9A84C] hover:bg-[#D4B65C] text-white font-display font-bold text-sm uppercase tracking-wider py-4 px-6 transition-colors duration-300"
+                    className="block w-full bg-[#C9A84C] hover:bg-[#D4B65C] text-black font-display font-bold text-sm uppercase tracking-wider py-4 px-6 transition-colors duration-300"
                   >
                     Get Tickets
                   </a>
