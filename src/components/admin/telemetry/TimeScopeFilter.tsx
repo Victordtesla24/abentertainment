@@ -1,33 +1,21 @@
 'use client';
 
+import type { TimeScope } from '@/lib/admin-bi';
+import { Segmented, type SegmentedOption } from '../dashboard/ui';
+
 interface TimeScopeFilterProps {
-  scope: 'all' | 'past' | 'live' | 'future';
-  onChange: (scope: 'all' | 'past' | 'live' | 'future') => void;
+  scope: TimeScope;
+  onChange: (scope: TimeScope) => void;
 }
 
-const SCOPES: { id: TimeScopeFilterProps['scope']; label: string }[] = [
-  { id: 'past', label: 'Past' },
-  { id: 'live', label: 'Ongoing / Live' },
-  { id: 'future', label: 'Future' },
-  { id: 'all', label: 'All' },
+/** The Past / Live / Future / All filter, which follows the admin's status of each event (never its date), as a segmented control. */
+const SCOPES: readonly SegmentedOption<TimeScope>[] = [
+  { value: 'past', label: 'Past', title: 'Events marked Past' },
+  { value: 'live', label: 'Live', title: 'Ongoing events, marked Live' },
+  { value: 'future', label: 'Future', title: 'Events marked Upcoming' },
+  { value: 'all', label: 'All', title: 'Every event' },
 ];
 
 export function TimeScopeFilter({ scope, onChange }: TimeScopeFilterProps) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {SCOPES.map((s) => (
-        <button
-          key={s.id}
-          onClick={() => onChange(s.id)}
-          className={`text-[10px] font-body px-3 py-1.5 border transition-colors ${
-            scope === s.id
-              ? 'bg-[#C9A84C]/15 border-[#C9A84C]/30 text-[#C9A84C]'
-              : 'border-white/10 text-white/40 hover:text-white'
-          }`}
-        >
-          {s.label}
-        </button>
-      ))}
-    </div>
-  );
+  return <Segmented label="Events shown" value={scope} options={SCOPES} onChange={onChange} testId="dashboard-scope" />;
 }

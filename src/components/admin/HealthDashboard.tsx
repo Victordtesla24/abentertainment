@@ -1,12 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
-import { TelemetryGaugeGrid } from './telemetry/TelemetryGaugeGrid';
-import { AdminConsoleTelemetry } from './telemetry/AdminConsoleTelemetry';
 import { BusinessIntelligence } from './telemetry/BusinessIntelligence';
-import type { AdminTab } from '@/lib/admin-bi';
+import { CommandBar, type Freshness, type SystemStatus } from './dashboard/CommandBar';
+import { DashboardBackdrop } from './dashboard/DashboardBackdrop';
+import { DashMotionProvider } from './dashboard/motion';
+import { SystemOperations } from './dashboard/SystemOperations';
+import type { ActionResult, HealthData, Issue, PageCheck } from './dashboard/systemTypes';
+import { CopyToast } from './dashboard/CopyToast';
+import { ChartTip } from './dashboard/tooltip';
+import { Chip } from './dashboard/ui';
+import { COLOR, WHITE } from './dashboard/brand';
+import type { AdminTab, TimeScope } from '@/lib/admin-bi';
 import type { Event, Sponsor } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
 import useSWR from 'swr';
@@ -49,59 +55,6 @@ interface BusinessData {
   updatedAt: Date | null;
 }
 
-interface ServerHealth {
-  version: string;
-  nodeVersion: string;
-  uptime: number;
-  agentStatus: 'awake' | 'sleeping';
-  idleSeconds: number;
-  sleepTimeoutSeconds: number;
-  totalRequests: number;
-  totalSleeps: number;
-  totalWakes: number;
-  productionApproved: boolean;
-  memoryMB: number;
-  memoryTotalMB: number;
-}
-
-interface HealthData {
-  type: 'health';
-  server: ServerHealth;
-  models: string[];
-  modelCount: number;
-  tools: string[];
-  toolCount: number;
-  workspace: { loaded: boolean; files: string[]; fileCount: number };
-  apiKeys: Record<string, boolean>;
-  costLimit: number;
-  developer: string;
-  timestamp: string;
-  autoSleep?: {
-    enabled: boolean;
-    warningActive: boolean;
-    secondsUntilSleep: number;
-    thresholdSeconds: number;
-    warningStartsAtSeconds: number;
-  };
-}
-
-interface PageCheck {
-  path: string;
-  name: string;
-  status: 'pass' | 'fail' | 'checking';
-  responseTime: number;
-  statusCode: number;
-}
-
-interface Issue {
-  id: string;
-  severity: 'critical' | 'warning' | 'info';
-  title: string;
-  description: string;
-  fix: string;
-  aiPrompt: string;
-}
-
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const PAGES: { path: string; name: string }[] = [
@@ -116,20 +69,7 @@ const PAGES: { path: string; name: string }[] = [
   { path: '/admin/login/', name: 'Admin Login' },
 ];
 
-const GREEN = '#22c55e';
-const AMBER = '#f59e0b';
-const RED = '#ef4444';
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatUptime(seconds: number): string {
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h ${m}m`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m ${seconds % 60}s`;
-}
 
 function isLocalhost(): boolean {
   if (typeof window === 'undefined') return false;
@@ -159,12 +99,6 @@ function healthScore(data: HealthData | null, pages: PageCheck[]): number {
   return Math.min(score, 100);
 }
 
-function scoreColor(score: number): string {
-  if (score >= 90) return GREEN;
-  if (score >= 70) return AMBER;
-  return RED;
-}
-
 function copyToClipboard(text: string): void {
   try {
     const textarea = document.createElement('textarea');
@@ -178,142 +112,21 @@ function copyToClipboard(text: string): void {
   } catch { /* silently fail */ }
 }
 
-// ─── Sub-Components ──────────────────────────────────────────────────────────
+/** The blocks of the Dashboard a page of the PDF report may begin with: a page ends before one of these, never in the middle of a panel. */
+const PAGE_BREAK_BEFORE = [
+  'section',
+  '[data-testid="dashboard-command-bar"]',
+  '[data-testid="system-gauge-section"]',
+  '[data-testid="system-agent"]',
+  '[data-testid="system-pages"]',
+  '[data-testid="system-issues"]',
+  '[data-testid="system-diagnostics"]',
+  '[data-testid="system-escalation"]',
+  '[data-testid="system-console-usage"]',
+].join(', ');
 
-function AnimatedNumber({ value, suffix = '' }: { value: number; suffix?: string }) {
-  const [display, setDisplay] = useState(0);
-  const prevRef = useRef(0);
-  const rafRef = useRef<number | null>(null);
-  useEffect(() => {
-    const start = prevRef.current;
-    const startTime = Date.now();
-    const animate = () => {
-      const progress = Math.min((Date.now() - startTime) / 1200, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(Math.round(start + (value - start) * eased));
-      if (progress < 1) {
-        rafRef.current = requestAnimationFrame(animate);
-      } else {
-        rafRef.current = null;
-      }
-    };
-    rafRef.current = requestAnimationFrame(animate);
-    prevRef.current = value;
-    return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, [value]);
-  return <>{display}{suffix}</>;
-}
-
-function GaugeChart({ value, max, label, sublabel, color }: {
-  value: number; max: number; label: string; sublabel?: string; color: string;
-}) {
-  const circumference = Math.PI * 42;
-  const progress = Math.min(value / max, 1) * circumference;
-  return (
-    <div className="flex flex-col items-center">
-      <svg viewBox="0 0 100 60" className="w-full max-w-[160px]">
-        <path d="M 8 52 A 42 42 0 0 1 92 52" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="7" strokeLinecap="round" />
-        <motion.path d="M 8 52 A 42 42 0 0 1 92 52" fill="none" stroke={color} strokeWidth="7" strokeLinecap="round"
-          strokeDasharray={circumference}
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: circumference - progress }}
-          transition={{ duration: 1.5, ease: 'easeOut' }}
-        />
-        <text x="50" y="42" textAnchor="middle" fill="white" fontSize="18" fontWeight="700">{value}</text>
-        <text x="50" y="55" textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="7">/ {max}</text>
-      </svg>
-      <p className="text-xs font-body font-semibold text-white mt-1">{label}</p>
-      {sublabel && <p className="text-[10px] font-body text-white/30">{sublabel}</p>}
-    </div>
-  );
-}
-
-function StatusDot({ status, size = 8 }: { status: string; size?: number }) {
-  const color = status === 'pass' || status === 'awake' ? GREEN : status === 'fail' || status === 'critical' ? RED : status === 'sleeping' ? AMBER : AMBER;
-  const pulse = status === 'awake' || status === 'checking';
-  return (
-    <span className="relative inline-flex" style={{ width: size, height: size }}>
-      {pulse && <span className="absolute inline-flex h-full w-full rounded-full opacity-40 animate-ping" style={{ backgroundColor: color }} />}
-      <span className="relative inline-flex rounded-full" style={{ backgroundColor: color, width: size, height: size }} />
-    </span>
-  );
-}
-
-function MetricCard({ title, value, suffix, icon, color, subtitle }: {
-  title: string; value: number; suffix?: string; icon: string; color?: string; subtitle?: string;
-}) {
-  return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-      className="bg-[#111111] border border-[#C9A84C]/10 p-4 relative overflow-hidden group hover:border-[#C9A84C]/25 transition-colors duration-500">
-      <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-[#C9A84C]/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35">{title}</p>
-          <p className="text-2xl font-display font-bold mt-1" style={{ color: color || 'white' }}>
-            <AnimatedNumber value={value} suffix={suffix} />
-          </p>
-          {subtitle && <p className="text-[10px] font-body text-white/30 mt-0.5">{subtitle}</p>}
-        </div>
-        <span className="text-xl opacity-50">{icon}</span>
-      </div>
-    </motion.div>
-  );
-}
-
-// ─── Interactive Page Detail Panel ───────────────────────────────────────────
-
-function PageDetailPanel({ page, onClose }: { page: PageCheck; onClose: () => void }) {
-  return (
-    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="col-span-full">
-      <div className="bg-[#0e0e0e] border border-[#C9A84C]/15 p-4 space-y-3">
-        <div className="flex justify-between items-center">
-          <h4 className="text-sm font-display font-bold text-white">{page.name} — Detailed View</h4>
-          <button onClick={onClose} className="text-white/30 hover:text-white text-xs">Close</button>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-[#111111] p-2.5 border border-white/5">
-            <p className="text-[9px] font-body uppercase text-white/30">Status</p>
-            <div className="flex items-center gap-1.5 mt-1">
-              <StatusDot status={page.status} size={6} />
-              <span className="text-sm font-body font-semibold" style={{ color: page.status === 'pass' ? GREEN : RED }}>{page.status === 'pass' ? 'Healthy' : 'Down'}</span>
-            </div>
-          </div>
-          <div className="bg-[#111111] p-2.5 border border-white/5">
-            <p className="text-[9px] font-body uppercase text-white/30">Response Time</p>
-            <p className="text-sm font-display font-bold mt-1" style={{ color: page.responseTime < 500 ? GREEN : page.responseTime < 1500 ? AMBER : RED }}>{page.responseTime}ms</p>
-          </div>
-          <div className="bg-[#111111] p-2.5 border border-white/5">
-            <p className="text-[9px] font-body uppercase text-white/30">HTTP Status</p>
-            <p className="text-sm font-display font-bold text-white mt-1">{page.statusCode || '—'}</p>
-          </div>
-          <div className="bg-[#111111] p-2.5 border border-white/5">
-            <p className="text-[9px] font-body uppercase text-white/30">URL</p>
-            <p className="text-[11px] font-body text-white/50 mt-1 truncate">{page.path}</p>
-          </div>
-        </div>
-        {page.status === 'pass' && page.responseTime > 1500 && (
-          <div className="bg-[#1a1500] border border-[#f59e0b]/20 p-3">
-            <p className="text-[11px] font-body text-[#f59e0b]">Slow response detected ({page.responseTime}ms). Consider compressing images and optimizing assets on this page.</p>
-          </div>
-        )}
-        {page.status === 'fail' && (
-          <div className="bg-[#1a0500] border border-[#ef4444]/20 p-3">
-            <p className="text-[11px] font-body text-[#ef4444]">This page is not responding. Check that the static HTML file exists on Hostinger and there are no server configuration issues.</p>
-          </div>
-        )}
-        {page.status === 'pass' && page.responseTime <= 500 && (
-          <div className="bg-[#001a05] border border-[#22c55e]/20 p-3">
-            <p className="text-[11px] font-body text-[#22c55e]">Excellent performance. Page is loading well within acceptable thresholds.</p>
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
-}
+/** Two animation frames and a moment: lets what was just rendered (the System & operations content, the reveals) settle before the page is captured. */
+const settle = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
@@ -337,11 +150,11 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
   const [dataFresh, setDataFresh] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [selectedPage, setSelectedPage] = useState<string | null>(null);
-  const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
-  const [showAgentDetail, setShowAgentDetail] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [actionResult, setActionResult] = useState<{ action: string; success: boolean; message: string } | null>(null);
+  const [actionResult, setActionResult] = useState<ActionResult | null>(null);
+  const [scope, setScope] = useState<TimeScope>('all');
+  const [systemOpen, setSystemOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -357,7 +170,8 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
     isLoading: swrLoading,
     mutate,
   } = useSWR('/api/admin/chat', fetcher, {
-    refreshInterval: 10000,
+    // The Auto toggle decides whether the health data is fetched again every 10 seconds.
+    refreshInterval: autoRefresh ? 10000 : 0,
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
   });
@@ -498,7 +312,12 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
       setFetchError(true);
     }
   }, [swrHealthError]);
-  useEffect(() => { refreshAll(); }, [refreshAll]);
+  useEffect(() => {
+    // The first load asks for the health, the nine pages and the admin lists in a task of its own, after the work of drawing the
+    // Dashboard, so the page is never held by one long task made of both (a request costs the page a few milliseconds to issue).
+    const first = setTimeout(() => { void refreshAll(); }, 0);
+    return () => clearTimeout(first);
+  }, [refreshAll]);
   useEffect(() => { setLoading(swrLoading); }, [swrLoading]);
 
   const runAction = useCallback(async (action: string) => {
@@ -546,7 +365,7 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
     };
   }, []);
 
-  const handleCopy = (prompt: string) => {
+  const handleCopy = useCallback((prompt: string) => {
     if (copyTimeoutRef.current) {
       clearTimeout(copyTimeoutRef.current);
     }
@@ -556,7 +375,7 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
       setCopied(false);
       copyTimeoutRef.current = null;
     }, 2000);
-  };
+  }, []);
 
   // When no health data, show agent as sleeping with zeroed metrics
   const agentStatus = healthData?.server?.agentStatus || 'sleeping';
@@ -568,373 +387,157 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
   const avgResponse = pages.filter(p => p.status === 'pass' && p.responseTime > 0).reduce((s, p) => s + p.responseTime, 0) / Math.max(passedPages, 1);
   const criticalCount = issues.filter(i => i.severity === 'critical').length;
 
+  // Until the agent has answered (or failed to) and the nine pages have been checked, the score is not a verdict, so nothing is claimed.
+  const checkingSystems = pages.some((entry) => entry.status === 'checking') || (healthData === null && !fetchError);
+  const freshness: Freshness = fetchError || !dataFresh ? 'stale' : healthData === null ? 'checking' : 'live';
+
+  // The business sections are drawn once and only again when their own data changes: these props keep the same identity from one
+  // render of this component to the next (the health answering, the pages being checked, the clock ticking do not redraw them).
+  const hasAgentData = healthData !== null;
+  const system = useMemo(() => ({ score, passedPages, totalPages: PAGES.length, hasAgentData, checking: checkingSystems }), [score, passedPages, hasAgentData, checkingSystems]);
+  const source = useMemo(() => ({ loading: businessData.loading, failed: businessData.failed, updatedAt: businessData.updatedAt }), [businessData.loading, businessData.failed, businessData.updatedAt]);
+  const onNavigateRef = useRef(onNavigate);
+  useEffect(() => {
+    onNavigateRef.current = onNavigate;
+  });
+  const navigate = useCallback((tab: AdminTab) => onNavigateRef.current?.(tab), []);
+  const toggleSystem = useCallback(() => setSystemOpen((previous) => !previous), []);
+
+  const status: SystemStatus = loading ? { kind: 'checking', count: 0, critical: 0 } : issues.length === 0 ? { kind: 'ok', count: 0, critical: 0 } : { kind: 'issues', count: issues.length, critical: criticalCount };
+
+  /** Opens System & operations and brings it into view (the status pill and the health tile both lead there). */
+  const openSystem = useCallback(() => {
+    setSystemOpen(true);
+    requestAnimationFrame(() => document.getElementById('system-operations')?.scrollIntoView({ block: 'start' }));
+  }, []);
+
   const exportPdf = async () => {
-    const { default: html2canvas } = await import('html2canvas');
-    const { default: jsPDF } = await import('jspdf');
-    const element = document.getElementById('health-dashboard-content');
-    if (!element) return;
-    const canvas = await html2canvas(element, { backgroundColor: '#0A0A0A', scale: 2 });
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-    pdf.setFillColor(10, 10, 10);
-    pdf.rect(0, 0, pdfWidth, pdfHeight + 20, 'F');
-    pdf.setTextColor(201, 168, 76);
-    pdf.setFontSize(16);
-    pdf.text('AB Entertainment — System Health Report', 14, 15);
-    pdf.setFontSize(8);
-    pdf.setTextColor(255, 255, 255);
-    pdf.text(new Date().toLocaleString(), 14, 21);
-    pdf.addImage(imgData, 'PNG', 0, 25, pdfWidth, pdfHeight);
-    pdf.save(`health-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+    // Everything is drawn in its final state (no entrance still under way) and System & operations is open, so the report is complete.
+    setExporting(true);
+    try {
+      await settle(900);
+      const { default: html2canvas } = await import('html2canvas');
+      const { default: jsPDF } = await import('jspdf');
+      const element = document.getElementById('health-dashboard-content');
+      if (!element) return;
+      // A browser cannot draw a canvas much taller than 16,000 px, so a long Dashboard is captured a little smaller.
+      const canvas = await html2canvas(element, { backgroundColor: COLOR.black, scale: Math.min(2, 16000 / Math.max(element.scrollHeight, 1)) });
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const imageWidth = pageWidth - 2 * margin;
+      const pixelsPerMm = canvas.width / imageWidth;
+      // where each panel begins, in pixels of the captured image
+      const box = element.getBoundingClientRect();
+      const breaks = Array.from(element.querySelectorAll(PAGE_BREAK_BEFORE), (block) => Math.round((block.getBoundingClientRect().top - box.top) * (canvas.width / box.width)))
+        .filter((y) => y > 0)
+        .sort((a, b) => a - b);
+      let offset = 0;
+      let pageIndex = 0;
+      while (offset < canvas.height) {
+        const top = pageIndex === 0 ? 25 : margin;
+        const room = Math.floor((pageHeight - top - margin) * pixelsPerMm);
+        let slice = Math.min(canvas.height - offset, room);
+        if (offset + slice < canvas.height) {
+          // the page ends where a panel begins, when one begins in its lower half
+          const cut = breaks.filter((y) => y > offset + room / 2 && y <= offset + room).pop();
+          if (cut !== undefined) slice = cut - offset;
+        }
+        const part = document.createElement('canvas');
+        part.width = canvas.width;
+        part.height = slice;
+        part.getContext('2d')?.drawImage(canvas, 0, offset, canvas.width, slice, 0, 0, canvas.width, slice);
+        if (pageIndex > 0) pdf.addPage();
+        pdf.setFillColor(10, 10, 10);
+        pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+        if (pageIndex === 0) {
+          pdf.setTextColor(201, 168, 76);
+          pdf.setFontSize(16);
+          pdf.text('AB Entertainment — System Health Report', 14, 15);
+          pdf.setFontSize(8);
+          pdf.setTextColor(255, 255, 255);
+          pdf.text(new Date().toLocaleString(), 14, 21);
+        }
+        // 'FAST' deflates the pixels; jsPDF stores them raw by default, which makes each page of the report about 19 MB.
+        pdf.addImage(part.toDataURL('image/png'), 'PNG', margin, top, imageWidth, slice / pixelsPerMm, undefined, 'FAST');
+        offset += slice;
+        pageIndex += 1;
+      }
+      pdf.save(`health-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
-    <div id="health-dashboard-content" className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-display font-bold text-white">System Health</h2>
-            {/* Freshness indicator */}
-            <span className="relative inline-flex" style={{ width: 10, height: 10 }}>
-              {dataFresh && !fetchError && (
-                <span className="absolute inline-flex h-full w-full rounded-full opacity-40 animate-ping" style={{ backgroundColor: GREEN }} />
-              )}
-              <span className="relative inline-flex rounded-full" style={{
-                backgroundColor: fetchError ? AMBER : dataFresh ? GREEN : AMBER,
-                width: 10, height: 10
-              }} />
-            </span>
-            <span className="text-[10px] font-body text-white/30">
-              {fetchError ? 'Stale' : dataFresh ? 'Live' : 'Stale'}
-            </span>
-          </div>
-          <p className="text-[11px] font-body text-white/30 mt-0.5">
-            Last refresh: {lastRefresh.toLocaleTimeString()} · {autoRefresh ? 'Auto-refresh: 10s' : 'Auto-refresh: off'}
-            {isLocalhost() && <span className="text-[#f59e0b] ml-2">Local Dev Mode</span>}
-          </p>
+    <DashMotionProvider exporting={exporting}>
+      <div id="health-dashboard-content" className="relative isolate mx-auto w-full max-w-[1440px] [font-variant-numeric:lining-nums]">
+        <DashboardBackdrop />
+        <div className="relative space-y-8">
+          <CommandBar
+            scope={scope}
+            onScope={setScope}
+            status={status}
+            onStatusClick={openSystem}
+            lastRefresh={lastRefresh}
+            freshness={freshness}
+            loading={loading}
+            onRefresh={refreshAll}
+            autoRefresh={autoRefresh}
+            onToggleAuto={() => setAutoRefresh(!autoRefresh)}
+            onExport={exportPdf}
+            exporting={exporting}
+            localDev={isLocalhost()}
+          />
+
           {fetchError && (
-            <p className="text-[11px] font-body text-[#f59e0b] mt-1">
+            <p role="status" data-testid="dashboard-stale-note" className="flex flex-wrap items-center gap-3 font-body text-xs" style={{ color: WHITE.a65 }}>
+              <Chip tone="warning" icon="alert">Stale</Chip>
               Data may be stale — last successful fetch was at {lastRefresh.toLocaleTimeString()}
             </p>
           )}
           {healthData?.autoSleep?.warningActive && (
-            <p className="text-[11px] font-body text-[#f59e0b] mt-1">
-              💤 Due to inactivity, the AI agent is preparing to go to bed in <strong>{healthData.autoSleep.secondsUntilSleep}s</strong>. If you want him to stay back and help you, let him know in the next 30 sec — or when you're ready, click "Wake Agent" to rouse him, freshen him up, and get full workspace context loaded.
+            <p role="status" data-testid="dashboard-sleep-note" className="flex flex-wrap items-start gap-3 font-body text-xs leading-relaxed" style={{ color: WHITE.a65 }}>
+              <Chip tone="warning" icon="moon">Agent going to sleep</Chip>
+              <span className="min-w-0 flex-1">Due to inactivity, the AI agent is preparing to go to bed in <strong className="text-white">{healthData.autoSleep.secondsUntilSleep}s</strong>. If you want him to stay back and help you, let him know in the next 30 sec — or when you&apos;re ready, click &quot;Wake Agent&quot; to rouse him, freshen him up, and get full workspace context loaded.</span>
             </p>
           )}
+
+          <BusinessIntelligence
+            events={businessData.events ?? events ?? NO_EVENTS}
+            sponsors={businessData.sponsors ?? sponsors ?? NO_SPONSORS}
+            scope={scope}
+            source={source}
+            system={system}
+            onOpenSystem={openSystem}
+            onNavigate={onNavigate ? navigate : undefined}
+          />
+
+          <SystemOperations
+            open={systemOpen || exporting}
+            onToggle={toggleSystem}
+            healthData={healthData}
+            pages={pages}
+            issues={issues}
+            loading={loading}
+            score={score}
+            avgResponse={avgResponse}
+            totalPages={PAGES.length}
+            agentStatus={agentStatus}
+            agentUptime={agentUptime}
+            agentMemory={agentMemory}
+            actionLoading={actionLoading}
+            actionResult={actionResult}
+            onRunAction={runAction}
+            onCopy={handleCopy}
+            escalationContact={process.env.NEXT_PUBLIC_ESCALATION_EMAIL || healthData?.developer || `abentertainment support (${SITE_CONFIG.contact.email})`}
+          />
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`text-[10px] font-body px-3 py-1.5 border transition-colors ${autoRefresh ? 'border-[#C9A84C]/30 text-[#C9A84C] bg-[#C9A84C]/5' : 'border-white/10 text-white/40'}`}>
-            {autoRefresh ? 'Auto ●' : 'Auto ○'}
-          </button>
-          <button onClick={refreshAll} disabled={loading}
-            className="text-[10px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors disabled:opacity-40">
-            {loading ? 'Scanning...' : 'Refresh'}
-          </button>
-          <button onClick={exportPdf}
-            className="text-[10px] font-body px-3 py-1.5 bg-white/5 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/70 transition-colors">
-            Export PDF
-          </button>
-        </div>
+
+        <ChartTip />
+        <CopyToast visible={copied} />
       </div>
-
-      {/* Quick Actions */}
-      <div className="bg-[#111111] border border-[#C9A84C]/10 p-4">
-        <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-3">Quick Actions</p>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { id: 'wake', label: 'Wake Agent', icon: '⏰', desc: 'Force wake the sleeping agent' },
-            { id: 'restart', label: 'Restart Chatbot', icon: '🔄', desc: 'Restart the AI agent service' },
-            { id: 'clear_cache', label: 'Clear Cache', icon: '🧹', desc: 'Clear server response cache' },
-            { id: 'clear_stats', label: 'Clear Stats', icon: '📊', desc: 'Reset request counters' },
-          ].map(action => {
-            const isWakeProminent = action.id === 'wake' && agentStatus === 'sleeping';
-            return (
-            <button
-              key={action.id}
-              onClick={() => runAction(action.id)}
-              disabled={actionLoading !== null}
-              title={action.desc}
-              className={`flex items-center gap-2 px-4 py-2.5 border text-xs font-body transition-all duration-200 ${
-                actionLoading === action.id
-                  ? 'border-[#C9A84C]/40 bg-[#C9A84C]/10 text-[#C9A84C]'
-                  : isWakeProminent
-                    ? 'border-[#C9A84C]/50 bg-[#C9A84C]/15 text-[#C9A84C] ring-1 ring-[#C9A84C]/30 shadow-[0_0_12px_rgba(201,168,76,0.15)]'
-                    : 'border-white/10 text-white/60 hover:border-[#C9A84C]/30 hover:text-[#C9A84C] hover:bg-[#C9A84C]/5'
-              } disabled:opacity-40`}
-            >
-              <span>{action.icon}</span>
-              <span>{actionLoading === action.id ? 'Running...' : action.label}</span>
-            </button>
-            );
-          })}
-        </div>
-        <AnimatePresence>
-          {actionResult && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-              className={`mt-3 px-3 py-2 border text-xs font-body ${
-                actionResult.success
-                  ? 'border-[#22c55e]/20 bg-[#22c55e]/5 text-[#22c55e]'
-                  : 'border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444]'
-              }`}
-            >
-              {actionResult.success ? '✓' : '✗'} {actionResult.message}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Telemetry Gauges */}
-      <TelemetryGaugeGrid
-        healthScore={score}
-        memoryMB={agentMemory}
-        memoryTotalMB={healthData?.server.memoryTotalMB ?? 1}
-        avgResponseMs={avgResponse}
-        totalRequests={healthData?.server.totalRequests ?? 0}
-        uptimeSeconds={agentUptime}
-        totalSleeps={healthData?.server.totalSleeps ?? 0}
-        errorRate={pages.length > 0 ? (pages.filter(p => p.status === 'fail').length / pages.length) * 100 : 0}
-      />
-
-      {/* Top Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard title="Health Score" value={score} suffix="%" icon="📊" color={scoreColor(score)} subtitle={score >= 90 ? 'Excellent' : score >= 70 ? 'Good' : 'Needs attention'} />
-        <MetricCard title="VPS Uptime" value={Math.round(agentUptime / 60)} suffix="m" icon="⏱" subtitle={agentUptime > 0 ? formatUptime(agentUptime) : agentStatus === 'sleeping' ? 'Agent sleeping' : 'Unavailable'} />
-        <MetricCard title="Avg Response" value={Math.round(avgResponse)} suffix="ms" icon="⚡" color={avgResponse < 500 ? GREEN : avgResponse < 1500 ? AMBER : RED} subtitle={`${passedPages}/${PAGES.length} pages healthy`} />
-        <MetricCard title="Active Issues" value={issues.length} icon="⚠" color={criticalCount > 0 ? RED : issues.length > 0 ? AMBER : GREEN} subtitle={criticalCount > 0 ? `${criticalCount} critical` : issues.length > 0 ? `${issues.length} minor` : 'All clear'} />
-      </div>
-
-      {/* System Gauges */}
-      <div className="bg-[#111111] border border-[#C9A84C]/10 p-5">
-        <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-4">System Gauges</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-          <GaugeChart value={healthData ? 100 : 0} max={100} label="Server" sublabel={healthData?.server.version || '—'} color={healthData ? GREEN : RED} />
-          <GaugeChart value={passedPages} max={PAGES.length} label="Pages" sublabel={`${passedPages} of ${PAGES.length} OK`} color={passedPages === PAGES.length ? GREEN : passedPages >= 7 ? AMBER : RED} />
-          <GaugeChart value={healthData?.modelCount || 0} max={15} label="AI Models" sublabel={`${healthData?.toolCount || 0} tools`} color={healthData?.modelCount ? GREEN : AMBER} />
-        </div>
-      </div>
-
-      {/* AI Agent Panel — Clickable to expand */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-[#111111] border border-[#C9A84C]/10 p-5">
-        <button onClick={() => setShowAgentDetail(!showAgentDetail)} className="w-full flex items-center justify-between mb-4 text-left">
-          <div className="flex items-center gap-2">
-            <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35">AI Agent</p>
-            <StatusDot status={agentStatus} size={6} />
-            <span className="text-[10px] font-body text-white/40 capitalize">{agentStatus}</span>
-          </div>
-          <span className="text-white/20 text-xs">{showAgentDetail ? '▲ Less' : '▼ Details'}</span>
-        </button>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-          {[
-            { label: 'Requests', value: healthData?.server.totalRequests ?? 0, icon: '📨' },
-            { label: 'Sleep Cycles', value: healthData?.server.totalSleeps ?? 0, icon: '😴' },
-            { label: 'Wakes', value: healthData?.server.totalWakes ?? 0, icon: '⏰' },
-            { label: 'Memory', value: `${agentMemory}MB`, icon: '💾' },
-            { label: 'Cost Limit', value: `$${healthData?.costLimit || 5}`, icon: '💰' },
-            { label: 'Prod Approval', value: healthData?.server.productionApproved ? 'YES' : 'NO', icon: '🔒' },
-          ].map(item => (
-            <div key={item.label} className="bg-[#0A0A0A] border border-white/5 p-2.5 text-center">
-              <p className="text-base mb-0.5">{item.icon}</p>
-              <p className="text-sm font-display font-bold text-white">{item.value}</p>
-              <p className="text-[9px] font-body text-white/30">{item.label}</p>
-            </div>
-          ))}
-        </div>
-        <AnimatePresence>
-          {showAgentDetail && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-              <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Models */}
-                <div>
-                  <p className="text-[9px] font-body uppercase tracking-[0.15em] text-white/30 mb-2">Models ({healthData?.modelCount || 15})</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(healthData?.models || []).map(m => (
-                      <span key={m} className="text-[9px] font-body px-1.5 py-0.5 bg-[#0A0A0A] border border-white/5 text-white/50">{m}</span>
-                    ))}
-                  </div>
-                </div>
-                {/* Tools + Keys */}
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-[9px] font-body uppercase tracking-[0.15em] text-white/30 mb-2">Tools ({healthData?.toolCount || 8})</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(healthData?.tools || []).map(t => (
-                        <span key={t} className="text-[9px] font-body px-1.5 py-0.5 bg-[#C9A84C]/5 border border-[#C9A84C]/10 text-[#C9A84C]/60">{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-body uppercase tracking-[0.15em] text-white/30 mb-2">API Keys</p>
-                    <div className="space-y-1">
-                      {Object.entries(healthData?.apiKeys || {}).map(([key, ok]) => (
-                        <div key={key} className="flex items-center gap-2">
-                          <StatusDot status={ok ? 'pass' : 'fail'} size={5} />
-                          <span className="text-[10px] font-body text-white/50 capitalize">{key}</span>
-                          <span className="text-[9px] font-body ml-auto" style={{ color: ok ? GREEN : RED }}>{ok ? 'OK' : 'Missing'}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              {/* Workspace files */}
-              <div className="mt-4 pt-3 border-t border-white/5">
-                <p className="text-[9px] font-body uppercase tracking-[0.15em] text-white/30 mb-2">
-                  Workspace Context
-                  {healthData?.server?.agentStatus === 'sleeping' && (
-                    <span className="ml-2 text-[9px] font-body normal-case tracking-normal text-white/35">· cache released while sleeping (loads on wake)</span>
-                  )}
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {['SOUL.md', 'MEMORY.md', 'HEARTBEAT.md', 'SKILLS.md'].map(file => {
-                    const isSleeping = healthData?.server?.agentStatus === 'sleeping';
-                    const loaded = healthData?.workspace.files.includes(file) ?? true;
-                    // When sleeping, show a neutral "cached-on-wake" state,
-                    // not a red failure — the cache was deliberately cleared.
-                    const cssClasses = isSleeping
-                      ? 'bg-[#0A0A0A] border-white/10 opacity-60'
-                      : loaded
-                        ? 'bg-[#0A0A0A] border-[#22c55e]/15'
-                        : 'bg-[#1a0500] border-[#ef4444]/15';
-                    const dotStatus = isSleeping ? 'sleeping' : loaded ? 'pass' : 'fail';
-                    return (
-                      <div key={file} className={`p-2 border text-center ${cssClasses}`}>
-                        <StatusDot status={dotStatus} size={5} />
-                        <p className="text-[10px] font-body text-white/50 mt-1">{file}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
-
-      {/* Page Health — Interactive Grid */}
-      <div>
-        <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-3">Page Health Monitor <span className="text-white/20">— Click for details</span></p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {pages.map(page => (
-            <motion.button key={page.path} onClick={() => setSelectedPage(selectedPage === page.path ? null : page.path)}
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-              className={`bg-[#0A0A0A] border p-3 flex items-center gap-3 text-left transition-colors ${selectedPage === page.path ? 'border-[#C9A84C]/30 bg-[#C9A84C]/[0.03]' : 'border-white/5 hover:border-[#C9A84C]/15'}`}>
-              <StatusDot status={page.status} />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-body font-medium text-white truncate">{page.name}</p>
-                <p className="text-[10px] font-body text-white/30">{page.path}</p>
-              </div>
-              <div className="text-right">
-                {page.status === 'checking' ? <p className="text-[10px] font-body text-[#f59e0b]">...</p>
-                  : page.status === 'pass' ? <p className="text-[10px] font-body" style={{ color: page.responseTime < 500 ? GREEN : page.responseTime < 1500 ? AMBER : RED }}>{page.responseTime}ms</p>
-                  : <p className="text-[10px] font-body text-[#ef4444]">{page.statusCode || 'ERR'}</p>}
-              </div>
-            </motion.button>
-          ))}
-          <AnimatePresence>
-            {selectedPage && <PageDetailPanel page={pages.find(p => p.path === selectedPage)!} onClose={() => setSelectedPage(null)} />}
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {/* Issues */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35">Issues & Alerts</p>
-          {issues.length === 0 && !loading && <span className="text-[10px] font-body px-2 py-0.5 bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/20">All Clear</span>}
-        </div>
-        {issues.length > 0 ? (
-          <div className="space-y-1.5">
-            {issues.map(issue => {
-              const sevColor = issue.severity === 'critical' ? RED : issue.severity === 'warning' ? AMBER : '#C9A84C';
-              const isOpen = expandedIssue === issue.id;
-              return (
-                <div key={issue.id} className="border border-white/5 bg-[#0A0A0A] overflow-hidden">
-                  <button onClick={() => setExpandedIssue(isOpen ? null : issue.id)} className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-white/[0.02] transition-colors">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sevColor }} />
-                    <span className="flex-1 text-xs font-body text-white">{issue.title}</span>
-                    <span className="text-[9px] font-body uppercase tracking-wider px-2 py-0.5" style={{ backgroundColor: `${sevColor}15`, color: sevColor }}>{issue.severity}</span>
-                    <span className="text-white/20 text-xs">{isOpen ? '▲' : '▼'}</span>
-                  </button>
-                  <AnimatePresence>
-                    {isOpen && (
-                      <motion.div layout initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ layout: { type: 'spring', stiffness: 300, damping: 30 } }} className="border-t border-white/5">
-                        <div className="px-4 py-3 space-y-2">
-                          <p className="text-[11px] font-body text-white/50">{issue.description}</p>
-                          <div className="bg-[#111111] border border-white/5 p-2">
-                            <p className="text-[9px] font-body uppercase tracking-wider text-[#C9A84C]/50 mb-1">Suggested Fix</p>
-                            <p className="text-[11px] font-body text-white/70">{issue.fix}</p>
-                          </div>
-                          <button onClick={() => handleCopy(issue.aiPrompt)} className="text-[10px] font-body px-3 py-1.5 bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors">
-                            Copy AI Prompt
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
-          </div>
-        ) : !loading ? (
-          <div className="bg-[#111111] border border-[#22c55e]/10 p-6 text-center">
-            <p className="text-2xl mb-2">✓</p>
-            <p className="text-sm font-body text-[#22c55e]">No issues detected</p>
-            <p className="text-[10px] font-body text-white/30 mt-1">All systems operational</p>
-          </div>
-        ) : null}
-      </div>
-
-      {/* Quick Diagnostics */}
-      <div className="bg-[#111111] border border-[#C9A84C]/10 p-4">
-        <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-3">Quick Diagnostics — Copy &amp; Paste into AI Agent</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {[
-            { label: 'Full System Status', prompt: 'Give me a comprehensive status report of all systems including server health, available models, tools, workspace files, and any issues you detect.' },
-            { label: 'Check Homepage', prompt: 'Analyze the homepage hero component code. Check for any issues with the CinematicHero or ThreeCanvas components.' },
-            { label: 'Review Events', prompt: 'List all current events with dates, venues, and prices. Are any events outdated or missing information?' },
-            { label: 'Security Audit', prompt: 'Review the admin authentication system. Check cookie handling, credential storage, and session management for vulnerabilities.' },
-          ].map(item => (
-            <button key={item.label} onClick={() => handleCopy(item.prompt)} className="text-left p-2.5 bg-[#0A0A0A] border border-white/5 hover:border-[#C9A84C]/15 transition-colors group">
-              <p className="text-[11px] font-body text-white/60 group-hover:text-[#C9A84C] transition-colors">{item.label}</p>
-              <p className="text-[9px] font-body text-white/25 mt-0.5 truncate">{item.prompt.substring(0, 60)}...</p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Escalation */}
-      <div className="bg-[#0A0A0A] border border-white/5 p-4">
-        <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-2">Developer Escalation</p>
-        <p className="text-[11px] font-body text-white/50">
-          For critical issues the AI Agent cannot resolve, contact: <span className="text-[#C9A84C]">{process.env.NEXT_PUBLIC_ESCALATION_EMAIL || healthData?.developer || `abentertainment support (${SITE_CONFIG.contact.email})`}</span>
-        </p>
-      </div>
-
-      <AdminConsoleTelemetry />
-
-      {/* Business Intelligence */}
-      <BusinessIntelligence
-        events={businessData.events ?? events ?? NO_EVENTS}
-        sponsors={businessData.sponsors ?? sponsors ?? NO_SPONSORS}
-        source={{ loading: businessData.loading, failed: businessData.failed, updatedAt: businessData.updatedAt }}
-        onNavigate={onNavigate}
-      />
-
-      {/* Toast */}
-      <AnimatePresence>
-        {copied && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-6 right-6 px-4 py-2 bg-[#C9A84C] text-black text-xs font-body font-semibold shadow-lg z-50">
-            Copied to clipboard
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    </DashMotionProvider>
   );
 }

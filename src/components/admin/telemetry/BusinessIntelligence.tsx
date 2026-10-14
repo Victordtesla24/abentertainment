@@ -1,20 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { Event, Sponsor } from '@/lib/data';
-import { computeBusinessIntelligence, eventsInScope, isoOfDay, todayDayNumber, type AdminTab, type BiReference, type TimeScope } from '@/lib/admin-bi';
+import { computeBusinessIntelligence, dataCompleteness, eventsInScope, isoOfDay, todayDayNumber, type AdminTab, type BiReference, type TimeScope } from '@/lib/admin-bi';
 import { AVERAGE_TICKET_PRICE, REFERENCE_RETRIEVED, SELL_THROUGH, SELL_THROUGH_BY_GENRE, VENUE_REFERENCE } from '@/lib/bi-reference';
-import { TimeScopeFilter } from './TimeScopeFilter';
-import { EventAnalytics } from './EventAnalytics';
-import { RevenueChart } from './RevenueChart';
-import { TicketSalesChart } from './TicketSalesChart';
-import { BiHeadlineCards } from './BiHeadlineCards';
-import { BiActionItems } from './BiActionItems';
-import { BiForecastPanel } from './BiForecastPanel';
-import { BiPipelinePanel } from './BiPipelinePanel';
-import { BiGroupPanel } from './BiGroupPanel';
-import { BiSponsorPanel } from './BiSponsorPanel';
-import { AMBER } from './biParts';
+import { ActionCentre } from '../dashboard/ActionCentre';
+import { WHITE } from '../dashboard/brand';
+import { Breakdowns } from '../dashboard/Breakdowns';
+import { DashboardSkeleton } from '../dashboard/DashboardSkeleton';
+import { GlanceTiles, type SystemGlance } from '../dashboard/GlanceTiles';
+import { PipelineTimeline } from '../dashboard/PipelineTimeline';
+import { RevenueForecast } from '../dashboard/RevenueForecast';
+import { Sponsorship } from '../dashboard/Sponsorship';
+import { useSameWhileEqual } from '../dashboard/stable';
+import { Chip } from '../dashboard/ui';
 
 /** The public reference data the estimates lean on (src/lib/bi-reference.ts). */
 const REFERENCE: BiReference = {
@@ -38,20 +37,23 @@ export interface BusinessDataSource {
 function DataNote({ source }: { source: BusinessDataSource }) {
   if (source.failed.length > 0) {
     return (
-      <p role="status" data-testid="bi-data-note" data-state="fallback" className="text-[11px] font-body" style={{ color: AMBER }}>
+      <p role="status" data-testid="bi-data-note" data-state="fallback" className="flex flex-wrap items-center gap-3 font-body text-xs" style={{ color: WHITE.a65 }}>
+        <Chip tone="warning" icon="alert">
+          Not refreshed
+        </Chip>
         Could not refresh the {source.failed.join(' and ')}: showing the data loaded earlier. Use Refresh to try again.
       </p>
     );
   }
   if (source.loading) {
     return (
-      <p role="status" data-testid="bi-data-note" data-state="loading" className="text-[10px] font-body text-white/30">
+      <p role="status" data-testid="bi-data-note" data-state="loading" className="min-h-9 font-body text-xs sm:min-h-0" style={{ color: WHITE.a50 }}>
         {source.updatedAt ? 'Refreshing the admin data...' : 'Checking for the latest admin data...'}
       </p>
     );
   }
   return (
-    <p role="status" data-testid="bi-data-note" data-state="live" className="text-[10px] font-body text-white/30">
+    <p role="status" data-testid="bi-data-note" data-state="live" className="min-h-9 font-body text-xs sm:min-h-0" style={{ color: WHITE.a50 }}>
       Calculated from the current admin data{source.updatedAt ? ` · updated ${source.updatedAt.toLocaleTimeString('en-AU')}` : ''}.
     </p>
   );
@@ -60,50 +62,47 @@ function DataNote({ source }: { source: BusinessDataSource }) {
 interface BusinessIntelligenceProps {
   events: Event[];
   sponsors: Sponsor[];
+  scope: TimeScope;
   source: BusinessDataSource;
+  system: SystemGlance;
+  onOpenSystem: () => void;
   /** Opens an admin tab; the action buttons only appear when it is given. */
   onNavigate?: (tab: AdminTab) => void;
 }
 
 /**
- * The Dashboard's Business Intelligence section. Every number comes from src/lib/admin-bi.ts; this only lays the results out.
- * The Past / Live / Future / All filter follows the admin's status, never the date.
+ * The Dashboard's business sections, from the top: at a glance, the action centre, revenue and forecast, the event pipeline, the
+ * breakdowns and the sponsorship. Every number comes from src/lib/admin-bi.ts; this only lays the results out. The Past / Live /
+ * Future / All filter (kept in the command bar above) follows the admin's status, never the date.
  */
-export function BusinessIntelligence({ events, sponsors, source, onNavigate }: BusinessIntelligenceProps) {
-  const [scope, setScope] = useState<TimeScope>('all');
+export const BusinessIntelligence = memo(function BusinessIntelligence({ events: eventsArrived, sponsors: sponsorsArrived, scope, source, system, onOpenSystem, onNavigate }: BusinessIntelligenceProps) {
+  const events = useSameWhileEqual(eventsArrived);
+  const sponsors = useSameWhileEqual(sponsorsArrived);
   // The moment the days to go are counted from: it moves on when the date does, so a Dashboard left open overnight is not a day behind.
   const today = isoOfDay(todayDayNumber(new Date()));
   const now = useMemo(() => new Date(), [today]);
   const bi = useMemo(() => computeBusinessIntelligence({ events, sponsors, scope, now, reference: REFERENCE }), [events, sponsors, scope, now]);
   const scopedEvents = useMemo(() => eventsInScope(events, scope), [events, scope]);
+  const completeness = useMemo(() => dataCompleteness(bi), [bi]);
+  // One event can be lit from two places: hovering a row of the revenue chart lights its marker on the timeline, and the other way round.
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const waiting = source.loading && source.updatedAt === null && events.length === 0 && sponsors.length === 0;
 
   return (
-    <div data-testid="business-intelligence" className="mt-8 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-lg font-display font-semibold text-white">Business Intelligence</h3>
-        <TimeScopeFilter scope={scope} onChange={setScope} />
-      </div>
-
+    <div data-testid="business-intelligence" className="space-y-10">
       <DataNote source={source} />
-
-      <BiHeadlineCards bi={bi} />
-      <BiActionItems items={bi.actions} onNavigate={onNavigate} />
-      <BiForecastPanel bi={bi} />
-      <BiPipelinePanel rows={bi.pipeline} assumptions={bi.forecast.assumptions} />
-
-      <EventAnalytics events={scopedEvents} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 lg:items-start gap-6">
-        <BiGroupPanel kind="category" rows={bi.categories} assumptions={bi.forecast.assumptions} />
-        <BiGroupPanel kind="venue" rows={bi.venues} assumptions={bi.forecast.assumptions} />
-      </div>
-
-      <BiSponsorPanel bi={bi} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RevenueChart sponsors={sponsors} />
-        <TicketSalesChart events={scopedEvents} />
-      </div>
+      {waiting ? (
+        <DashboardSkeleton />
+      ) : (
+        <div className="space-y-10 transition-opacity duration-300" style={{ opacity: source.loading && source.updatedAt !== null ? 0.6 : 1 }}>
+          <GlanceTiles bi={bi} completeness={completeness} scope={scope} system={system} onOpenSystem={onOpenSystem} />
+          <ActionCentre bi={bi} onNavigate={onNavigate} />
+          <RevenueForecast bi={bi} events={scopedEvents} reference={REFERENCE} activeId={activeId} onActive={setActiveId} onNavigate={onNavigate} />
+          <PipelineTimeline bi={bi} activeId={activeId} onActive={setActiveId} />
+          <Breakdowns bi={bi} events={scopedEvents} reference={REFERENCE} />
+          <Sponsorship bi={bi} />
+        </div>
+      )}
     </div>
   );
-}
+});
