@@ -330,7 +330,7 @@ export default function AdminDashboard({
 
         {/* Page Content */}
         <div className="p-4 sm:p-6 lg:p-8">
-          {activeTab === 'health' && <HealthDashboard events={events} sponsors={sponsors} />}
+          {activeTab === 'health' && <HealthDashboard events={events} sponsors={sponsors} onNavigate={(tab) => setActiveTab(tab)} />}
           {activeTab === 'events' && <EventsManager initialEvents={events} allSponsors={sponsors} allGallery={gallery} />}
           {activeTab === 'sponsors' && <SponsorsManager initialSponsors={sponsors} allEvents={events} allGallery={gallery} />}
           {activeTab === 'gallery' && <GalleryManager initialGallery={gallery} allEvents={events} allSponsors={sponsors} allHeroImages={heroImages} initialSiteImageOverrides={settings.siteImageOverrides} />}
