@@ -1547,3 +1547,196 @@ test.describe('the live data of 14 October 2026 against the published reference 
     expect(links?.names).toEqual(['DJ Night Sydney', 'DJ Night - Melbourne', 'All The Best - Sydney']);
   });
 });
+
+// ─── Data completeness ───────────────────────────────────────────────────────
+
+test.describe('data completeness: fields recorded over fields required', () => {
+  const completenessOf = (events: readonly Event[], sponsors: readonly Sponsor[] = [], scope: bi.TimeScope = 'all', reference: BiReference = REFERENCE) =>
+    bi.dataCompleteness(run(events, sponsors, scope, reference));
+  const pairs = (result: bi.DataCompleteness) => Object.fromEntries(result.parts.map((entry) => [entry.id, [entry.recorded, entry.total]]));
+
+  // Three past events (two with sales: one by tickets sold, one by revenue only), four upcoming or live events, four sponsors.
+  //   u1: price, capacity and a clean ticket link            -> 3 of 3
+  //   u2: price, no capacity, a link with text after it      -> 1 of 3
+  //   u3: nothing recorded, at a venue with a public capacity -> 0 of 3 (the public capacity is a reference, not a record)
+  //   u4: live; price, capacity and an http link              -> 3 of 3
+  const past = [
+    ev('p1', { status: 'past', date: '2026-01-10', ticketsSold: 10 }),
+    ev('p2', { status: 'past', date: '2026-01-11' }),
+    ev('p3', { status: 'past', date: '2026-01-12', ticketRevenue: 500 }),
+  ];
+  const upcoming = [
+    ev('u1', { price: 50, capacity: 100, ticketUrl: 'https://tickets.example.com/u1' }),
+    ev('u2', { price: 40, ticketUrl: 'https://tickets.example.com/u2 and more text' }),
+    ev('u3', { venue: 'Drum Theatre' }),
+    ev('u4', { status: 'live', price: 30, capacity: 50, ticketUrl: 'http://tickets.example.com/u4' }),
+  ];
+  const sponsors = [sp('s1', { contractValue: 5000 }), sp('s2'), sp('s3', { contractValue: 0 }), sp('s4', { contractValue: 750.5 })];
+  const fixture = () => completenessOf([...past, ...upcoming], sponsors);
+
+  test('nothing in the view: nothing is required, so there is no share at all (not 0%)', () => {
+    const result = completenessOf([], []);
+    expect(result.ratio).toBeNull();
+    expect(result.recorded).toBe(0);
+    expect(result.total).toBe(0);
+    expect(result.parts.map((entry) => [entry.id, entry.recorded, entry.total, entry.ratio])).toEqual([
+      ['past-sales', 0, 0, null],
+      ['upcoming-price', 0, 0, null],
+      ['upcoming-capacity', 0, 0, null],
+      ['upcoming-ticket-link', 0, 0, null],
+      ['sponsor-contract', 0, 0, null],
+    ]);
+  });
+
+  test('the five parts, in a fixed order, each with its words, its record kind and the tab where it is recorded', () => {
+    expect(fixture().parts.map((entry) => [entry.id, entry.label, entry.noun, entry.target])).toEqual([
+      ['past-sales', 'Ticket sales on past events', 'event', 'events'],
+      ['upcoming-price', 'Price on upcoming events', 'event', 'events'],
+      ['upcoming-capacity', 'Capacity on upcoming events', 'event', 'events'],
+      ['upcoming-ticket-link', 'Ticket link on upcoming events', 'event', 'events'],
+      ['sponsor-contract', 'Contract value on sponsors', 'sponsor', 'sponsors'],
+    ]);
+  });
+
+  test('past events need ticket sales (tickets sold or revenue); upcoming and live events need a price, a capacity of their own and a clean ticket link; sponsors need a contract value', () => {
+    const result = fixture();
+    expect(pairs(result)).toEqual({
+      'past-sales': [2, 3],
+      'upcoming-price': [3, 4],
+      'upcoming-capacity': [2, 4],
+      'upcoming-ticket-link': [2, 4],
+      'sponsor-contract': [2, 4],
+    });
+    // 3 + 4 x 3 + 4 = 19 fields are required; 2 + (3 + 2 + 2) + 2 = 11 are recorded
+    expect(result.total).toBe(19);
+    expect(result.recorded).toBe(11);
+    expect(result.ratio).toBeCloseTo(11 / 19, 12);
+    expect(bi.formatPercent(result.ratio ?? 0)).toBe('58%');
+    expect(result.parts.map((entry) => entry.ratio)).toEqual([2 / 3, 3 / 4, 2 / 4, 2 / 4, 2 / 4]);
+  });
+
+  test('the public capacity of the venue is not a recorded capacity', () => {
+    const rows = run([...past, ...upcoming], sponsors).pipeline;
+    expect(rows.find((row) => row.id === 'u3')?.capacity?.kind).toBe('reference');
+    expect(pairs(fixture())['upcoming-capacity']).toEqual([2, 4]);
+  });
+
+  test('a ticket link counts only when it is one clean web address, however it is padded', () => {
+    const links = (ticketUrl: string) => completenessOf([ev('l', { ticketUrl })]).parts.find((entry) => entry.id === 'upcoming-ticket-link')?.recorded;
+    expect(links('https://tickets.example.com/x')).toBe(1);
+    expect(links('  https://tickets.example.com/x  ')).toBe(1);
+    expect(links('http://tickets.example.com/x')).toBe(1);
+    expect(links('')).toBe(0);
+    expect(links('   ')).toBe(0);
+    expect(links('https://tickets.example.com/x and some text')).toBe(0);
+    expect(links('ftp://tickets.example.com/x')).toBe(0);
+    expect(links('tickets.example.com/x')).toBe(0);
+  });
+
+  test('a price, capacity or contract value of 0 is a blank the form saved, not a record', () => {
+    const blank = completenessOf([ev('z', { price: 0, capacity: 0, ticketUrl: '' }), ev('zp', { status: 'past', ticketsSold: 0, ticketRevenue: 0 })], [sp('zs', { contractValue: 0 })]);
+    expect(pairs(blank)).toEqual({
+      'past-sales': [0, 1],
+      'upcoming-price': [0, 1],
+      'upcoming-capacity': [0, 1],
+      'upcoming-ticket-link': [0, 1],
+      'sponsor-contract': [0, 1],
+    });
+    // required fields exist (1 for the past event, 3 for the upcoming one, 1 for the sponsor) and none is recorded: that is a
+    // real 0 share, which is different from "no share"
+    expect(blank.total).toBe(5);
+    expect(blank.recorded).toBe(0);
+    expect(blank.ratio).toBe(0);
+  });
+
+  test('everything recorded is 100%', () => {
+    const full = completenessOf(
+      [ev('done-p', { status: 'past', ticketsSold: 90 }), ev('done-u', { price: 60, capacity: 200, ticketUrl: 'https://tickets.example.com/done' })],
+      [sp('done-s', { contractValue: 1200 })],
+    );
+    expect(pairs(full)).toEqual({ 'past-sales': [1, 1], 'upcoming-price': [1, 1], 'upcoming-capacity': [1, 1], 'upcoming-ticket-link': [1, 1], 'sponsor-contract': [1, 1] });
+    expect(full.ratio).toBe(1);
+    expect(bi.formatPercent(full.ratio ?? 0)).toBe('100%');
+  });
+
+  test('the view decides which events are required, sponsors are always all of them', () => {
+    // future = upcoming only (u1, u2, u3); the live event and the past events are out of the view
+    expect(pairs(completenessOf([...past, ...upcoming], sponsors, 'future'))).toEqual({
+      'past-sales': [0, 0],
+      'upcoming-price': [2, 3],
+      'upcoming-capacity': [1, 3],
+      'upcoming-ticket-link': [1, 3],
+      'sponsor-contract': [2, 4],
+    });
+    const future = completenessOf([...past, ...upcoming], sponsors, 'future');
+    expect([future.recorded, future.total]).toEqual([6, 13]);
+    // live = u4 only
+    const live = completenessOf([...past, ...upcoming], sponsors, 'live');
+    expect(pairs(live)).toEqual({ 'past-sales': [0, 0], 'upcoming-price': [1, 1], 'upcoming-capacity': [1, 1], 'upcoming-ticket-link': [1, 1], 'sponsor-contract': [2, 4] });
+    expect([live.recorded, live.total]).toEqual([5, 7]);
+    // past = p1, p2, p3
+    const pastOnly = completenessOf([...past, ...upcoming], sponsors, 'past');
+    expect(pairs(pastOnly)).toEqual({ 'past-sales': [2, 3], 'upcoming-price': [0, 0], 'upcoming-capacity': [0, 0], 'upcoming-ticket-link': [0, 0], 'sponsor-contract': [2, 4] });
+    expect([pastOnly.recorded, pastOnly.total]).toEqual([4, 7]);
+  });
+
+  test('the parts agree with the action items of the same data: what is not recorded is what the action asks to record', () => {
+    const data = run([...past, ...upcoming], sponsors);
+    const result = bi.dataCompleteness(data);
+    const missing = (id: bi.CompletenessPartId) => {
+      const entry = result.parts.find((candidate) => candidate.id === id);
+      return (entry?.total ?? 0) - (entry?.recorded ?? 0);
+    };
+    expect(action(data, 'record-ticket-sales')?.count).toBe(missing('past-sales'));
+    expect(action(data, 'add-prices')?.count).toBe(missing('upcoming-price'));
+    expect(action(data, 'add-capacity')?.count).toBe(missing('upcoming-capacity'));
+    expect(action(data, 'record-contract-values')?.count).toBe(missing('sponsor-contract'));
+  });
+
+  test('a share never exceeds its total and is exactly recorded over total', () => {
+    for (const result of [fixture(), completenessOf(LIVE_EVENTS_AS_SAVED, LIVE_SPONSORS, 'all', REFERENCE), completenessOf([], []), completenessOf(upcoming, [])]) {
+      for (const entry of result.parts) {
+        expect(entry.recorded).toBeGreaterThanOrEqual(0);
+        expect(entry.recorded).toBeLessThanOrEqual(entry.total);
+        expect(entry.ratio).toBe(entry.total === 0 ? null : entry.recorded / entry.total);
+      }
+      expect(result.recorded).toBe(result.parts.reduce((sum, entry) => sum + entry.recorded, 0));
+      expect(result.total).toBe(result.parts.reduce((sum, entry) => sum + entry.total, 0));
+      expect(result.ratio).toBe(result.total === 0 ? null : result.recorded / result.total);
+    }
+  });
+
+  test('records the admin forms would never save do not break it', () => {
+    const odd = [{ ...ev('odd'), price: 'abc', capacity: -5, ticketUrl: 42 }, null, ev('ok', { price: 10 })] as unknown as Event[];
+    const result = completenessOf(odd, [null, sp('s')] as unknown as Sponsor[]);
+    expect(pairs(result)).toEqual({ 'past-sales': [0, 0], 'upcoming-price': [1, 2], 'upcoming-capacity': [0, 2], 'upcoming-ticket-link': [0, 2], 'sponsor-contract': [0, 1] });
+  });
+
+  for (const [name, events, liveSponsors] of [
+    ['fields absent', LIVE_EVENTS, LIVE_SPONSORS],
+    ['fields saved as 0', LIVE_EVENTS_AS_SAVED, LIVE_SPONSORS_ZEROED],
+  ] as const) {
+    test(`the live data of 14 October 2026 (${name}): 7 of the 44 required fields are recorded, 16%`, () => {
+      const data = run(events, liveSponsors, 'all', REFERENCE);
+      const result = bi.dataCompleteness(data);
+      // nine past events, none with sales; five upcoming events, every one priced (5), none with a capacity of its own (0),
+      // two with a clean ticket link (the other three carry text after the address); twenty sponsors, none with a contract value
+      expect(pairs(result)).toEqual({
+        'past-sales': [0, 9],
+        'upcoming-price': [5, 5],
+        'upcoming-capacity': [0, 5],
+        'upcoming-ticket-link': [2, 5],
+        'sponsor-contract': [0, 20],
+      });
+      expect(result.recorded).toBe(7);
+      expect(result.total).toBe(44);
+      expect(result.ratio).toBeCloseTo(7 / 44, 12);
+      expect(bi.formatPercent(result.ratio ?? 0)).toBe('16%');
+      // and the actions say the same: 9 past events, 5 upcoming events and 20 sponsors still to record
+      expect(action(data, 'record-ticket-sales')?.count).toBe(9);
+      expect(action(data, 'add-capacity')?.count).toBe(5);
+      expect(action(data, 'record-contract-values')?.count).toBe(20);
+      expect(action(data, 'add-prices')).toBeUndefined();
+    });
+  }
+});

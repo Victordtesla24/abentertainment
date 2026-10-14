@@ -1412,3 +1412,71 @@ export function computeBusinessIntelligence(input: BiInput): AdminBi {
     actions: buildActions({ views, upcoming, past, today, categoryGroups, venueGroups, similar, sponsors, sponsorSummary, reference }),
   };
 }
+
+// ─── Data completeness ───────────────────────────────────────────────────────
+
+export type CompletenessPartId = 'past-sales' | 'upcoming-price' | 'upcoming-capacity' | 'upcoming-ticket-link' | 'sponsor-contract';
+
+/** One kind of field the Dashboard needs for real figures: how many of the records that need it have it recorded. */
+export interface CompletenessPart {
+  id: CompletenessPartId;
+  /** What is counted, as "<field> on <records>". */
+  label: string;
+  /** What the records are called, for "recorded for 3 of 5 events". */
+  noun: 'event' | 'sponsor';
+  /** Records that have the field recorded. */
+  recorded: number;
+  /** Records that need the field. */
+  total: number;
+  /** recorded / total; null when no record needs the field. */
+  ratio: number | null;
+  /** The admin tab where the field is recorded. */
+  target: AdminTab;
+}
+
+export interface DataCompleteness {
+  /** Fields recorded / fields required, over every part; null when nothing is required. */
+  ratio: number | null;
+  recorded: number;
+  total: number;
+  parts: CompletenessPart[];
+}
+
+/**
+ * DATA COMPLETENESS: how much of what the Dashboard needs for real (not estimated) figures has been recorded, as one share.
+ * It is a count of fields, so every record counts the same, whatever its size:
+ *
+ *   required fields   past events in the view ........ 1 each: ticket sales (tickets sold or ticket revenue above zero)
+ *                     upcoming and live events ....... 3 each: a price above zero; a capacity above zero recorded on the event
+ *                                                      itself (the public capacity of its venue is a reference, not a record); and
+ *                                                      a ticket link that is one clean web address
+ *                     sponsors ....................... 1 each: a contract value above zero (every sponsor: the view does not
+ *                                                      filter sponsors, they have no status)
+ *   completeness    = recorded fields / required fields, or no value when nothing is required.
+ *
+ * "Recorded" is the model's own rule everywhere (recordedNumber, ticketLinkState); the parts are read from the result of
+ * computeBusinessIntelligence for the same data, so the share always agrees with the figures and actions next to it.
+ */
+export function dataCompleteness(bi: AdminBi): DataCompleteness {
+  const rows = bi.pipeline;
+  const share = (recorded: number, total: number): number | null => (total === 0 ? null : recorded / total);
+  const part = (id: CompletenessPartId, label: string, noun: CompletenessPart['noun'], recorded: number, total: number, target: AdminTab): CompletenessPart => ({
+    id,
+    label,
+    noun,
+    recorded,
+    total,
+    ratio: share(recorded, total),
+    target,
+  });
+  const parts: CompletenessPart[] = [
+    part('past-sales', 'Ticket sales on past events', 'event', bi.forecast.past.withSales, bi.forecast.past.events, 'events'),
+    part('upcoming-price', 'Price on upcoming events', 'event', rows.filter((row) => row.price !== null).length, rows.length, 'events'),
+    part('upcoming-capacity', 'Capacity on upcoming events', 'event', rows.filter((row) => row.capacity?.kind === 'recorded').length, rows.length, 'events'),
+    part('upcoming-ticket-link', 'Ticket link on upcoming events', 'event', rows.filter((row) => row.ticketLink === 'ok').length, rows.length, 'events'),
+    part('sponsor-contract', 'Contract value on sponsors', 'sponsor', bi.sponsors.contractValue.coverage.recorded, bi.sponsors.contractValue.coverage.total, 'sponsors'),
+  ];
+  const recorded = parts.reduce((sum, entry) => sum + entry.recorded, 0);
+  const total = parts.reduce((sum, entry) => sum + entry.total, 0);
+  return { ratio: share(recorded, total), recorded, total, parts };
+}
