@@ -1,20 +1,24 @@
 /**
- * The AI reviewer chain: Anthropic first (Claude Opus 5.5, then Claude Sonnet 5.5), then OpenAI (GPT-5.4, then GPT-4.1
- * mini), then OpenRouter, with the administrator's model choice going first. In-process, against a stubbed fetch: nothing
- * here has a key or a network. The request to Anthropic's Messages API and the exact GPT-5.x payload are asserted at the
- * boundary (URL, headers, body), every fallback step is exercised, and the approval is shown to record which provider and
- * model approved it.
+ * The AI reviewer chain: Anthropic first (Claude Opus 5.5, then Claude Sonnet 5.5), each Claude model then again through
+ * Abacus RouteLLM, then OpenAI (GPT-5.4, then GPT-4.1 mini), then OpenRouter, with the administrator's model choice going
+ * first. In-process, against a stubbed fetch: nothing here has a key or a network. The request to Anthropic's Messages API,
+ * the exact GPT-5.x payload and the exact Abacus RouteLLM payload are asserted at the boundary (URL, headers, body), every
+ * fallback step is exercised, and the approval is shown to record which provider and model approved it.
  *
  * Nothing is skipped silently: every call is recorded in order with its outcome (credit_exhausted, invalid_key,
  * unknown_model, rate_limited, ...), the HTTP status and the provider's message with keys and addresses removed, on the
  * review that answered, on the error when none could, on the gate round, and as the last outcome of each model in the
  * sending status the administrator sees.
+ *
+ * The last two tests drive the admin screens in a browser (the email test harness with an Abacus key, see
+ * e2e/support/email-http.ts; they skip without it) and photograph what an administrator sees at 1366 and 390 pixels wide.
  */
 
-import { test, expect } from '@playwright/test';
-import { readFileSync, writeFileSync } from 'fs';
+import { test, expect, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { cleanUnitDir, loadWithUnitDir, unitDir } from './support/email-unit';
+import { ABACUS_NO_CREDIT, ANTHROPIC_CREDIT_LOW, HARNESS, HARNESS_SKIP, HAS_ADMIN_CREDS, MockAi, SERVER_DATA_DIR, adminApi, adminLogin, mockPassingReview } from './support/email-http';
 
 type Ai = typeof import('@/lib/email/ai-review');
 type Gate = typeof import('@/lib/email/gate');
@@ -676,5 +680,673 @@ test.describe('AI reviewer chain', () => {
     const round = { round: 1, aiAttempts: [{ provider: 'openai', model: 'gpt-5.4', attempt: 1, outcome: 'ok', ms: 1, at: at(10) }], fixAttempts: [{ provider: 'anthropic', model: 'claude-opus-5-5', attempt: 1, outcome: 'credit_exhausted', ms: 1, at: at(5) }] } as unknown as import('@/lib/email/types').GateRound;
     expect(reviewerState.attemptsOfRound(round).map((a) => a.model)).toEqual(['claude-opus-5-5', 'gpt-5.4']);
     expect(reviewerState.attemptsOfRound({ round: 2 } as unknown as import('@/lib/email/types').GateRound)).toEqual([]);
+  });
+
+  // ─── Abacus RouteLLM: the same Claude models through an OpenAI-compatible gateway ────────────────────────────────────
+  // https://abacus.ai/help/route-llm/chat-completions/ : POST {base}/chat/completions with "Authorization: Bearer <key>";
+  // response_format is json_object (JSON mode) or json_schema ({ name, schema, strict }); errors are { error: { message, type, code } }
+  // with 400, 401, 429 and 500 documented.
+
+  const ABACUS_KEY = 's2_abacus_test_0123456789abcdef0123456789abcdef';
+  const ALL_KEYS = { ...KEYS, ABACUS_API_KEY: ABACUS_KEY };
+  const anthropicOnlyKeys = { ANTHROPIC_API_KEY: KEYS.ANTHROPIC_API_KEY };
+  const abacusOnlyKeys = { ABACUS_API_KEY: ABACUS_KEY };
+  /** A chat completion as RouteLLM documents it, with `content` as the assistant message. */
+  const abacusAnswer = (content: unknown) => () =>
+    new Response(
+      JSON.stringify({ id: 'chatcmpl-1', object: 'chat.completion', created: 1760000000, model: 'claude-opus-5-5', choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  const abacusJson = (value: unknown) => abacusAnswer(JSON.stringify(value));
+  const abacusError = (status: number, message: string, type = 'ValidationError', code = 'invalid_request_error') => apiError(status, { error: { message, type, code } });
+  const isAbacus = (call: Call) => call.url.startsWith('https://routellm.abacus.ai/');
+  /** How a request asks for JSON: its response_format type, or "none". */
+  const formatOf = (call: Call) => (call.body.response_format as { type?: string } | undefined)?.type ?? 'none';
+  const fixInput = () => ({ fields: seed.SEED_WELCOME_FIELDS, issues: [], changeable: ['body'] as Array<'body'>, guidelines: reviewInput().guidelines, threshold: 85, model: '', allowedLinkDomains: ['abentertainment.com.au'] });
+
+  test('the default chain with Abacus RouteLLM: each Claude model on Anthropic and then on Abacus, then OpenAI, then OpenRouter, only for the keys that exist', () => {
+    expect(chain(ALL_KEYS)).toEqual(['anthropic:claude-opus-5-5', 'abacus:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'abacus:claude-sonnet-5-5', 'openai:gpt-5.4', 'openai:gpt-4.1-mini', 'openrouter:openai/gpt-4.1-mini']);
+    expect(chain({ ...anthropicOnlyKeys, ...abacusOnlyKeys })).toEqual(['anthropic:claude-opus-5-5', 'abacus:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'abacus:claude-sonnet-5-5']);
+    expect(chain(abacusOnlyKeys)).toEqual(['abacus:claude-opus-5-5', 'abacus:claude-sonnet-5-5']);
+    expect(chain({ ...abacusOnlyKeys, OPENAI_API_KEY: KEYS.OPENAI_API_KEY })).toEqual(['abacus:claude-opus-5-5', 'abacus:claude-sonnet-5-5', 'openai:gpt-5.4', 'openai:gpt-4.1-mini']);
+    // no Abacus key: exactly the chain there was before
+    expect(chain(KEYS)).toEqual(['anthropic:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'openai:gpt-5.4', 'openai:gpt-4.1-mini', 'openrouter:openai/gpt-4.1-mini']);
+    expect(ai.configuredAiProviders(ALL_KEYS)).toEqual(['anthropic', 'abacus', 'openai', 'openrouter']);
+    expect(ai.configuredAiProviders(abacusOnlyKeys)).toEqual(['abacus']);
+    // an empty key, or one that is only spaces, is no key; a key with stray spaces or a newline around it is the key
+    expect(chain({ ...KEYS, ABACUS_API_KEY: '' })).toEqual(chain(KEYS));
+    expect(chain({ ...KEYS, ABACUS_API_KEY: '  \n' })).toEqual(chain(KEYS));
+    expect(ai.resolveProviders({ ABACUS_API_KEY: ` ${ABACUS_KEY}\n` })[0]).toMatchObject({ id: 'abacus', key: ABACUS_KEY });
+  });
+
+  test('the administrator\'s model with Abacus: a Claude model goes to Anthropic then Abacus then OpenRouter; "abacus/<model>" goes to Abacus first; the rest of the chain follows', () => {
+    expect(chain(ALL_KEYS, 'claude-opus-5-5')).toEqual(['anthropic:claude-opus-5-5', 'abacus:claude-opus-5-5', 'openrouter:anthropic/claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'abacus:claude-sonnet-5-5', 'openai:gpt-5.4', 'openai:gpt-4.1-mini', 'openrouter:openai/gpt-4.1-mini']);
+    expect(chain(ALL_KEYS, 'abacus/claude-sonnet-5-5')).toEqual(['abacus:claude-sonnet-5-5', 'openrouter:anthropic/claude-sonnet-5-5', 'anthropic:claude-opus-5-5', 'abacus:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'openai:gpt-5.4', 'openai:gpt-4.1-mini', 'openrouter:openai/gpt-4.1-mini']);
+    expect(chain(ALL_KEYS, 'claude-haiku-4-5')).toEqual(['anthropic:claude-haiku-4-5', 'abacus:claude-haiku-4-5', 'openrouter:anthropic/claude-haiku-4-5', 'anthropic:claude-opus-5-5', 'abacus:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'abacus:claude-sonnet-5-5', 'openai:gpt-5.4', 'openai:gpt-4.1-mini', 'openrouter:openai/gpt-4.1-mini']);
+    // a GPT model is not routed to Abacus; Abacus only joins through the default chain
+    expect(chain(ALL_KEYS, 'gpt-5.4')).toEqual(['openai:gpt-5.4', 'openrouter:openai/gpt-5.4', 'anthropic:claude-opus-5-5', 'abacus:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'abacus:claude-sonnet-5-5', 'openai:gpt-4.1-mini', 'openrouter:openai/gpt-4.1-mini']);
+    // "abacus/<model>" with no Abacus key is the default chain; with only Abacus it is Abacus alone
+    expect(chain(anthropicOnlyKeys, 'abacus/claude-opus-5-5')).toEqual(['anthropic:claude-opus-5-5', 'anthropic:claude-sonnet-5-5']);
+    expect(chain(abacusOnlyKeys, 'abacus/claude-sonnet-5-5')).toEqual(['abacus:claude-sonnet-5-5', 'abacus:claude-opus-5-5']);
+    expect(chain(abacusOnlyKeys, 'claude-sonnet-5-5')).toEqual(['abacus:claude-sonnet-5-5', 'abacus:claude-opus-5-5']);
+    // the value the model selector saves is accepted as a setting
+    expect(() => store.parseSettingsPatch({ reviewModel: 'abacus/claude-opus-5-5' })).not.toThrow();
+  });
+
+  test('where Abacus is reached: ABACUS_BASE_URL when it is https (or loopback, for tests), else the public gateway, and the key goes nowhere else', () => {
+    const url = (env: Record<string, string>) => ai.resolveProviders({ ABACUS_API_KEY: ABACUS_KEY, ...env }).find((p) => p.id === 'abacus')?.url;
+    expect(ai.ABACUS_DEFAULT_BASE_URL).toBe('https://routellm.abacus.ai/v1');
+    expect(url({})).toBe('https://routellm.abacus.ai/v1/chat/completions');
+    expect(url({ ABACUS_BASE_URL: 'https://routellm.abacus.ai/v1/' })).toBe('https://routellm.abacus.ai/v1/chat/completions');
+    expect(url({ ABACUS_BASE_URL: 'https://acme.abacus.ai/v1' })).toBe('https://acme.abacus.ai/v1/chat/completions');
+    expect(url({ ABACUS_BASE_URL: 'http://127.0.0.1:3198/abacus/v1' })).toBe('http://127.0.0.1:3198/abacus/v1/chat/completions');
+    expect(url({ ABACUS_BASE_URL: 'http://localhost:3198/v1' })).toBe('http://localhost:3198/v1/chat/completions');
+    // refused (the public gateway is used instead): plain http to another host, other schemes, credentials in the address, a query, text that is not a URL
+    for (const bad of ['http://routellm.abacus.ai/v1', 'ftp://routellm.abacus.ai/v1', 'https://user:pass@evil.example/v1', 'https://evil.example/v1?x=1', 'javascript:alert(1)', 'not a url', 'http://evil.example:3198/v1', '//evil.example/v1']) {
+      expect(url({ ABACUS_BASE_URL: bad }), bad).toBe('https://routellm.abacus.ai/v1/chat/completions');
+    }
+    // no key, no provider: the address alone does not make one
+    expect(ai.resolveProviders({ ABACUS_BASE_URL: 'https://acme.abacus.ai/v1' }).some((p) => p.id === 'abacus')).toBe(false);
+  });
+
+  test('the request to Abacus RouteLLM: chat completions with Bearer auth, a system and a user message, response_format json_schema with the answer\'s schema, no temperature', async () => {
+    const stub = stubFetch([abacusJson(REVIEW)]);
+    const review = await ai.createAiClient({ fetchImpl: stub.impl, env: abacusOnlyKeys }).review(reviewInput());
+    expect(stub.calls).toHaveLength(1);
+    const call = stub.calls[0];
+    expect(call.url).toBe('https://routellm.abacus.ai/v1/chat/completions');
+    expect(call.headers).toEqual({ 'Content-Type': 'application/json', Authorization: `Bearer ${ABACUS_KEY}` });
+    // exactly these fields: the model, max_tokens, the messages and the documented response_format; none of temperature, top_p, tools, stream
+    expect(Object.keys(call.body).sort()).toEqual(['max_tokens', 'messages', 'model', 'response_format']);
+    expect(call.body).toMatchObject({ model: 'claude-opus-5-5', max_tokens: 4000 });
+    const messages = call.body.messages as Array<{ role: string; content: string }>;
+    expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
+    expect(messages[0].content).toContain('quality reviewer');
+    expect(messages[0].content).toContain('Respond with JSON only'); // the exact shape is in the instruction as well
+    expect(messages[1].content).toContain('The AB Entertainment Community');
+    const format = call.body.response_format as { type: string; json_schema: { name: string; strict: boolean; schema: { type: string; additionalProperties: boolean; required: string[]; properties: Record<string, unknown> } } };
+    expect(format.type).toBe('json_schema');
+    expect(format.json_schema).toMatchObject({ name: 'email_review', strict: true, schema: { type: 'object', additionalProperties: false, required: ['scores', 'verdict', 'summary', 'issues'] } });
+    expect(Object.keys(format.json_schema.schema.properties)).toEqual(['scores', 'verdict', 'summary', 'issues']);
+    // it is the schema OpenAI is sent for the same review
+    const openAi = stubFetch([openAiText(REVIEW)]);
+    await ai.createAiClient({ fetchImpl: openAi.impl, env: { OPENAI_API_KEY: KEYS.OPENAI_API_KEY } }).review(reviewInput());
+    expect(format.json_schema.schema).toEqual((openAi.calls[0].body.response_format as { json_schema: { schema: unknown } }).json_schema.schema);
+    expect(JSON.stringify(call.body)).not.toContain(ABACUS_KEY);
+    expect(review).toMatchObject({ provider: 'abacus', model: 'claude-opus-5-5', verdict: 'pass', scores: REVIEW.scores });
+    expect(review.issues).toMatchObject([{ code: 'ai_tone', field: 'body', severity: 'minor', source: 'ai' }]);
+    expect(review.attempts?.map((a) => `${a.provider}:${a.model}:${a.attempt}:${a.outcome}`)).toEqual(['abacus:claude-opus-5-5:1:ok']);
+
+    // the fix step has the same shape, with the copy editor's instruction and its own schema
+    const fixStub = stubFetch([abacusJson(FIX)]);
+    const fix = await ai.createAiClient({ fetchImpl: fixStub.impl, env: abacusOnlyKeys }).fix(fixInput());
+    expect(fixStub.calls[0].url).toBe('https://routellm.abacus.ai/v1/chat/completions');
+    expect(Object.keys(fixStub.calls[0].body).sort()).toEqual(['max_tokens', 'messages', 'model', 'response_format']);
+    expect(fixStub.calls[0].body).toMatchObject({ model: 'claude-opus-5-5', response_format: { type: 'json_schema', json_schema: { name: 'email_fix', strict: true } } });
+    expect((fixStub.calls[0].body.messages as Array<{ role: string; content: string }>)[0].content).toContain('copy editor');
+    expect(fix).toMatchObject({ provider: 'abacus', model: 'claude-opus-5-5', rationale: 'Made the body warmer.' });
+
+    // Sonnet is asked for under its own hyphenated id, and "abacus/<id>" is sent as the bare id
+    const sonnet = stubFetch([abacusJson(REVIEW)]);
+    await ai.createAiClient({ fetchImpl: sonnet.impl, env: abacusOnlyKeys }).review(reviewInput('abacus/claude-sonnet-5-5'));
+    expect(sonnet.calls[0].body.model).toBe('claude-sonnet-5-5');
+  });
+
+  test('the incident, with Abacus: Anthropic has no credit, so Abacus RouteLLM judges with the same Claude Opus 5.5, in exactly two requests', async () => {
+    const stub = routedFetch((call) => (isAbacus(call) ? abacusJson(REVIEW)() : anthropicCreditLow()));
+    const review = await ai.createAiClient({ fetchImpl: stub.impl, env: ALL_KEYS }).review(reviewInput());
+    // Anthropic is asked once and not again (no credit is not retried), and nothing after the first answer
+    expect(stub.calls.map((c) => `${new URL(c.url).hostname} ${String(c.body.model)}`)).toEqual(['api.anthropic.com claude-opus-5-5', 'routellm.abacus.ai claude-opus-5-5']);
+    expect(review).toMatchObject({ provider: 'abacus', model: 'claude-opus-5-5', verdict: 'pass' });
+    expect(review.attempts?.map((a) => [a.provider, a.model, a.attempt, a.outcome, a.httpStatus ?? null])).toEqual([
+      ['anthropic', 'claude-opus-5-5', 1, 'credit_exhausted', 400],
+      ['abacus', 'claude-opus-5-5', 1, 'ok', null],
+    ]);
+    expect(review.attempts?.[0]).toMatchObject({ code: 'invalid_request_error', detail: CREDIT_MESSAGE });
+    for (const key of Object.values(ALL_KEYS)) expect(JSON.stringify(review)).not.toContain(key);
+
+    // the fix step goes the same way
+    const fixStub = routedFetch((call) => (isAbacus(call) ? abacusJson(FIX)() : anthropicCreditLow()));
+    const fix = await ai.createAiClient({ fetchImpl: fixStub.impl, env: ALL_KEYS }).fix(fixInput());
+    expect(fix).toMatchObject({ provider: 'abacus', model: 'claude-opus-5-5' });
+    expect(fix.attempts?.map((a) => `${a.provider}:${a.model}:${a.outcome}`)).toEqual(['anthropic:claude-opus-5-5:credit_exhausted', 'abacus:claude-opus-5-5:ok']);
+
+    // through the gate: the round records both calls, and the approval names the judge
+    const layout = layoutMod.getLayout();
+    const guidelines = await store.getBrandGuidelines();
+    const settings = await store.getEmailSettings();
+    const template = (await store.getEmailTemplates())[0];
+    const gateStub = routedFetch((call) => (isAbacus(call) ? abacusJson({ ...REVIEW, issues: [] })() : anthropicCreditLow()));
+    const result = await gate.runGate({ fields: template.versions[0].fields, settings, guidelines }, { layout, ai: ai.createAiClient({ fetchImpl: gateStub.impl, env: ALL_KEYS }), ctx: gate.reviewContext() });
+    expect(result).toMatchObject({ passed: true, stopReason: 'passed' });
+    expect(result.rounds[0].ai).toMatchObject({ provider: 'abacus', model: 'claude-opus-5-5' });
+    expect(result.rounds[0].aiAttempts?.map((a) => `${a.provider}:${a.model}:${a.outcome}`)).toEqual(['anthropic:claude-opus-5-5:credit_exhausted', 'abacus:claude-opus-5-5:ok']);
+    expect(gate.buildApproval(result, layout, guidelines)).toMatchObject({ provider: 'abacus', model: 'claude-opus-5-5' });
+    expect(gateStub.calls).toHaveLength(2);
+  });
+
+  test('when Abacus cannot answer either, the chain goes on in order: Sonnet on Anthropic, Sonnet on Abacus, then OpenAI', async () => {
+    const stub = routedFetch((call): Response => {
+      if (call.url.startsWith('https://api.anthropic.com')) return anthropicCreditLow();
+      if (isAbacus(call)) return call.body.model === 'claude-opus-5-5' ? abacusError(429, 'Rate limit exceeded.', 'RateLimitError', 'rate_limit_exceeded')() : abacusError(402, 'You have run out of compute points.', 'PaymentRequired', 'insufficient_credits')();
+      return openAiText(REVIEW)();
+    });
+    const review = await ai.createAiClient({ fetchImpl: stub.impl, env: ALL_KEYS }).review(reviewInput());
+    // anthropic opus (no credit, no retry), abacus opus (rate limit: tried once more), anthropic sonnet (no credit), abacus sonnet (no compute points, no retry), gpt-5.4 answers
+    expect(stub.calls.map((c) => `${new URL(c.url).hostname.split('.')[1]} ${String(c.body.model)}`)).toEqual([
+      'anthropic claude-opus-5-5',
+      'abacus claude-opus-5-5',
+      'abacus claude-opus-5-5',
+      'anthropic claude-sonnet-5-5',
+      'abacus claude-sonnet-5-5',
+      'openai gpt-5.4',
+    ]);
+    expect(review).toMatchObject({ provider: 'openai', model: 'gpt-5.4' });
+    expect(review.attempts?.map((a) => `${a.provider}:${a.model}#${a.attempt}:${a.outcome}`)).toEqual([
+      'anthropic:claude-opus-5-5#1:credit_exhausted',
+      'abacus:claude-opus-5-5#1:rate_limited',
+      'abacus:claude-opus-5-5#2:rate_limited',
+      'anthropic:claude-sonnet-5-5#1:credit_exhausted',
+      'abacus:claude-sonnet-5-5#1:credit_exhausted',
+      'openai:gpt-5.4#1:ok',
+    ]);
+  });
+
+  test('classification of what Abacus RouteLLM answers: the documented statuses and the shape its platform really uses', () => {
+    // [what it is, status, error type, error code, message, expected outcome]
+    const cases: Array<[string, number, string, string, string, string]> = [
+      ['documented 400: a request it cannot read', 400, 'ValidationError', 'invalid_request_error', "The 'messages' parameter is missing, empty, or not a list.", 'bad_request'],
+      ['documented 400: an invalid model name', 400, 'ValidationError', 'invalid_request_error', "Invalid model name 'claude-opus-9'.", 'unknown_model'],
+      ['documented 401: a missing or invalid key', 401, 'AuthenticationError', 'invalid_request_error', 'Missing or invalid API key', 'invalid_key'],
+      ['observed 403: a key it does not accept', 403, 'GenericPermissionDeniedError', '', 'Invalid API Key', 'invalid_key'],
+      ['observed 403: no key', 403, 'GenericPermissionDeniedError', '', 'User not logged in', 'invalid_key'],
+      ['a 403 that is not about the key', 403, 'GenericPermissionDeniedError', '', 'You do not have access to this model.', 'forbidden'],
+      ['documented 429: a rate limit', 429, 'RateLimitError', 'rate_limit_exceeded', 'Rate limit exceeded', 'rate_limited'],
+      ['a 429 that says the compute points are gone', 429, 'RateLimitError', 'rate_limit_exceeded', 'You have run out of compute points.', 'credit_exhausted'],
+      ['a 402', 402, '', '', '', 'credit_exhausted'],
+      ['a 400 that says there is not enough credit', 400, 'ValidationError', 'invalid_request_error', "You don't have enough credits to run this request.", 'credit_exhausted'],
+      ['a 400 that says the compute points are used up', 400, '', '', 'Your compute points are used up.', 'credit_exhausted'],
+      ['documented 500: a server error', 500, 'ServerError', 'internal_error', 'Internal Server Error', 'server_error'],
+      ['a gateway error from the proxy in front', 502, '', '', '<html>Bad gateway</html>', 'server_error'],
+    ];
+    for (const [what, status, type, code, message, expected] of cases) expect(ai.classifyHttpFailure(status, type, code, message), what).toBe(expected);
+  });
+
+  test('every way Abacus can fail has a name, is recorded with its status and words, and is scrubbed of the key', async () => {
+    const keyed = `The key ${ABACUS_KEY} was rejected for abhi@example.com`;
+    const abort = Object.assign(new Error('This operation was aborted'), { name: 'AbortError' });
+    // [what, the answer, the outcome of every call, how many requests were made]
+    const rows: Array<[string, Step, string, number]> = [
+      ['a rejected key (401)', abacusError(401, keyed, 'AuthenticationError', 'invalid_api_key'), 'invalid_key', 2],
+      // what the public gateway really answers for a key it does not accept, and for no key: a 403 in its platform's own error shape
+      ['a key the gateway does not accept (its 403 "Invalid API Key")', apiError(403, { success: false, error: 'Invalid API Key', errorType: 'GenericPermissionDeniedError' }), 'invalid_key', 2],
+      ['no key (its 403 "User not logged in")', apiError(403, { success: false, error: 'User not logged in', errorType: 'GenericPermissionDeniedError' }), 'invalid_key', 2],
+      ['a key that may not use the model (403)', abacusError(403, 'This key may not use this model.', 'PermissionError', 'forbidden'), 'forbidden', 2],
+      ['no credit (402)', abacusError(402, 'Payment required.', 'PaymentRequired', 'insufficient_credits'), 'credit_exhausted', 2],
+      ['no compute points, said in a 400', abacusError(400, 'You do not have enough compute points to run this request.'), 'credit_exhausted', 2],
+      ['no compute points, said in a 429', abacusError(429, 'You have run out of compute points.', 'RateLimitError', 'rate_limit_exceeded'), 'credit_exhausted', 2],
+      ['a rate limit (429)', abacusError(429, 'Rate limit exceeded.', 'RateLimitError', 'rate_limit_exceeded'), 'rate_limited', 4],
+      ['a model it does not serve (404)', abacusError(404, 'The model claude-opus-5-5 does not exist.', 'NotFoundError', 'model_not_found'), 'unknown_model', 2],
+      ['a model name it rejects (a documented 400)', abacusError(400, "Invalid model name 'claude-opus-9'."), 'unknown_model', 2],
+      ['a server error (500)', abacusError(500, 'Internal Server Error.', 'ServerError', 'internal_error'), 'server_error', 4],
+      ['a gateway timeout (504)', apiError(504, 'Gateway Timeout'), 'timeout', 4],
+      ['a network failure', new TypeError('fetch failed'), 'network', 4],
+      ['a call that timed out', abort, 'timeout', 4],
+      // a request it refuses is asked for in JSON mode and then by instruction alone before it counts as refused: three requests per model
+      ['a request it refuses (a documented 400)', abacusError(400, "The 'messages' parameter is missing, empty, or not a list."), 'bad_request', 6],
+    ];
+    for (const [what, answer, outcome, requests] of rows) {
+      const stub = stubFetch([answer]);
+      const error = (await ai.createAiClient({ fetchImpl: stub.impl, env: abacusOnlyKeys }).review(reviewInput()).catch((err: Error) => err)) as Error & { attempts: AttemptRecord[] };
+      expect(error, what).toBeInstanceOf(Error);
+      expect(error.attempts.length, what).toBe(requests);
+      expect(error.attempts.every((a) => a.provider === 'abacus' && a.outcome === outcome), what).toBe(true);
+      expect(stub.calls, what).toHaveLength(requests);
+      expect(JSON.stringify(error.attempts) + error.message, what).not.toContain(ABACUS_KEY);
+      expect(JSON.stringify(error.attempts) + error.message, what).not.toContain('abhi@example.com');
+      // only a refused request is asked again in another form; everything else is asked the same way every time
+      if (outcome !== 'bad_request') expect(stub.calls.every((c) => formatOf(c) === 'json_schema'), what).toBe(true);
+    }
+
+    // what is recorded for one of them, in full
+    const rejected = stubFetch([abacusError(401, keyed, 'AuthenticationError', 'invalid_api_key')]);
+    const failure = (await ai.createAiClient({ fetchImpl: rejected.impl, env: abacusOnlyKeys }).review(reviewInput()).catch((err: Error) => err)) as InstanceType<typeof ai.AiUnavailableError>;
+    expect(failure).toBeInstanceOf(ai.AiUnavailableError);
+    expect(failure).toMatchObject({ reason: 'http', message: 'The abacus reviewer answered HTTP 401.' });
+    expect(failure.attempts).toHaveLength(2);
+    expect(failure.attempts[0]).toMatchObject({ provider: 'abacus', model: 'claude-opus-5-5', attempt: 1, outcome: 'invalid_key', httpStatus: 401, code: 'AuthenticationError', detail: 'The key [key] was rejected for [address]' });
+    expect(failure.attempts[1]).toMatchObject({ provider: 'abacus', model: 'claude-sonnet-5-5', attempt: 1, outcome: 'invalid_key', httpStatus: 401 });
+
+    // the same for the shape the gateway really uses: the error's name is kept as the code, the words as the detail
+    const refused = stubFetch([apiError(403, { success: false, error: 'Invalid API Key', errorType: 'GenericPermissionDeniedError' })]);
+    const notAccepted = (await ai.createAiClient({ fetchImpl: refused.impl, env: abacusOnlyKeys }).review(reviewInput()).catch((err: Error) => err)) as InstanceType<typeof ai.AiUnavailableError>;
+    expect(notAccepted.attempts[0]).toMatchObject({ provider: 'abacus', model: 'claude-opus-5-5', outcome: 'invalid_key', httpStatus: 403, code: 'GenericPermissionDeniedError', detail: 'Invalid API Key' });
+
+    // the rate limit is recorded once per try, numbered, on each model
+    const limited = stubFetch([abacusError(429, 'Rate limit exceeded.', 'RateLimitError', 'rate_limit_exceeded')]);
+    const waiting = (await ai.createAiClient({ fetchImpl: limited.impl, env: abacusOnlyKeys }).review(reviewInput()).catch((err: Error) => err)) as InstanceType<typeof ai.AiUnavailableError>;
+    expect(waiting.attempts.map((a) => [a.model, a.attempt, a.httpStatus])).toEqual([['claude-opus-5-5', 1, 429], ['claude-opus-5-5', 2, 429], ['claude-sonnet-5-5', 1, 429], ['claude-sonnet-5-5', 2, 429]]);
+  });
+
+  test('a call to Abacus that is never answered is cut off by the timeout and recorded as one', async () => {
+    const hang = (async (_url: string, init: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(Object.assign(new Error('This operation was aborted'), { name: 'AbortError' })));
+      })) as unknown as typeof fetch;
+    const error = (await ai.createAiClient({ fetchImpl: hang, env: abacusOnlyKeys, timeoutMs: 30 }).review(reviewInput()).catch((err: Error) => err)) as InstanceType<typeof ai.AiUnavailableError>;
+    expect(error).toBeInstanceOf(ai.AiUnavailableError);
+    expect(error.reason).toBe('timeout');
+    expect(error.attempts.map((a) => [a.provider, a.model, a.attempt, a.outcome, a.code, a.httpStatus ?? null])).toEqual([
+      ['abacus', 'claude-opus-5-5', 1, 'timeout', 'timeout', null],
+      ['abacus', 'claude-opus-5-5', 2, 'timeout', 'timeout', null],
+      ['abacus', 'claude-sonnet-5-5', 1, 'timeout', 'timeout', null],
+      ['abacus', 'claude-sonnet-5-5', 2, 'timeout', 'timeout', null],
+    ]);
+  });
+
+  test('Abacus answers are read leniently and always checked: a fence, a sentence around the JSON and a list of text blocks are read; anything else is one retry and then the next model', async () => {
+    const json = JSON.stringify(REVIEW);
+    for (const [what, content] of [
+      ['plain JSON', json],
+      ['a ```json fence', `\`\`\`json\n${json}\n\`\`\``],
+      ['a bare fence', `\`\`\`\n${json}\n\`\`\``],
+      ['a sentence before and after', `Here is my review of the draft:\n${json}\nLet me know if you want changes.`],
+      ['text blocks', [{ type: 'text', text: json.slice(0, 40) }, { type: 'text', text: json.slice(40) }]],
+    ] as Array<[string, unknown]>) {
+      const stub = stubFetch([abacusAnswer(content)]);
+      const review = await ai.createAiClient({ fetchImpl: stub.impl, env: abacusOnlyKeys }).review(reviewInput());
+      expect(review, what).toMatchObject({ provider: 'abacus', verdict: 'pass', scores: REVIEW.scores });
+      expect(stub.calls, what).toHaveLength(1);
+    }
+    // not usable: no JSON, JSON of the wrong shape, an empty answer, a list with no text, cut-off JSON. One retry each, then the next model (Sonnet), which answers
+    for (const [what, content, code] of [
+      ['prose only', 'I am sorry, I cannot review this draft.', 'not_json'],
+      ['a different JSON', JSON.stringify({ scores: { content: 90 } }), 'wrong_shape'],
+      ['an empty answer', '', 'no_content'],
+      ['a list without text', [{ type: 'image' }], 'no_content'],
+      ['cut-off JSON', '{"scores": {"content": 9', 'not_json'],
+    ] as Array<[string, unknown, string]>) {
+      const stub = routedFetch((call) => (call.body.model === 'claude-opus-5-5' ? abacusAnswer(content)() : abacusJson(REVIEW)()));
+      const review = await ai.createAiClient({ fetchImpl: stub.impl, env: abacusOnlyKeys }).review(reviewInput());
+      expect(stub.calls.map((c) => c.body.model), what).toEqual(['claude-opus-5-5', 'claude-opus-5-5', 'claude-sonnet-5-5']);
+      expect(review.model, what).toBe('claude-sonnet-5-5');
+      expect(review.attempts?.map((a) => `${a.model}#${a.attempt}:${a.outcome}`), what).toEqual(['claude-opus-5-5#1:bad_shape', 'claude-opus-5-5#2:bad_shape', 'claude-sonnet-5-5#1:ok']);
+      expect(review.attempts?.[0].code, what).toBe(code);
+    }
+    // an answer cut off by the token limit says so
+    const cut = routedFetch(() => new Response(JSON.stringify({ choices: [{ index: 0, message: { role: 'assistant', content: '' }, finish_reason: 'length' }] }), { status: 200 }));
+    const truncated = (await ai.createAiClient({ fetchImpl: cut.impl, env: abacusOnlyKeys }).review(reviewInput()).catch((err: Error) => err)) as InstanceType<typeof ai.AiInvalidResponseError>;
+    expect(truncated.attempts[0]).toMatchObject({ outcome: 'bad_shape', code: 'length', detail: 'The answer was cut off before it finished.' });
+    // when nothing usable ever comes back, the error says the answer could not be used (not that the service was down)
+    const never = stubFetch([abacusAnswer('no json here')]);
+    const error = (await ai.createAiClient({ fetchImpl: never.impl, env: abacusOnlyKeys }).review(reviewInput()).catch((err: Error) => err)) as InstanceType<typeof ai.AiInvalidResponseError>;
+    expect(error).toBeInstanceOf(ai.AiInvalidResponseError);
+    expect(error.attempts).toHaveLength(4);
+    // the reading itself: strict for a provider that guarantees the JSON (a fenced answer is not accepted there), lenient otherwise
+    expect(() => ai.parseModelJson(`\`\`\`json\n${json}\n\`\`\``, false)).toThrow();
+    expect(ai.parseModelJson(`\`\`\`json\n${json}\n\`\`\``, true)).toEqual(REVIEW);
+    expect(() => ai.parseModelJson('no braces at all', true)).toThrow('no JSON object');
+    expect(() => ai.parseModelJson('{ nope } and { also nope }', true)).toThrow('no JSON object');
+    expect(ai.parseModelJson('before {"a": {"b": 1}} after', true)).toEqual({ a: { b: 1 } });
+    // an array is not a review: lenient reading only looks for an object
+    expect(() => ai.parseModelJson('[1, 2]', true)).not.toThrow(); // plain JSON is plain JSON; zod rejects it as the wrong shape
+    const array = stubFetch([abacusAnswer('[1, 2]')]);
+    const notReview = (await ai.createAiClient({ fetchImpl: array.impl, env: abacusOnlyKeys }).review(reviewInput()).catch((err: Error) => err)) as InstanceType<typeof ai.AiInvalidResponseError>;
+    expect(notReview.attempts.map((a) => a.code)).toEqual(['wrong_shape', 'wrong_shape', 'wrong_shape', 'wrong_shape']);
+  });
+
+  test('a gateway that refuses the request is asked again in a looser JSON mode, then by instruction alone; anything else is asked the same way', async () => {
+    const refusal = abacusError(400, "Unsupported parameter: 'response_format' is not supported with this model.", 'ValidationError', 'unsupported_parameter');
+    const modes = (stub: { calls: Call[] }) => stub.calls.map((c) => `${c.body.model}:${formatOf(c)}`);
+
+    // json_schema refused: JSON mode answers; the system and user messages and max_tokens are the same each time
+    const first = stubFetch([refusal, abacusJson(REVIEW)]);
+    const review = await ai.createAiClient({ fetchImpl: first.impl, env: abacusOnlyKeys }).review(reviewInput());
+    expect(modes(first)).toEqual(['claude-opus-5-5:json_schema', 'claude-opus-5-5:json_object']);
+    expect(first.calls[1].body).toMatchObject({ max_tokens: 4000, messages: first.calls[0].body.messages, response_format: { type: 'json_object' } });
+    expect(review).toMatchObject({ provider: 'abacus', model: 'claude-opus-5-5' });
+    expect(review.attempts?.map((a) => [a.model, a.attempt, a.outcome, a.httpStatus ?? null])).toEqual([['claude-opus-5-5', 1, 'bad_request', 400], ['claude-opus-5-5', 1, 'ok', null]]);
+    expect(review.attempts?.[0].detail).toBe("Unsupported parameter: 'response_format' is not supported with this model.");
+
+    // both refused: by instruction alone (no response_format at all)
+    const second = stubFetch([refusal, refusal, abacusJson(REVIEW)]);
+    const alone = await ai.createAiClient({ fetchImpl: second.impl, env: abacusOnlyKeys }).review(reviewInput());
+    expect(modes(second)).toEqual(['claude-opus-5-5:json_schema', 'claude-opus-5-5:json_object', 'claude-opus-5-5:none']);
+    expect('response_format' in second.calls[2].body).toBe(false);
+    expect(Object.keys(second.calls[2].body).sort()).toEqual(['max_tokens', 'messages', 'model']);
+    expect(alone).toMatchObject({ provider: 'abacus', model: 'claude-opus-5-5' });
+
+    // refused in every form: the next model starts again from the strictest
+    const stubborn = stubFetch([refusal, refusal, refusal, abacusJson(REVIEW)]);
+    const next = await ai.createAiClient({ fetchImpl: stubborn.impl, env: abacusOnlyKeys }).review(reviewInput());
+    expect(modes(stubborn)).toEqual(['claude-opus-5-5:json_schema', 'claude-opus-5-5:json_object', 'claude-opus-5-5:none', 'claude-sonnet-5-5:json_schema']);
+    expect(next.model).toBe('claude-sonnet-5-5');
+
+    // the wording of the refusal does not matter: a gateway that rejects the schema without naming response_format is asked the same way
+    const unnamed = stubFetch([abacusError(400, 'The JSON schema is not valid for this model.'), abacusJson(REVIEW)]);
+    await ai.createAiClient({ fetchImpl: unnamed.impl, env: abacusOnlyKeys }).review(reviewInput());
+    expect(modes(unnamed)).toEqual(['claude-opus-5-5:json_schema', 'claude-opus-5-5:json_object']);
+
+    // a transient failure after a step down is still tried once more, in the form that was reached
+    const transient = stubFetch([refusal, abacusError(429, 'Rate limit exceeded.', 'RateLimitError', 'rate_limit_exceeded'), abacusJson(REVIEW)]);
+    const waited = await ai.createAiClient({ fetchImpl: transient.impl, env: abacusOnlyKeys }).review(reviewInput());
+    expect(modes(transient)).toEqual(['claude-opus-5-5:json_schema', 'claude-opus-5-5:json_object', 'claude-opus-5-5:json_object']);
+    expect(waited.attempts?.map((a) => `${a.attempt}:${a.outcome}`)).toEqual(['1:bad_request', '1:rate_limited', '2:ok']);
+
+    // the fix step takes the same steps
+    const fixed = stubFetch([refusal, abacusJson(FIX)]);
+    const fix = await ai.createAiClient({ fetchImpl: fixed.impl, env: abacusOnlyKeys }).fix(fixInput());
+    expect(modes(fixed)).toEqual(['claude-opus-5-5:json_schema', 'claude-opus-5-5:json_object']);
+    expect(fix).toMatchObject({ provider: 'abacus', rationale: 'Made the body warmer.' });
+
+    // this is Abacus only: OpenRouter, which also asks for JSON mode, is not asked again after a refusal, and its answers are read strictly
+    const router = stubFetch([apiError(400, { error: { message: 'response_format json_object is not supported by this model', code: 400 } }), openAiText(REVIEW)]);
+    const refused = (await ai.createAiClient({ fetchImpl: router.impl, env: { OPENROUTER_API_KEY: KEYS.OPENROUTER_API_KEY } }).review(reviewInput()).catch((err: Error) => err)) as InstanceType<typeof ai.AiUnavailableError>;
+    expect(refused).toBeInstanceOf(ai.AiUnavailableError);
+    expect(router.calls).toHaveLength(1);
+    expect(router.calls[0].body).toMatchObject({ response_format: { type: 'json_object' } });
+    const fenced = stubFetch([() => new Response(JSON.stringify({ choices: [{ message: { content: `\`\`\`json\n${JSON.stringify(REVIEW)}\n\`\`\`` } }] }), { status: 200 })]);
+    const strict = (await ai.createAiClient({ fetchImpl: fenced.impl, env: { OPENROUTER_API_KEY: KEYS.OPENROUTER_API_KEY } }).review(reviewInput()).catch((err: Error) => err)) as InstanceType<typeof ai.AiInvalidResponseError>;
+    expect(strict).toBeInstanceOf(ai.AiInvalidResponseError);
+    expect(strict.attempts.map((a) => a.code)).toEqual(['not_json', 'not_json']);
+  });
+
+  test('the words an administrator reads: Claude Opus 5.5 (via Abacus RouteLLM), and why a model was skipped', () => {
+    const labels = loadWithUnitDir(() => require('@/components/admin/newsletter/ReviewerAttempts') as typeof import('@/components/admin/newsletter/ReviewerAttempts'));
+    expect(labels.providerName('abacus')).toBe('Abacus RouteLLM');
+    expect(labels.modelLabel('abacus', 'claude-opus-5-5')).toBe('Claude Opus 5.5 (via Abacus RouteLLM)');
+    expect(labels.modelLabel('abacus', 'claude-sonnet-5-5')).toBe('Claude Sonnet 5.5 (via Abacus RouteLLM)');
+    expect(labels.modelLabel('abacus', 'abacus/claude-opus-5-5')).toBe('Claude Opus 5.5 (via Abacus RouteLLM)');
+    expect(labels.modelLabel('anthropic', 'claude-opus-5-5')).toBe('Claude Opus 5.5');
+    expect(labels.modelLabel('openai', 'gpt-5.4')).toBe('GPT-5.4 (OpenAI)');
+    expect(labels.outcomeText('abacus', 'credit_exhausted')).toBe('Abacus RouteLLM account credit balance too low');
+    expect(labels.outcomeText('abacus', 'invalid_key')).toBe('Abacus RouteLLM rejected the API key');
+    expect(labels.outcomeText('abacus', 'unknown_model')).toBe('Abacus RouteLLM has no model with this name');
+    expect(labels.outcomeText('abacus', 'bad_request')).toBe('Abacus RouteLLM refused the request');
+    expect(labels.attemptSentence({ provider: 'anthropic', model: 'claude-opus-5-5', outcome: 'credit_exhausted', attempt: 1 }, 'judged this round')).toBe('Claude Opus 5.5 skipped: Anthropic account credit balance too low.');
+    expect(labels.attemptSentence({ provider: 'abacus', model: 'claude-opus-5-5', outcome: 'ok', attempt: 1 }, 'judged this round')).toBe('Claude Opus 5.5 (via Abacus RouteLLM) judged this round.');
+    expect(labels.attemptSentence({ provider: 'abacus', model: 'claude-opus-5-5', outcome: 'rate_limited', attempt: 2 }, 'judged this round')).toBe('Claude Opus 5.5 (via Abacus RouteLLM) (second try) skipped: Abacus RouteLLM rate limit reached.');
+  });
+
+  test('the status the admin screens read: which Claude route is judging, with Abacus in the chain', async () => {
+    const at = (second: number) => `2026-10-14T06:00:${String(second).padStart(2, '0')}.000Z`;
+    const attempt = (provider: AttemptRecord['provider'], model: string, outcome: AttemptRecord['outcome'], second: number, extra: Partial<AttemptRecord> = {}): AttemptRecord => ({ provider, model, attempt: 1, outcome, ms: 90, at: at(second), ...extra });
+    const credit = { httpStatus: 400, code: 'invalid_request_error', detail: CREDIT_MESSAGE };
+
+    // before anything has been called, Claude Opus 5.5 on Anthropic is the judge to expect
+    const fresh = await sender.getSendingStatus({ env: ALL_KEYS });
+    expect(fresh.reviewer.inUse).toEqual({ provider: 'anthropic', model: 'claude-opus-5-5' });
+    expect(fresh.ai).toEqual({ providers: ['anthropic', 'abacus', 'openai', 'openrouter'], available: true });
+
+    // the incident, as the review leaves it: Anthropic has no credit, Abacus answered
+    await reviewerState.recordReviewerAttempts([attempt('anthropic', 'claude-opus-5-5', 'credit_exhausted', 1, credit), attempt('abacus', 'claude-opus-5-5', 'ok', 2)]);
+    const status = await sender.getSendingStatus({ env: ALL_KEYS });
+    expect(status.reviewer.chain.map((a) => `${a.provider}:${a.model}`)).toEqual(['anthropic:claude-opus-5-5', 'abacus:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'abacus:claude-sonnet-5-5', 'openai:gpt-5.4', 'openai:gpt-4.1-mini', 'openrouter:openai/gpt-4.1-mini']);
+    expect(status.reviewer.availability.map((a) => `${a.provider}:${a.model}=${a.outcome}`)).toEqual([
+      'anthropic:claude-opus-5-5=credit_exhausted',
+      'abacus:claude-opus-5-5=ok',
+      'anthropic:claude-sonnet-5-5=null',
+      'abacus:claude-sonnet-5-5=null',
+      'openai:gpt-5.4=null',
+      'openai:gpt-4.1-mini=null',
+      'openrouter:openai/gpt-4.1-mini=null',
+    ]);
+    expect(status.reviewer.inUse).toEqual({ provider: 'abacus', model: 'claude-opus-5-5' });
+    expect(JSON.stringify(status)).not.toContain(ABACUS_KEY);
+
+    // the model selector's value for the Abacus route is accepted as the setting, and puts Abacus first
+    await store.updateEmailSettings({ reviewModel: 'abacus/claude-opus-5-5' });
+    const chosen = await sender.getSendingStatus({ env: ALL_KEYS });
+    expect(chosen.reviewer.setting).toBe('abacus/claude-opus-5-5');
+    expect(chosen.reviewer.chain.map((a) => `${a.provider}:${a.model}`)).toEqual(['abacus:claude-opus-5-5', 'openrouter:anthropic/claude-opus-5-5', 'anthropic:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'abacus:claude-sonnet-5-5', 'openai:gpt-5.4', 'openai:gpt-4.1-mini', 'openrouter:openai/gpt-4.1-mini']);
+    expect(chosen.reviewer.inUse).toEqual({ provider: 'abacus', model: 'claude-opus-5-5' });
+    await store.updateEmailSettings({ reviewModel: '' });
+
+    // with no Abacus key the status is what it was
+    const without = await sender.getSendingStatus({ env: KEYS });
+    expect(without.ai.providers).toEqual(['anthropic', 'openai', 'openrouter']);
+    expect(without.reviewer.chain.map((a) => `${a.provider}:${a.model}`)).toEqual(['anthropic:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'openai:gpt-5.4', 'openai:gpt-4.1-mini', 'openrouter:openai/gpt-4.1-mini']);
+  });
+});
+
+// ─── The admin screens, in a browser: Anthropic out of credit, Abacus RouteLLM judging ─────────────────────────────────
+
+/**
+ * Needs the email test harness in its Abacus flavour (see e2e/support/email-http.ts: ABACUS_API_KEY and ABACUS_BASE_URL
+ * pointing at the AI mock); on a harness without an Abacus key it skips. Screenshots of what an administrator sees, at
+ * a desktop and a phone width, are written to the test's output directory and attached to its report.
+ */
+
+const ADMIN_FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'email-provider-state.json', 'email-reviewer-state.json', 'newsletter-subscribers.json'];
+const WIDTHS = [
+  { name: '1366', width: 1366, height: 900 },
+  { name: '390', width: 390, height: 844 },
+];
+const OPUS_VIA_ABACUS = 'Claude Opus 5.5 (via Abacus RouteLLM)';
+
+async function openNewsletter(page: Page): Promise<void> {
+  await page.locator('aside').getByRole('button', { name: /Newsletter/ }).first().click();
+  await expect(page.getByRole('heading', { name: 'Newsletter Subscribers' })).toBeVisible({ timeout: 15000 });
+}
+
+async function openSection(page: Page, label: string, heading: string): Promise<void> {
+  await page.getByRole('tab', { name: label }).click();
+  await expect(page.getByRole('heading', { name: heading, exact: true }).first()).toBeVisible({ timeout: 15000 });
+}
+
+/** Wait until an element has stopped moving: its box is the same on two reads in a row. */
+async function settled(target: Locator): Promise<void> {
+  let previous = '';
+  await expect
+    .poll(
+      async () => {
+        const now = JSON.stringify(await target.boundingBox());
+        const same = now === previous;
+        previous = now;
+        return same;
+      },
+      { intervals: [150, 150, 250, 250, 500], timeout: 8000 },
+    )
+    .toBe(true);
+}
+
+/** The same view at a desktop and at a phone width: it fits the width (nothing runs off either edge, the page does not scroll sideways) and is photographed. */
+async function shootAtBothWidths(page: Page, testInfo: TestInfo, name: string, target: Locator): Promise<void> {
+  for (const { name: label, width, height } of WIDTHS) {
+    await page.setViewportSize({ width, height });
+    await settled(target); // the layout (the side menu closes at a phone width) has followed the new width
+    await target.scrollIntoViewIfNeeded();
+    await settled(target); // and what the scroll brought into view (the email preview) has finished loading
+    const box = await target.boundingBox();
+    expect(box, `${name} at ${label}`).not.toBeNull();
+    expect(box?.x ?? -1, `${name} at ${label} starts inside the width`).toBeGreaterThanOrEqual(0);
+    expect((box?.x ?? 0) + (box?.width ?? 0), `${name} at ${label} fits the width`).toBeLessThanOrEqual(width + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${name} at ${label}: the page does not scroll sideways`).toBeLessThanOrEqual(0);
+    const path = testInfo.outputPath(`${name}-${label}.png`);
+    await target.screenshot({ path });
+    await testInfo.attach(`${name}-${label}`, { path, contentType: 'image/png' });
+  }
+  await page.setViewportSize({ width: WIDTHS[0].width, height: WIDTHS[0].height });
+}
+
+/** Sign in at the desktop width; the test is skipped unless the server holds an Abacus key (the Abacus flavour of the harness). */
+async function startSession(page: Page): Promise<void> {
+  await page.setViewportSize({ width: WIDTHS[0].width, height: WIDTHS[0].height });
+  await adminLogin(page);
+  const reported = await adminApi(page, 'GET', '/api/admin/newsletter/status');
+  const providers = ((reported.body?.ai as { providers?: string[] } | undefined)?.providers ?? []) as string[];
+  test.skip(!providers.includes('abacus'), 'Needs the Abacus flavour of the email test harness (ABACUS_API_KEY and ABACUS_BASE_URL, see e2e/support/email-http.ts).');
+}
+
+test.describe('admin: reviewer through Abacus RouteLLM', () => {
+  const saved = new Map<string, string | null>();
+  const mock = new MockAi();
+
+  test.beforeAll(async ({ baseURL }) => {
+    if (!HARNESS) return;
+    const host = new URL(baseURL ?? 'http://localhost:3000').hostname;
+    if (host !== 'localhost' && host !== '127.0.0.1') throw new Error(`Refusing to run: baseURL (${baseURL}) is not on this machine.`);
+    for (const file of ADMIN_FILES) saved.set(file, existsSync(join(SERVER_DATA_DIR, file)) ? readFileSync(join(SERVER_DATA_DIR, file), 'utf-8') : null);
+    await mock.start();
+  });
+
+  test.afterAll(async () => {
+    if (!HARNESS) return;
+    await mock.stop();
+    for (const [file, content] of saved) {
+      if (content === null) rmSync(join(SERVER_DATA_DIR, file), { force: true });
+      else writeFileSync(join(SERVER_DATA_DIR, file), content, 'utf-8');
+    }
+  });
+
+  test.beforeEach(({}, testInfo) => {
+    testInfo.skip(!HAS_ADMIN_CREDS || !HARNESS, HARNESS_SKIP);
+    mock.reset();
+    for (const file of ADMIN_FILES) rmSync(join(SERVER_DATA_DIR, file), { force: true });
+  });
+
+  test('Anthropic has no credit: Claude Opus 5.5 via Abacus RouteLLM judges, and the round, the approval, the sending status and the model selector all say so', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    await startSession(page);
+    mock.fail(ANTHROPIC_CREDIT_LOW); // every Anthropic model answers 400 "Your credit balance is too low"
+    mock.reviews = [mockPassingReview()];
+    await openNewsletter(page);
+
+    // before any review nothing is known about the models, and the first of them (on Anthropic) is the one expected to judge
+    await openSection(page, 'Sending status', 'Sending status');
+    await expect(page.getByText('anthropic, abacus, openai', { exact: true })).toBeVisible();
+    await expect(page.getByText('Tried in order: anthropic claude-opus-5-5, then abacus claude-opus-5-5, then anthropic claude-sonnet-5-5, then abacus claude-sonnet-5-5, then openai gpt-5.4, then openai gpt-4.1-mini')).toBeVisible();
+    const entries = page.getByTestId('reviewer-availability-entry');
+    await expect(entries).toHaveCount(6);
+    await expect(entries.nth(0)).toHaveAttribute('data-outcome', 'untried');
+    await expect(entries.nth(1)).toContainText(OPUS_VIA_ABACUS);
+    await expect(entries.nth(3)).toContainText('Claude Sonnet 5.5 (via Abacus RouteLLM)');
+    await expect(page.getByTestId('reviewer-in-use')).toContainText('expected to be judged by Claude Opus 5.5.');
+    await shootAtBothWidths(page, testInfo, 'status-before-review', page.getByTestId('reviewer-availability'));
+
+    // the review: Anthropic is asked once and refused, and Abacus RouteLLM answers with the same model
+    await openSection(page, 'Email templates', 'Email templates');
+    await page.getByRole('button', { name: 'Run quality review' }).click();
+    await expect(page.getByTestId('review-outcome')).toContainText('Passed', { timeout: 60000 });
+    await expect(page.getByTestId('review-judge-1')).toContainText('Judged by abacus claude-opus-5-5');
+    const attempts = page.getByTestId('review-attempts-1').getByTestId('review-attempt');
+    await expect(attempts).toHaveCount(2);
+    await expect(attempts.nth(0)).toContainText('Claude Opus 5.5 skipped: Anthropic account credit balance too low.');
+    await expect(attempts.nth(0)).toContainText('HTTP 400, invalid_request_error: Your credit balance is too low to access the Anthropic API.');
+    await expect(attempts.nth(0)).toHaveAttribute('data-outcome', 'credit_exhausted');
+    await expect(attempts.nth(1)).toContainText(`${OPUS_VIA_ABACUS} judged this round.`);
+    await expect(attempts.nth(1)).toHaveAttribute('data-outcome', 'ok');
+    await expect(page.getByTestId('approved-by')).toContainText('abacus claude-opus-5-5');
+    await shootAtBothWidths(page, testInfo, 'review-attempts', page.getByTestId('review-attempts-1'));
+
+    // exactly what was sent: Anthropic once, then Abacus RouteLLM once with the documented chat completions request
+    expect(mock.calls.map((c) => [c.provider, c.model, c.status])).toEqual([['anthropic', 'claude-opus-5-5', 400], ['abacus', 'claude-opus-5-5', 200]]);
+    const sent = mock.calls[1];
+    expect(sent.url).toBe('/abacus/v1/chat/completions');
+    expect(String(sent.headers.authorization).startsWith('Bearer abacus-local-test-not-real-'), 'the Bearer key is the harness\'s fake one').toBe(true); // a boolean, so a failure never prints a header
+    expect(Object.keys(sent.body).sort()).toEqual(['max_tokens', 'messages', 'model', 'response_format']);
+    expect(sent.body).toMatchObject({ model: 'claude-opus-5-5', max_tokens: 4000, response_format: { type: 'json_schema', json_schema: { name: 'email_review', strict: true } } });
+    expect((sent.body.messages as Array<{ role: string }>).map((m) => m.role)).toEqual(['system', 'user']);
+    expect(JSON.stringify(sent.body)).toContain('The AB Entertainment Community');
+
+    // the sending status says what each model did the last time it was asked, and that Abacus now judges
+    await openSection(page, 'Sending status', 'Sending status');
+    await expect(entries).toHaveCount(6);
+    await expect(entries.nth(0)).toContainText('Claude Opus 5.5: Anthropic account credit balance too low');
+    await expect(entries.nth(0)).toHaveAttribute('data-outcome', 'credit_exhausted');
+    await expect(entries.nth(1)).toContainText(`${OPUS_VIA_ABACUS}: answered the last time it was asked`);
+    await expect(entries.nth(1)).toHaveAttribute('data-outcome', 'ok');
+    await expect(entries.nth(2)).toHaveAttribute('data-outcome', 'untried');
+    await expect(page.getByTestId('reviewer-in-use')).toContainText(`expected to be judged by ${OPUS_VIA_ABACUS}, because the models before it`);
+    const status = await adminApi(page, 'GET', '/api/admin/newsletter/status');
+    const reviewer = status.body?.reviewer as { availability: Array<Record<string, unknown>>; inUse: unknown };
+    expect(reviewer.availability[0]).toMatchObject({ provider: 'anthropic', model: 'claude-opus-5-5', outcome: 'credit_exhausted', httpStatus: 400 });
+    expect(reviewer.availability[1]).toMatchObject({ provider: 'abacus', model: 'claude-opus-5-5', outcome: 'ok' });
+    expect(reviewer.inUse).toEqual({ provider: 'abacus', model: 'claude-opus-5-5' });
+    for (const secret of ['sk-ant-local', 'sk-openai-local', 're_local_test', 'abacus-local-test']) expect(JSON.stringify(status.body)).not.toContain(secret);
+    expect(await page.locator('main').innerText()).not.toContain('abacus-local-test');
+    await shootAtBothWidths(page, testInfo, 'status-after-review', page.getByTestId('reviewer-availability'));
+
+    // the guidelines screen offers both Claude models through Abacus, and choosing one puts Abacus first
+    await openSection(page, 'Brand guidelines', 'Brand guidelines');
+    await expect(page.getByTestId('reviewer-chain')).toContainText('Tried in order: anthropic claude-opus-5-5, then abacus claude-opus-5-5, then anthropic claude-sonnet-5-5, then abacus claude-sonnet-5-5, then openai gpt-5.4, then openai gpt-4.1-mini');
+    const model = page.getByLabel('Reviewer model');
+    await expect(model.locator('option')).toHaveText([
+      'Default: Claude Opus 5.5, then Claude Sonnet 5.5 (each on Anthropic, then via Abacus RouteLLM), then GPT-5.4, then GPT-4.1 mini',
+      'Claude Opus 5.5 (Anthropic)',
+      OPUS_VIA_ABACUS,
+      'Claude Sonnet 5.5 (Anthropic)',
+      'Claude Sonnet 5.5 (via Abacus RouteLLM)',
+      'GPT-5.4 (OpenAI)',
+      'GPT-4.1 (OpenAI)',
+      'GPT-4.1 mini (OpenAI)',
+      'Another model id…',
+    ]);
+    await model.selectOption('abacus/claude-opus-5-5');
+    await expect(model.locator('option:checked')).toHaveText(OPUS_VIA_ABACUS);
+    await shootAtBothWidths(page, testInfo, 'model-selector', page.locator('#setting-model').locator('..'));
+    await page.getByRole('button', { name: 'Save settings' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Settings saved.' })).toBeVisible();
+    await expect(page.getByTestId('reviewer-chain')).toContainText('Tried in order: abacus claude-opus-5-5, then anthropic claude-opus-5-5, then anthropic claude-sonnet-5-5, then abacus claude-sonnet-5-5, then openai gpt-5.4, then openai gpt-4.1-mini');
+    await expect(model.locator('option:checked')).toHaveText(OPUS_VIA_ABACUS);
+    expect(JSON.parse(readFileSync(join(SERVER_DATA_DIR, 'email-settings.json'), 'utf-8'))).toMatchObject({ reviewModel: 'abacus/claude-opus-5-5' });
+
+    // reviewing again with that chosen: Abacus is asked first and Anthropic is not asked at all
+    mock.calls = [];
+    await openSection(page, 'Email templates', 'Email templates');
+    await page.getByRole('button', { name: 'Run quality review' }).click();
+    await expect(page.getByTestId('review-outcome')).toContainText('Passed', { timeout: 60000 });
+    expect(mock.calls.map((c) => [c.provider, c.model, c.status])).toEqual([['abacus', 'claude-opus-5-5', 200]]);
+    const again = page.getByTestId('review-attempts-1').getByTestId('review-attempt');
+    await expect(again).toHaveCount(1);
+    await expect(again.first()).toContainText(`${OPUS_VIA_ABACUS} judged this round.`);
+    await expect(page.getByTestId('approved-by')).toContainText('abacus claude-opus-5-5');
+
+    // after a reload the saved choice is still shown as the selected option
+    await page.reload();
+    await openNewsletter(page);
+    await openSection(page, 'Brand guidelines', 'Brand guidelines');
+    await expect(page.getByLabel('Reviewer model').locator('option:checked')).toHaveText(OPUS_VIA_ABACUS);
+  });
+
+  test('Anthropic and Abacus RouteLLM both out of credit: GPT-5.4 judges, and the round and the sending status say why each Claude route was skipped', async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
+    await startSession(page);
+    mock.fail(ANTHROPIC_CREDIT_LOW);
+    mock.fail(ABACUS_NO_CREDIT); // 402: "You have run out of compute points."
+    mock.reviews = [mockPassingReview()];
+    await openNewsletter(page);
+    await openSection(page, 'Email templates', 'Email templates');
+    await page.getByRole('button', { name: 'Run quality review' }).click();
+    await expect(page.getByTestId('review-outcome')).toContainText('Passed', { timeout: 60000 });
+
+    // every Claude route is asked once, none is repeated, and GPT-5.4 answers
+    expect(mock.calls.map((c) => [c.provider, c.model, c.status])).toEqual([
+      ['anthropic', 'claude-opus-5-5', 400],
+      ['abacus', 'claude-opus-5-5', 402],
+      ['anthropic', 'claude-sonnet-5-5', 400],
+      ['abacus', 'claude-sonnet-5-5', 402],
+      ['openai', 'gpt-5.4', 200],
+    ]);
+    await expect(page.getByTestId('review-judge-1')).toContainText('Judged by openai gpt-5.4');
+    const attempts = page.getByTestId('review-attempts-1').getByTestId('review-attempt');
+    await expect(attempts).toHaveCount(5);
+    await expect(attempts.nth(0)).toContainText('Claude Opus 5.5 skipped: Anthropic account credit balance too low.');
+    await expect(attempts.nth(1)).toContainText('Claude Opus 5.5 (via Abacus RouteLLM) skipped: Abacus RouteLLM account credit balance too low.');
+    await expect(attempts.nth(1)).toContainText('HTTP 402, PaymentRequired: You have run out of compute points.');
+    await expect(attempts.nth(1)).toHaveAttribute('data-outcome', 'credit_exhausted');
+    await expect(attempts.nth(2)).toContainText('Claude Sonnet 5.5 skipped: Anthropic account credit balance too low.');
+    await expect(attempts.nth(3)).toContainText('Claude Sonnet 5.5 (via Abacus RouteLLM) skipped: Abacus RouteLLM account credit balance too low.');
+    await expect(attempts.nth(4)).toContainText('GPT-5.4 (OpenAI) judged this round.');
+    await expect(page.getByTestId('approved-by')).toContainText('openai gpt-5.4');
+    await shootAtBothWidths(page, testInfo, 'both-claude-routes-skipped', page.getByTestId('review-attempts-1'));
+
+    await openSection(page, 'Sending status', 'Sending status');
+    const entries = page.getByTestId('reviewer-availability-entry');
+    await expect(entries.nth(1)).toContainText('Claude Opus 5.5 (via Abacus RouteLLM): Abacus RouteLLM account credit balance too low');
+    await expect(entries.nth(1)).toHaveAttribute('data-outcome', 'credit_exhausted');
+    await expect(entries.nth(4)).toContainText('GPT-5.4 (OpenAI): answered the last time it was asked');
+    await expect(page.getByTestId('reviewer-in-use')).toContainText('expected to be judged by GPT-5.4 (OpenAI), because the models before it');
+    await shootAtBothWidths(page, testInfo, 'status-both-claude-routes-skipped', page.getByTestId('reviewer-availability'));
   });
 });

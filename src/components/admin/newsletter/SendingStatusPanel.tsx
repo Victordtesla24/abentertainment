@@ -127,7 +127,7 @@ export default function SendingStatusPanel({ onNavigate }: { onNavigate?: (secti
               </Row>
               <Row label="AI reviewer">
                 {status.ai.available ? <Badge tone="good">Available</Badge> : <Badge tone="bad">Not configured</Badge>}
-                <span className="block text-[11px] text-white/30">{status.ai.available ? status.ai.providers.join(', ') : 'ANTHROPIC_API_KEY, OPENAI_API_KEY or OPENROUTER_API_KEY'}</span>
+                <span className="block text-[11px] text-white/30">{status.ai.available ? status.ai.providers.join(', ') : 'ANTHROPIC_API_KEY, ABACUS_API_KEY, OPENAI_API_KEY or OPENROUTER_API_KEY'}</span>
               </Row>
               <Row label="Reviewer model">
                 <span data-testid="reviewer-model">{status.reviewer.setting || 'Default'}</span>

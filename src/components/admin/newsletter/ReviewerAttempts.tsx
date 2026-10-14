@@ -9,7 +9,7 @@ import { Badge, formatDate, type Tone } from './shared';
  * model in the chain did the last time it was asked. The words here are the only place the outcome codes become text.
  */
 
-const PROVIDER_NAME: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI', openrouter: 'OpenRouter' };
+const PROVIDER_NAME: Record<string, string> = { anthropic: 'Anthropic', abacus: 'Abacus RouteLLM', openai: 'OpenAI', openrouter: 'OpenRouter' };
 
 const MODEL_NAME: Record<string, string> = {
   'claude-opus-5-5': 'Claude Opus 5.5',
@@ -21,12 +21,13 @@ const MODEL_NAME: Record<string, string> = {
 
 export const providerName = (provider: string): string => PROVIDER_NAME[provider] ?? provider;
 
-/** "Claude Opus 5.5", "GPT-5.4 (OpenAI)", "GPT-4.1 mini (OpenRouter)": a model as an administrator knows it. */
+/** "Claude Opus 5.5", "Claude Opus 5.5 (via Abacus RouteLLM)", "GPT-5.4 (OpenAI)": a model as an administrator knows it. */
 export function modelLabel(provider: string, model: string): string {
   const bare = model.includes('/') ? model.slice(model.indexOf('/') + 1) : model;
   const claude = /^claude-(opus|sonnet|haiku)-(\d+)-(\d+)$/.exec(bare);
   const name = MODEL_NAME[bare] ?? (claude ? `Claude ${claude[1][0].toUpperCase()}${claude[1].slice(1)} ${claude[2]}.${claude[3]}` : bare);
   if (provider === 'anthropic' && /^Claude /.test(name)) return name;
+  if (provider === 'abacus') return `${name} (via ${providerName(provider)})`;
   return `${name} (${providerName(provider)})`;
 }
 

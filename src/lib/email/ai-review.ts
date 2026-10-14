@@ -2,10 +2,12 @@
  * The AI half of the quality gate: a structured review of a draft email against the written brand guidelines, and a
  * fix step that proposes new wording for the failing fields only.
  *
- * Providers, in this order: Anthropic (ANTHROPIC_API_KEY; Claude Opus 5.5, then Claude Sonnet 5.5), OpenAI
- * (OPENAI_API_KEY; GPT-5.4, then GPT-4.1 mini) and OpenRouter (OPENROUTER_API_KEY). An administrator can choose the
- * reviewer model in the email settings: the provider that serves it goes first and the rest of the chain follows as the
- * fallback. Keys are read from the environment at call time and are never logged, returned or put in an error message.
+ * Providers: Anthropic (ANTHROPIC_API_KEY; Claude Opus 5.5, then Claude Sonnet 5.5), Abacus RouteLLM (ABACUS_API_KEY; the
+ * same two Claude models through its OpenAI-compatible gateway, each tried right after the same model on Anthropic, so a
+ * Claude account with no credit does not take Claude away), OpenAI (OPENAI_API_KEY; GPT-5.4, then GPT-4.1 mini) and
+ * OpenRouter (OPENROUTER_API_KEY). An administrator can choose the reviewer model in the email settings: the provider
+ * that serves it goes first and the rest of the chain follows as the fallback. Keys are read from the environment at call
+ * time and are never logged, returned or put in an error message.
  * Every answer is validated (zod): anything that is not exactly the expected JSON is rejected, and an unavailable or
  * unusable reviewer means the gate blocks. An email is never treated as reviewed unless a valid review passed it.
  *
@@ -86,7 +88,7 @@ export interface AiClient {
 
 // ─── Providers ───────────────────────────────────────────────────────────────
 
-export type AiProviderId = 'anthropic' | 'openai' | 'openrouter';
+export type AiProviderId = 'anthropic' | 'abacus' | 'openai' | 'openrouter';
 
 export interface ReviewAttempt {
   provider: AiProviderId;
@@ -102,13 +104,25 @@ interface Provider {
 }
 
 /**
- * The default reviewer chain: the strongest model first, a second Claude, then OpenAI's strongest and a light model, then
- * OpenRouter. (A Claude account with no credit, or a key that has gone, falls through to GPT-5.4 and the review says so.)
+ * The default reviewer chain, strongest first: each Claude model on Anthropic and then on Abacus RouteLLM (which serves
+ * the same models under the same hyphenated ids, so a Claude account with no credit costs one quick refusal and not the
+ * judge), then OpenAI's strongest and a light model, then OpenRouter. Only the entries whose provider has a key are used.
+ * (If every Claude route is unusable, the review falls through to GPT-5.4 and says so.)
  */
 export const ANTHROPIC_DEFAULT_MODELS: readonly string[] = ['claude-opus-5-5', 'claude-sonnet-5-5'];
 export const OPENAI_DEFAULT_MODELS: readonly string[] = ['gpt-5.4', 'gpt-4.1-mini'];
 export const OPENROUTER_DEFAULT_MODEL = 'openai/gpt-4.1-mini';
+export const ABACUS_DEFAULT_BASE_URL = 'https://routellm.abacus.ai/v1';
 const ANTHROPIC_VERSION = '2023-06-01';
+
+const DEFAULT_CHAIN: readonly ReviewAttempt[] = [
+  ...ANTHROPIC_DEFAULT_MODELS.flatMap((model): ReviewAttempt[] => [
+    { provider: 'anthropic', model },
+    { provider: 'abacus', model },
+  ]),
+  ...OPENAI_DEFAULT_MODELS.map((model): ReviewAttempt => ({ provider: 'openai', model })),
+  { provider: 'openrouter', model: OPENROUTER_DEFAULT_MODEL },
+];
 
 /**
  * EMAIL_AI_BASE_URL (tests only) may point the Anthropic and OpenAI endpoints at a loopback address, never at another
@@ -119,11 +133,31 @@ function loopbackBase(env: Record<string, string | undefined>): string | null {
   return /^http:\/\/(?:127\.0\.0\.1|localhost):\d{2,5}$/.test(override) ? override : null;
 }
 
+/**
+ * Where Abacus RouteLLM is reached: ABACUS_BASE_URL when it is an https address (an enterprise workspace has its own,
+ * https://<workspace>.abacus.ai/v1) or a loopback address (tests only), else the public gateway. The key travels to this
+ * address, so anything else (plain http to another host, credentials in the address, a value that is not a URL) is
+ * ignored rather than trusted.
+ */
+export function abacusBaseUrl(env: Record<string, string | undefined>): string {
+  const configured = (env.ABACUS_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  if (/^https:\/\/[^\s/?#@]+(?:\/[^\s?#]*)?$/.test(configured)) return configured;
+  if (/^http:\/\/(?:127\.0\.0\.1|localhost):\d{2,5}(?:\/[^\s?#]*)?$/.test(configured)) return configured;
+  return ABACUS_DEFAULT_BASE_URL;
+}
+
 export function resolveProviders(env: Record<string, string | undefined>): Provider[] {
   const providers: Provider[] = [];
   const loopback = loopbackBase(env);
   if (env.ANTHROPIC_API_KEY) {
     providers.push({ id: 'anthropic', url: `${loopback ?? 'https://api.anthropic.com'}/v1/messages`, key: env.ANTHROPIC_API_KEY, extraHeaders: { 'anthropic-version': ANTHROPIC_VERSION }, structured: true });
+  }
+  const abacusKey = (env.ABACUS_API_KEY ?? '').trim();
+  if (abacusKey) {
+    // Abacus RouteLLM (https://abacus.ai/help/route-llm/chat-completions/): OpenAI-compatible chat completions with
+    // Bearer auth. It fronts many vendors' models, so the answer is read leniently (see parseModelJson) and, like every
+    // answer, checked against the schema.
+    providers.push({ id: 'abacus', url: `${abacusBaseUrl(env)}/chat/completions`, key: abacusKey, extraHeaders: {}, structured: false });
   }
   if (env.OPENAI_API_KEY) {
     providers.push({ id: 'openai', url: `${loopback ?? 'https://api.openai.com'}/v1/chat/completions`, key: env.OPENAI_API_KEY, extraHeaders: {}, structured: true });
@@ -149,6 +183,7 @@ export function configuredAiProviders(env: Record<string, string | undefined> = 
 function ownerOf(setting: string): AiProviderId | null {
   const wanted = setting.trim().toLowerCase();
   if (!wanted) return null;
+  if (wanted.startsWith('abacus/')) return 'abacus';
   if (wanted.startsWith('claude-') || wanted.startsWith('anthropic/')) return 'anthropic';
   if (wanted.startsWith('openai/')) return 'openai';
   if (wanted.includes('/')) return 'openrouter';
@@ -159,7 +194,7 @@ const stripVendor = (model: string) => (model.includes('/') ? model.slice(model.
 
 /** A model setting as an OpenRouter id ("vendor/model"). */
 function openRouterModel(setting: string): string {
-  const wanted = setting.trim();
+  const wanted = setting.trim().replace(/^abacus\//i, '');
   if (!wanted) return OPENROUTER_DEFAULT_MODEL;
   if (wanted.includes('/')) return wanted;
   return wanted.startsWith('claude-') ? `anthropic/${wanted}` : `openai/${wanted}`;
@@ -167,9 +202,10 @@ function openRouterModel(setting: string): string {
 
 /**
  * Every (provider, model) the reviewer will try, in order, for the administrator's model setting (empty = the default
- * chain). A chosen model is tried first on the provider that serves it, then through OpenRouter when that is configured
- * (the same model by another route); after that the default chain follows (Claude Opus 5.5, Claude Sonnet 5.5, OpenAI's
- * default, OpenRouter's default), so one provider being down never stops a review. Exact repeats are dropped.
+ * chain). A chosen model is tried first on the provider that serves it (a Claude model on Anthropic, then the same model
+ * on Abacus RouteLLM; "abacus/<model>" goes to Abacus first), then through OpenRouter when that is configured (the same
+ * model by another route); after that the default chain follows, so one provider being down never stops a review. Exact
+ * repeats are dropped.
  */
 export function reviewerChain(env: Record<string, string | undefined>, setting: string): ReviewAttempt[] {
   const providers = resolveProviders(env);
@@ -181,15 +217,13 @@ export function reviewerChain(env: Record<string, string | undefined>, setting: 
     if (!attempts.some((a) => a.provider === attempt.provider && a.model === attempt.model)) attempts.push(attempt);
   };
   if (wanted && owner) {
-    if ((owner === 'anthropic' || owner === 'openai') && has(owner)) add({ provider: owner, model: stripVendor(wanted) });
+    if ((owner === 'anthropic' || owner === 'openai' || owner === 'abacus') && has(owner)) add({ provider: owner, model: stripVendor(wanted) });
+    // Abacus RouteLLM serves the Claude models under the same ids, so a chosen Claude model has it as its second route
+    if (owner === 'anthropic' && has('abacus')) add({ provider: 'abacus', model: stripVendor(wanted) });
     if (owner === 'openrouter' && has('openrouter')) add({ provider: 'openrouter', model: wanted });
     if (owner !== 'openrouter' && has('openrouter')) add({ provider: 'openrouter', model: openRouterModel(wanted) });
   }
-  for (const provider of providers) {
-    if (provider.id === 'anthropic') for (const model of ANTHROPIC_DEFAULT_MODELS) add({ provider: 'anthropic', model });
-    else if (provider.id === 'openai') for (const model of OPENAI_DEFAULT_MODELS) add({ provider: 'openai', model });
-    else add({ provider: 'openrouter', model: OPENROUTER_DEFAULT_MODEL });
-  }
+  for (const entry of DEFAULT_CHAIN) if (has(entry.provider)) add(entry);
   return attempts;
 }
 
@@ -352,17 +386,24 @@ class AttemptFailure extends Error {
 /** Failures worth one more try on the same model; everything else (no credit, a bad key, no such model) moves on at once. */
 const RETRYABLE: ReadonlySet<AiAttemptOutcome> = new Set(['rate_limited', 'overloaded', 'server_error', 'timeout', 'network', 'bad_shape']);
 
+/** The words of a refusal that says the account has no credit left (Abacus RouteLLM counts its credits in "compute points"). */
+const NO_CREDIT_WORDS = /credit balance (?:is )?too low|insufficient[ _]credits?|insufficient[ _]quota|exceeded your current quota|billing hard limit|payment required|out of (?:credits?|compute points?)|(?:not|n't) (?:have )?enough (?:credits?|compute points?)|insufficient compute points?|no (?:credits?|compute points?) (?:left|remaining|available)|(?:credits?|compute points?) (?:have been |are |is |were )?(?:exhausted|depleted|used up)/;
+/** The words of a refusal that says the provider has no such model (Abacus RouteLLM answers "Invalid model name" with a 400). */
+const NO_SUCH_MODEL_WORDS = /model[^.]*(?:not found|does not exist|is not available|not supported)|(?:invalid|unknown|unrecognized|unsupported) model/;
+
 /**
  * What a non-2xx answer means. Anthropic reports an account with no credit as a 400 invalid_request_error whose message
- * says the credit balance is too low (not as a billing status), OpenAI as a 429 insufficient_quota, OpenRouter as a 402;
- * a rejected key is a 401 everywhere (OpenRouter says "User not found").
+ * says the credit balance is too low (not as a billing status), OpenAI as a 429 insufficient_quota, OpenRouter as a 402
+ * (Abacus RouteLLM documents 400, 401, 429 and 500 with the error shape { error: { message, type, code } }, so a refusal
+ * for lack of credit is recognised by the words as well as by a 402); a rejected key is a 401 almost everywhere (OpenRouter
+ * says "User not found", Abacus RouteLLM answers a 403 "Invalid API Key" or "User not logged in").
  */
 export function classifyHttpFailure(status: number, type: string, code: string, message: string): Exclude<AiAttemptOutcome, 'ok'> {
   const text = message.toLowerCase();
-  if (status === 402 || code === 'insufficient_quota' || code === 'billing_hard_limit_reached' || /credit balance (?:is )?too low|insufficient[ _]credits?|insufficient[ _]quota|exceeded your current quota|billing hard limit|payment required|out of credits?/.test(text)) return 'credit_exhausted';
-  if (status === 401 || type === 'authentication_error' || /invalid (?:x-)?api[ _-]?key|incorrect api key|user not found|invalid authentication/.test(text)) return 'invalid_key';
+  if (status === 402 || code === 'insufficient_quota' || code === 'billing_hard_limit_reached' || NO_CREDIT_WORDS.test(text)) return 'credit_exhausted';
+  if (status === 401 || type === 'authentication_error' || /invalid (?:x-)?api[ _-]?key|incorrect api key|user not found|not logged in|invalid authentication/.test(text)) return 'invalid_key';
   if (status === 403 || type === 'permission_error') return 'forbidden';
-  if (status === 404 || type === 'not_found_error' || code === 'model_not_found' || /model[^.]*(?:not found|does not exist|is not available|not supported)/.test(text)) return 'unknown_model';
+  if (status === 404 || type === 'not_found_error' || code === 'model_not_found' || NO_SUCH_MODEL_WORDS.test(text)) return 'unknown_model';
   if (status === 429 || type === 'rate_limit_error' || code === 'rate_limit_exceeded') return 'rate_limited';
   if (status === 529 || type === 'overloaded_error') return 'overloaded';
   if (status === 408 || status === 504) return 'timeout';
@@ -377,13 +418,67 @@ export function isReasoningModel(model: string): boolean {
   return REASONING_MODEL.test(model);
 }
 
+/**
+ * How Abacus RouteLLM is asked for JSON, strictest first: response_format json_schema (the schema is the answer's shape),
+ * then JSON mode (the shape is in the instruction), then the instruction alone. Its documentation offers the first two
+ * for every text model, but the gateway fronts many vendors' models, so a refusal of the request moves one step down.
+ */
+type JsonMode = 'json_schema' | 'json_object' | 'instruction_only';
+const LOOSER_JSON_MODE: Readonly<Record<JsonMode, JsonMode | null>> = { json_schema: 'json_object', json_object: 'instruction_only', instruction_only: null };
+
+/** What a provider refused for a model: left out (or loosened) in the request from then on, each at most once per step. */
+interface RequestAdjust {
+  /** OpenAI: the model does not take reasoning_effort. */
+  noReasoningEffort: boolean;
+  /** Abacus RouteLLM: how JSON is asked for. */
+  jsonMode: JsonMode;
+}
+
+function jsonModeFormat(mode: JsonMode, schemaName: string, schema: object): Record<string, unknown> {
+  if (mode === 'json_schema') return { response_format: { type: 'json_schema', json_schema: { name: schemaName, strict: true, schema } } };
+  if (mode === 'json_object') return { response_format: { type: 'json_object' } };
+  return {};
+}
+
+/**
+ * The JSON an answer holds. A provider that guarantees exactly the JSON (a forced tool call, a strict schema) is read
+ * strictly. One that does not (Abacus RouteLLM) may wrap the JSON in a code fence or a sentence, so its answer is read
+ * leniently: the whole text, else the text inside a fence, else from the first "{" to the last "}". Whatever is read is
+ * checked by zod afterwards, so the leniency here can never let a malformed review through.
+ */
+export function parseModelJson(content: string, lenient: boolean): unknown {
+  try {
+    return JSON.parse(content);
+  } catch (err) {
+    if (!lenient) throw err;
+  }
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(content);
+  const candidates = [fenced?.[1]?.trim() ?? '', content.slice(content.indexOf('{'), content.lastIndexOf('}') + 1)];
+  for (const candidate of candidates) {
+    if (!candidate.startsWith('{')) continue;
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      /* try the next reading */
+    }
+  }
+  throw new SyntaxError('The answer holds no JSON object.');
+}
+
+/** The text of a chat completion message: a string, or (some gateways) a list of text blocks. */
+function messageText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) return content.map((part) => (part && typeof part === 'object' && typeof (part as { text?: unknown }).text === 'string' ? (part as { text: string }).text : '')).join('');
+  return '';
+}
+
 export function createAiClient(options: AiClientOptions = {}): AiClient {
   const fetchImpl = options.fetchImpl ?? fetch;
   const env = options.env ?? process.env;
   const timeoutMs = options.timeoutMs ?? 120_000;
 
   /** The request body for one provider and model (see the notes on each shape). */
-  function requestBody(provider: Provider, model: string, system: string, user: string, schemaName: string, schema: object, omitReasoningEffort: boolean): Record<string, unknown> {
+  function requestBody(provider: Provider, model: string, system: string, user: string, schemaName: string, schema: object, adjust: RequestAdjust): Record<string, unknown> {
     if (provider.id === 'anthropic') {
       // Messages API: structured JSON by forcing a call to one tool whose input schema is the answer. No temperature.
       return {
@@ -406,8 +501,22 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
           { role: 'user', content: user },
         ],
         max_completion_tokens: 16000,
-        ...(omitReasoningEffort ? {} : { reasoning_effort: 'medium' }),
+        ...(adjust.noReasoningEffort ? {} : { reasoning_effort: 'medium' }),
         response_format: { type: 'json_schema', json_schema: { name: schemaName, strict: true, schema } },
+      };
+    }
+    if (provider.id === 'abacus') {
+      // RouteLLM chat completions (https://abacus.ai/help/route-llm/chat-completions/): a system message (which also spells
+      // out the exact shape, as its JSON mode requires), max_tokens, response_format json_schema as documented, and no
+      // temperature, as on the Anthropic request. A gateway that refuses the request is asked again in a looser JSON mode.
+      return {
+        model,
+        max_tokens: 4000,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        ...jsonModeFormat(adjust.jsonMode, schemaName, schema),
       };
     }
     return {
@@ -423,7 +532,7 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
   }
 
   /** One call. Returns the answer's JSON text, or throws an AttemptFailure that says exactly what went wrong. */
-  async function once(provider: Provider, model: string, system: string, user: string, schemaName: string, schema: object, omitReasoningEffort: boolean, secrets: readonly string[]): Promise<string> {
+  async function once(provider: Provider, model: string, system: string, user: string, schemaName: string, schema: object, adjust: RequestAdjust, secrets: readonly string[]): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -433,7 +542,7 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
         : { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.key}`, ...provider.extraHeaders };
       let response: Response;
       try {
-        response = await fetchImpl(provider.url, { method: 'POST', headers, body: JSON.stringify(requestBody(provider, model, system, user, schemaName, schema, omitReasoningEffort)), signal: controller.signal });
+        response = await fetchImpl(provider.url, { method: 'POST', headers, body: JSON.stringify(requestBody(provider, model, system, user, schemaName, schema, adjust)), signal: controller.signal });
       } catch (err) {
         const aborted = err instanceof Error && err.name === 'AbortError';
         throw new AttemptFailure(aborted ? 'timeout' : 'network', `The ${provider.id} reviewer could not be reached (${aborted ? 'timeout' : 'network error'}).`, undefined, aborted ? 'timeout' : 'network_error', aborted ? 'No answer in time.' : 'The provider could not be reached.');
@@ -446,9 +555,10 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
         try {
           const raw = (await response.text()).slice(0, 4000);
           try {
-            const parsed = JSON.parse(raw) as { error?: { type?: unknown; code?: unknown; message?: unknown; param?: unknown } | string; message?: unknown };
+            const parsed = JSON.parse(raw) as { error?: { type?: unknown; code?: unknown; message?: unknown; param?: unknown } | string; message?: unknown; errorType?: unknown };
             const error = typeof parsed.error === 'object' && parsed.error ? parsed.error : undefined;
-            type = typeof error?.type === 'string' ? error.type : '';
+            // Abacus RouteLLM answers a key it does not accept in its platform's own shape, { success: false, error: "<message>", errorType: "<name>" }
+            type = typeof error?.type === 'string' ? error.type : typeof parsed.errorType === 'string' ? parsed.errorType : '';
             code = typeof error?.code === 'string' || typeof error?.code === 'number' ? String(error.code) : '';
             param = typeof error?.param === 'string' ? error.param : '';
             message = typeof error?.message === 'string' ? error.message : typeof parsed.error === 'string' ? parsed.error : typeof parsed.message === 'string' ? parsed.message : '';
@@ -478,8 +588,8 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
         return JSON.stringify(call.input);
       }
       const choice = (payload as { choices?: Array<{ finish_reason?: string; message?: { content?: unknown; refusal?: unknown } }> })?.choices?.[0];
-      const content = choice?.message?.content;
-      if (typeof content !== 'string' || !content.trim()) {
+      const content = messageText(choice?.message?.content);
+      if (!content.trim()) {
         const refused = typeof choice?.message?.refusal === 'string' && choice.message.refusal;
         throw new AttemptFailure('bad_shape', `The ${provider.id} reviewer returned no content.`, response.status, refused ? 'refusal' : choice?.finish_reason === 'length' ? 'length' : 'no_content', refused ? 'The model declined to answer.' : choice?.finish_reason === 'length' ? 'The answer was cut off before it finished.' : 'The answer held no content.');
       }
@@ -497,17 +607,19 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
   /**
    * Ask the reviewer chain in order (the administrator's model first, then the defaults), recording every call. A
    * transient failure is retried once on the same model; no credit, a rejected key, an unknown model or a refused request
-   * moves on at once. OpenAI rejecting reasoning_effort for a model is retried once without it.
+   * moves on at once. Two refusals are answered by asking the same model again in another form, which is not counted as a
+   * try: OpenAI rejecting reasoning_effort (asked again without it), and Abacus RouteLLM refusing a request (asked again
+   * in the next looser JSON mode, see JsonMode).
    */
   async function ask<T>(modelSetting: string, system: string, user: string, schemaName: string, jsonSchema: object, zodSchema: z.ZodType<T>): Promise<{ value: T; provider: string; model: string; attempts: AiAttemptRecord[] }> {
     const providers = resolveProviders(env);
     const attempts: AiAttemptRecord[] = [];
-    if (providers.length === 0) throw new AiUnavailableError('no_provider', 'No AI reviewer is configured (ANTHROPIC_API_KEY, OPENAI_API_KEY or OPENROUTER_API_KEY).', attempts);
+    if (providers.length === 0) throw new AiUnavailableError('no_provider', 'No AI reviewer is configured (ANTHROPIC_API_KEY, ABACUS_API_KEY, OPENAI_API_KEY or OPENROUTER_API_KEY).', attempts);
     const secrets = providers.map((p) => p.key);
     let last: AiUnavailableError | AiInvalidResponseError = new AiUnavailableError('network', 'The AI reviewer is unavailable.', attempts);
     for (const { provider: providerId, model } of reviewerChain(env, modelSetting)) {
       const provider = providers.find((p) => p.id === providerId) as Provider;
-      let omitReasoningEffort = false;
+      const adjust: RequestAdjust = { noReasoningEffort: false, jsonMode: 'json_schema' };
       let tries = 0;
       for (;;) {
         tries += 1;
@@ -516,10 +628,10 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
           attempts.push({ provider: providerId, model, attempt: tries, outcome, ms: Date.now() - started, at: new Date(started).toISOString(), ...extra });
         };
         try {
-          const content = await once(provider, model, system, user, schemaName, jsonSchema, omitReasoningEffort, secrets);
+          const content = await once(provider, model, system, user, schemaName, jsonSchema, adjust, secrets);
           let parsed: unknown;
           try {
-            parsed = JSON.parse(content);
+            parsed = parseModelJson(content, providerId === 'abacus');
           } catch {
             throw new AttemptFailure('bad_shape', `The ${provider.id} reviewer returned text that is not JSON.`, undefined, 'not_json', 'The answer was not valid JSON.');
           }
@@ -531,10 +643,18 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
           const failure = err instanceof AttemptFailure ? err : new AttemptFailure('network', `The ${provider.id} reviewer failed.`, undefined, 'unexpected_error', 'An unexpected error stopped the call.');
           record(failure.outcome, { ...(failure.httpStatus !== undefined ? { httpStatus: failure.httpStatus } : {}), ...(failure.code ? { code: failure.code } : {}), ...(failure.detail ? { detail: failure.detail } : {}) });
           last = failureError(failure, attempts);
-          if (provider.id === 'openai' && failure.outcome === 'bad_request' && failure.param === 'reasoning_effort' && !omitReasoningEffort) {
-            omitReasoningEffort = true; // this model does not take the setting: ask again without it (not counted as a try)
-            tries -= 1;
-            continue;
+          if (failure.outcome === 'bad_request') {
+            if (provider.id === 'openai' && failure.param === 'reasoning_effort' && !adjust.noReasoningEffort) {
+              adjust.noReasoningEffort = true; // this model does not take the setting: ask again without it (not counted as a try)
+              tries -= 1;
+              continue;
+            }
+            const looser = provider.id === 'abacus' ? LOOSER_JSON_MODE[adjust.jsonMode] : null;
+            if (looser) {
+              adjust.jsonMode = looser; // this gateway or model refuses the request in this JSON mode: the instruction and zod still hold the shape
+              tries -= 1;
+              continue;
+            }
           }
           if (!RETRYABLE.has(failure.outcome) || tries >= 2) break;
         }

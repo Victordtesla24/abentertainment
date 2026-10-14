@@ -12,6 +12,12 @@
  *   EMAIL_SWEEP_DISABLED=1 (so no background retry can fire in the middle of a test)
  * and AB_DATA_DIR pointing at a scratch directory (OPENROUTER_API_KEY unset). Run them with E2E_EMAIL_HARNESS=1 and ADMIN_TEST_PASSWORD set;
  * without the flag they skip, so a server with real keys is never asked to review or send.
+ *
+ * THE ABACUS FLAVOUR adds a third AI provider, answered by the same mock under /abacus/v1:
+ *   ABACUS_API_KEY=abacus-local-test-not-real-0123456789   ABACUS_BASE_URL=http://127.0.0.1:3198/abacus/v1
+ * It changes the order in which the reviewer models are tried (each Claude model is asked on Anthropic and then through
+ * Abacus RouteLLM), so the specs written for the plain harness, which list that order, need the plain one. The tests of
+ * Abacus RouteLLM in e2e/newsletter-email-reviewer.spec.ts skip on a server without an Abacus key.
  */
 
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
@@ -101,7 +107,7 @@ export const noFixes: MockAiFix['fixes'] = { subject: null, preheader: null, eye
 
 /** A scripted failure: every matching call is answered with this HTTP status and body instead of a review. */
 export interface MockAiRule {
-  provider: 'anthropic' | 'openai';
+  provider: 'anthropic' | 'abacus' | 'openai';
   /** Only calls for this model (every model of the provider when omitted). */
   model?: string;
   status: number;
@@ -117,14 +123,31 @@ export const ANTHROPIC_CREDIT_LOW: MockAiRule = {
   body: { type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.' } },
 };
 
+/** What Abacus RouteLLM might answer when the account is out of compute points: a 402 (the status alone classifies it). */
+export const ABACUS_NO_CREDIT: MockAiRule = {
+  provider: 'abacus',
+  status: 402,
+  body: { error: { message: 'You have run out of compute points.', type: 'PaymentRequired', code: 'insufficient_credits' } },
+};
+
 /**
- * The AI reviewer on loopback, speaking both Anthropic's Messages API (/v1/messages, answers in a forced tool call) and
- * the OpenAI chat API: answers the review and fix calls from scripted queues (the last answer repeats), or with a
- * scripted HTTP failure for a provider or model (`rules`). A failed call is recorded too, with its status; the queues
- * advance only on answered calls, so a skipped model does not use up a scripted review.
+ * The AI reviewer on loopback, speaking Anthropic's Messages API (/v1/messages, answers in a forced tool call), the
+ * OpenAI chat API (/v1/chat/completions) and Abacus RouteLLM's chat API (/abacus/v1/chat/completions): answers the review
+ * and fix calls from scripted queues (the last answer repeats), or with a scripted HTTP failure for a provider or model
+ * (`rules`). A failed call is recorded too, with its status; the queues advance only on answered calls, so a skipped
+ * model does not use up a scripted review.
  */
 export class MockAi {
-  calls: Array<{ kind: 'review' | 'fix'; provider: 'anthropic' | 'openai'; model: string; status: number; body: Record<string, unknown> }> = [];
+  calls: Array<{
+    kind: 'review' | 'fix';
+    provider: 'anthropic' | 'abacus' | 'openai';
+    model: string;
+    status: number;
+    /** The path asked for, and the headers sent (lower-case names), so a test can assert the exact request. */
+    url: string;
+    headers: Record<string, string | string[] | undefined>;
+    body: Record<string, unknown>;
+  }> = [];
   reviews: MockAiReview[] = [];
   fixes: MockAiFix[] = [];
   rules: Array<MockAiRule & { used: number }> = [];
@@ -153,17 +176,23 @@ export class MockAi {
         req.on('end', () => {
           let body: Record<string, unknown> = {};
           try { body = JSON.parse(raw) as Record<string, unknown>; } catch { body = {}; }
-          const anthropic = String(req.url).startsWith('/v1/messages');
-          const schema = anthropic ? (body.tool_choice as { name?: string } | undefined)?.name : (body.response_format as { json_schema?: { name?: string } } | undefined)?.json_schema?.name;
+          const url = String(req.url);
+          const anthropic = url.startsWith('/v1/messages');
+          const abacus = url.startsWith('/abacus/v1/chat/completions');
+          // Anthropic names the answer in the forced tool, OpenAI and Abacus in the response format; an Abacus request that
+          // asks for JSON mode or by instruction alone names it only in the system message (the fix step is the copy editor)
+          const named = (body.response_format as { json_schema?: { name?: string } } | undefined)?.json_schema?.name;
+          const firstMessage = String(((body.messages as Array<{ content?: unknown }> | undefined)?.[0]?.content ?? '') as string);
+          const schema = anthropic ? (body.tool_choice as { name?: string } | undefined)?.name : named ?? (abacus && firstMessage.includes('copy editor') ? 'email_fix' : 'email_review');
           const kind = schema === 'email_fix' ? 'fix' : 'review';
-          const provider = anthropic ? 'anthropic' : 'openai';
+          const provider = anthropic ? 'anthropic' : abacus ? 'abacus' : 'openai';
           const model = String(body.model ?? '');
           const rule = this.rules.find((r) => r.provider === provider && (r.model === undefined || r.model === model) && (r.times === undefined || r.used < r.times));
           if (rule) rule.used += 1;
           const index = this.calls.filter((c) => c.kind === kind && c.status === 200).length;
           const queue: Array<MockAiReview | MockAiFix> = kind === 'fix' ? this.fixes : this.reviews;
           const answer = queue[Math.min(index, queue.length - 1)];
-          this.calls.push({ kind, provider, model, status: rule ? rule.status : answer ? 200 : 500, body });
+          this.calls.push({ kind, provider, model, status: rule ? rule.status : answer ? 200 : 500, url, headers: req.headers, body });
           setTimeout(() => {
             if (rule) {
               res.writeHead(rule.status, { 'content-type': 'application/json' });

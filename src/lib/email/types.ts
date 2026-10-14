@@ -62,7 +62,7 @@ export type AiAttemptOutcome = 'ok' | 'credit_exhausted' | 'invalid_key' | 'forb
 
 /** One call to one AI model, in the order they were made. Never holds a key or an address. */
 export interface AiAttemptRecord {
-  provider: 'anthropic' | 'openai' | 'openrouter';
+  provider: 'anthropic' | 'abacus' | 'openai' | 'openrouter';
   model: string;
   /** 1 for the first call to this model, 2 for the retry. */
   attempt: number;

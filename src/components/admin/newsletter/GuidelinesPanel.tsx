@@ -12,14 +12,29 @@ import { Flash, JSON_HEADERS, buttonClasses, cardClasses, errorText, fieldClasse
  * Saving changed guidelines raises their version, which voids every template approval until it is reviewed again.
  */
 
-const MODEL_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'Default: Claude Opus 5.5, then Claude Sonnet 5.5, then GPT-5.4, then GPT-4.1 mini' },
-  { value: 'claude-opus-5-5', label: 'Claude Opus 5.5 (Anthropic)' },
-  { value: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (Anthropic)' },
-  { value: 'gpt-5.4', label: 'GPT-5.4 (OpenAI)' },
-  { value: 'gpt-4.1', label: 'GPT-4.1 (OpenAI)' },
-  { value: 'gpt-4.1-mini', label: 'GPT-4.1 mini (OpenAI)' },
-];
+/**
+ * The reviewer models on offer. The Claude models through Abacus RouteLLM ("abacus/<model>", which puts Abacus first) are
+ * offered when the server holds an Abacus key, or when one of them is already the saved setting.
+ */
+function modelOptions(withAbacus: boolean): Array<{ value: string; label: string }> {
+  const abacus = (model: string, name: string) => (withAbacus ? [{ value: `abacus/${model}`, label: `${name} (via Abacus RouteLLM)` }] : []);
+  return [
+    {
+      value: '',
+      label: withAbacus
+        ? 'Default: Claude Opus 5.5, then Claude Sonnet 5.5 (each on Anthropic, then via Abacus RouteLLM), then GPT-5.4, then GPT-4.1 mini'
+        : 'Default: Claude Opus 5.5, then Claude Sonnet 5.5, then GPT-5.4, then GPT-4.1 mini',
+    },
+    { value: 'claude-opus-5-5', label: 'Claude Opus 5.5 (Anthropic)' },
+    ...abacus('claude-opus-5-5', 'Claude Opus 5.5'),
+    { value: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (Anthropic)' },
+    ...abacus('claude-sonnet-5-5', 'Claude Sonnet 5.5'),
+    { value: 'gpt-5.4', label: 'GPT-5.4 (OpenAI)' },
+    { value: 'gpt-4.1', label: 'GPT-4.1 (OpenAI)' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 mini (OpenAI)' },
+  ];
+}
+const offersAbacus = (providers: readonly string[], saved: string): boolean => providers.includes('abacus') || saved.startsWith('abacus/');
 const CUSTOM = '__custom__';
 
 interface GuidelinesResponse {
@@ -43,9 +58,9 @@ export default function GuidelinesPanel() {
   const [customModel, setCustomModel] = useState(false);
   const begin = useLatestRequest();
 
-  const applySettings = useCallback((next: EmailSettings) => {
+  const applySettings = useCallback((next: EmailSettings, providers: readonly string[]) => {
     setSettings(next);
-    setCustomModel(!MODEL_OPTIONS.some((option) => option.value === next.reviewModel));
+    setCustomModel(!modelOptions(offersAbacus(providers, next.reviewModel)).some((option) => option.value === next.reviewModel));
     setForm({
       maxFixRounds: String(next.maxFixRounds),
       qualityThreshold: String(next.qualityThreshold),
@@ -70,7 +85,7 @@ export default function GuidelinesPanel() {
       setGuidelines(gBody.guidelines);
       setLimits(gBody.limits);
       setText(gBody.guidelines.text);
-      applySettings(sBody.settings);
+      applySettings(sBody.settings, status ? status.ai.providers : []);
       if (status) {
         setReviewer(status.reviewer);
         setAiProviders(status.ai.providers);
@@ -119,7 +134,7 @@ export default function GuidelinesPanel() {
       const res = await adminFetch('/api/admin/newsletter/settings', { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error(await errorText(res, 'Could not save the settings.'));
       const body = (await res.json()) as { settings: EmailSettings };
-      applySettings(body.settings);
+      applySettings(body.settings, aiProviders);
       show('Settings saved.');
       // the order the reviewer will now try its models in
       const st = await adminFetch('/api/admin/newsletter/status');
@@ -131,6 +146,7 @@ export default function GuidelinesPanel() {
     }
   }
 
+  const options = modelOptions(offersAbacus(aiProviders, settings?.reviewModel ?? ''));
   const textTooShort = text.trim().length < limits.min;
   const textTooLong = text.length > limits.max;
 
@@ -236,7 +252,7 @@ export default function GuidelinesPanel() {
                   }}
                   className={fieldClasses}
                 >
-                  {MODEL_OPTIONS.map((option) => (
+                  {options.map((option) => (
                     <option key={option.value || 'default'} value={option.value}>
                       {option.label}
                     </option>
