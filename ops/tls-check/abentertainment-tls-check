@@ -20,6 +20,7 @@ Fix for a changed Hostinger egress address: edit trustedIPs in /docker/traefik-v
 import datetime as dt
 import ipaddress
 import json
+import os
 import re
 import secrets
 import socket
@@ -300,7 +301,8 @@ def main():
     text = "\n".join(lines) + "\n"
     sys.stdout.write(text)
     try:
-        with open(LOG, "a", encoding="utf-8") as fh:
+        fd = os.open(LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o640)   # same mode as the other agent-ops logs
+        with os.fdopen(fd, "a", encoding="utf-8") as fh:
             fh.write(text)
     except OSError as exc:
         sys.stderr.write("cannot append to %s: %s\n" % (LOG, exc))
