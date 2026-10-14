@@ -1,5 +1,6 @@
 'use client';
 import { AI_DIMENSIONS, type GateIssue, type GateRound, type GateStopReason } from '@/lib/email/types';
+import { AttemptList } from './ReviewerAttempts';
 import { Badge } from './shared';
 
 /**
@@ -73,9 +74,10 @@ export function RoundView({ round, threshold }: { round: GateRound; threshold: n
         <p className="text-[11px] uppercase tracking-wider text-white/35 mb-1 font-body">AI review</p>
         {ai ? (
           <div className="space-y-2">
-            <p className="text-[11px] text-white/30 font-body">
-              {ai.provider} {ai.model}. Verdict: <span className={ai.verdict === 'pass' ? 'text-[#1BBFA1]' : 'text-red-400'}>{ai.verdict}</span>. Pass mark {threshold}.
+            <p className="text-[11px] text-white/30 font-body" data-testid={`review-judge-${round.round}`}>
+              Judged by {ai.provider} {ai.model}. Verdict: <span className={ai.verdict === 'pass' ? 'text-[#1BBFA1]' : 'text-red-400'}>{ai.verdict}</span>. Pass mark {threshold}.
             </p>
+            <AttemptList attempts={round.aiAttempts} heading="Models asked, in order" okVerb="judged this round" testId={`review-attempts-${round.round}`} />
             <div className="space-y-1">
               {AI_DIMENSIONS.map((dimension) => (
                 <ScoreBar key={dimension} label={DIMENSION_LABEL[dimension]} value={ai.scores[dimension]} threshold={threshold} />
@@ -87,16 +89,19 @@ export function RoundView({ round, threshold }: { round: GateRound; threshold: n
         ) : round.aiError === 'skipped' ? (
           <p className="text-[12px] text-white/40 font-body">Not reviewed by the AI in this round, because the automatic checks found problems to fix first.</p>
         ) : round.aiError ? (
-          <p role="alert" className="text-[12px] text-red-400 font-body">
-            {round.aiError === 'invalid_response' ? 'The AI reviewer’s answer could not be used.' : 'The AI reviewer could not be used.'} {round.aiErrorDetail ?? ''}
-          </p>
+          <div className="space-y-2">
+            <p role="alert" className="text-[12px] text-red-400 font-body">
+              {round.aiError === 'invalid_response' ? 'The AI reviewer’s answer could not be used.' : 'The AI reviewer could not be used.'} {round.aiErrorDetail ?? ''}
+            </p>
+            <AttemptList attempts={round.aiAttempts} heading="Models asked, in order" okVerb="answered" testId={`review-attempts-${round.round}`} />
+          </div>
         ) : (
           <p className="text-[12px] text-white/40 font-body">Not run.</p>
         )}
       </div>
 
-      {(round.fixedFields?.length || round.fixError) && (
-        <div>
+      {(round.fixedFields?.length || round.fixError || round.fixAttempts?.length) && (
+        <div className="space-y-2">
           <p className="text-[11px] uppercase tracking-wider text-white/35 mb-1 font-body">AI fix</p>
           {round.fixedFields?.length ? (
             <p className="text-[12px] text-white/70 font-body">
@@ -104,6 +109,7 @@ export function RoundView({ round, threshold }: { round: GateRound; threshold: n
             </p>
           ) : null}
           {round.fixError && <p className="text-[12px] text-red-400 font-body">{round.fixError}</p>}
+          <AttemptList attempts={round.fixAttempts} heading="Models asked for the fix, in order" okVerb="wrote the fix" testId={`fix-attempts-${round.round}`} />
         </div>
       )}
     </li>

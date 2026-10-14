@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { SendingStatus } from '@/lib/email/sender';
 import ProviderNotice from './ProviderNotice';
+import { ReviewerAvailability } from './ReviewerAttempts';
 import { Badge, blockerText, buttonClasses, cardClasses, errorText, formatDate, useLatestRequest } from './shared';
 
 /**
@@ -134,6 +135,11 @@ export default function SendingStatusPanel({ onNavigate }: { onNavigate?: (secti
                   {status.reviewer.chain.length > 0 ? `Tried in order: ${status.reviewer.chain.map((a) => `${a.provider} ${a.model}`).join(', then ')}` : 'No reviewer is available'}
                 </span>
               </Row>
+              {status.reviewer.chain.length > 0 && (
+                <Row label="Reviewer availability">
+                  <ReviewerAvailability reviewer={status.reviewer} />
+                </Row>
+              )}
               <Row label="Welcome approval">
                 {status.welcome.approval === 'approved' && <Badge tone="good">Approved</Badge>}
                 {status.welcome.approval === 'stale' && <Badge tone="gold">Out of date</Badge>}

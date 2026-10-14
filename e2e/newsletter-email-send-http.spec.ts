@@ -15,7 +15,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { HARNESS, HAS_ADMIN_CREDS, HARNESS_SKIP, MockResend, SERVER_DATA_DIR as DATA_DIR, SITE_ORIGIN, adminApi, adminLogin, readSubscribers, seedApprovedTemplate, subscribePublic as subscribe } from './support/email-http';
 
-const FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'email-provider-state.json', 'newsletter-subscribers.json'];
+const FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'email-provider-state.json', 'email-reviewer-state.json', 'newsletter-subscribers.json'];
 
 test.describe.configure({ mode: 'serial' });
 
@@ -113,13 +113,26 @@ test.describe('welcome email over HTTP (Resend mocked on loopback)', () => {
       configured: true,
       missing: [],
       signing: { configured: true, source: 'SESSION_SECRET' },
-      ai: { providers: ['anthropic'], available: true },
+      ai: { providers: ['anthropic', 'openai'], available: true },
+      reviewer: {
+        setting: '',
+        chain: [{ provider: 'anthropic', model: 'claude-opus-5-5' }, { provider: 'anthropic', model: 'claude-sonnet-5-5' }, { provider: 'openai', model: 'gpt-5.4' }, { provider: 'openai', model: 'gpt-4.1-mini' }],
+        availability: [
+          { provider: 'anthropic', model: 'claude-opus-5-5', outcome: null, at: null },
+          { provider: 'anthropic', model: 'claude-sonnet-5-5', outcome: null, at: null },
+          { provider: 'openai', model: 'gpt-5.4', outcome: null, at: null },
+          { provider: 'openai', model: 'gpt-4.1-mini', outcome: null, at: null },
+        ],
+        inUse: { provider: 'anthropic', model: 'claude-opus-5-5' },
+      },
       layout: { id: 'ab-entertainment', installed: true },
       welcome: { approval: 'approved', activeVersion: 1, readyToSend: true, blockers: [] },
       subscribers: { total: 1, subscribed: 1, unsubscribed: 0, welcomePending: 0, welcomeSent: 1, welcomeFailed: 0, welcomeSkipped: 0 },
       sending: { sentLastHour: 1, hourlyCap: 30 },
     });
     expect(JSON.stringify(status.body)).not.toContain('re_local_test_0123456789abcdef');
+    expect(JSON.stringify(status.body)).not.toContain('sk-ant-local');
+    expect(JSON.stringify(status.body)).not.toContain('sk-openai-local');
     expect(JSON.stringify(status.body)).not.toContain('newsletter@abentertainment.com.au');
   });
 

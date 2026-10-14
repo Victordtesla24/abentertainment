@@ -3,12 +3,14 @@ import { NextRequest } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
 import { logAdminAction } from '@/lib/audit';
 import { checkRateLimit } from '@/lib/redis';
-import { clientIp } from '@/lib/newsletter';
+import { clientIp, describeError } from '@/lib/newsletter';
 import { fail, ok, readJsonObject, storeFailure } from '@/lib/email/api';
 import { createAiClient } from '@/lib/email/ai-review';
 import { buildApproval, runGate } from '@/lib/email/gate';
 import { getLayout } from '@/lib/email/layout';
+import type { GateRound } from '@/lib/email/types';
 import { getReviewJob, reviewJobKey, startReviewJob, type ReviewJob } from '@/lib/email/review-jobs';
+import { attemptsOfRound, recordReviewerAttempts } from '@/lib/email/reviewer-state';
 import { findVersion, getBrandGuidelines, getEmailSettings, getEmailTemplates, recordGateOutcome } from '@/lib/email/store';
 
 /**
@@ -54,7 +56,12 @@ export const POST = withAuth(async (request: NextRequest) => {
     const layout = getLayout();
     const ai = createAiClient();
     const { job, done } = startReviewJob(key, async (onRound) => {
-      const result = await runGate({ fields: version.fields, settings, guidelines }, { layout, ai, onRound });
+      // each finished round also remembers what every model it called did, so the admin screen can say which judge is in use
+      const remember = (round: GateRound) => {
+        onRound(round);
+        recordReviewerAttempts(attemptsOfRound(round)).catch((err) => console.error('[admin/newsletter] could not record the reviewer outcomes:', describeError(err)));
+      };
+      const result = await runGate({ fields: version.fields, settings, guidelines }, { layout, ai, onRound: remember });
       const { approvedVersion } = await recordGateOutcome(template.id, version.version, { result, approval: buildApproval(result, layout, guidelines) });
       return { result, approvedVersion };
     });

@@ -25,6 +25,7 @@ import { buildRenderContext, publicBaseUrl } from './context';
 import { approvalState, reviewContext, verifyForSend } from './gate';
 import { getLayout } from './layout';
 import { isBlocked, readProviderState, recordProviderAttempt, type ProviderState } from './provider-state';
+import { readReviewerState, reviewerKey, type ReviewerState } from './reviewer-state';
 import { isEmailAddress, readResendConfig, sendViaResend, type OutboundEmail, type ResendResult } from './resend';
 import { appendSendLog, countSentLastHour, reserveSendSlot, settleSendLog, type NewSendLogEntry, type SendOutcome } from './send-log';
 import { getBrandGuidelines, getEmailSettings, getEmailTemplateByKey, findVersion } from './store';
@@ -311,6 +312,15 @@ async function readProviderStateSafe(): Promise<ProviderState | null> {
   }
 }
 
+async function readReviewerStateSafe(): Promise<ReviewerState | null> {
+  try {
+    return await readReviewerState();
+  } catch (err) {
+    console.error('[email] could not read the reviewer state:', describeError(err));
+    return null;
+  }
+}
+
 async function recordProviderAttemptSafe(result: ResendResult, now: Date): Promise<ProviderState | null> {
   try {
     return await recordProviderAttempt(result, now);
@@ -458,8 +468,18 @@ export interface SendingStatus {
   invalid: string[];
   signing: { configured: boolean; source: string | null };
   ai: { providers: string[]; available: boolean };
-  /** Which model judges the emails: the administrator's setting and every (provider, model) that would be tried, in order. */
-  reviewer: { setting: string; chain: Array<{ provider: string; model: string }> };
+  /**
+   * Which model judges the emails: the administrator's setting and every (provider, model) that would be tried, in order.
+   * `availability` is the last outcome of each (null when it has never been called): ok, or why it was skipped
+   * (credit_exhausted, invalid_key, unknown_model, rate_limited, ...), when, and what the provider said. `inUse` is the
+   * first entry not known to be failing: the judge the next review will really use.
+   */
+  reviewer: {
+    setting: string;
+    chain: Array<{ provider: string; model: string }>;
+    availability: Array<{ provider: string; model: string; outcome: string | null; at: string | null; httpStatus: number | null; code: string | null; detail: string | null }>;
+    inUse: { provider: string; model: string } | null;
+  };
   layout: { id: string; version: string; installed: boolean };
   publicBaseUrl: string;
   /**
@@ -503,7 +523,13 @@ export async function getSendingStatus(deps: SenderDeps = {}): Promise<SendingSt
   const config = readResendConfig(env);
   const signing = resolveSigningSecret(env);
   const layout = deps.layout ?? getLayout();
-  const [template, settings, guidelines, subscribers, sentLastHour, providerState] = await Promise.all([getEmailTemplateByKey(WELCOME_TEMPLATE_KEY), getEmailSettings(), getBrandGuidelines(), getNewsletterSubscribers(), countSentLastHour(now()), readProviderStateSafe()]);
+  const [template, settings, guidelines, subscribers, sentLastHour, providerState, reviewerState] = await Promise.all([getEmailTemplateByKey(WELCOME_TEMPLATE_KEY), getEmailSettings(), getBrandGuidelines(), getNewsletterSubscribers(), countSentLastHour(now()), readProviderStateSafe(), readReviewerStateSafe()]);
+  const chain = reviewerChain(env, settings.reviewModel);
+  const availability = chain.map((entry) => {
+    const last = reviewerState?.entries[reviewerKey(entry)];
+    return { provider: entry.provider, model: entry.model, outcome: last?.outcome ?? null, at: last?.at ?? null, httpStatus: last?.httpStatus ?? null, code: last?.code ?? null, detail: last?.detail ?? null };
+  });
+  const inUse = availability.find((entry) => entry.outcome === null || entry.outcome === 'ok');
   const providers = configuredAiProviders(env);
   const waitingList = subscribers.filter((s) => s.status !== 'unsubscribed' && (s.welcome?.status === 'pending' || s.welcome?.status === 'sending'));
   const waitingReasons: Record<string, number> = {};
@@ -545,7 +571,7 @@ export async function getSendingStatus(deps: SenderDeps = {}): Promise<SendingSt
     invalid: config.ok ? [] : config.invalid,
     signing: { configured: Boolean(signing), source: signing?.source ?? null },
     ai: { providers, available: providers.length > 0 },
-    reviewer: { setting: settings.reviewModel, chain: reviewerChain(env, settings.reviewModel) },
+    reviewer: { setting: settings.reviewModel, chain, availability, inUse: inUse ? { provider: inUse.provider, model: inUse.model } : null },
     layout: { id: layout.id, version: layout.version, installed: layout.installed },
     publicBaseUrl: publicBaseUrl(),
     provider: {

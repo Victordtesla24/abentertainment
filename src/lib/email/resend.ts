@@ -13,6 +13,8 @@
  * from "try again later" (a rate limit, an outage) and from "this will never work" (the provider rejected the message).
  */
 
+import { scrubDetail } from './scrub';
+
 type Env = Record<string, string | undefined>;
 
 export const RESEND_API_ORIGIN = 'https://api.resend.com';
@@ -128,16 +130,7 @@ export type ResendResult =
       retryAfterSeconds?: number;
     };
 
-/** A provider message that is safe to keep: addresses and long tokens removed, whitespace collapsed, shortened. */
-export function scrubDetail(value: unknown): string {
-  if (typeof value !== 'string') return '';
-  return value
-    .replace(/[^\s<>"']+@[^\s<>"']+/g, '[address]')
-    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[token]')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 200);
-}
+export { scrubDetail };
 
 function classify(status: number, name: string, message: string): { kind: ResendFailureKind; reason: string } {
   const text = message.toLowerCase();

@@ -7,9 +7,10 @@
  * at the mocks (the base URLs are only honoured when they are loopback addresses), for example:
  *   RESEND_API_KEY=re_local_test_0123456789abcdef  EMAIL_FROM='AB Entertainment <newsletter@abentertainment.com.au>'
  *   EMAIL_REPLY_TO=abhi@abentertainment.com.au     RESEND_BASE_URL=http://127.0.0.1:3199
- *   ANTHROPIC_API_KEY=sk-ant-local-test-not-real-0123456789   EMAIL_AI_BASE_URL=http://127.0.0.1:3198
+ *   ANTHROPIC_API_KEY=sk-ant-local-test-not-real-0123456789   OPENAI_API_KEY=sk-openai-local-test-not-real-0123456789
+ *   EMAIL_AI_BASE_URL=http://127.0.0.1:3198  (both AI providers are answered by the one mock; OpenRouter has no key)
  *   EMAIL_SWEEP_DISABLED=1 (so no background retry can fire in the middle of a test)
- * and AB_DATA_DIR pointing at a scratch directory (OPENAI_API_KEY and OPENROUTER_API_KEY unset). Run them with E2E_EMAIL_HARNESS=1 and ADMIN_TEST_PASSWORD set;
+ * and AB_DATA_DIR pointing at a scratch directory (OPENROUTER_API_KEY unset). Run them with E2E_EMAIL_HARNESS=1 and ADMIN_TEST_PASSWORD set;
  * without the flag they skip, so a server with real keys is never asked to review or send.
  */
 
@@ -98,14 +99,35 @@ export const mockPassingReview = (over: Partial<MockAiReview> = {}): MockAiRevie
 
 export const noFixes: MockAiFix['fixes'] = { subject: null, preheader: null, eyebrow: null, heading: null, body: null, ctaLabel: null, ctaUrl: null };
 
+/** A scripted failure: every matching call is answered with this HTTP status and body instead of a review. */
+export interface MockAiRule {
+  provider: 'anthropic' | 'openai';
+  /** Only calls for this model (every model of the provider when omitted). */
+  model?: string;
+  status: number;
+  body: unknown;
+  /** How many calls it answers (all of them when omitted). */
+  times?: number;
+}
+
+/** What Anthropic answers when the account has no credit: a 400 invalid_request_error (not a billing status). */
+export const ANTHROPIC_CREDIT_LOW: MockAiRule = {
+  provider: 'anthropic',
+  status: 400,
+  body: { type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.' } },
+};
+
 /**
  * The AI reviewer on loopback, speaking both Anthropic's Messages API (/v1/messages, answers in a forced tool call) and
- * the OpenAI chat API: answers the review and fix calls from scripted queues (the last answer repeats).
+ * the OpenAI chat API: answers the review and fix calls from scripted queues (the last answer repeats), or with a
+ * scripted HTTP failure for a provider or model (`rules`). A failed call is recorded too, with its status; the queues
+ * advance only on answered calls, so a skipped model does not use up a scripted review.
  */
 export class MockAi {
-  calls: Array<{ kind: 'review' | 'fix'; provider: 'anthropic' | 'openai'; model: string; body: Record<string, unknown> }> = [];
+  calls: Array<{ kind: 'review' | 'fix'; provider: 'anthropic' | 'openai'; model: string; status: number; body: Record<string, unknown> }> = [];
   reviews: MockAiReview[] = [];
   fixes: MockAiFix[] = [];
+  rules: Array<MockAiRule & { used: number }> = [];
   /** Wait this long before each answer (to make a review slow enough to watch). */
   delayMs = 0;
   private server: Server | null = null;
@@ -114,7 +136,13 @@ export class MockAi {
     this.calls = [];
     this.reviews = [];
     this.fixes = [];
+    this.rules = [];
     this.delayMs = 0;
+  }
+
+  /** Answer matching calls with a failure (see MockAiRule). */
+  fail(rule: MockAiRule): void {
+    this.rules.push({ ...rule, used: 0 });
   }
 
   start(): Promise<void> {
@@ -128,11 +156,20 @@ export class MockAi {
           const anthropic = String(req.url).startsWith('/v1/messages');
           const schema = anthropic ? (body.tool_choice as { name?: string } | undefined)?.name : (body.response_format as { json_schema?: { name?: string } } | undefined)?.json_schema?.name;
           const kind = schema === 'email_fix' ? 'fix' : 'review';
-          const index = this.calls.filter((c) => c.kind === kind).length;
-          this.calls.push({ kind, provider: anthropic ? 'anthropic' : 'openai', model: String(body.model ?? ''), body });
+          const provider = anthropic ? 'anthropic' : 'openai';
+          const model = String(body.model ?? '');
+          const rule = this.rules.find((r) => r.provider === provider && (r.model === undefined || r.model === model) && (r.times === undefined || r.used < r.times));
+          if (rule) rule.used += 1;
+          const index = this.calls.filter((c) => c.kind === kind && c.status === 200).length;
           const queue: Array<MockAiReview | MockAiFix> = kind === 'fix' ? this.fixes : this.reviews;
           const answer = queue[Math.min(index, queue.length - 1)];
+          this.calls.push({ kind, provider, model, status: rule ? rule.status : answer ? 200 : 500, body });
           setTimeout(() => {
+            if (rule) {
+              res.writeHead(rule.status, { 'content-type': 'application/json' });
+              res.end(JSON.stringify(rule.body));
+              return;
+            }
             if (!answer) {
               res.writeHead(500, { 'content-type': 'application/json' });
               res.end(JSON.stringify({ error: 'no scripted answer' }));

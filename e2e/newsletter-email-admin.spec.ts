@@ -2,8 +2,9 @@
  * The Newsletter area of the admin portal, driven in a real browser against a local dev server with the Resend API and
  * the AI reviewer (Anthropic's Messages API) mocked on loopback: sections, template editing with the live brand-layout
  * preview, the quality review round by round (a failing review, the AI's fix, a passing review and the approval it
- * leaves), activation, a test email, the welcome email on a real signup, the send log, the brand guidelines and reviewer
- * model, and the quota banner an administrator sees without reading any log.
+ * leaves), a Claude account with no credit (GPT-5.4 judges and the round, the approval and the sending status say why
+ * Claude was skipped), activation, a test email, the welcome email on a real signup, the send log, the brand guidelines
+ * and reviewer model, and the quota banner an administrator sees without reading any log.
  *
  * Needs the email test harness (see e2e/support/email-http.ts): E2E_EMAIL_HARNESS=1 and ADMIN_TEST_PASSWORD.
  */
@@ -12,6 +13,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
+  ANTHROPIC_CREDIT_LOW,
   HARNESS,
   HARNESS_SKIP,
   HAS_ADMIN_CREDS,
@@ -27,7 +29,7 @@ import {
   subscribePublic,
 } from './support/email-http';
 
-const FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'email-provider-state.json', 'newsletter-subscribers.json'];
+const FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'email-provider-state.json', 'email-reviewer-state.json', 'newsletter-subscribers.json'];
 
 async function openNewsletter(page: Page): Promise<void> {
   await page.locator('aside').getByRole('button', { name: /Newsletter/ }).first().click();
@@ -189,6 +191,103 @@ test.describe('admin: newsletter email', () => {
     const prompt = JSON.stringify(ai.calls[0].body.messages);
     expect(prompt).toContain('The AB Entertainment Community');
     expect(prompt).toContain('CONTENT FUNDAMENTALS');
+  });
+
+  test('Claude has no credit: GPT-5.4 judges, and the round, the approval and the sending status all say why Claude was skipped', async ({ page }) => {
+    ai.fail(ANTHROPIC_CREDIT_LOW); // every Anthropic model answers 400 "Your credit balance is too low"
+    ai.reviews = [mockPassingReview()];
+    await adminLogin(page);
+    await openNewsletter(page);
+
+    // before any review nothing is known about the models, and the first of them is the one expected to judge
+    await openSection(page, 'Sending status', 'Sending status');
+    const entries = page.getByTestId('reviewer-availability-entry');
+    await expect(entries).toHaveCount(4);
+    await expect(entries.nth(0)).toHaveAttribute('data-outcome', 'untried');
+    await expect(page.getByTestId('reviewer-in-use')).toContainText('expected to be judged by Claude Opus 5.5.');
+
+    await openSection(page, TEMPLATES, 'Email templates');
+    await page.getByRole('button', { name: 'Run quality review' }).click();
+    await expect(page.getByTestId('review-outcome')).toContainText('Passed', { timeout: 60000 });
+
+    // the round names the judge and every model that was asked before it, in order, with the reason
+    await expect(page.getByTestId('review-judge-1')).toContainText('Judged by openai gpt-5.4');
+    const attempts = page.getByTestId('review-attempts-1').getByTestId('review-attempt');
+    await expect(attempts).toHaveCount(3);
+    await expect(attempts.nth(0)).toContainText('Claude Opus 5.5 skipped: Anthropic account credit balance too low.');
+    await expect(attempts.nth(0)).toContainText('HTTP 400, invalid_request_error: Your credit balance is too low to access the Anthropic API.');
+    await expect(attempts.nth(1)).toContainText('Claude Sonnet 5.5 skipped: Anthropic account credit balance too low.');
+    await expect(attempts.nth(2)).toContainText('GPT-5.4 (OpenAI) judged this round.');
+    await expect(attempts.nth(0)).toHaveAttribute('data-outcome', 'credit_exhausted');
+    await expect(attempts.nth(2)).toHaveAttribute('data-outcome', 'ok');
+    await expect(page.getByTestId('approved-by')).toContainText('openai gpt-5.4');
+
+    // one request to each model and none repeated; the GPT-5.4 request has the documented reasoning-model shape
+    expect(ai.calls.map((c) => [c.provider, c.model, c.status])).toEqual([['anthropic', 'claude-opus-5-5', 400], ['anthropic', 'claude-sonnet-5-5', 400], ['openai', 'gpt-5.4', 200]]);
+    const sent = ai.calls[2].body;
+    expect(Object.keys(sent).sort()).toEqual(['max_completion_tokens', 'messages', 'model', 'reasoning_effort', 'response_format']);
+    expect(sent).toMatchObject({ max_completion_tokens: 16000, reasoning_effort: 'medium' });
+    expect((sent.messages as Array<{ role: string }>).map((m) => m.role)).toEqual(['developer', 'user']);
+
+    // the sending status says what each model did the last time it was asked, and which one judges now
+    await openSection(page, 'Sending status', 'Sending status');
+    await expect(entries).toHaveCount(4);
+    await expect(entries.nth(0)).toContainText('Claude Opus 5.5: Anthropic account credit balance too low');
+    await expect(entries.nth(0)).toHaveAttribute('data-outcome', 'credit_exhausted');
+    await expect(entries.nth(1)).toContainText('Claude Sonnet 5.5: Anthropic account credit balance too low');
+    await expect(entries.nth(2)).toContainText('GPT-5.4 (OpenAI): answered the last time it was asked');
+    await expect(entries.nth(2)).toHaveAttribute('data-outcome', 'ok');
+    await expect(entries.nth(3)).toHaveAttribute('data-outcome', 'untried');
+    await expect(page.getByTestId('reviewer-in-use')).toContainText('expected to be judged by GPT-5.4 (OpenAI), because the models before it');
+    const status = await adminApi(page, 'GET', '/api/admin/newsletter/status');
+    const reviewer = status.body?.reviewer as { availability: Array<Record<string, unknown>>; inUse: unknown };
+    expect(reviewer.availability[0]).toMatchObject({ provider: 'anthropic', model: 'claude-opus-5-5', outcome: 'credit_exhausted', httpStatus: 400, code: 'invalid_request_error' });
+    expect(String(reviewer.availability[0].detail)).toContain('credit balance is too low');
+    expect(reviewer.availability[2]).toMatchObject({ provider: 'openai', model: 'gpt-5.4', outcome: 'ok' });
+    expect(reviewer.inUse).toEqual({ provider: 'openai', model: 'gpt-5.4' });
+    for (const secret of ['sk-ant-local', 'sk-openai-local', 're_local_test']) expect(JSON.stringify(status.body)).not.toContain(secret);
+    expect(await page.locator('main').innerText()).not.toContain('sk-ant-local');
+
+    // after a reload the last review still explains itself
+    await page.reload();
+    await openNewsletter(page);
+    await openSection(page, TEMPLATES, 'Email templates');
+    const last = page.getByTestId('last-review-rounds');
+    await expect(last).toBeVisible({ timeout: 15000 });
+    await last.locator('summary').click();
+    await expect(last.getByTestId('review-attempt')).toHaveCount(3);
+    await expect(last.getByTestId('review-attempt').first()).toContainText('Claude Opus 5.5 skipped: Anthropic account credit balance too low.');
+
+    // the guidelines screen offers GPT-5.4 as a reviewer model and shows the same availability
+    await openSection(page, 'Brand guidelines', 'Brand guidelines');
+    await expect(page.getByTestId('reviewer-chain')).toContainText('Tried in order: anthropic claude-opus-5-5, then anthropic claude-sonnet-5-5, then openai gpt-5.4, then openai gpt-4.1-mini');
+    await expect(page.getByTestId('reviewer-availability-entry').first()).toContainText('Anthropic account credit balance too low');
+    const model = page.getByLabel('Reviewer model');
+    await expect(model.locator('option')).toHaveText([
+      'Default: Claude Opus 5.5, then Claude Sonnet 5.5, then GPT-5.4, then GPT-4.1 mini',
+      'Claude Opus 5.5 (Anthropic)',
+      'Claude Sonnet 5.5 (Anthropic)',
+      'GPT-5.4 (OpenAI)',
+      'GPT-4.1 (OpenAI)',
+      'GPT-4.1 mini (OpenAI)',
+      'Another model id…',
+    ]);
+    await model.selectOption('gpt-5.4');
+    await page.getByRole('button', { name: 'Save settings' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Settings saved.' })).toBeVisible();
+    await expect(page.getByTestId('reviewer-chain')).toContainText('Tried in order: openai gpt-5.4, then anthropic claude-opus-5-5, then anthropic claude-sonnet-5-5, then openai gpt-4.1-mini');
+    expect(JSON.parse(readFileSync(join(SERVER_DATA_DIR, 'email-settings.json'), 'utf-8'))).toMatchObject({ reviewModel: 'gpt-5.4' });
+
+    // reviewing again with GPT-5.4 chosen: it is asked first and Claude is not asked at all
+    ai.calls = [];
+    await openSection(page, TEMPLATES, 'Email templates');
+    await page.getByRole('button', { name: 'Run quality review' }).click();
+    await expect(page.getByTestId('review-outcome')).toContainText('Passed', { timeout: 60000 });
+    expect(ai.calls.map((c) => [c.provider, c.model, c.status])).toEqual([['openai', 'gpt-5.4', 200]]);
+    const again = page.getByTestId('review-attempts-1').getByTestId('review-attempt');
+    await expect(again).toHaveCount(1);
+    await expect(again.first()).toContainText('GPT-5.4 (OpenAI) judged this round.');
+    await expect(page.getByTestId('approved-by')).toContainText('openai gpt-5.4');
   });
 
   test('approve, activate, send a test email, welcome a real signup, and see it all in the send log', async ({ page, request }) => {

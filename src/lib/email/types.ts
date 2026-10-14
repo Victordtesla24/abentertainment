@@ -52,6 +52,30 @@ export const AI_DIMENSIONS = ['content', 'brand', 'tone', 'language', 'quality']
 export type AiDimension = (typeof AI_DIMENSIONS)[number];
 export type AiScores = Record<AiDimension, number>;
 
+/**
+ * How one call to an AI model ended. credit_exhausted: the account has no credit or quota left; invalid_key: the key was
+ * rejected; forbidden: the key may not use this; unknown_model: the provider has no such model; rate_limited and
+ * overloaded: try again later; server_error, timeout and network: the provider could not answer; bad_shape: it answered
+ * in a form that is not the expected JSON; bad_request: it refused the request itself.
+ */
+export type AiAttemptOutcome = 'ok' | 'credit_exhausted' | 'invalid_key' | 'forbidden' | 'unknown_model' | 'rate_limited' | 'overloaded' | 'server_error' | 'timeout' | 'network' | 'bad_shape' | 'bad_request';
+
+/** One call to one AI model, in the order they were made. Never holds a key or an address. */
+export interface AiAttemptRecord {
+  provider: 'anthropic' | 'openai' | 'openrouter';
+  model: string;
+  /** 1 for the first call to this model, 2 for the retry. */
+  attempt: number;
+  outcome: AiAttemptOutcome;
+  httpStatus?: number;
+  /** The provider's own error type or code, for example invalid_request_error. */
+  code?: string;
+  /** The provider's message with keys and addresses removed. */
+  detail?: string;
+  ms: number;
+  at: string;
+}
+
 export interface AiReview {
   provider: string;
   model: string;
@@ -60,6 +84,11 @@ export interface AiReview {
   summary: string;
   issues: GateIssue[];
   ms: number;
+  /**
+   * Every call that was made to produce this review, in order: why an earlier model was skipped. The reviewer returns it
+   * with the review; the gate keeps it once, on the round (GateRound.aiAttempts), not on the review.
+   */
+  attempts?: AiAttemptRecord[];
 }
 
 export interface GateRound {
@@ -74,6 +103,10 @@ export interface GateRound {
   aiError?: string;
   /** What went wrong with the AI reviewer, in words that name no key or address. */
   aiErrorDetail?: string;
+  /** Every call made for this round's review (or the failed ones when no model could answer), in order. */
+  aiAttempts?: AiAttemptRecord[];
+  /** Every call made for the fix that followed. */
+  fixAttempts?: AiAttemptRecord[];
   passed: boolean;
   /** The fields the AI changed to produce the next round, and why. */
   fixedFields?: string[];

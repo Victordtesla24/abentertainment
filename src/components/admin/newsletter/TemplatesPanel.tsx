@@ -677,9 +677,21 @@ export default function TemplatesPanel() {
                   </div>
                 )}
                 {review.status === 'idle' && version.review && (
-                  <p className="text-[12px] text-white/40 font-body">
-                    Last review {formatDate(version.review.at)}: {version.review.passed ? 'passed' : STOP_TEXT[version.review.stopReason]}
-                  </p>
+                  <div className="space-y-2" data-testid="last-review">
+                    <p className="text-[12px] text-white/40 font-body">
+                      Last review {formatDate(version.review.at)}: {version.review.passed ? 'passed' : STOP_TEXT[version.review.stopReason]}
+                    </p>
+                    {version.review.rounds.length > 0 && (
+                      <details data-testid="last-review-rounds">
+                        <summary className="cursor-pointer text-[12px] text-white/50 font-body hover:text-white/70">Show the rounds of the last review, and which AI models were asked</summary>
+                        <ol className="space-y-3 mt-3" aria-label="Rounds of the last review">
+                          {version.review.rounds.map((round) => (
+                            <RoundView key={round.round} round={round} threshold={threshold} />
+                          ))}
+                        </ol>
+                      </details>
+                    )}
+                  </div>
                 )}
 
                 <div className="mt-4 pt-4 border-t border-white/[0.06] flex flex-wrap items-center gap-2">

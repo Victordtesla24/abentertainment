@@ -158,7 +158,9 @@ test.describe('provider hold and quota visibility', () => {
     const clean = await sender.getSendingStatus({ env: keys });
     expect(clean.provider).toEqual({ state: 'unknown', lastAttemptAt: null, lastOutcome: null, lastReason: null, lastCode: null, lastHttpStatus: null, lastDetail: null, lastSuccessAt: null, blockedUntil: null, nextAttemptAt: null, automaticRetry: true });
     expect(clean.waiting).toEqual({ count: 0, oldestAt: null, reasons: {} });
-    expect(clean.reviewer.chain.map((a) => `${a.provider}:${a.model}`)).toEqual(['anthropic:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'openai:gpt-4.1-mini']);
+    expect(clean.reviewer.chain.map((a) => `${a.provider}:${a.model}`)).toEqual(['anthropic:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'openai:gpt-5.4', 'openai:gpt-4.1-mini']);
+    expect(clean.reviewer.availability.every((entry) => entry.outcome === null && entry.at === null)).toBe(true); // nothing has been called yet
+    expect(clean.reviewer.inUse).toEqual({ provider: 'anthropic', model: 'claude-opus-5-5' });
     expect(clean.reviewer.setting).toBe('');
     expect(clean.ai).toEqual({ providers: ['anthropic', 'openai'], available: true });
 

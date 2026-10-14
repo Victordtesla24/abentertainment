@@ -221,7 +221,7 @@ test.describe('unsubscribe (in-process)', () => {
 // HTTP
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'email-provider-state.json', 'newsletter-subscribers.json'];
+const FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-send-log.json', 'email-provider-state.json', 'email-reviewer-state.json', 'newsletter-subscribers.json'];
 
 test.describe('unsubscribe over HTTP (Resend mocked on loopback)', () => {
   const saved = new Map<string, string | null>();

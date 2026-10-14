@@ -274,7 +274,7 @@ test.describe('quality gate (in-process)', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('https://api.openai.com/v1/chat/completions');
     const sent = JSON.parse(String(calls[0].init.body));
-    expect(sent.model).toBe('gpt-4.1-mini');
+    expect(sent.model).toBe('gpt-5.4'); // OpenAI's default is its strongest reasoning model (see newsletter-email-reviewer.spec.ts for the exact payload)
     expect(sent.response_format.type).toBe('json_schema');
     expect(sent.response_format.json_schema.strict).toBe(true);
     expect(sent.messages[0].content).toContain('quality reviewer');
@@ -282,7 +282,7 @@ test.describe('quality gate (in-process)', () => {
     expect(user.guidelines).toContain('CONTENT FUNDAMENTALS');
     expect(user.draft.subject).toBe(seed.SEED_WELCOME_FIELDS.subject);
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer sk-test-secret');
-    expect(review).toMatchObject({ provider: 'openai', model: 'gpt-4.1-mini', verdict: 'pass', scores: { content: 91, brand: 92, tone: 90, language: 94, quality: 93 } });
+    expect(review).toMatchObject({ provider: 'openai', model: 'gpt-5.4', verdict: 'pass', scores: { content: 91, brand: 92, tone: 90, language: 94, quality: 93 } });
     expect(review.issues).toEqual([{ source: 'ai', code: 'ai_tone', field: 'body', message: 'Could be warmer.', suggestion: 'Add thanks.', fixable: true, severity: 'minor' }]);
     expect(JSON.stringify(review)).not.toContain('sk-test-secret');
   });
@@ -310,7 +310,7 @@ test.describe('quality gate (in-process)', () => {
     let calls = 0;
     const unauthorised = ai.createAiClient({ env: { OPENAI_API_KEY: 'sk-test-secret' }, fetchImpl: async () => { calls += 1; return reply({}, 401); } });
     const refused = await unauthorised.review(reviewInput()).catch((e: Error) => e);
-    expect(calls).toBe(1);
+    expect(calls).toBe(2); // one call to each of OpenAI's two default models, no retry of a rejected key
     expect(refused).toMatchObject({ name: 'AiUnavailableError', reason: 'http' });
     expect((refused as Error).message).not.toContain('sk-test-secret');
 
@@ -320,7 +320,7 @@ test.describe('quality gate (in-process)', () => {
       const client = ai.createAiClient({ env: { OPENAI_API_KEY: 'sk-test-secret' }, fetchImpl: async () => { calls += 1; return shape === 'not json at all' ? reply('not json at all') : reply(shape); } });
       const error = await client.review(reviewInput()).catch((e: Error) => e);
       expect(error, JSON.stringify(shape).slice(0, 50)).toMatchObject({ name: 'AiInvalidResponseError' });
-      expect(calls, 'asked twice, then refused').toBe(2);
+      expect(calls, 'asked twice of each of OpenAI\'s two default models, then refused').toBe(4);
       expect((error as Error).message).not.toContain('sk-test-secret');
     }
 
@@ -639,7 +639,7 @@ test.describe('quality gate (in-process)', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const SERVER_DATA_DIR = process.env.AB_DATA_DIR ?? join(process.cwd(), 'data');
-const SERVER_FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json'];
+const SERVER_FILES = ['email-templates.json', 'email-settings.json', 'email-guidelines.json', 'email-reviewer-state.json'];
 
 async function adminLogin(page: Page): Promise<void> {
   await page.goto('/admin/login');
@@ -723,6 +723,19 @@ test.describe('admin API: review, preview and activation', () => {
     expect(result.rounds[0].fields.subject).toBe('Welcome to AB Entertainment');
     expect((result.rounds[0] as { aiErrorDetail?: string }).aiErrorDetail).toMatch(/could not be reached/);
     expect(result.finalHash).toMatch(/^[0-9a-f]{64}$/);
+    // nothing was skipped silently: every call the reviewer made is on the round, in order (a network failure is tried once more)
+    const attempts = (result.rounds[0] as unknown as { aiAttempts: Array<{ model: string; attempt: number; outcome: string }> }).aiAttempts;
+    expect(attempts.map((a) => `${a.model}#${a.attempt}:${a.outcome}`)).toEqual([
+      'claude-opus-5-5#1:network', 'claude-opus-5-5#2:network', 'claude-sonnet-5-5#1:network', 'claude-sonnet-5-5#2:network',
+      'gpt-5.4#1:network', 'gpt-5.4#2:network', 'gpt-4.1-mini#1:network', 'gpt-4.1-mini#2:network',
+    ]);
+    expect(JSON.stringify(started.body)).not.toContain('sk-ant-local');
+    expect(JSON.stringify(started.body)).not.toContain('sk-openai-local');
+    // and the sending status now says what each model did when last asked, with nobody judging
+    await expect
+      .poll(async () => ((await adminApi(page, 'GET', '/api/admin/newsletter/status')).body?.reviewer as { availability: Array<{ model: string; outcome: string | null }> }).availability.map((a) => `${a.model}=${a.outcome}`), { timeout: 10_000 })
+      .toEqual(['claude-opus-5-5=network', 'claude-sonnet-5-5=network', 'gpt-5.4=network', 'gpt-4.1-mini=network']);
+    expect(((await adminApi(page, 'GET', '/api/admin/newsletter/status')).body?.reviewer as { inUse: unknown }).inUse).toBeNull();
 
     // the same result is read back, and it is saved on the version
     const again = await adminApi(page, 'GET', `/api/admin/newsletter/review?id=${welcome.id}&version=1`);

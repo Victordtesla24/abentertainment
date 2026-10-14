@@ -20,6 +20,7 @@ import { EmailStoreError, findVersion, parseFieldsPatch } from './store';
 import {
   AI_DIMENSIONS,
   EMAIL_FIELDS,
+  type AiAttemptRecord,
   type AiReview,
   type BrandGuidelines,
   type EmailFieldName,
@@ -120,6 +121,11 @@ export interface RunGateInput {
   guidelines: BrandGuidelines;
 }
 
+/** The calls an AI error carries (every attempt made before giving up). */
+function attemptsOf(err: unknown): AiAttemptRecord[] {
+  return err instanceof AiUnavailableError || err instanceof AiInvalidResponseError ? err.attempts : [];
+}
+
 function safeAiMessage(err: unknown): string {
   return err instanceof AiUnavailableError || err instanceof AiInvalidResponseError ? err.message : 'The AI reviewer failed.';
 }
@@ -148,11 +154,14 @@ export async function runGate(input: RunGateInput, deps: GateDeps): Promise<Gate
     let aiPassed = false;
     if (deterministic.issues.length === 0 && deterministic.rendered) {
       try {
-        round.ai = await deps.ai.review({ fields: candidate, plainText: deterministic.rendered.text, guidelines, threshold: settings.qualityThreshold, model: settings.reviewModel });
+        const { attempts, ...review } = await deps.ai.review({ fields: candidate, plainText: deterministic.rendered.text, guidelines, threshold: settings.qualityThreshold, model: settings.reviewModel });
+        round.ai = review;
+        if (attempts?.length) round.aiAttempts = attempts; // kept once, on the round, so the stored result does not repeat itself
         aiPassed = aiPasses(round.ai, settings.qualityThreshold);
       } catch (err) {
         round.aiError = err instanceof AiInvalidResponseError ? 'invalid_response' : 'unavailable';
         round.aiErrorDetail = safeAiMessage(err);
+        if (attemptsOf(err).length) round.aiAttempts = attemptsOf(err);
         stopReason = 'ai_unavailable';
         deps.onRound?.(round);
         break;
@@ -185,6 +194,7 @@ export async function runGate(input: RunGateInput, deps: GateDeps): Promise<Gate
     }
     try {
       const fix = await deps.ai.fix({ fields: candidate, issues: fixable, changeable, guidelines, threshold: settings.qualityThreshold, model: settings.reviewModel, allowedLinkDomains: settings.allowedLinkDomains });
+      if (fix.attempts?.length) round.fixAttempts = fix.attempts;
       const next = applyFixes(candidate, fix.fixes, changeable);
       round.fixedFields = EMAIL_FIELDS.filter((name) => next[name] !== candidate[name]);
       round.fixRationale = fix.rationale;
@@ -196,6 +206,7 @@ export async function runGate(input: RunGateInput, deps: GateDeps): Promise<Gate
       candidate = next;
       deps.onRound?.(round);
     } catch (err) {
+      if (attemptsOf(err).length) round.fixAttempts = attemptsOf(err);
       if (err instanceof AiUnavailableError) {
         round.fixError = safeAiMessage(err);
         stopReason = 'ai_unavailable';

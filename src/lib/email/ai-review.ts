@@ -3,17 +3,24 @@
  * fix step that proposes new wording for the failing fields only.
  *
  * Providers, in this order: Anthropic (ANTHROPIC_API_KEY; Claude Opus 5.5, then Claude Sonnet 5.5), OpenAI
- * (OPENAI_API_KEY) and OpenRouter (OPENROUTER_API_KEY). An administrator can choose the reviewer model in the email
- * settings: the provider that serves it goes first and the rest of the chain follows as the fallback. Keys are read from
- * the environment at call time and are never logged, returned or put in an error message. Every answer is validated
- * (zod): anything that is not exactly the expected JSON is rejected, and an unavailable or unusable reviewer means the
- * gate blocks. An email is never treated as reviewed unless a valid review passed it.
+ * (OPENAI_API_KEY; GPT-5.4, then GPT-4.1 mini) and OpenRouter (OPENROUTER_API_KEY). An administrator can choose the
+ * reviewer model in the email settings: the provider that serves it goes first and the rest of the chain follows as the
+ * fallback. Keys are read from the environment at call time and are never logged, returned or put in an error message.
+ * Every answer is validated (zod): anything that is not exactly the expected JSON is rejected, and an unavailable or
+ * unusable reviewer means the gate blocks. An email is never treated as reviewed unless a valid review passed it.
+ *
+ * Nothing is skipped silently: every call that is made is recorded (provider, model, outcome such as credit_exhausted,
+ * invalid_key, unknown_model or rate_limited, the HTTP status and the provider's message with keys and addresses
+ * removed), in order, on the review that finally answered and on the error when none could.
  */
 
 import { z } from 'zod';
+import { scrubDetail } from './scrub';
 import {
   AI_DIMENSIONS,
   EMAIL_FIELDS,
+  type AiAttemptOutcome,
+  type AiAttemptRecord,
   type AiReview,
   type BrandGuidelines,
   type EmailFields,
@@ -25,6 +32,8 @@ export class AiUnavailableError extends Error {
   constructor(
     public readonly reason: 'no_provider' | 'network' | 'http' | 'timeout',
     message: string,
+    /** Every call that was made before giving up (empty when nothing was configured). */
+    public readonly attempts: AiAttemptRecord[] = [],
   ) {
     super(message);
     this.name = 'AiUnavailableError';
@@ -32,7 +41,10 @@ export class AiUnavailableError extends Error {
 }
 
 export class AiInvalidResponseError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly attempts: AiAttemptRecord[] = [],
+  ) {
     super(message);
     this.name = 'AiInvalidResponseError';
   }
@@ -64,6 +76,7 @@ export interface FixResult {
   rationale: string;
   provider: string;
   model: string;
+  attempts?: AiAttemptRecord[];
 }
 
 export interface AiClient {
@@ -88,9 +101,12 @@ interface Provider {
   structured: boolean;
 }
 
-/** The default reviewer chain: the strongest model first, a second Claude, then the other providers' defaults. */
+/**
+ * The default reviewer chain: the strongest model first, a second Claude, then OpenAI's strongest and a light model, then
+ * OpenRouter. (A Claude account with no credit, or a key that has gone, falls through to GPT-5.4 and the review says so.)
+ */
 export const ANTHROPIC_DEFAULT_MODELS: readonly string[] = ['claude-opus-5-5', 'claude-sonnet-5-5'];
-export const OPENAI_DEFAULT_MODEL = 'gpt-4.1-mini';
+export const OPENAI_DEFAULT_MODELS: readonly string[] = ['gpt-5.4', 'gpt-4.1-mini'];
 export const OPENROUTER_DEFAULT_MODEL = 'openai/gpt-4.1-mini';
 const ANTHROPIC_VERSION = '2023-06-01';
 
@@ -171,7 +187,7 @@ export function reviewerChain(env: Record<string, string | undefined>, setting: 
   }
   for (const provider of providers) {
     if (provider.id === 'anthropic') for (const model of ANTHROPIC_DEFAULT_MODELS) add({ provider: 'anthropic', model });
-    else if (provider.id === 'openai') add({ provider: 'openai', model: OPENAI_DEFAULT_MODEL });
+    else if (provider.id === 'openai') for (const model of OPENAI_DEFAULT_MODELS) add({ provider: 'openai', model });
     else add({ provider: 'openrouter', model: OPENROUTER_DEFAULT_MODEL });
   }
   return attempts;
@@ -317,94 +333,210 @@ export interface AiClientOptions {
   timeoutMs?: number;
 }
 
+/** One failed call, before it is recorded: what happened, in the words of the provider with secrets removed. */
+class AttemptFailure extends Error {
+  constructor(
+    public readonly outcome: Exclude<AiAttemptOutcome, 'ok'>,
+    message: string,
+    public readonly httpStatus?: number,
+    public readonly code?: string,
+    public readonly detail?: string,
+    /** The request parameter the provider objected to, when it named one. */
+    public readonly param?: string,
+  ) {
+    super(message);
+    this.name = 'AttemptFailure';
+  }
+}
+
+/** Failures worth one more try on the same model; everything else (no credit, a bad key, no such model) moves on at once. */
+const RETRYABLE: ReadonlySet<AiAttemptOutcome> = new Set(['rate_limited', 'overloaded', 'server_error', 'timeout', 'network', 'bad_shape']);
+
+/**
+ * What a non-2xx answer means. Anthropic reports an account with no credit as a 400 invalid_request_error whose message
+ * says the credit balance is too low (not as a billing status), OpenAI as a 429 insufficient_quota, OpenRouter as a 402;
+ * a rejected key is a 401 everywhere (OpenRouter says "User not found").
+ */
+export function classifyHttpFailure(status: number, type: string, code: string, message: string): Exclude<AiAttemptOutcome, 'ok'> {
+  const text = message.toLowerCase();
+  if (status === 402 || code === 'insufficient_quota' || code === 'billing_hard_limit_reached' || /credit balance (?:is )?too low|insufficient[ _]credits?|insufficient[ _]quota|exceeded your current quota|billing hard limit|payment required|out of credits?/.test(text)) return 'credit_exhausted';
+  if (status === 401 || type === 'authentication_error' || /invalid (?:x-)?api[ _-]?key|incorrect api key|user not found|invalid authentication/.test(text)) return 'invalid_key';
+  if (status === 403 || type === 'permission_error') return 'forbidden';
+  if (status === 404 || type === 'not_found_error' || code === 'model_not_found' || /model[^.]*(?:not found|does not exist|is not available|not supported)/.test(text)) return 'unknown_model';
+  if (status === 429 || type === 'rate_limit_error' || code === 'rate_limit_exceeded') return 'rate_limited';
+  if (status === 529 || type === 'overloaded_error') return 'overloaded';
+  if (status === 408 || status === 504) return 'timeout';
+  if (status >= 500) return 'server_error';
+  return 'bad_request';
+}
+
+/** A payload for OpenAI's reasoning models (GPT-5 and later, o-series), which reject temperature and max_tokens. */
+const REASONING_MODEL = /^(?:gpt-[5-9]|o\d)/i;
+
+export function isReasoningModel(model: string): boolean {
+  return REASONING_MODEL.test(model);
+}
+
 export function createAiClient(options: AiClientOptions = {}): AiClient {
   const fetchImpl = options.fetchImpl ?? fetch;
   const env = options.env ?? process.env;
-  const timeoutMs = options.timeoutMs ?? 90_000;
+  const timeoutMs = options.timeoutMs ?? 120_000;
 
-  async function once(provider: Provider, model: string, system: string, user: string, schemaName: string, schema: object): Promise<string> {
+  /** The request body for one provider and model (see the notes on each shape). */
+  function requestBody(provider: Provider, model: string, system: string, user: string, schemaName: string, schema: object, omitReasoningEffort: boolean): Record<string, unknown> {
+    if (provider.id === 'anthropic') {
+      // Messages API: structured JSON by forcing a call to one tool whose input schema is the answer. No temperature.
+      return {
+        model,
+        max_tokens: 3000,
+        system,
+        messages: [{ role: 'user', content: user }],
+        tools: [{ name: schemaName, description: 'Submit the result in exactly this shape.', input_schema: schema }],
+        tool_choice: { type: 'tool', name: schemaName },
+      };
+    }
+    if (provider.id === 'openai' && isReasoningModel(model)) {
+      // Chat Completions for a reasoning model (GPT-5.x): a developer message, max_completion_tokens (which counts the
+      // reasoning tokens as well as the answer, so it is generous), an explicit reasoning effort, and NO temperature,
+      // top_p or max_tokens (a reasoning model rejects them). Structured Outputs through response_format json_schema.
+      return {
+        model,
+        messages: [
+          { role: 'developer', content: system },
+          { role: 'user', content: user },
+        ],
+        max_completion_tokens: 16000,
+        ...(omitReasoningEffort ? {} : { reasoning_effort: 'medium' }),
+        response_format: { type: 'json_schema', json_schema: { name: schemaName, strict: true, schema } },
+      };
+    }
+    return {
+      model,
+      temperature: 0.2,
+      max_tokens: 2000,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      response_format: provider.structured ? { type: 'json_schema', json_schema: { name: schemaName, strict: true, schema } } : { type: 'json_object' },
+    };
+  }
+
+  /** One call. Returns the answer's JSON text, or throws an AttemptFailure that says exactly what went wrong. */
+  async function once(provider: Provider, model: string, system: string, user: string, schemaName: string, schema: object, omitReasoningEffort: boolean, secrets: readonly string[]): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const anthropic = provider.id === 'anthropic';
-      // Anthropic's Messages API returns structured JSON by forcing a call to one tool whose input schema is the answer;
-      // the others take a JSON-schema (OpenAI) or JSON-object (OpenRouter) response format.
-      const body: Record<string, unknown> = anthropic
-        ? {
-            model,
-            max_tokens: 3000,
-            system,
-            messages: [{ role: 'user', content: user }],
-            tools: [{ name: schemaName, description: 'Submit the result in exactly this shape.', input_schema: schema }],
-            tool_choice: { type: 'tool', name: schemaName },
-          }
-        : {
-            model,
-            temperature: 0.2,
-            max_tokens: 2000,
-            messages: [
-              { role: 'system', content: system },
-              { role: 'user', content: user },
-            ],
-            response_format: provider.structured ? { type: 'json_schema', json_schema: { name: schemaName, strict: true, schema } } : { type: 'json_object' },
-          };
       const headers: Record<string, string> = anthropic
         ? { 'Content-Type': 'application/json', 'x-api-key': provider.key, ...provider.extraHeaders }
         : { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.key}`, ...provider.extraHeaders };
       let response: Response;
       try {
-        response = await fetchImpl(provider.url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal });
+        response = await fetchImpl(provider.url, { method: 'POST', headers, body: JSON.stringify(requestBody(provider, model, system, user, schemaName, schema, omitReasoningEffort)), signal: controller.signal });
       } catch (err) {
         const aborted = err instanceof Error && err.name === 'AbortError';
-        throw new AiUnavailableError(aborted ? 'timeout' : 'network', `The ${provider.id} reviewer could not be reached (${aborted ? 'timeout' : 'network error'}).`);
+        throw new AttemptFailure(aborted ? 'timeout' : 'network', `The ${provider.id} reviewer could not be reached (${aborted ? 'timeout' : 'network error'}).`, undefined, aborted ? 'timeout' : 'network_error', aborted ? 'No answer in time.' : 'The provider could not be reached.');
       }
-      if (!response.ok) throw new AiUnavailableError('http', `The ${provider.id} reviewer answered HTTP ${response.status}.`);
+      if (!response.ok) {
+        let type = '';
+        let code = '';
+        let param = '';
+        let message = '';
+        try {
+          const raw = (await response.text()).slice(0, 4000);
+          try {
+            const parsed = JSON.parse(raw) as { error?: { type?: unknown; code?: unknown; message?: unknown; param?: unknown } | string; message?: unknown };
+            const error = typeof parsed.error === 'object' && parsed.error ? parsed.error : undefined;
+            type = typeof error?.type === 'string' ? error.type : '';
+            code = typeof error?.code === 'string' || typeof error?.code === 'number' ? String(error.code) : '';
+            param = typeof error?.param === 'string' ? error.param : '';
+            message = typeof error?.message === 'string' ? error.message : typeof parsed.error === 'string' ? parsed.error : typeof parsed.message === 'string' ? parsed.message : '';
+          } catch {
+            message = raw;
+          }
+        } catch {
+          /* an unreadable body: the status alone is classified */
+        }
+        const outcome = classifyHttpFailure(response.status, type, code, message);
+        // a refusal that names reasoning_effort (as the parameter, or only in its words) is one the caller may answer by leaving it out
+        const named = param === 'reasoning_effort' || /reasoning_effort/i.test(message) ? 'reasoning_effort' : param;
+        throw new AttemptFailure(outcome, `The ${provider.id} reviewer answered HTTP ${response.status}.`, response.status, type || code || undefined, scrubDetail(message, secrets) || undefined, named || undefined);
+      }
       let payload: unknown;
       try {
         payload = await response.json();
       } catch {
-        throw new AiInvalidResponseError(`The ${provider.id} reviewer did not return JSON.`);
+        // the timeout also cuts off a body that was still arriving: that is a timeout, not an answer that was not JSON
+        if (controller.signal.aborted) throw new AttemptFailure('timeout', `The ${provider.id} reviewer could not be reached (timeout).`, response.status, 'timeout', 'No answer in time.');
+        throw new AttemptFailure('bad_shape', `The ${provider.id} reviewer did not return JSON.`, response.status, 'not_json', 'The answer was not JSON.');
       }
       if (anthropic) {
         const blocks = (payload as { content?: Array<{ type?: string; name?: string; input?: unknown }> } | null)?.content;
         const call = Array.isArray(blocks) ? blocks.find((block) => block?.type === 'tool_use' && block.name === schemaName) : undefined;
-        if (!call || !call.input || typeof call.input !== 'object') throw new AiInvalidResponseError(`The ${provider.id} reviewer returned no structured answer.`);
+        if (!call || !call.input || typeof call.input !== 'object') throw new AttemptFailure('bad_shape', `The ${provider.id} reviewer returned no structured answer.`, response.status, 'no_tool_call', 'The answer held no structured result.');
         return JSON.stringify(call.input);
       }
-      const content = (payload as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
-      if (typeof content !== 'string' || !content.trim()) throw new AiInvalidResponseError(`The ${provider.id} reviewer returned no content.`);
+      const choice = (payload as { choices?: Array<{ finish_reason?: string; message?: { content?: unknown; refusal?: unknown } }> })?.choices?.[0];
+      const content = choice?.message?.content;
+      if (typeof content !== 'string' || !content.trim()) {
+        const refused = typeof choice?.message?.refusal === 'string' && choice.message.refusal;
+        throw new AttemptFailure('bad_shape', `The ${provider.id} reviewer returned no content.`, response.status, refused ? 'refusal' : choice?.finish_reason === 'length' ? 'length' : 'no_content', refused ? 'The model declined to answer.' : choice?.finish_reason === 'length' ? 'The answer was cut off before it finished.' : 'The answer held no content.');
+      }
       return content;
     } finally {
       clearTimeout(timer);
     }
   }
 
+  function failureError(failure: AttemptFailure, attempts: AiAttemptRecord[]): AiUnavailableError | AiInvalidResponseError {
+    if (failure.outcome === 'bad_shape') return new AiInvalidResponseError(failure.message, attempts);
+    return new AiUnavailableError(failure.outcome === 'network' ? 'network' : failure.outcome === 'timeout' ? 'timeout' : 'http', failure.message, attempts);
+  }
+
   /**
-   * Ask the reviewer chain in order (the administrator's model first, then the defaults); a transient failure is retried
-   * once on the same model, an unusable key, an unknown model or an outage moves on to the next one.
+   * Ask the reviewer chain in order (the administrator's model first, then the defaults), recording every call. A
+   * transient failure is retried once on the same model; no credit, a rejected key, an unknown model or a refused request
+   * moves on at once. OpenAI rejecting reasoning_effort for a model is retried once without it.
    */
-  async function ask<T>(modelSetting: string, system: string, user: string, schemaName: string, jsonSchema: object, zodSchema: z.ZodType<T>): Promise<{ value: T; provider: string; model: string }> {
+  async function ask<T>(modelSetting: string, system: string, user: string, schemaName: string, jsonSchema: object, zodSchema: z.ZodType<T>): Promise<{ value: T; provider: string; model: string; attempts: AiAttemptRecord[] }> {
     const providers = resolveProviders(env);
-    if (providers.length === 0) throw new AiUnavailableError('no_provider', 'No AI reviewer is configured (ANTHROPIC_API_KEY, OPENAI_API_KEY or OPENROUTER_API_KEY).');
-    let last: Error = new AiUnavailableError('network', 'The AI reviewer is unavailable.');
+    const attempts: AiAttemptRecord[] = [];
+    if (providers.length === 0) throw new AiUnavailableError('no_provider', 'No AI reviewer is configured (ANTHROPIC_API_KEY, OPENAI_API_KEY or OPENROUTER_API_KEY).', attempts);
+    const secrets = providers.map((p) => p.key);
+    let last: AiUnavailableError | AiInvalidResponseError = new AiUnavailableError('network', 'The AI reviewer is unavailable.', attempts);
     for (const { provider: providerId, model } of reviewerChain(env, modelSetting)) {
       const provider = providers.find((p) => p.id === providerId) as Provider;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+      let omitReasoningEffort = false;
+      let tries = 0;
+      for (;;) {
+        tries += 1;
+        const started = Date.now();
+        const record = (outcome: AiAttemptOutcome, extra: Partial<AiAttemptRecord> = {}) => {
+          attempts.push({ provider: providerId, model, attempt: tries, outcome, ms: Date.now() - started, at: new Date(started).toISOString(), ...extra });
+        };
         try {
-          const content = await once(provider, model, system, user, schemaName, jsonSchema);
+          const content = await once(provider, model, system, user, schemaName, jsonSchema, omitReasoningEffort, secrets);
           let parsed: unknown;
           try {
             parsed = JSON.parse(content);
           } catch {
-            throw new AiInvalidResponseError(`The ${provider.id} reviewer returned text that is not JSON.`);
+            throw new AttemptFailure('bad_shape', `The ${provider.id} reviewer returned text that is not JSON.`, undefined, 'not_json', 'The answer was not valid JSON.');
           }
           const checked = zodSchema.safeParse(parsed);
-          if (!checked.success) throw new AiInvalidResponseError(`The ${provider.id} reviewer's answer did not match the expected shape.`);
-          return { value: checked.data, provider: provider.id, model };
+          if (!checked.success) throw new AttemptFailure('bad_shape', `The ${provider.id} reviewer's answer did not match the expected shape.`, undefined, 'wrong_shape', 'The answer did not match the expected shape.');
+          record('ok');
+          return { value: checked.data, provider: provider.id, model, attempts };
         } catch (err) {
-          last = err as Error;
-          const retryable = err instanceof AiInvalidResponseError || (err instanceof AiUnavailableError && (err.reason === 'network' || err.reason === 'timeout' || /HTTP (?:429|5\d\d)/.test(err.message)));
-          if (!retryable) break;
+          const failure = err instanceof AttemptFailure ? err : new AttemptFailure('network', `The ${provider.id} reviewer failed.`, undefined, 'unexpected_error', 'An unexpected error stopped the call.');
+          record(failure.outcome, { ...(failure.httpStatus !== undefined ? { httpStatus: failure.httpStatus } : {}), ...(failure.code ? { code: failure.code } : {}), ...(failure.detail ? { detail: failure.detail } : {}) });
+          last = failureError(failure, attempts);
+          if (provider.id === 'openai' && failure.outcome === 'bad_request' && failure.param === 'reasoning_effort' && !omitReasoningEffort) {
+            omitReasoningEffort = true; // this model does not take the setting: ask again without it (not counted as a try)
+            tries -= 1;
+            continue;
+          }
+          if (!RETRYABLE.has(failure.outcome) || tries >= 2) break;
         }
       }
     }
@@ -414,7 +546,7 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
   return {
     async review(input) {
       const started = Date.now();
-      const { value, provider, model } = await ask(input.model, reviewSystemPrompt(input.threshold), reviewUserPrompt(input), 'email_review', REVIEW_JSON_SCHEMA, reviewSchema);
+      const { value, provider, model, attempts } = await ask(input.model, reviewSystemPrompt(input.threshold), reviewUserPrompt(input), 'email_review', REVIEW_JSON_SCHEMA, reviewSchema);
       const issues: GateIssue[] = value.issues.map((found) => ({
         source: 'ai',
         code: `ai_${found.dimension}`,
@@ -424,11 +556,11 @@ export function createAiClient(options: AiClientOptions = {}): AiClient {
         fixable: true,
         severity: found.severity,
       }));
-      return { provider, model, scores: value.scores, verdict: value.verdict, summary: value.summary, issues, ms: Date.now() - started };
+      return { provider, model, scores: value.scores, verdict: value.verdict, summary: value.summary, issues, ms: Date.now() - started, attempts };
     },
     async fix(input) {
-      const { value, provider, model } = await ask(input.model, fixSystemPrompt(input), fixUserPrompt(input), 'email_fix', FIX_JSON_SCHEMA, fixSchema);
-      return { fixes: value.fixes, rationale: value.rationale, provider, model };
+      const { value, provider, model, attempts } = await ask(input.model, fixSystemPrompt(input), fixUserPrompt(input), 'email_fix', FIX_JSON_SCHEMA, fixSchema);
+      return { fixes: value.fixes, rationale: value.rationale, provider, model, attempts };
     },
   };
 }

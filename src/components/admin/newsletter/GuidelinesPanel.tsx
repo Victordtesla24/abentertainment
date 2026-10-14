@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { SendingStatus } from '@/lib/email/sender';
 import type { BrandGuidelines, EmailSettings } from '@/lib/email/types';
+import { ReviewerAvailability } from './ReviewerAttempts';
 import { Flash, JSON_HEADERS, buttonClasses, cardClasses, errorText, fieldClasses, formatDate, goldButtonClasses, labelClasses, useFlash, useLatestRequest } from './shared';
 
 /**
@@ -12,9 +13,10 @@ import { Flash, JSON_HEADERS, buttonClasses, cardClasses, errorText, fieldClasse
  */
 
 const MODEL_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'Default: Claude Opus 5.5, then Claude Sonnet 5.5, then OpenAI' },
+  { value: '', label: 'Default: Claude Opus 5.5, then Claude Sonnet 5.5, then GPT-5.4, then GPT-4.1 mini' },
   { value: 'claude-opus-5-5', label: 'Claude Opus 5.5 (Anthropic)' },
   { value: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (Anthropic)' },
+  { value: 'gpt-5.4', label: 'GPT-5.4 (OpenAI)' },
   { value: 'gpt-4.1', label: 'GPT-4.1 (OpenAI)' },
   { value: 'gpt-4.1-mini', label: 'GPT-4.1 mini (OpenAI)' },
 ];
@@ -260,6 +262,7 @@ export default function GuidelinesPanel() {
                       ? `Tried in order: ${reviewer.chain.map((attempt) => `${attempt.provider} ${attempt.model}`).join(', then ')}.`
                       : ''}
                 </p>
+                {reviewer && aiProviders.length > 0 && <ReviewerAvailability reviewer={reviewer} />}
               </div>
               <div className="sm:col-span-2">
                 <label htmlFor="setting-domains" className={labelClasses}>
