@@ -14,10 +14,10 @@ import { DURATION_CINEMATIC_MS, EASE_BRAND, usePrefersReducedMotion } from './Sp
  */
 type StageStatus = 'static' | 'loading' | SponsorStageState;
 
-/** The glow is the design system's gold (--color-gold #C9A84C) at its alpha steps --color-gold-10 and --color-gold-08. */
+/** The glow is the design system's gold (--color-gold #C9A84C) at its alpha steps --color-gold-10 and --color-gold-08, fading to transparent. */
 const GOLD = '201, 168, 76';
 const STATIC_GLOW = [
-  `radial-gradient(ellipse 50% 54% at 50% 0%, rgba(${GOLD}, 0.10) 0%, rgba(${GOLD}, 0.04) 55%, rgba(${GOLD}, 0) 100%)`,
+  `radial-gradient(ellipse 50% 54% at 50% 0%, rgba(${GOLD}, 0.10) 0%, rgba(${GOLD}, 0) 100%)`,
   `radial-gradient(ellipse 46% 26% at 50% 58%, rgba(${GOLD}, 0.08) 0%, rgba(${GOLD}, 0) 100%)`,
 ].join(', ');
 
@@ -67,7 +67,8 @@ export default function SponsorStageBackdrop({ cardGroups, cardsKey }: { cardGro
             cardGroups,
             onStateChange: (state) => {
               if (cancelled) return;
-              layer.style.opacity = '1';
+              // While the context is lost the canvas is blank: hide it and let the static glow show again.
+              layer.style.opacity = state === 'lost' ? '0' : '1';
               setStatus(state);
             },
           });

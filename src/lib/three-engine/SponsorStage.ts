@@ -22,7 +22,7 @@
  *  - the GL context is released on dispose so route changes never leak contexts.
  */
 
-export type SponsorStageState = 'live' | 'frozen';
+export type SponsorStageState = 'live' | 'frozen' | 'lost';
 
 export interface SponsorStageOptions {
   /**
@@ -31,7 +31,8 @@ export interface SponsorStageOptions {
    * pool on the cards. Read on mount, on resize and by refresh(), never per frame. Without it the stage has no threads.
    */
   cardGroups?: () => ReadonlyArray<ReadonlyArray<HTMLElement>>;
-  /** Told when the stage starts drawing ('live') and when the frame-cost governor froze it ('frozen'). */
+  /** Told when the stage starts drawing ('live'), when the frame-cost governor froze it ('frozen'), and when the browser took
+   *  the GL context away ('lost'); after a successful restore it is told 'live' or 'frozen' again. */
   onStateChange?: (state: SponsorStageState) => void;
 }
 
@@ -741,12 +742,16 @@ export function mountSponsorStage(canvas: HTMLCanvasElement, host: HTMLElement, 
   const onContextLost = (event: Event) => {
     event.preventDefault();
     contextLost = true;
+    options.onStateChange?.('lost');
   };
   const onContextRestored = () => {
     resources = createResources();
+    // A context that comes back without usable resources stays 'lost', so the caller keeps its static glow.
+    if (!resources) return;
     contextLost = false;
     applySize(cssWidth, cssHeight);
     render();
+    options.onStateChange?.(frozen ? 'frozen' : 'live');
   };
   canvas.addEventListener('webglcontextlost', onContextLost);
   canvas.addEventListener('webglcontextrestored', onContextRestored);
