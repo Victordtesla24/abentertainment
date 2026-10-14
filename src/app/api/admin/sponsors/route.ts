@@ -1,9 +1,10 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
-import { getSponsors, updateSponsors, compareSponsorsForDisplay } from '@/lib/data';
-import { revalidateSponsors } from '@/lib/revalidate';
+import { getEvents, getEventsStrict, getSponsors, updateSponsors, compareSponsorsForDisplay, removeSponsorFromEvents, replaceSponsorEventLinks } from '@/lib/data';
+import { revalidateEvents, revalidateSponsors } from '@/lib/revalidate';
 import { logAdminAction } from '@/lib/audit';
+import { eventLinksOfSponsor, parseSponsorEventLinks, type SponsorEventLink } from '@/lib/event-sponsors';
 import type { Sponsor } from '@/lib/data';
 
 const NAME_MAX_LENGTH = 80;
@@ -177,6 +178,38 @@ function parseSponsorInput(body: Record<string, unknown>): { input: SponsorInput
   return { input, errors };
 }
 
+/**
+ * Validate the events an admin attached a sponsor to (`eventLinks`: [{ eventId, role }], the whole list for this
+ * sponsor): every id must be an event that exists, none may repeat, every role must be valid text. Absent means the
+ * request does not touch the links. The events are read strictly: when the store cannot be read the request fails here,
+ * before the sponsor is saved, instead of being checked against the seed events.
+ */
+async function parseEventLinks(body: Record<string, unknown>): Promise<{ links?: SponsorEventLink[]; errors: string[] }> {
+  if (body.eventLinks === undefined) return { errors: [] };
+  const known = new Set((await getEventsStrict()).map((event) => event.id));
+  const parsed = parseSponsorEventLinks(body.eventLinks, known);
+  return parsed.errors.length > 0 ? { errors: parsed.errors } : { links: parsed.links, errors: [] };
+}
+
+/**
+ * Store the sponsor's links in the events (one locked write of the events store, after the sponsor itself is saved) and
+ * answer with what the events now hold for it. A failure here leaves the sponsor saved: the response says so.
+ */
+async function applyEventLinks(sponsor: Sponsor, links: SponsorEventLink[] | undefined): Promise<{ eventLinks?: SponsorEventLink[]; changed: boolean }> {
+  if (links === undefined) return { changed: false };
+  const changedEventIds = await replaceSponsorEventLinks(sponsor.id, links);
+  if (changedEventIds.length > 0) revalidateEvents();
+  return { eventLinks: eventLinksOfSponsor(await getEvents(), sponsor.id), changed: changedEventIds.length > 0 };
+}
+
+function linksFailure(sponsor: Sponsor, err: unknown, action: string): NextResponse {
+  console.error(`[api/admin/sponsors] the sponsor was ${action}, but its events could not be updated:`, err);
+  return NextResponse.json(
+    { error: `The sponsor was ${action}, but its events could not be updated. Open it again to retry.`, sponsor },
+    { status: 500 },
+  );
+}
+
 function newSponsorId(existing: Sponsor[]): string {
   const taken = new Set(existing.map((sponsor) => sponsor.id));
   const base = `sp-${Date.now()}`;
@@ -216,11 +249,21 @@ export const POST = withAuth(async (request: NextRequest) => {
 
   const { input, errors } = parseSponsorInput(body);
   if (body.name === undefined) errors.unshift('Name is required');
+
+  let eventLinks: SponsorEventLink[] | undefined;
+  try {
+    const parsedLinks = await parseEventLinks(body);
+    errors.push(...parsedLinks.errors);
+    eventLinks = parsedLinks.links;
+  } catch (err) {
+    return failure(err, 'create');
+  }
   if (errors.length > 0 || input.name === undefined) return validationFailure(errors);
   const name = input.name;
 
+  let sponsor: Sponsor;
   try {
-    const sponsor = await updateSponsors((current) => {
+    sponsor = await updateSponsors((current) => {
       const now = new Date().toISOString();
       const created: Sponsor = {
         id: newSponsorId(current),
@@ -241,11 +284,18 @@ export const POST = withAuth(async (request: NextRequest) => {
       };
       return { sponsors: [...current, created], result: created };
     });
-    revalidateSponsors();
-    audit(request, 'SPONSOR_CREATE', { sponsorId: sponsor.id, name: sponsor.name });
-    return NextResponse.json({ sponsor }, { status: 201 });
   } catch (err) {
     return failure(err, 'create');
+  }
+  revalidateSponsors();
+  audit(request, 'SPONSOR_CREATE', { sponsorId: sponsor.id, name: sponsor.name });
+
+  try {
+    const applied = await applyEventLinks(sponsor, eventLinks);
+    if (eventLinks) audit(request, 'SPONSOR_EVENT_LINKS', { sponsorId: sponsor.id, events: eventLinks.length, changed: applied.changed });
+    return NextResponse.json({ sponsor, ...(applied.eventLinks ? { eventLinks: applied.eventLinks } : {}) }, { status: 201 });
+  } catch (err) {
+    return linksFailure(sponsor, err, 'created');
   }
 });
 
@@ -301,10 +351,20 @@ export const PUT = withAuth(async (request: NextRequest) => {
   if (!id) return validationFailure(['Sponsor id is required']);
 
   const { input, errors } = parseSponsorInput(body);
+
+  let eventLinks: SponsorEventLink[] | undefined;
+  try {
+    const parsedLinks = await parseEventLinks(body);
+    errors.push(...parsedLinks.errors);
+    eventLinks = parsedLinks.links;
+  } catch (err) {
+    return failure(err, 'update');
+  }
   if (errors.length > 0) return validationFailure(errors);
 
+  let sponsor: Sponsor;
   try {
-    const sponsor = await updateSponsors((current) => {
+    sponsor = await updateSponsors((current) => {
       const index = current.findIndex((candidate) => candidate.id === id);
       if (index === -1) throw new SponsorNotFoundError();
       const updated = applySponsorInput(current[index], input, new Date().toISOString());
@@ -312,11 +372,18 @@ export const PUT = withAuth(async (request: NextRequest) => {
       next[index] = updated;
       return { sponsors: next, result: updated };
     });
-    revalidateSponsors();
-    audit(request, 'SPONSOR_UPDATE', { sponsorId: sponsor.id, name: sponsor.name, fields: Object.keys(input) });
-    return NextResponse.json({ sponsor });
   } catch (err) {
     return failure(err, 'update');
+  }
+  revalidateSponsors();
+  audit(request, 'SPONSOR_UPDATE', { sponsorId: sponsor.id, name: sponsor.name, fields: Object.keys(input) });
+
+  try {
+    const applied = await applyEventLinks(sponsor, eventLinks);
+    if (eventLinks) audit(request, 'SPONSOR_EVENT_LINKS', { sponsorId: sponsor.id, events: eventLinks.length, changed: applied.changed });
+    return NextResponse.json({ sponsor, ...(applied.eventLinks ? { eventLinks: applied.eventLinks } : {}) });
+  } catch (err) {
+    return linksFailure(sponsor, err, 'updated');
   }
 });
 
@@ -335,6 +402,18 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     });
     revalidateSponsors();
     audit(request, 'SPONSOR_DELETE', { sponsorId: removed.id, name: removed.name });
+
+    // The sponsor's links go with it. Should this fail the sponsor is still gone and nothing can show it: a link to a
+    // sponsor that does not exist is ignored when the pages are built and dropped the next time the event is saved.
+    try {
+      const changed = await removeSponsorFromEvents(removed.id);
+      if (changed.length > 0) {
+        revalidateEvents();
+        audit(request, 'SPONSOR_EVENT_LINKS', { sponsorId: removed.id, removedFromEvents: changed.length });
+      }
+    } catch (err) {
+      console.error('[api/admin/sponsors] the sponsor was deleted, but its links could not be removed from the events:', err);
+    }
     return NextResponse.json({ success: true });
   } catch (err) {
     return failure(err, 'delete');

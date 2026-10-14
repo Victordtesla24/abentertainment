@@ -18,6 +18,7 @@ import {
   saveAgents,
   saveEvents,
   saveSponsors,
+  removeSponsorFromEvents,
   getTestimonials,
   saveTestimonials,
   getGalleryImages,
@@ -1640,6 +1641,8 @@ ${context ? `# Context\n${context}\n` : ''}`;
         const filtered = sponsors.filter((s) => s.id !== id);
         if (filtered.length === sponsors.length) return { ok: false, error: `sponsor not found: ${id}` };
         await saveSponsors(filtered);
+        // the sponsor's links to events go with it (a link to a deleted sponsor is ignored anyway, but should not linger)
+        try { await removeSponsorFromEvents(id); } catch (err) { console.error('[admin/chat] could not remove the deleted sponsor from the events:', err); }
         try { logAdminAction('admin', 'SPONSOR_DELETE', '/api/admin/chat', ip, { tool: name, id }); } catch { /* non-blocking */ }
         return { ok: true, result: { id, remaining: filtered.length } };
       }

@@ -1,9 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/with-auth';
-import { getEvents, saveEvents } from '@/lib/data';
+import { updateEvents } from '@/lib/data';
+import { sortByAdminOrder } from '@/lib/event-display';
 import { revalidateEvents } from '@/lib/revalidate';
 import { logAdminAction } from '@/lib/audit';
+
+/** Thrown from inside the locked update to abort it when one of the two events does not exist. */
+class EventNotFoundError extends Error {}
 
 function getClientIp(request: NextRequest): string {
   return (
@@ -15,9 +19,10 @@ function getClientIp(request: NextRequest): string {
 
 /**
  * Atomic event reorder endpoint. Swaps the `order` values between two events
- * in a single read-modify-write cycle. Avoids the race condition that occurs
- * when two concurrent PUT /api/admin/events requests read and write the same
- * events.json simultaneously.
+ * in a single read-modify-write cycle that holds the events file lock. Avoids
+ * the race condition that occurs when two concurrent PUT /api/admin/events
+ * requests read and write the same events.json simultaneously, and keeps a
+ * reorder from overwriting a change of sponsors and partners made at the same time.
  *
  * Also normalises missing order values so events without an explicit order
  * become swappable: each event receives an index-based order before the swap
@@ -36,35 +41,30 @@ export const POST = withAuth(async (request: NextRequest) => {
       );
     }
 
-    const events = await getEvents();
+    const { next, aOrder, bOrder } = await updateEvents((events) => {
+      // Assign index-based orders to any event missing a distinct order value.
+      // This guarantees the subsequent swap is meaningful even when events were
+      // created before the `order` field existed.
+      const sorted = sortByAdminOrder(events);
+      const orderById = new Map<string, number>();
+      sorted.forEach((ev, idx) => orderById.set(ev.id, idx));
 
-    // Assign index-based orders to any event missing a distinct order value.
-    // This guarantees the subsequent swap is meaningful even when events were
-    // created before the `order` field existed.
-    const sorted = [...events].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    const orderById = new Map<string, number>();
-    sorted.forEach((ev, idx) => orderById.set(ev.id, idx));
+      const aOrder = orderById.get(aId);
+      const bOrder = orderById.get(bId);
 
-    const aOrder = orderById.get(aId);
-    const bOrder = orderById.get(bId);
+      if (aOrder === undefined || bOrder === undefined) throw new EventNotFoundError();
 
-    if (aOrder === undefined || bOrder === undefined) {
-      return NextResponse.json(
-        { error: 'One or both events not found' },
-        { status: 404 }
-      );
-    }
+      // Apply normalized orders to ALL events, then swap a and b.
+      const now = new Date().toISOString();
+      const next = events.map((ev) => {
+        const normalized = orderById.get(ev.id) ?? 0;
+        if (ev.id === aId) return { ...ev, order: bOrder, updatedAt: now };
+        if (ev.id === bId) return { ...ev, order: aOrder, updatedAt: now };
+        return { ...ev, order: normalized };
+      });
 
-    // Apply normalized orders to ALL events, then swap a and b.
-    const now = new Date().toISOString();
-    const next = events.map((ev) => {
-      const normalized = orderById.get(ev.id) ?? 0;
-      if (ev.id === aId) return { ...ev, order: bOrder, updatedAt: now };
-      if (ev.id === bId) return { ...ev, order: aOrder, updatedAt: now };
-      return { ...ev, order: normalized };
+      return { events: next, result: { next, aOrder, bOrder } };
     });
-
-    await saveEvents(next);
     revalidateEvents();
 
     try {
@@ -80,7 +80,10 @@ export const POST = withAuth(async (request: NextRequest) => {
     }
 
     return NextResponse.json({ events: next });
-  } catch {
+  } catch (err) {
+    if (err instanceof EventNotFoundError) {
+      return NextResponse.json({ error: 'One or both events not found' }, { status: 404 });
+    }
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
 });

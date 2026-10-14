@@ -7,10 +7,11 @@
  *   `next dev` admin panel workflows.
  */
 
-import { readFile, writeFile, mkdir, rename } from 'fs/promises';
+import { readFile, writeFile, mkdir, rename, rm } from 'fs/promises';
 import { join, resolve } from 'path';
 import { randomBytes } from 'crypto';
 import { normalizeSiteMetrics, toPublicSiteMetrics } from '@/lib/site-metrics';
+import { publicEventSponsorsOf, removeSponsorLinks, setSponsorLinks, type SponsorEventLink } from '@/lib/event-sponsors';
 
 // AB_DATA_DIR points the runtime data directory somewhere else (a scratch folder for tests); unset, it is ./data as always.
 const DATA_DIR = process.env.AB_DATA_DIR ? resolve(process.env.AB_DATA_DIR) : join(process.cwd(), 'data');
@@ -52,6 +53,31 @@ const PUBLIC_MIRRORED = new Set<string>([
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+/**
+ * One organisation attached to an event, with the role it holds for THAT event (free text, for example "Sponsor",
+ * "Partner" or "Sponsor & Partner"). The order of the list is the order the public page shows them in.
+ */
+export interface EventSponsorLink {
+  sponsorId: string;
+  role: string;
+}
+
+/**
+ * What an event page may know about an attached organisation. Nothing else about the sponsor (its tier, revenue,
+ * contract value or description) is ever part of it, and hidden sponsors are never included.
+ */
+export interface PublicEventSponsor {
+  id: string;
+  /** The company name (it is the logo's alt text); the display name when no company name was set. */
+  name: string;
+  /** A path on this site or an https address; empty when the sponsor has no logo. */
+  logo: string;
+  /** The website, present only when it is a valid https address. */
+  url?: string;
+  /** The role for this event; empty when the admin left it blank. */
+  role: string;
+}
+
 export interface Event {
   id: string;
   title: string;
@@ -75,7 +101,16 @@ export interface Event {
   featuredVideo?: string;
   ticketsSold?: number;
   ticketRevenue?: number;
+  /**
+   * The sponsors and partners attached to this event and the role each holds for it, in display order: the single
+   * source of truth for these links (the Sponsors view of the admin portal reads and writes this same field through
+   * src/lib/event-sponsors.ts). Absent means none; the field is added by the first link an admin saves.
+   */
+  sponsorLinks?: EventSponsorLink[];
+  /** The older list of sponsor ids without roles. Read as links with no role when `sponsorLinks` is absent; never written. */
   sponsorIds?: string[];
+  /** Public projection only, never stored by the admin: the attached organisations a visitor may see (see publicEventSponsorsOf). */
+  eventSponsors?: PublicEventSponsor[];
   order?: number;
   createdAt: string;
   updatedAt: string;
@@ -721,7 +756,11 @@ const SEED_SITE_METRICS: SiteMetric[] = [
  * the read-from-disk → atomic-rename sequence never overlaps for one file.
  * The stored tail never rejects, so one failed write does not break the chain.
  */
-const fileWriteLocks = new Map<string, Promise<unknown>>();
+// One table for the whole process, not one per copy of this module: Next.js can evaluate it once for each route's bundle,
+// and a table per copy would let two routes (the events routes, the sponsors routes, the admin assistant) write the same
+// file at the same moment.
+const lockTable = globalThis as typeof globalThis & { __abFileWriteLocks?: Map<string, Promise<unknown>> };
+const fileWriteLocks = (lockTable.__abFileWriteLocks ??= new Map<string, Promise<unknown>>());
 
 function withFileLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const previous = fileWriteLocks.get(key) ?? Promise.resolve();
@@ -745,9 +784,15 @@ function withFileLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
 async function atomicWrite(dir: string, filename: string, data: string): Promise<void> {
   await mkdir(dir, { recursive: true });
   const target = join(dir, filename);
-  const tmp = join(dir, `.${filename}.tmp`);
-  await writeFile(tmp, data, 'utf-8');
-  await rename(tmp, target);
+  // A name of its own for each write: two writers of one file (whatever the lock) can never take each other's temp file.
+  const tmp = join(dir, `.${filename}.${randomBytes(6).toString('hex')}.tmp`);
+  try {
+    await writeFile(tmp, data, 'utf-8');
+    await rename(tmp, target);
+  } catch (err) {
+    await rm(tmp, { force: true }).catch(() => undefined); // never leave a half-written temp file behind
+    throw err;
+  }
 }
 
 async function readJsonFile<T>(filename: string, fallback: T): Promise<T> {
@@ -787,11 +832,26 @@ function normalizeEvent(event: Event | (Event & { ticketStatus?: Event['ticketSt
 // public/data/ (which Hostinger serves verbatim and client fetchers read). The
 // canonical data/ copy keeps the full record so admin telemetry stays intact.
 
-/** Strip admin-internal financial fields from an Event before any public/client use. */
+/**
+ * Strip admin-internal financial fields from an Event before any public/client use. The stored sponsor links are left
+ * out as well: the listing pages never show them, and the event page gets the resolved public list instead
+ * (toPublicEventDetail), so a hidden sponsor's id never reaches the browser.
+ */
 export function toPublicEvent(event: Event): Event {
   const pub = { ...event };
   delete pub.ticketsSold;
   delete pub.ticketRevenue;
+  delete pub.sponsorLinks;
+  delete pub.sponsorIds;
+  delete pub.eventSponsors;
+  return pub;
+}
+
+/** The public projection of an event for its own page: toPublicEvent plus the organisations to show (omitted when there are none). */
+export function toPublicEventDetail(event: Event, sponsorsById: ReadonlyMap<string, Sponsor>): Event {
+  const pub = toPublicEvent(event);
+  const eventSponsors = publicEventSponsorsOf(event, sponsorsById);
+  if (eventSponsors.length > 0) pub.eventSponsors = eventSponsors;
   return pub;
 }
 
@@ -908,13 +968,27 @@ async function updateJsonFile<T>(
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-export async function getEvents(): Promise<Event[]> {
+/** The events as the file holds them. An export build's data/events.json also carries each event's `eventSponsors` (what the live API returned). */
+async function readEvents(): Promise<Event[]> {
   const events = await readJsonFile('events.json', SEED_EVENTS);
   return events.map(normalizeEvent);
 }
 
+/**
+ * The events for every page and route except the event page itself. `eventSponsors` is not part of an event, it is the
+ * organisations an export build pinned to the event page: nothing else (the gallery page, the sitemap) should carry it.
+ */
+export async function getEvents(): Promise<Event[]> {
+  return (await readEvents()).map((event) => {
+    if (event.eventSponsors === undefined) return event;
+    const rest = { ...event };
+    delete rest.eventSponsors;
+    return rest;
+  });
+}
+
 export async function getEventBySlug(slug: string): Promise<Event | null> {
-  const events = await getEvents();
+  const events = await readEvents();
   return events.find((e) => e.slug === slug) ?? null;
 }
 
@@ -923,15 +997,89 @@ export async function saveEvents(events: Event[]): Promise<void> {
   await writeJsonFile('events.json', events);
 }
 
-/** Events for public/unauthenticated responses — admin-internal financial fields stripped. */
+/**
+ * The events as stored, read strictly: a missing file means the seed events (first run), but a file that exists and cannot
+ * be read, or is not a list, raises instead of being replaced by them (getEvents serves the seed in that case, which is
+ * right for a page and wrong for anything that is about to write).
+ */
+export async function getEventsStrict(): Promise<Event[]> {
+  let stored: unknown;
+  try {
+    stored = JSON.parse(await readFile(join(DATA_DIR, 'events.json'), 'utf-8'));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') throw err;
+    stored = SEED_EVENTS;
+  }
+  if (!Array.isArray(stored)) throw new Error('events.json does not hold a list of events');
+  return (stored as Event[]).map(normalizeEvent);
+}
+
+/**
+ * Read-modify-write the events store under the per-file lock, so overlapping admin actions (an event edit, a reorder, a
+ * change of links made from the Sponsors view) cannot overwrite each other. `mutate` returns the new list plus a value
+ * for the caller; return no `events` to change nothing (nothing is written). The read is strict (getEventsStrict), so a
+ * write can never destroy a store that merely failed to parse. It must not modify `current` in place.
+ */
+export async function updateEvents<R>(
+  mutate: (current: Event[]) => { events?: Event[]; result: R },
+): Promise<R> {
+  return withFileLock('events.json', async () => {
+    const { events, result } = mutate(await getEventsStrict());
+    if (events) await writeJsonFileUnlocked('events.json', events);
+    return result;
+  });
+}
+
+/** Visible sponsors by id, for resolving the organisations of an event page; an unreadable store means none, never a failed page. */
+async function visibleSponsorsById(): Promise<Map<string, Sponsor>> {
+  try {
+    return new Map((await getVisibleSponsors()).map((sponsor) => [sponsor.id, sponsor]));
+  } catch (err) {
+    console.error('[data] could not read the sponsors for the event pages:', err);
+    return new Map();
+  }
+}
+
+/**
+ * Events for public/unauthenticated responses — admin-internal financial fields stripped. The listing pages (home,
+ * events) use this: no sponsor data, so their output does not depend on which sponsors an event has.
+ */
 export async function getPublicEvents(): Promise<Event[]> {
   return (await getEvents()).map(toPublicEvent);
 }
 
-/** Single event by slug for public/unauthenticated responses — financial fields stripped. */
+/** Every event with the organisations it shows (public fields only), for GET /api/events: the event pages read their sponsors from it. */
+export async function getPublicEventDetails(): Promise<Event[]> {
+  const [events, sponsorsById] = await Promise.all([getEvents(), visibleSponsorsById()]);
+  return events.map((event) => toPublicEventDetail(event, sponsorsById));
+}
+
+/** Single event by slug for public/unauthenticated responses — financial fields stripped, organisations resolved. */
 export async function getPublicEventBySlug(slug: string): Promise<Event | null> {
   const event = await getEventBySlug(slug);
-  return event ? toPublicEvent(event) : null;
+  return event ? toPublicEventDetail(event, await visibleSponsorsById()) : null;
+}
+
+/**
+ * Remove a sponsor from every event that holds it, in one locked write of the events store (none when no event holds
+ * it). Called whenever a sponsor is deleted. Resolves to the ids of the events that changed.
+ */
+export async function removeSponsorFromEvents(sponsorId: string): Promise<string[]> {
+  return updateEvents((current) => {
+    const { events, changedEventIds } = removeSponsorLinks(current, sponsorId, new Date().toISOString());
+    return { events: changedEventIds.length > 0 ? events : undefined, result: changedEventIds };
+  });
+}
+
+/**
+ * Replace every link of one sponsor across the events in one locked write (the Sponsors view of the admin portal).
+ * Resolves to the ids of the events that changed.
+ */
+export async function replaceSponsorEventLinks(sponsorId: string, desired: readonly SponsorEventLink[]): Promise<string[]> {
+  return updateEvents((current) => {
+    const { events, changedEventIds } = setSponsorLinks(current, sponsorId, desired, new Date().toISOString());
+    return { events: changedEventIds.length > 0 ? events : undefined, result: changedEventIds };
+  });
 }
 
 export async function getSponsors(): Promise<Sponsor[]> {
