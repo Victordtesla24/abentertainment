@@ -1,0 +1,16 @@
+[Unit]
+Description=abentertainment: dispatch the static export build when the live data, the sources or a failed run leave the served export stale
+Documentation=https://github.com/Victordtesla24/abentertainment/tree/main/ops/export-trigger
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Exit 0 for every decision (up to date, skipped, dispatched); 1 only when the tick itself failed (the reason is in the log).
+# Log: /var/log/agent-ops/export-trigger-abentertainment.log (rotated by /etc/logrotate.d/agent-ops). Uses root's existing gh login.
+ExecStart=/usr/bin/python3 -B /usr/local/sbin/abentertainment-export-trigger
+TimeoutStartSec=8min
+Nice=10
+Environment=HOME=/root PYTHONDONTWRITEBYTECODE=1
+NoNewPrivileges=true
+PrivateTmp=true

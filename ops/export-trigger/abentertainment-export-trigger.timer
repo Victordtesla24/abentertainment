@@ -1,0 +1,10 @@
+[Unit]
+Description=abentertainment: check every 3 minutes whether the served static export is stale and dispatch the build
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=3min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,366 @@
+#!/usr/bin/env python3
+"""Keep the Hostinger static export (out/ on main) in step with the live public data, without relying on GitHub's schedule.
+
+Why this exists: admin edits (events, sponsors, gallery, settings...) live only in the API container's data volume and never
+reach git, so the static HTML has to be rebuilt from the live API after them. The 15-minute `schedule:` of
+build-export.yml does that in theory, but GitHub runs schedules best effort and fired it once in the first five hours. This
+timer is the reliable trigger; the schedule stays as a secondary safety net.
+
+Every few minutes (abentertainment-export-trigger.timer, root, flock'ed) it:
+  1. fetches origin/main (read only: remote-tracking refs and objects, the live checkout is not touched);
+  2. runs the SAME check the workflow uses (scripts/refresh-build-data.mjs --check, taken from origin/main) against the live
+     public API, comparing the data hash and the source hash (git ls-tree of origin/main) with out/.build-info.json of
+     origin/main, which is what Hostinger serves;
+  3. if they differ: dispatches build-export.yml with commit=true using root's existing gh credential (no new secret) unless
+       - a build-export run for main is queued or in progress,
+       - the tip of main is a push from the last minute whose own push run has not started yet,
+       - the last runs on main failed: exponential back-off 5, 10, 20, 40, 60 minutes (a failed run leaves the export stale,
+         so this is also the "re-dispatch after a failed run" path that heals a push whose export failed),
+       - more than ET_MAX_PER_HOUR (6) dispatches were made in the last hour, or the last one was under 4 minutes ago.
+The outcome of every tick is written to /var/log/agent-ops/export-trigger-abentertainment.log (a repeated "up to date" is
+logged once per hour), the state to /var/lib/abentertainment-export-trigger/state.json.
+
+Options:  --dry-run   decide and log, never dispatch
+          --status    print the state file and exit
+          --recorded-file F   use F instead of origin/main's out/.build-info.json (simulate a stale export)
+          --script F  run F instead of origin/main's scripts/refresh-build-data.mjs (testing before a change is on main)
+          --self-test run the pure-logic checks and exit
+"""
+import argparse
+import datetime as dt
+import fcntl
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+REPO_DIR = os.environ.get("ET_REPO_DIR", "/docker/abentertainment")
+GH_REPO = os.environ.get("ET_GH_REPO", "Victordtesla24/abentertainment")
+WORKFLOW = "build-export.yml"
+STATE_DIR = os.environ.get("ET_STATE_DIR", "/var/lib/abentertainment-export-trigger")
+STATE_FILE = os.path.join(STATE_DIR, "state.json")
+LOG_FILE = os.environ.get("ET_LOG_FILE", "/var/log/agent-ops/export-trigger-abentertainment.log")
+LOCK_FILE = os.environ.get("ET_LOCK_FILE", "/var/lock/agent-ops-export-trigger-abentertainment.lock")
+CHECK_DELAYS_MS = os.environ.get("ET_CHECK_DELAYS_MS", "0,3000,6000")   # a failed check is simply retried at the next tick
+
+LIMITS = {
+    "max_per_hour": int(os.environ.get("ET_MAX_PER_HOUR", "6")),
+    "min_spacing_s": int(os.environ.get("ET_MIN_SPACING_S", "240")),
+    "fresh_push_grace_s": int(os.environ.get("ET_FRESH_PUSH_GRACE_S", "60")),
+    "backoff_base_s": int(os.environ.get("ET_BACKOFF_BASE_S", "300")),
+    "backoff_max_s": int(os.environ.get("ET_BACKOFF_MAX_S", "3600")),
+}
+ACTIVE = {"queued", "in_progress", "waiting", "requested", "pending"}
+FAILED = {"failure", "timed_out", "startup_failure"}
+
+
+def now_iso(ts=None):
+    return dt.datetime.fromtimestamp(ts if ts is not None else time.time(), dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def parse_iso(text):
+    return dt.datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc).timestamp()
+
+
+def log(message, quiet=False):
+    line = "[%s] export-trigger: %s" % (now_iso(), message)
+    if not quiet:
+        print(line, flush=True)
+    try:
+        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        fd = os.open(LOG_FILE, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o640)   # same mode as the other agent-ops logs
+        with os.fdopen(fd, "a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
+    except OSError as exc:
+        sys.stderr.write("cannot write %s: %s\n" % (LOG_FILE, exc))
+
+
+# ----------------------------------------------------------------------------------------- pure decision logic
+def consecutive_failures(runs):
+    """Newest-first list of completed runs on main -> (number of failures before the first success, time the newest failed).
+    Cancelled and skipped runs (superseded by a newer push) neither count nor break the streak."""
+    count, newest = 0, None
+    for run in runs:
+        if run.get("status") != "completed":
+            continue
+        conclusion = run.get("conclusion")
+        if conclusion == "success":
+            break
+        if conclusion in FAILED:
+            count += 1
+            if newest is None:
+                newest = parse_iso(run["updatedAt"])
+    return count, newest
+
+
+def stale_reasons(recorded, live):
+    if recorded is None:
+        return ["no export record on main"]
+    reasons = []
+    if str(recorded.get("source", ""))[:12] != live.get("source"):
+        reasons.append("sources changed")
+    if str(recorded.get("data", ""))[:12] != live.get("data"):
+        reasons.append("live data changed")
+    return reasons or ["inputs hash differs"]
+
+
+def decide(now, check, recorded, tip, runs, state, limits=LIMITS):
+    """-> (action, reason). action is one of: idle (export is current), skip (stale, but not now), dispatch."""
+    if check is None:
+        return "skip", "the live check failed (API unreachable or invalid); retrying at the next tick"
+    if not check["needs_build"]:
+        return "idle", "export is up to date (inputs %s)" % check["inputs"]
+    reasons = "; ".join(stale_reasons(recorded, check))
+    active = [r for r in runs if r.get("status") in ACTIVE]
+    if active:
+        r = active[0]
+        return "skip", "stale (%s) but build-export run %s (%s, %s) is already %s" % (reasons, r["databaseId"], r.get("event"), r.get("headSha", "")[:8], r["status"])
+    if tip.get("is_bot") is False and now - tip["committed_at"] < limits["fresh_push_grace_s"] and not any(r.get("headSha") == tip["sha"] for r in runs):
+        return "skip", "stale (%s) but %s was pushed %ds ago and its push run has not started yet" % (reasons, tip["sha"][:8], now - tip["committed_at"])
+    failed_builds, newest_failure = consecutive_failures(runs)
+    fruitless = int(state.get("no_progress", 0))
+    failures = max(failed_builds, fruitless)
+    if failures:
+        wait = min(limits["backoff_max_s"], limits["backoff_base_s"] * 2 ** (failures - 1))
+        reference = newest_failure if newest_failure is not None else float(state.get("last_dispatch_at", 0))
+        if now < reference + wait:
+            return "skip", "stale (%s); %d consecutive failed or fruitless builds, backing off %dm until %s" % (reasons, failures, wait // 60, now_iso(reference + wait))
+    dispatched = sorted((parse_iso(r["createdAt"]) for r in runs if r.get("event") == "workflow_dispatch"), reverse=True)
+    last_hour = [t for t in dispatched if now - t < 3600]
+    if len(last_hour) >= limits["max_per_hour"]:
+        return "skip", "stale (%s) but %d dispatches in the last hour already (cap %d)" % (reasons, len(last_hour), limits["max_per_hour"])
+    if dispatched and now - dispatched[0] < limits["min_spacing_s"]:
+        return "skip", "stale (%s) but the last dispatch was %ds ago (minimum %ds)" % (reasons, now - dispatched[0], limits["min_spacing_s"])
+    if not failures:
+        label = reasons
+    elif failed_builds >= fruitless:
+        label = "retry after %d failed build%s" % (failures, "" if failures == 1 else "s")
+    else:
+        label = "retry after %d build%s that did not refresh the export" % (failures, "" if failures == 1 else "s")
+    return "dispatch", "%s (live %s, served %s)" % (label, check["inputs"], str(recorded.get("inputs", "none"))[:12] if recorded else "none")
+
+
+def parse_check(stdout, output_text):
+    """stdout of `refresh-build-data.mjs --check` and the GITHUB_OUTPUT file -> dict, or None when the check did not complete."""
+    snap = re.search(r"live snapshot from \S+: (\{.*?\}); data ([0-9a-f]{12}), source ([0-9a-f]{12}), inputs ([0-9a-f]{12})", stdout)
+    needs = re.search(r"^needs_build=(true|false)$", output_text, re.M)
+    if not snap or not needs:
+        return None
+    return {"needs_build": needs.group(1) == "true", "counts": snap.group(1), "data": snap.group(2), "source": snap.group(3), "inputs": snap.group(4)}
+
+
+def self_test():
+    runs = lambda *specs: [dict(databaseId=i + 1, status=s, conclusion=c, event=e, createdAt=now_iso(t), updatedAt=now_iso(t + 60), headSha="s%d" % i) for i, (s, c, e, t) in enumerate(specs)]
+    base = 1_800_000_000
+    check = {"needs_build": True, "data": "d" * 12, "source": "s" * 12, "inputs": "i" * 12, "counts": "{}"}
+    rec = {"source": "x" * 40, "data": "d" * 40, "inputs": "y" * 64}
+    tip = {"sha": "t" * 40, "committed_at": base - 3600, "is_bot": False}
+    st = {}
+    assert decide(base, None, rec, tip, [], st)[0] == "skip"
+    assert decide(base, dict(check, needs_build=False), rec, tip, [], st)[0] == "idle"
+    action, why = decide(base, check, rec, tip, [], st)
+    assert action == "dispatch" and "sources changed" in why and "live data changed" not in why, why
+    assert "live data changed" in decide(base, check, dict(rec, source="s" * 40, data="e" * 40), tip, [], st)[1]
+    assert decide(base, check, None, tip, [], st)[0] == "dispatch"
+    assert decide(base, check, rec, tip, runs(("in_progress", None, "push", base - 30)), st)[0] == "skip"
+    assert decide(base, check, rec, tip, runs(("queued", None, "schedule", base - 30)), st)[0] == "skip"
+    fresh = dict(tip, committed_at=base - 20)
+    assert decide(base, check, rec, fresh, [], st)[0] == "skip"                                                  # push run not started yet
+    assert decide(base, check, rec, dict(fresh, is_bot=True), [], st)[0] == "dispatch"
+    seen = runs(("completed", "failure", "push", base - 900)); seen[0]["headSha"] = fresh["sha"]
+    assert decide(base, check, rec, dict(fresh, committed_at=base - 1000), seen, st)[0] == "dispatch"            # failed 15 min ago, back-off 5 min over
+    recent = runs(("completed", "failure", "push", base - 100))
+    assert decide(base, check, rec, tip, recent, st)[0] == "skip"                                                # inside the 5 minute back-off
+    three = runs(("completed", "failure", "push", base - 700), ("completed", "failure", "schedule", base - 2000), ("completed", "failure", "push", base - 3000))
+    assert decide(base, check, rec, tip, three, st)[0] == "skip"                                                 # 3 failures: back-off 20 min, 11 min passed
+    assert decide(base + 700, check, rec, tip, three, st)[0] == "dispatch"
+    cancelled = runs(("completed", "cancelled", "push", base - 100), ("completed", "success", "push", base - 5000))
+    assert decide(base, check, rec, tip, cancelled, st)[0] == "dispatch"                                         # cancelled neither counts nor blocks
+    assert consecutive_failures(runs(("completed", "failure", "push", base), ("completed", "success", "push", base - 9), ("completed", "failure", "push", base - 99)))[0] == 1
+    many = runs(*[("completed", "success", "workflow_dispatch", base - 500 * (i + 1)) for i in range(6)])
+    assert decide(base, check, rec, tip, many, st)[0] == "skip" and "cap" in decide(base, check, rec, tip, many, st)[1]
+    spaced = runs(("completed", "success", "workflow_dispatch", base - 100))
+    assert decide(base, check, rec, tip, spaced, st)[0] == "skip" and "minimum" in decide(base, check, rec, tip, spaced, st)[1]
+    assert decide(base, check, rec, tip, spaced, {"no_progress": 2, "last_dispatch_at": base - 100})[0] == "skip"
+    out = parse_check("[refresh-build-data] live snapshot from https://x: {\"events\":10}; data 0123456789ab, source ba9876543210, inputs 00112233aabb\n", "needs_build=true\ninputs=abc\n")
+    assert out and out["needs_build"] and out["data"] == "0123456789ab" and out["source"] == "ba9876543210"
+    assert parse_check("nothing", "needs_build=true\n") is None and parse_check("", "") is None
+    assert now_iso(parse_iso("2026-10-14T03:36:54Z")) == "2026-10-14T03:36:54Z"
+    print("self-test ok")
+
+
+# ----------------------------------------------------------------------------------------- side effects
+def sh(cmd, timeout=120, env=None, cwd=None):
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env, cwd=cwd)
+    return p.returncode, p.stdout, p.stderr
+
+
+def git(*args, timeout=120):
+    return sh(["git", "-c", "safe.directory=" + REPO_DIR, "-C", REPO_DIR, *args], timeout=timeout)
+
+
+class Backend:
+    """Everything that touches the outside world; tests replace it with a fake."""
+
+    def __init__(self, recorded_file=None, script=None):
+        self.recorded_file = recorded_file
+        self.script = script
+
+    def fetch_tip(self):
+        rc, out, err = git("fetch", "--no-tags", "-q", "origin", "main", timeout=120)
+        if rc != 0:
+            raise RuntimeError("git fetch failed: %s" % err.strip()[:200])
+        rc, sha, err = git("rev-parse", "origin/main")
+        rc2, info, err2 = git("log", "-1", "--format=%cI%x09%an", "origin/main")
+        if rc != 0 or rc2 != 0:
+            raise RuntimeError("cannot read origin/main: %s %s" % (err.strip(), err2.strip()))
+        committed, author = info.strip().split("\t", 1)
+        when = dt.datetime.fromisoformat(committed).timestamp()
+        return {"sha": sha.strip(), "committed_at": when, "is_bot": author.startswith("github-actions")}
+
+    def recorded(self):
+        if self.recorded_file:
+            with open(self.recorded_file, encoding="utf-8") as fh:
+                return json.load(fh)
+        rc, out, err = git("show", "origin/main:out/.build-info.json")
+        if rc != 0:
+            return None
+        try:
+            return json.loads(out)
+        except ValueError:
+            return None
+
+    def check(self, recorded):
+        with tempfile.TemporaryDirectory(prefix="abent-export-trigger-") as tmp:
+            info = os.path.join(tmp, "build-info.json")
+            with open(info, "w", encoding="utf-8") as fh:
+                if recorded is not None:
+                    json.dump(recorded, fh)
+            script = self.script
+            if not script:
+                script = os.path.join(tmp, "refresh-build-data.mjs")
+                rc, text, err = git("show", "origin/main:scripts/refresh-build-data.mjs")
+                if rc != 0:
+                    return None
+                with open(script, "w", encoding="utf-8") as fh:
+                    fh.write(text)
+            outfile = os.path.join(tmp, "github-output")
+            open(outfile, "w").close()
+            env = dict(os.environ, EXPORT_BUILD_INFO=info, EXPORT_SOURCE_REF="origin/main", EXPORT_DATA_RETRY_DELAYS_MS=CHECK_DELAYS_MS, GITHUB_OUTPUT=outfile)
+            node = shutil.which("node") or "node"
+            try:
+                rc, out, err = sh([node, script, "--check"], timeout=300, env=env, cwd=REPO_DIR)
+            except subprocess.TimeoutExpired:
+                return None
+            if rc != 0:
+                log("check exited %d: %s" % (rc, (err.strip().splitlines() or [""])[-1][:240]))
+                return None
+            with open(outfile, encoding="utf-8") as fh:
+                return parse_check(out, fh.read())
+
+    def runs(self):
+        rc, out, err = sh(["gh", "run", "list", "-R", GH_REPO, "--workflow", WORKFLOW, "--branch", "main", "--limit", "50",
+                           "--json", "databaseId,status,conclusion,event,createdAt,updatedAt,headSha"], timeout=90)
+        if rc != 0:
+            raise RuntimeError("gh run list failed: %s" % err.strip()[:200])
+        return json.loads(out)
+
+    def dispatch(self):
+        rc, out, err = sh(["gh", "workflow", "run", WORKFLOW, "-R", GH_REPO, "--ref", "main", "-f", "commit=true"], timeout=90)
+        if rc != 0:
+            raise RuntimeError("gh workflow run failed: %s" % err.strip()[:200])
+
+
+def load_state():
+    try:
+        with open(STATE_FILE, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(state):
+    os.makedirs(STATE_DIR, mode=0o750, exist_ok=True)
+    tmp = STATE_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(state, fh, indent=1, sort_keys=True)
+    os.replace(tmp, STATE_FILE)
+
+
+def tick(backend, state, dry_run=False, now=None):
+    now = now if now is not None else time.time()
+    tip = backend.fetch_tip()
+    recorded = backend.recorded()
+    check = backend.check(recorded)
+    runs = backend.runs() if (check and check["needs_build"]) else []
+    # a build that succeeded but left the same record in place has not resolved the staleness: count it as fruitless
+    if check and check["needs_build"] and state.get("dispatched_against") and recorded is not None \
+            and state["dispatched_against"] == str(recorded.get("inputs")) and runs and runs[0].get("status") == "completed" \
+            and runs[0].get("conclusion") == "success" and now - float(state.get("last_dispatch_at", 0)) > 120:
+        state["no_progress"] = int(state.get("no_progress", 0)) + 1
+        state["dispatched_against"] = None
+    elif check and not check["needs_build"]:
+        state["no_progress"] = 0
+        state["dispatched_against"] = None
+    action, reason = decide(now, check, recorded, tip, runs, state)
+    summary = "%s: %s" % (action.upper(), reason)
+    if action == "dispatch":
+        if dry_run:
+            log("DRY-RUN would dispatch %s: %s" % (WORKFLOW, reason))
+        else:
+            backend.dispatch()
+            state["last_dispatch_at"] = now
+            state["dispatched_against"] = str(recorded.get("inputs")) if recorded else None
+            log("DISPATCHED %s (commit=true): %s" % (WORKFLOW, reason))
+        state["last_summary"] = summary
+    else:
+        # an unchanged "up to date" / identical skip is logged once an hour, a change at once
+        unchanged = state.get("last_summary") == summary
+        if not unchanged or now - float(state.get("last_logged_at", 0)) > 3600:
+            log(summary)
+            state["last_logged_at"] = now
+        state["last_summary"] = summary
+    state["last_tick_at"] = now
+    return action, reason
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--status", action="store_true")
+    parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--recorded-file")
+    parser.add_argument("--script")
+    args = parser.parse_args()
+    if args.self_test:
+        return self_test() or 0
+    if args.status:
+        print(json.dumps(load_state(), indent=1, sort_keys=True))
+        return 0
+    os.makedirs(os.path.dirname(LOCK_FILE), exist_ok=True)
+    lock = open(LOCK_FILE, "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        log("previous tick still running; skipping", quiet=True)
+        return 0
+    state = load_state()
+    try:
+        action, reason = tick(Backend(args.recorded_file, args.script), state, dry_run=args.dry_run)
+    except Exception as exc:  # a failing tick must be visible in the log and in `systemctl status`, never silent
+        log("ERROR %s: %s" % (type(exc).__name__, str(exc)[:300]))
+        state["last_error"] = str(exc)[:300]
+        if not args.dry_run:
+            save_state(state)
+        return 1
+    if not args.dry_run:
+        save_state(state)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
