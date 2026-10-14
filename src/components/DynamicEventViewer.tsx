@@ -6,6 +6,7 @@ import Link from 'next/link';
 import EventNotFoundBlock from '@/components/EventNotFoundBlock';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
 import OptimizedImage from '@/components/ui/OptimizedImage';
+import EventSponsorsSection from '@/components/EventSponsorsSection';
 import { firstUsableImageUrl, isUsableImageUrl } from '@/lib/perf/image-source';
 import { getApiUrl } from '@/lib/api-config';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
@@ -408,6 +409,8 @@ export default function DynamicEventViewer() {
               )}
             </aside>
           </div>
+
+          <EventSponsorsSection sponsors={event.eventSponsors} />
         </div>
       </section>
     </>

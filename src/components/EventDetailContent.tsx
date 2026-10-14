@@ -5,6 +5,7 @@ import Link from 'next/link';
 import CountdownTimer from '@/components/ui/CountdownTimer';
 import GalleryLightbox from '@/components/ui/GalleryLightbox';
 import OptimizedImage from '@/components/ui/OptimizedImage';
+import EventSponsorsSection from '@/components/EventSponsorsSection';
 import { isUsableImageUrl } from '@/lib/perf/image-source';
 import { getApiUrl } from '@/lib/api-config';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
@@ -276,6 +277,8 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
             )}
           </aside>
         </div>
+
+        <EventSponsorsSection sponsors={event.eventSponsors} />
       </div>
     </section>
   );
