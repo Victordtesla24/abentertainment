@@ -21,10 +21,11 @@ const PUBLIC_DATA_DIR = join(process.cwd(), 'public', 'data');
 // Files whose public copy is a projection of the canonical file rather than a
 // byte-for-byte copy. Must mirror serializePublicMirror() in src/lib/data.ts.
 const PUBLIC_PROJECTIONS = {
-  // Same projection as toPublicEvent() in src/lib/data.ts.
+  // Same projection as toPublicEvent() in src/lib/data.ts: no ticket sales, and no sponsors and partners (the stored links
+  // are admin data; an event page gets its organisations from the API, never from this file).
   'events.json': (events) => {
     if (!Array.isArray(events)) throw new Error('expected a JSON list');
-    return events.map(({ ticketsSold, ticketRevenue, ...rest }) => rest);
+    return events.map(({ ticketsSold, ticketRevenue, sponsorLinks, sponsorIds, eventSponsors, ...rest }) => rest);
   },
   // Same projection as the public sponsors mirror in src/lib/data.ts:
   // hidden sponsors removed, revenue/contract values stripped.

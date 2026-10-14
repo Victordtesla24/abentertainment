@@ -8,7 +8,10 @@
  *  2. out/data/*.json carry the refreshed live records (same counts as the API snapshot);
  *  3. /sponsors/ lists every visible sponsor and no sponsor the live list no longer has;
  *  4. /events/ lists every live event and each event has its pre-rendered page;
- *  5. no secret-looking string (bcrypt hash, API key, private key) is present in the artifact.
+ *  5. the sponsors and partners of events: every event that carries some shows each of them on its own page (and no
+ *     event without any has the section), no page lists a sponsor the live list no longer shows, and nothing stored or
+ *     internal about the links (`sponsorLinks`, `sponsorIds`, contract values) is in the event pages or out/data;
+ *  6. no secret-looking string (bcrypt hash, API key, private key) is present in the artifact.
  *
  * Run after scripts/refresh-build-data.mjs (data/*.json hold the snapshot) and `npm run build:export`.
  */
@@ -99,7 +102,54 @@ async function main() {
   if (missingPages.length) problem(`no pre-rendered page for events: ${missingPages.map((event) => event.slug).join(', ')}`);
   notes.push(`/events/ lists the ${events.length} live events, each with its page`);
 
-  // 5. secrets
+  // 5. the sponsors and partners of each event
+  // The section is the <section> that holds the heading id below (the component renders it only for an event that has some).
+  const SECTION_MARKER = 'id="event-sponsors-heading"';
+  const sectionOf = (html) => {
+    const at = html.indexOf(SECTION_MARKER);
+    if (at === -1) return null;
+    const close = html.indexOf('</section>', at);
+    return html.slice(at, close === -1 ? undefined : close);
+  };
+  const liveSponsorIds = new Set(sponsors.map((sponsor) => sponsor.id));
+  const baselineSponsors = gitShow('HEAD:data/sponsors.json');
+  const staleSponsorNames = baselineSponsors
+    ? JSON.parse(baselineSponsors).map((sponsor) => sponsor.name).filter((name) => name && !sponsors.some((live) => live.name === name))
+    : [];
+  let withSponsors = 0;
+  let sponsorEntries = 0;
+  for (const event of events) {
+    const page = await readFile(join(OUT, 'events', event.slug, 'index.html'), 'utf-8');
+    const section = sectionOf(page);
+    const carried = Array.isArray(event.eventSponsors) ? event.eventSponsors : [];
+    for (const entry of carried) {
+      if (!liveSponsorIds.has(entry.id)) problem(`data/events.json: ${event.slug} carries ${entry.id}, which is not in the live sponsor list`);
+    }
+    if (carried.length > 0) {
+      withSponsors += 1;
+      sponsorEntries += carried.length;
+      if (section === null) problem(`/events/${event.slug}/ has no sponsors and partners section although the event has ${carried.length}`);
+      else {
+        const missing = carried.filter((entry) => !section.includes(escapeHtml(entry.name)));
+        if (missing.length) problem(`/events/${event.slug}/ lacks sponsors or partners: ${missing.map((entry) => entry.name).join(', ')}`);
+      }
+    } else if (section !== null) {
+      problem(`/events/${event.slug}/ shows a sponsors and partners section but the event has none`);
+    }
+    const stale = section === null ? [] : staleSponsorNames.filter((name) => section.includes(escapeHtml(name)));
+    if (stale.length) problem(`/events/${event.slug}/ still lists sponsors that are not live: ${stale.join(', ')}`);
+    for (const internal of ['sponsorLinks', 'sponsorIds', 'contractValue']) {
+      if (page.includes(internal)) problem(`/events/${event.slug}/ carries "${internal}"`);
+    }
+  }
+  for (const record of outEvents) {
+    for (const internal of ['sponsorLinks', 'sponsorIds']) {
+      if (internal in record) problem(`out/data/events.json: ${record.slug} carries "${internal}"`);
+    }
+  }
+  notes.push(`${sponsorEntries} sponsors and partners on ${withSponsors} event pages`);
+
+  // 6. secrets
   const patterns = [
     [/\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}/, 'bcrypt hash'],
     [/sk-(?:proj-|ant-)?[A-Za-z0-9_-]{32,}/, 'API key'],

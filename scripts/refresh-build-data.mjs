@@ -14,6 +14,11 @@
  *  - Only the public projection is used: whatever the public API returns, with
  *    hidden records and admin-internal fields (revenue, contract value, ticket sales)
  *    dropped again here as a second barrier.
+ *  - The sponsors and partners of an event arrive as `eventSponsors` on the event (id, name, logo, https website, role: in the
+ *    admin's order). The stored links (`sponsorLinks`, `sponsorIds`) are admin data and are dropped here too. Each
+ *    organisation is checked against the public sponsor list of the same snapshot, so one that was hidden or deleted a
+ *    moment ago is left out, and only the five public fields are kept (never a tier, revenue or contract value). A list that
+ *    is not a list, or an entry without an id or a name, fails the build like any other wrong shape.
  *  - The rewritten data files exist only in the build workspace. The pipeline
  *    commits out/ and nothing else.
  *  - Any failure (network, HTTP status, shape, an empty list where the committed
@@ -63,6 +68,10 @@ const SOURCE_PATHS = [
 
 /** Admin-internal fields that must never reach a public surface. */
 const INTERNAL_FIELDS = ['ticketsSold', 'ticketRevenue', 'revenue', 'contractValue'];
+/** The stored links between an event and its organisations: admin data. The public API returns the resolved `eventSponsors` instead. */
+const EVENT_INTERNAL_FIELDS = ['sponsorLinks', 'sponsorIds'];
+/** The only fields of an organisation on an event page (PublicEventSponsor in src/lib/data.ts). */
+const EVENT_SPONSOR_FIELDS = ['id', 'name', 'logo', 'url', 'role'];
 
 const LISTS = [
   { name: 'events', endpoint: '/api/events', file: 'events.json', required: ['id', 'title', 'slug', 'date'] },
@@ -144,6 +153,60 @@ function stripInternal(record) {
   return clean;
 }
 
+/** A website the page may link to: https with a host, no credentials, no spaces. */
+function isHttpsUrl(value) {
+  if (typeof value !== 'string' || value.trim() === '' || /\s/.test(value)) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' && parsed.hostname !== '' && parsed.username === '' && parsed.password === '';
+  } catch {
+    return false;
+  }
+}
+
+/** A logo the page may load: a path on this site, or an https address. */
+function isSafeLogo(value) {
+  return typeof value === 'string' && (/^\/(?![/\\])[^\s\\]*$/.test(value) || isHttpsUrl(value));
+}
+
+/**
+ * The event as the export may use it: no stored links, and `eventSponsors` reduced to the public fields of the organisations
+ * the public sponsor list of this snapshot still shows. `dropped` counts the entries that were left out.
+ */
+function cleanEvent(record, visibleSponsorIds, tally) {
+  const clean = stripInternal(record);
+  for (const field of EVENT_INTERNAL_FIELDS) delete clean[field];
+  if (clean.eventSponsors === undefined) return clean;
+  if (!Array.isArray(clean.eventSponsors)) fail(`/api/events record ${JSON.stringify(clean.id)}: "eventSponsors" is not a list`);
+  const seen = new Set();
+  const entries = [];
+  for (const entry of clean.eventSponsors) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) fail(`/api/events record ${JSON.stringify(clean.id)}: "eventSponsors" contains a non-object entry`);
+    for (const key of ['id', 'name']) {
+      if (typeof entry[key] !== 'string' || entry[key].trim() === '') fail(`/api/events record ${JSON.stringify(clean.id)}: an "eventSponsors" entry lacks "${key}"`);
+    }
+    if (seen.has(entry.id)) fail(`/api/events record ${JSON.stringify(clean.id)}: "eventSponsors" lists ${entry.id} twice`);
+    seen.add(entry.id);
+    if (!visibleSponsorIds.has(entry.id)) {
+      tally.dropped += 1;
+      continue;
+    }
+    const kept = Object.fromEntries(EVENT_SPONSOR_FIELDS.filter((key) => entry[key] !== undefined).map((key) => [key, entry[key]]));
+    kept.logo = isSafeLogo(kept.logo) ? kept.logo : '';
+    if (kept.url !== undefined && !isHttpsUrl(kept.url)) delete kept.url;
+    kept.role = typeof kept.role === 'string' ? kept.role : '';
+    entries.push(kept);
+  }
+  if (entries.length > 0) {
+    clean.eventSponsors = entries;
+    tally.entries += entries.length;
+    tally.events += 1;
+  } else {
+    delete clean.eventSponsors;
+  }
+  return clean;
+}
+
 async function readBaseline(file) {
   try {
     return JSON.parse(await readFile(join(DATA_DIR, file), 'utf-8'));
@@ -204,11 +267,15 @@ async function snapshot() {
     if (source.name === 'sponsors' || source.name === 'metrics') records = records.filter((record) => record.visible !== false);
     lists[source.name] = records;
   }
+  // The organisations of an event are checked against the public sponsor list of this same snapshot.
+  const visibleSponsorIds = new Set(lists.sponsors.map((sponsor) => sponsor.id));
+  const eventSponsors = { events: 0, entries: 0, dropped: 0 };
+  lists.events = lists.events.map((event) => cleanEvent(event, visibleSponsorIds, eventSponsors));
   const settingsPayload = await fetchJson(SETTINGS.endpoint);
   validateSettings(settingsPayload);
   const publicSettings = Object.fromEntries(SETTINGS.required.map((key) => [key, settingsPayload[key]]));
   const dataHash = sha256(JSON.stringify(canonical({ lists, settings: publicSettings })));
-  return { lists, publicSettings, dataHash };
+  return { lists, publicSettings, dataHash, eventSponsors };
 }
 
 function appendOutput(name, value) {
@@ -231,11 +298,12 @@ async function main() {
   }
   if (mode !== '--write' && mode !== '--check') fail(`unknown option ${mode}`);
 
-  const { lists, publicSettings, dataHash } = await snapshot();
+  const { lists, publicSettings, dataHash, eventSponsors } = await snapshot();
   const source = sourceHash();
   const inputs = sha256(`${PIPELINE_VERSION}\n${source}\n${dataHash}`);
   const counts = Object.fromEntries(Object.entries(lists).map(([name, records]) => [name, records.length]));
   console.log(`[refresh-build-data] live snapshot from ${BASE}: ${JSON.stringify(counts)}; data ${dataHash.slice(0, 12)}, source ${source.slice(0, 12)}, inputs ${inputs.slice(0, 12)}`);
+  console.log(`[refresh-build-data] sponsors and partners on events: ${eventSponsors.entries} on ${eventSponsors.events} events${eventSponsors.dropped ? ` (${eventSponsors.dropped} left out: no longer in the public sponsor list)` : ''}`);
 
   if (mode === '--check') {
     let recorded = null;
