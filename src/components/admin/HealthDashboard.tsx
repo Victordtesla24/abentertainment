@@ -1,14 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { adminFetch } from '@/lib/admin-fetch';
 import { TelemetryGaugeGrid } from './telemetry/TelemetryGaugeGrid';
-import { TimeScopeFilter } from './telemetry/TimeScopeFilter';
-import { RevenueChart } from './telemetry/RevenueChart';
-import { TicketSalesChart } from './telemetry/TicketSalesChart';
-import { EventAnalytics } from './telemetry/EventAnalytics';
 import { AdminConsoleTelemetry } from './telemetry/AdminConsoleTelemetry';
+import { BusinessIntelligence } from './telemetry/BusinessIntelligence';
+import type { AdminTab } from '@/lib/admin-bi';
 import type { Event, Sponsor } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
 import useSWR from 'swr';
@@ -29,7 +27,27 @@ const fetcher = (path: string): Promise<HealthData> =>
     return data;
   });
 
+// An admin list for Business Intelligence, through adminFetch so the request carries the admin session header as well as the cookie.
+async function fetchAdminList<T>(path: string, key: 'events' | 'sponsors'): Promise<T[]> {
+  const res = await adminFetch(path);
+  if (!res.ok) throw new Error(`${path} failed with status ${res.status}`);
+  const body = (await res.json()) as Record<string, unknown>;
+  const list = body[key];
+  if (!Array.isArray(list)) throw new Error(`${path} returned no ${key}`);
+  return list as T[];
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+/** The admin data Business Intelligence is calculated from: what was fetched just now, and what could not be. */
+interface BusinessData {
+  /** null until fetched, and after a failed fetch (the data the tab loaded earlier is used then). */
+  events: Event[] | null;
+  sponsors: Sponsor[] | null;
+  failed: Array<'events' | 'sponsors'>;
+  loading: boolean;
+  updatedAt: Date | null;
+}
 
 interface ServerHealth {
   version: string;
@@ -302,9 +320,14 @@ function PageDetailPanel({ page, onClose }: { page: PageCheck; onClose: () => vo
 interface HealthDashboardProps {
   events?: Event[];
   sponsors?: Sponsor[];
+  /** Opens an admin tab; the action buttons of Business Intelligence use it. */
+  onNavigate?: (tab: AdminTab) => void;
 }
 
-export default function HealthDashboard({ events, sponsors }: HealthDashboardProps) {
+const NO_EVENTS: Event[] = [];
+const NO_SPONSORS: Sponsor[] = [];
+
+export default function HealthDashboard({ events, sponsors, onNavigate }: HealthDashboardProps) {
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [pages, setPages] = useState<PageCheck[]>(PAGES.map(p => ({ ...p, status: 'checking' as const, responseTime: 0, statusCode: 0 })));
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -322,16 +345,11 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
   const abortControllerRef = useRef<AbortController | null>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [timeScope, setTimeScope] = useState<'all' | 'past' | 'live' | 'future'>('all');
-
-  const filteredEvents = useMemo(() => {
-    if (!events) return [];
-    if (timeScope === 'all') return events;
-    if (timeScope === 'future') return events.filter(e => e.status === 'upcoming');
-    return events.filter(e => e.status === timeScope);
-  }, [events, timeScope]);
-
-  const filteredSponsors = sponsors || [];
+  // Business Intelligence is calculated from the current admin data: fetched when the Dashboard opens and on Refresh,
+  // with the data this tab was given (the props) as the fallback when a fetch fails.
+  const [businessData, setBusinessData] = useState<BusinessData>({ events: null, sponsors: null, failed: [], loading: true, updatedAt: null });
+  const businessMounted = useRef(true);
+  const businessRequest = useRef(0);
 
   const {
     data: swrHealthData,
@@ -436,15 +454,33 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
     setIssues(found);
   }, []);
 
+  const loadBusinessData = useCallback(async () => {
+    const request = ++businessRequest.current;
+    setBusinessData((previous) => ({ ...previous, loading: true }));
+    const [eventsResult, sponsorsResult] = await Promise.allSettled([
+      fetchAdminList<Event>('/api/admin/events', 'events'),
+      fetchAdminList<Sponsor>('/api/admin/sponsors', 'sponsors'),
+    ]);
+    // A slower, older request never overwrites a newer one, and nothing is set once the Dashboard has closed.
+    if (!businessMounted.current || request !== businessRequest.current) return;
+    setBusinessData({
+      events: eventsResult.status === 'fulfilled' ? eventsResult.value : null,
+      sponsors: sponsorsResult.status === 'fulfilled' ? sponsorsResult.value : null,
+      failed: [...(eventsResult.status === 'rejected' ? ['events' as const] : []), ...(sponsorsResult.status === 'rejected' ? ['sponsors' as const] : [])],
+      loading: false,
+      updatedAt: new Date(),
+    });
+  }, []);
+
   const refreshAll = useCallback(async () => {
     try {
       setLoading(true);
-      await Promise.all([mutate(), checkPages()]);
+      await Promise.all([mutate(), checkPages(), loadBusinessData()]);
       setLastRefresh(new Date());
     } finally {
       setLoading(false);
     }
-  }, [mutate, checkPages]);
+  }, [mutate, checkPages, loadBusinessData]);
 
   useEffect(() => { if (!loading) detectIssues(healthData, pages); }, [healthData, pages, loading, detectIssues]);
   useEffect(() => {
@@ -488,6 +524,13 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
       actionTimeoutRef.current = setTimeout(() => setActionResult(null), 5000);
     }
   }, [mutate]);
+
+  useEffect(() => {
+    businessMounted.current = true;
+    return () => {
+      businessMounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -875,20 +918,13 @@ export default function HealthDashboard({ events, sponsors }: HealthDashboardPro
 
       <AdminConsoleTelemetry />
 
-      {/* Business Metrics */}
-      <div className="mt-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-display font-semibold text-white">Business Intelligence</h3>
-          <TimeScopeFilter scope={timeScope} onChange={setTimeScope} />
-        </div>
-
-        <EventAnalytics events={filteredEvents} />
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <RevenueChart sponsors={filteredSponsors} />
-          <TicketSalesChart events={filteredEvents} />
-        </div>
-      </div>
+      {/* Business Intelligence */}
+      <BusinessIntelligence
+        events={businessData.events ?? events ?? NO_EVENTS}
+        sponsors={businessData.sponsors ?? sponsors ?? NO_SPONSORS}
+        source={{ loading: businessData.loading, failed: businessData.failed, updatedAt: businessData.updatedAt }}
+        onNavigate={onNavigate}
+      />
 
       {/* Toast */}
       <AnimatePresence>

@@ -1,9 +1,68 @@
 'use client';
 
 import type { Event } from '@/lib/data';
+import { categoryCounts, describeCoverage, formatMoney, orderCurrencies, summarizeEvents, type MoneyStat } from '@/lib/admin-bi';
+import { isPastEvent, isUpcomingEvent } from '@/lib/event-display';
+import { TEAL } from './biParts';
 
 interface EventAnalyticsProps {
   events: Event[];
+}
+
+const BAR_WIDTH = 300;
+
+/** One row of "Revenue by Status": a figure per currency with a bar, or the words "Not recorded"; never $0 for something not recorded. */
+function StatusRevenue({
+  label,
+  stat,
+  counterpart,
+  currencies,
+  events,
+  color,
+  dashed = false,
+  coverage,
+}: {
+  label: string;
+  stat: MoneyStat;
+  counterpart: MoneyStat;
+  currencies: readonly string[];
+  events: number;
+  color: string | null;
+  dashed?: boolean;
+  coverage: string;
+}) {
+  const amountOf = (source: MoneyStat, currency: string) => source.amounts.find((entry) => entry.currency === currency)?.amount ?? 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] font-body text-white/60">{label}</span>
+        {events === 0 ? (
+          <span className="text-xs font-body text-white/30">No events</span>
+        ) : stat.amounts.length === 0 ? (
+          <span className="text-xs font-body text-white/30">Not recorded</span>
+        ) : (
+          <span className={`text-sm font-display font-bold ${color ? '' : 'text-purple-500'}`} style={color ? { color } : undefined}>
+            {stat.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' · ')}
+          </span>
+        )}
+      </div>
+      {currencies.map((currency) => {
+        const amount = amountOf(stat, currency);
+        if (amount === 0) return null;
+        const width = (amount / Math.max(amount, amountOf(counterpart, currency), 1)) * BAR_WIDTH;
+        return (
+          <svg key={currency} width="100%" height="12" viewBox="0 0 300 12" preserveAspectRatio="none" className="mb-1">
+            <rect x="0" y="0" width="300" height="12" rx="3" fill="rgba(255,255,255,0.04)" />
+            <rect x="0" y="0" width={width} height="12" rx="3" fill={color ?? undefined} className={color ? undefined : 'fill-purple-500'} opacity="0.6">
+              <animate attributeName="width" from="0" to={width} dur="0.8s" fill="freeze" />
+            </rect>
+            {dashed && <line x1="0" y1="6" x2={width} y2="6" stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 3" />}
+          </svg>
+        );
+      })}
+      <p className="text-[9px] font-body text-white/25 mt-1">{coverage}</p>
+    </div>
+  );
 }
 
 export function EventAnalytics({ events }: EventAnalyticsProps) {
@@ -12,23 +71,17 @@ export function EventAnalytics({ events }: EventAnalyticsProps) {
   const live = events.filter((e) => e.status === 'live').length;
   const past = events.filter((e) => e.status === 'past').length;
 
-  // Category breakdown
-  const categories: Record<string, number> = {};
-  for (const e of events) {
-    const cat = e.category || 'Uncategorized';
-    categories[cat] = (categories[cat] || 0) + 1;
-  }
-  const categoryEntries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
-  const maxCategoryCount = Math.max(...Object.values(categories), 1);
+  // Category breakdown: "Live Concert " and "live concert" are one category, as everywhere in Business Intelligence
+  const categoryEntries = categoryCounts(events);
+  const maxCategoryCount = Math.max(...categoryEntries.map((entry) => entry.count), 1);
 
-  // Revenue by status
-  const pastRevenue = events
-    .filter((e) => e.status === 'past')
-    .reduce((sum, e) => sum + (e.ticketRevenue ?? (e.ticketsSold ?? 0) * e.price), 0);
-  const upcomingProjected = events
-    .filter((e) => e.status === 'upcoming' || e.status === 'live')
-    .reduce((sum, e) => sum + (e.capacity ?? 0) * e.price, 0);
-  const maxStatusRevenue = Math.max(pastRevenue, upcomingProjected, 1);
+  // Revenue by status: what is recorded for past events, and what upcoming events would take if every seat sold.
+  // Neither is a forecast, and a figure that is not recorded is never shown as $0.
+  const pastSummary = summarizeEvents(events.filter((e) => isPastEvent(e)));
+  const upcomingSummary = summarizeEvents(events.filter((e) => isUpcomingEvent(e)));
+  const pastRevenue = pastSummary.ticketRevenue;
+  const upcomingPotential = upcomingSummary.potentialGross;
+  const currencies = orderCurrencies(new Set([...pastRevenue.amounts, ...upcomingPotential.amounts].map((entry) => entry.currency)));
 
   const STATUS_CARDS = [
     { label: 'Total', value: total, color: '#C9A84C' },
@@ -65,12 +118,12 @@ export function EventAnalytics({ events }: EventAnalyticsProps) {
             <p className="text-xs font-body text-white/30 py-4 text-center">No events</p>
           ) : (
             <div className="space-y-2">
-              {categoryEntries.map(([cat, count]) => {
+              {categoryEntries.map(({ key, label, count }) => {
                 const width = (count / maxCategoryCount) * 100;
                 return (
-                  <div key={cat}>
+                  <div key={key || 'none'}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-body text-white/60">{cat}</span>
+                      <span className="text-[11px] font-body text-white/60">{label}</span>
                       <span className="text-[11px] font-display font-bold text-white/70">{count}</span>
                     </div>
                     <div className="w-full h-2 bg-white/[0.04] rounded-full overflow-hidden">
@@ -87,7 +140,7 @@ export function EventAnalytics({ events }: EventAnalyticsProps) {
         </div>
 
         {/* Revenue by event status */}
-        <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
+        <div data-testid="bi-revenue-by-status" className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
           <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35 mb-3">
             Revenue by Status
           </p>
@@ -95,88 +148,25 @@ export function EventAnalytics({ events }: EventAnalyticsProps) {
             <p className="text-xs font-body text-white/30 py-4 text-center">No events</p>
           ) : (
             <div className="space-y-4">
-              {/* Past revenue */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-body text-white/60">Past (Actual)</span>
-                  <span className="text-sm font-display font-bold text-[#1BBFA1]">
-                    ${pastRevenue.toLocaleString()}
-                  </span>
-                </div>
-                <svg width="100%" height="12" viewBox="0 0 300 12" preserveAspectRatio="none">
-                  <rect x="0" y="0" width="300" height="12" rx="3" fill="rgba(255,255,255,0.04)" />
-                  <rect
-                    x="0"
-                    y="0"
-                    width={(pastRevenue / maxStatusRevenue) * 300}
-                    height="12"
-                    rx="3"
-                    fill="#1BBFA1"
-                    opacity="0.6"
-                  >
-                    <animate
-                      attributeName="width"
-                      from="0"
-                      to={(pastRevenue / maxStatusRevenue) * 300}
-                      dur="0.8s"
-                      fill="freeze"
-                    />
-                  </rect>
-                </svg>
-              </div>
-
-              {/* Upcoming projected */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-body text-white/60">Upcoming (Projected)</span>
-                  <span className="text-sm font-display font-bold text-[#a855f7]">
-                    ${upcomingProjected.toLocaleString()}
-                  </span>
-                </div>
-                <svg width="100%" height="12" viewBox="0 0 300 12" preserveAspectRatio="none">
-                  <rect x="0" y="0" width="300" height="12" rx="3" fill="rgba(255,255,255,0.04)" />
-                  <rect
-                    x="0"
-                    y="0"
-                    width={(upcomingProjected / maxStatusRevenue) * 300}
-                    height="12"
-                    rx="3"
-                    fill="#a855f7"
-                    opacity="0.5"
-                  >
-                    <animate
-                      attributeName="width"
-                      from="0"
-                      to={(upcomingProjected / maxStatusRevenue) * 300}
-                      dur="0.8s"
-                      fill="freeze"
-                    />
-                  </rect>
-                  {/* Dashed overlay to indicate "projected" */}
-                  <line
-                    x1="0"
-                    y1="6"
-                    x2={(upcomingProjected / maxStatusRevenue) * 300}
-                    y2="6"
-                    stroke="rgba(255,255,255,0.15)"
-                    strokeWidth="1"
-                    strokeDasharray="4 3"
-                  />
-                </svg>
-                <p className="text-[9px] font-body text-white/25 mt-1">
-                  Based on full capacity at listed prices
-                </p>
-              </div>
-
-              {/* Combined total */}
-              <div className="pt-3 border-t border-white/5 flex items-center justify-between">
-                <span className="text-[10px] font-body uppercase tracking-wider text-white/30">
-                  Combined
-                </span>
-                <span className="text-sm font-display font-bold text-[#C9A84C]">
-                  ${(pastRevenue + upcomingProjected).toLocaleString()}
-                </span>
-              </div>
+              <StatusRevenue
+                label="Past (Recorded)"
+                stat={pastRevenue}
+                currencies={currencies}
+                counterpart={upcomingPotential}
+                events={pastSummary.events}
+                color={TEAL}
+                coverage={`${describeCoverage(pastRevenue.coverage, 'past event')}${pastRevenue.amounts.length === 0 ? '. Enter Ticket Revenue on each past event (Events tab)' : ''}`}
+              />
+              <StatusRevenue
+                label="Upcoming & live (if every seat sold)"
+                stat={upcomingPotential}
+                currencies={currencies}
+                counterpart={pastRevenue}
+                events={upcomingSummary.events}
+                color={null}
+                dashed
+                coverage={`${upcomingPotential.amounts.length === 0 ? '' : 'at the listed price; '}price and capacity both ${describeCoverage(upcomingPotential.coverage, 'upcoming or live event')}${upcomingPotential.amounts.length === 0 ? '. Enter both on the same event (Events tab)' : ''}`}
+              />
             </div>
           )}
         </div>

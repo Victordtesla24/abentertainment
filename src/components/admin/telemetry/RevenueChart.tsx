@@ -1,6 +1,7 @@
 'use client';
 
 import type { Sponsor } from '@/lib/data';
+import { SPONSOR_CURRENCY, describeCoverage, formatMoney, groupSponsorsByTier, summarizeSponsors } from '@/lib/admin-bi';
 
 interface RevenueChartProps {
   sponsors: Sponsor[];
@@ -17,51 +18,25 @@ const OTHER_TIER_COLOR = '#C9A84C';
 /** Colour for sponsors saved without any tier. */
 const NO_TIER_COLOR = '#6b7280';
 
-const CLASSIC_TIER_ORDER: string[] = ['platinum', 'gold', 'silver', 'bronze'];
-
-/** Sort rank: the classic tiers in their usual order, then any other tier, then sponsors without a tier. */
-function tierRank(key: string): number {
-  const classic = CLASSIC_TIER_ORDER.indexOf(key);
-  if (classic >= 0) return classic;
-  return key ? CLASSIC_TIER_ORDER.length : CLASSIC_TIER_ORDER.length + 1;
+/** The colour of a tier, by its lower-case key ("" is no tier). */
+function tierColor(key: string): string {
+  return TIER_COLORS.get(key) ?? (key ? OTHER_TIER_COLOR : NO_TIER_COLOR);
 }
 
 export function RevenueChart({ sponsors }: RevenueChartProps) {
-  // Tiers are free text, so group case-insensitively ("Platinum" with "platinum"), keeping the
-  // spelling first seen as the label. Other tiers keep the order they first appear in (stable sort).
-  const groups = new Map<string, { tier: string; color: string; sponsors: { name: string; revenue: number }[]; total: number }>();
-  for (const s of sponsors) {
-    const label = (s.tier ?? '').trim();
-    const key = label.toLowerCase();
-    let group = groups.get(key);
-    if (!group) {
-      group = {
-        tier: label || 'No tier',
-        color: TIER_COLORS.get(key) ?? (key ? OTHER_TIER_COLOR : NO_TIER_COLOR),
-        sponsors: [],
-        total: 0,
-      };
-      groups.set(key, group);
-    }
-    // A record saved without a name must not crash the whole dashboard.
-    const revenue = s.revenue ?? s.contractValue ?? 0;
-    group.sponsors.push({ name: s.name?.trim() || 'Unnamed sponsor', revenue });
-    group.total += revenue;
-  }
-  const byTier = [...groups.entries()]
-    .sort(([a], [b]) => tierRank(a) - tierRank(b))
-    .map(([, group]) => group);
-
-  const totalRevenue = byTier.reduce((sum, g) => sum + g.total, 0);
-  const maxRevenue = Math.max(...byTier.flatMap((g) => g.sponsors.map((s) => s.revenue)), 1);
+  // Tiers are free text, so they are grouped by the shared rule (case and spacing ignored, the spelling first seen is the label).
+  // Only a revenue an admin recorded is charted: a sponsor without one is not a $0 bar.
+  const byTier = groupSponsorsByTier(sponsors);
+  const total = summarizeSponsors(sponsors, [], []).revenue;
 
   // Build flat list of bars for SVG rendering
   const bars: { name: string; revenue: number; color: string; tier: string }[] = [];
   for (const group of byTier) {
     for (const s of group.sponsors) {
-      bars.push({ name: s.name, revenue: s.revenue, color: group.color, tier: group.tier });
+      if (s.revenue !== null) bars.push({ name: s.name, revenue: s.revenue, color: tierColor(group.key), tier: group.label });
     }
   }
+  const maxRevenue = Math.max(...bars.map((bar) => bar.revenue), 1);
 
   const BAR_HEIGHT = 28;
   const LABEL_AREA = 160;
@@ -71,25 +46,28 @@ export function RevenueChart({ sponsors }: RevenueChartProps) {
   const svgHeight = Math.max(bars.length * (BAR_HEIGHT + BAR_GAP) + 8, 60);
 
   return (
-    <div className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
+    <div data-testid="bi-revenue-chart" className="bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm p-4">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35">Sponsor Revenue</p>
-          <p className="text-lg font-display font-bold text-white mt-0.5">
-            ${totalRevenue.toLocaleString()}
-          </p>
+          <p className="text-[10px] font-body uppercase tracking-[0.15em] text-white/35">Sponsor Revenue (recorded)</p>
+          {total.amounts.length === 0 ? (
+            <p className="text-xs font-body text-white/30 mt-1">Not recorded</p>
+          ) : (
+            <p className="text-lg font-display font-bold text-white mt-0.5">{total.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' · ')}</p>
+          )}
+          <p className="text-[9px] font-body text-white/25 mt-0.5">{describeCoverage(total.coverage, 'sponsor')}</p>
         </div>
         <div className="flex gap-2">
           {byTier.map((g) => (
             <span
-              key={g.tier}
+              key={g.key || 'none'}
               className="flex items-center gap-1 text-[9px] font-body text-white/40 capitalize"
             >
               <span
                 className="inline-block w-2 h-2 rounded-full"
-                style={{ backgroundColor: g.color }}
+                style={{ backgroundColor: tierColor(g.key) }}
               />
-              {g.tier}
+              {g.label}
             </span>
           ))}
         </div>
@@ -97,7 +75,7 @@ export function RevenueChart({ sponsors }: RevenueChartProps) {
 
       {bars.length === 0 ? (
         <div className="py-8 text-center">
-          <p className="text-xs font-body text-white/30">No sponsor revenue data available</p>
+          <p className="text-xs font-body text-white/30">Sponsor revenue is not recorded. Enter Revenue on each sponsor in the Sponsors tab.</p>
         </div>
       ) : (
         <svg
@@ -157,7 +135,7 @@ export function RevenueChart({ sponsors }: RevenueChartProps) {
                   fontSize="10"
                   fontFamily="inherit"
                 >
-                  ${bar.revenue.toLocaleString()}
+                  {formatMoney(bar.revenue, SPONSOR_CURRENCY)}
                 </text>
               </g>
             );
@@ -169,12 +147,16 @@ export function RevenueChart({ sponsors }: RevenueChartProps) {
       {byTier.length > 0 && (
         <div className="mt-3 pt-3 border-t border-white/5 grid grid-cols-2 sm:grid-cols-4 gap-2">
           {byTier.map((g) => (
-            <div key={g.tier} className="text-center">
-              <p className="text-[9px] font-body uppercase text-white/30 capitalize">{g.tier}</p>
-              <p className="text-sm font-display font-bold mt-0.5" style={{ color: g.color }}>
-                ${g.total.toLocaleString()}
-              </p>
-              <p className="text-[9px] font-body text-white/25">{g.sponsors.length} sponsor{g.sponsors.length !== 1 ? 's' : ''}</p>
+            <div key={g.key || 'none'} className="text-center">
+              <p className="text-[9px] font-body uppercase text-white/30 capitalize">{g.label}</p>
+              {g.revenue.amounts.length === 0 ? (
+                <p className="text-xs font-body text-white/30 mt-0.5">Not recorded</p>
+              ) : (
+                <p className="text-sm font-display font-bold mt-0.5" style={{ color: tierColor(g.key) }}>
+                  {g.revenue.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' · ')}
+                </p>
+              )}
+              <p className="text-[9px] font-body text-white/25">{describeCoverage(g.revenue.coverage, 'sponsor')}</p>
             </div>
           ))}
         </div>
