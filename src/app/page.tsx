@@ -19,6 +19,13 @@ export const metadata: Metadata = {
   description: SITE_CONFIG.description,
 };
 
+/**
+ * ICU's number-formatting data is loaded the first time a formatter is created, about ten milliseconds of main thread
+ * on a phone-class CPU. The site-metrics module (evaluated while the first screen hydrates) creates one when it is
+ * loaded, so this makes the first one in an idle moment before the scripts arrive, in a task of its own.
+ */
+const PRIME_NUMBER_FORMATTING_SCRIPT = "(self.requestIdleCallback||setTimeout)(function(){new Intl.NumberFormat('en-US')})";
+
 export default async function Home() {
   let allEvents: Event[] = [];
   let staticEventSlugs: string[] = [];
@@ -79,6 +86,7 @@ export default async function Home() {
         <CTASection />
       </HydrateLater>
 
+      <script dangerouslySetInnerHTML={{ __html: PRIME_NUMBER_FORMATTING_SCRIPT }} />
     </>
   );
 }
