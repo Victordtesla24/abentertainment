@@ -4,10 +4,17 @@ name: Build static export
 # This workflow keeps out/ in step with the sources and with the live public data, on GitHub-hosted runners:
 #
 #   push to main         sources changed            -> rebuild from the pushed commit and the live API data
-#   schedule (15 min)    admin edited live content  -> rebuild only when the live data or the sources changed
-#   workflow_dispatch    manual                     -> "commit" false is a dry run
+#   workflow_dispatch    VPS export trigger, manual -> the VPS (ops/export-trigger, every 3 minutes) dispatches this with
+#                        commit=true when the live data or the sources differ from the served export or the last run failed;
+#                        "commit" false is a dry run
+#   schedule (15 min)    admin edited live content  -> rebuild only when the live data or the sources changed. GitHub runs
+#                        schedules best effort (it fired once in the first five hours), so this is only a safety net
 #   push to ci/**        build and verify only, never commits
 #
+# A push that changes server-side files makes the VPS recreate the API container (2-3 minutes, with a few seconds of
+# outage). The build therefore WAITS for the VPS's "vps/api-deploy" commit status before it reads the live API, so the
+# export is built from the new API and never during the restart (the data refresh also retries for about three minutes).
+# A push that changes nothing server-side does not wait.
 # The job commits out/ (and nothing else) to main only when it changed, with [skip ci]. The commit is pushed with
 # GITHUB_TOKEN, which never starts another workflow run, so there is no loop; Hostinger's push webhook still fires.
 # If the live API is unreachable or returns empty data, or the verification fails, the job fails and the current
@@ -82,16 +89,20 @@ jobs:
         if: steps.decide.outputs.needs_build == 'true'
         run: npm ci --no-audit --no-fund
 
-      - name: Build and verify the export
+      - name: Self-test the data refresh retry window
         if: steps.decide.outputs.needs_build == 'true'
-        run: bash scripts/ci/build-export.sh
+        run: node scripts/ci/test-refresh-retry.mjs
 
-      - name: Hold publication until the VPS API container is rolled (server-side changes only)
+      - name: Hold the build until the VPS API container is rolled (server-side changes only)
         if: steps.decide.outputs.needs_build == 'true' && github.event_name == 'push' && env.PUBLISH == 'yes'
         env:
           GH_TOKEN: ${{ github.token }}
           BEFORE_SHA: ${{ github.event.before }}
         run: bash scripts/ci/wait-for-vps-api.sh
+
+      - name: Build and verify the export
+        if: steps.decide.outputs.needs_build == 'true'
+        run: bash scripts/ci/build-export.sh
 
       - name: Commit out/ when it changed
         if: steps.decide.outputs.needs_build == 'true'

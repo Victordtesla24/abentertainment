@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Hold the out/ commit until the VPS has rolled the API container, when this push changed server-side files.
+# Hold the export build (and so the out/ commit) until the VPS has rolled the API container, when this push changed
+# server-side files. The workflow runs this BEFORE the data refresh and the build.
 #
 # Why: the static front-end is live on Hostinger about a minute after a push, the API container needs 2-3 minutes
-# to rebuild. A page that calls a new API route must not be served before that route exists.
+# to rebuild. A page that calls a new API route must not be served before that route exists, and the build reads the
+# live public API: started while the container is being recreated it fails with "fetch failed" (run 38507160035, the
+# push of a46b55d3). Waiting here builds the export from the new API and never during its restart.
 #
 # How: the VPS auto-deploy (ops/autodeploy) posts the commit status "vps/api-deploy" on every commit it syncs
 # (pending while it rebuilds, success when the container is healthy or nothing server-side changed, failure when the
@@ -48,6 +51,7 @@ status() {
     --jq "[.[] | select(.context==\"$CONTEXT\")] | sort_by(.created_at) | last | .state // empty" 2>/dev/null
 }
 
+started=$SECONDS
 state=""
 deadline=$((SECONDS + ACK_WAIT))
 while [ "$SECONDS" -lt "$deadline" ]; do
@@ -56,7 +60,7 @@ while [ "$SECONDS" -lt "$deadline" ]; do
   sleep "$POLL"
 done
 if [ -z "$state" ]; then
-  echo "::warning::the VPS did not acknowledge this commit within ${ACK_WAIT}s (auto-deploy not running?); publishing the front-end without waiting"
+  echo "::warning::the VPS did not acknowledge this commit within ${ACK_WAIT}s (auto-deploy not running?); building and publishing the front-end without waiting"
   exit 0
 fi
 echo "[wait-for-vps-api] VPS acknowledged: $state"
@@ -66,15 +70,15 @@ while [ "$SECONDS" -lt "$deadline" ]; do
   state="$(status)"
   case "$state" in
     success)
-      echo "[wait-for-vps-api] the API container is up to date; publishing the front-end"
+      echo "[wait-for-vps-api] the API container is up to date (waited $((SECONDS - started))s); building and publishing the front-end"
       exit 0
       ;;
     failure|error)
-      echo "::error::the VPS reports that deploying this commit failed and the previous API container is serving; not publishing a front-end that may need the new API. Fix the deploy or push a new commit."
+      echo "::error::the VPS reports that deploying this commit failed and the previous API container is serving; not building or publishing a front-end that may need the new API. Fix the deploy or push a new commit."
       exit 1
       ;;
   esac
   sleep "$POLL"
 done
-echo "::warning::the VPS API deploy did not finish within $((FINAL_WAIT / 60)) minutes; publishing the front-end anyway"
+echo "::warning::the VPS API deploy did not finish within $((FINAL_WAIT / 60)) minutes; building and publishing the front-end anyway"
 exit 0
