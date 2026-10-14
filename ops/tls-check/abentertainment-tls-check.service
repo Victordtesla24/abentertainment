@@ -1,0 +1,15 @@
+[Unit]
+Description=abentertainment: daily check of the encrypted Hostinger to VPS API hop (certificates, trusted egress address, loopback-only port 3000, proxy target)
+Documentation=https://github.com/Victordtesla24/abentertainment/tree/main/ops/tls-check
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Exit 0 = all OK, 1 = at least one WARN, 2 = at least one FAIL; details are appended to /var/log/agent-ops/tls-abentertainment-check.log
+ExecStart=/usr/bin/python3 -B /usr/local/sbin/abentertainment-tls-check
+TimeoutStartSec=10min
+Nice=10
+Environment=HOME=/root PYTHONDONTWRITEBYTECODE=1
+NoNewPrivileges=true
+PrivateTmp=true
