@@ -4,7 +4,10 @@ import { uploadFile } from '@/lib/upload-helper';
 
 import { useState, useMemo, useEffect, useRef, FormEvent } from 'react';
 import type { Sponsor, Event, GalleryImage } from '@/lib/data';
+import { sortByAdminOrder } from '@/lib/event-display';
+import { eventLinksOfSponsor, MAX_EVENTS_PER_SPONSOR } from '@/lib/event-sponsors';
 import GalleryPicker from './GalleryPicker';
+import LinkPicker, { choiceProblems, type LinkChoice, type LinkOption } from './LinkPicker';
 
 interface SponsorsManagerProps {
   initialSponsors: Sponsor[];
@@ -21,6 +24,11 @@ const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_LABEL_LENGTH = 40;
 // Suggestions for the free-text Category field (it accepts anything).
 const CATEGORY_SUGGESTIONS = ['Sponsor', 'Partner', 'Sponsor & Partner'];
+const NO_EVENTS: Event[] = [];
+const EVENT_NOUN = { singular: 'event', plural: 'events' };
+/** When a saved change reaches the public event pages (they are rebuilt from the live data; open pages check for updates themselves). */
+const EVENTS_PUBLIC_NOTE =
+  'Saved changes show on the public event pages within about 5 minutes (a visitor who has a page open sees them sooner). The same links appear in the Events tab.';
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 const LOGO_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
 const LOGO_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg';
@@ -195,8 +203,16 @@ function LogoThumb({ src, label, large = false }: { src: string; label: string; 
   );
 }
 
-export default function SponsorsManager({ initialSponsors, allEvents, allGallery = [] }: SponsorsManagerProps) {
+export default function SponsorsManager({ initialSponsors, allEvents = NO_EVENTS, allGallery = [] }: SponsorsManagerProps) {
   const [showGalleryPicker, setShowGalleryPicker] = useState(false);
+  // The events the picker offers and whose links the cards show. They follow the dashboard, and the form refreshes them
+  // from the server when it opens, so a link made from the Events view is never missing here.
+  const [events, setEvents] = useState<Event[]>(allEvents);
+  const [eventChoices, setEventChoices] = useState<LinkChoice[]>([]);
+  const [eventLinksTouched, setEventLinksTouched] = useState(false);
+  const eventLinksTouchedRef = useRef(false);
+  const editingIdRef = useRef<string | null>(null);
+  const [formError, setFormError] = useState('');
   const [sponsors, setSponsors] = useState<Sponsor[]>(
     () => [...initialSponsors].sort(byDisplayOrder)
   );
@@ -220,6 +236,9 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
   useEffect(() => {
     setSponsors([...initialSponsors].sort(byDisplayOrder));
   }, [initialSponsors]);
+  useEffect(() => {
+    setEvents(allEvents);
+  }, [allEvents]);
 
   const showForm = creating || editing;
 
@@ -239,11 +258,11 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  /** Show a message that clears itself after 3 seconds (errors stay until the next action). */
-  function flash(text: string) {
+  /** Show a message that clears itself after 3 seconds, or after `ms` (errors stay until the next action). */
+  function flash(text: string, ms = 3000) {
     if (flashTimer.current) clearTimeout(flashTimer.current);
     setMessage(text);
-    flashTimer.current = setTimeout(() => setMessage(''), 3000);
+    flashTimer.current = setTimeout(() => setMessage(''), ms);
   }
 
   function showError(text: string) {
@@ -251,16 +270,70 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
     setMessage(`Error: ${text}`);
   }
 
+  /** The category of the sponsor, when it is usable as the role a new event starts with (the same limit as a role). */
+  const startingRole = form.category.trim() !== '' && form.category.trim().length <= MAX_LABEL_LENGTH && !CONTROL_CHARACTERS.test(form.category) ? form.category.trim() : 'Sponsor';
+
+  // The events in the same order as the Events tab (the rule every list of events follows), each with its date and status.
+  const eventOptions = useMemo<LinkOption[]>(
+    () =>
+      sortByAdminOrder(events).map((event) => ({
+        id: event.id,
+        title: event.title,
+        detail: [event.date, event.status].filter(Boolean).join(' · ') || undefined,
+        defaultRole: startingRole,
+      })),
+    [events, startingRole],
+  );
+  const eventsById = useMemo(() => new Map(events.map((event) => [event.id, event])), [events]);
+
+  /**
+   * Read the events from the server when the form opens: an event added, or a link made from the Events tab, is then
+   * what the picker offers, and, while the admin has not changed the events yet, the form shows the links this sponsor
+   * holds now.
+   */
+  async function refreshEvents(sponsorId: string | null) {
+    let fresh: Event[] | null = null;
+    try {
+      const res = await adminFetch('/api/admin/events');
+      const data = res.ok ? ((await res.json()) as { events?: Event[] }) : null;
+      fresh = Array.isArray(data?.events) ? data.events : null;
+    } catch {
+      fresh = null;
+    }
+    if (!fresh) return;
+    setEvents(fresh);
+    if (sponsorId && !eventLinksTouchedRef.current && editingIdRef.current === sponsorId) {
+      setEventChoices(eventLinksOfSponsor(fresh, sponsorId).map((link) => ({ id: link.eventId, role: link.role })));
+    }
+  }
+
+  function changeEventChoices(next: LinkChoice[]) {
+    setEventChoices(next);
+    setEventLinksTouched(true);
+    eventLinksTouchedRef.current = true;
+    setFormError('');
+  }
+
+  function resetEventChoices(choices: LinkChoice[], sponsorId: string | null) {
+    setEventChoices(choices);
+    setEventLinksTouched(false);
+    eventLinksTouchedRef.current = false;
+    editingIdRef.current = sponsorId;
+    setFormError('');
+  }
+
   function resetForm() {
     setForm(EMPTY_FORM);
     setEditing(null);
     setCreating(false);
+    resetEventChoices([], null);
   }
 
   function startCreate() {
     resetForm();
     setMessage('');
     setCreating(true);
+    void refreshEvents(null);
   }
 
   function startEdit(sponsor: Sponsor) {
@@ -280,6 +353,11 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
       contractValue: sponsor.contractValue != null ? String(sponsor.contractValue) : '',
       visible: isVisible(sponsor),
     });
+    resetEventChoices(
+      eventLinksOfSponsor(events, sponsor.id).map((link) => ({ id: link.eventId, role: link.role })),
+      sponsor.id,
+    );
+    void refreshEvents(sponsor.id);
   }
 
   /** Read an error message from a failed API response, falling back to a generic one. */
@@ -318,8 +396,20 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
       return;
     }
 
+    // The events go with the request when this is a new sponsor that has some, or when the admin changed them in this
+    // form: an edit that left them alone must not overwrite what the Events tab saved in the meantime.
+    const sendLinks = creating ? eventChoices.length > 0 : eventLinksTouched;
+    if (sendLinks) {
+      const linkProblems = choiceProblems(eventChoices, eventOptions, EVENT_NOUN, MAX_EVENTS_PER_SPONSOR);
+      if (linkProblems.length > 0) {
+        setFormError(linkProblems.join('; '));
+        return;
+      }
+    }
+
     setSaving(true);
     setMessage('');
+    setFormError('');
 
     try {
       const method = creating ? 'POST' : 'PUT';
@@ -340,6 +430,9 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
       if (!creating) {
         payload.id = editing!.id;
       }
+      if (sendLinks) {
+        payload.eventLinks = eventChoices.map((choice) => ({ eventId: choice.id, role: choice.role.trim() }));
+      }
 
       const res = await adminFetch('/api/admin/sponsors', {
         method,
@@ -347,7 +440,21 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw await errorFrom(res, 'Failed to save sponsor');
+      if (!res.ok) {
+        const failed = await res.json().catch(() => ({})) as { error?: string; sponsor?: Sponsor };
+        if (failed.sponsor) {
+          // Saved, but its events could not be updated: keep the form open on the saved sponsor, so saving again retries
+          // the events and never creates the sponsor a second time.
+          const saved = failed.sponsor;
+          setSponsors((prev) => (prev.some((s) => s.id === saved.id) ? prev.map((s) => (s.id === saved.id ? saved : s)) : [...prev, saved]).sort(byDisplayOrder));
+          setCreating(false);
+          setEditing(saved);
+          editingIdRef.current = saved.id;
+        } else if (sendLinks && res.status === 400 && failed.error) {
+          setFormError(failed.error);
+        }
+        throw new Error(failed.error || 'Failed to save sponsor');
+      }
 
       const data = await res.json() as { sponsor: Sponsor };
       if (creating) {
@@ -360,7 +467,8 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
 
       const created = creating;
       resetForm();
-      flash(created ? 'Sponsor created' : 'Sponsor updated');
+      flash(`${created ? 'Sponsor created' : 'Sponsor updated'}${sendLinks ? '. Its events show it within about 5 minutes.' : ''}`, sendLinks ? 8000 : 3000);
+      if (sendLinks) void refreshEvents(null);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -369,7 +477,7 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
   }
 
   async function handleDelete(sponsor: Sponsor) {
-    if (!confirm(`Delete "${sponsor.name}"? It will be removed from the website carousel and the Sponsors page.`)) return;
+    if (!confirm(`Delete "${sponsor.name}"? It will be removed from the website carousel, the Sponsors page and every event it is attached to.`)) return;
 
     setBusyId(sponsor.id);
     try {
@@ -383,6 +491,7 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
       setSponsors((prev) => prev.filter((s) => s.id !== sponsor.id));
       if (editing?.id === sponsor.id) resetForm();
       flash('Sponsor deleted');
+      void refreshEvents(null);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -726,6 +835,21 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
                 className={`${inputClasses} resize-none`}
               />
             </div>
+            <div className="md:col-span-2 border-t border-[#C9A84C]/15 pt-4">
+              <LinkPicker
+                idPrefix="sponsor-events"
+                label="Events"
+                noun={EVENT_NOUN}
+                options={eventOptions}
+                value={eventChoices}
+                onChange={changeEventChoices}
+                ordered={false}
+                publicNote={EVENTS_PUBLIC_NOTE}
+                notice={!form.visible && eventChoices.length > 0 ? 'This sponsor is hidden, so it stays off these event pages until it is shown on the website.' : undefined}
+                disabled={saving}
+                labelClassName="block text-xs text-white/40"
+              />
+            </div>
             <div className="md:col-span-2 flex items-center gap-3">
               <button
                 type="button"
@@ -751,6 +875,11 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
                 </span>
               </span>
             </div>
+            {formError && (
+              <p role="alert" className="md:col-span-2 border border-red-400/20 bg-red-400/10 px-3 py-2 text-sm text-red-400">
+                {formError}
+              </p>
+            )}
             <div className="md:col-span-2 flex gap-3 pt-2">
               <button
                 type="submit"
@@ -831,13 +960,16 @@ export default function SponsorsManager({ initialSponsors, allEvents, allGallery
                 {sponsor.description && (
                   <p className="text-white/40 text-xs">{sponsor.description}</p>
                 )}
-                {/* Linked Events */}
-                {allEvents && allEvents.filter(e => (e.sponsorIds || []).includes(sponsor.id)).length > 0 && (
+                {/* Linked Events: the same links the Events tab shows, with the role this sponsor holds at each */}
+                {eventLinksOfSponsor(events, sponsor.id).filter((link) => eventsById.has(link.eventId)).length > 0 && (
                   <div className="mt-2 pt-2 border-t border-white/5">
-                    <p className="text-[9px] text-white/30 mb-1">LINKED EVENTS</p>
+                    <p className="text-[9px] text-white/50 mb-1">LINKED EVENTS</p>
                     <div className="flex flex-wrap gap-1">
-                      {allEvents.filter(e => (e.sponsorIds || []).includes(sponsor.id)).map(e => (
-                        <span key={e.id} className="text-[9px] px-1.5 py-0.5 bg-white/5 text-white/50 rounded-sm">{e.title}</span>
+                      {eventLinksOfSponsor(events, sponsor.id).filter((link) => eventsById.has(link.eventId)).map((link) => (
+                        <span key={link.eventId} className="text-[10px] px-1.5 py-0.5 bg-white/5 text-white/60 rounded-sm">
+                          {eventsById.get(link.eventId)?.title}
+                          {link.role && <span className="text-[#C9A84C]/80"> · {link.role}</span>}
+                        </span>
                       ))}
                     </div>
                   </div>
