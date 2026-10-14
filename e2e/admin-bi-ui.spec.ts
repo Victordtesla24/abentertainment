@@ -22,6 +22,7 @@ import {
   HARNESS_SKIP,
   HAS_ADMIN_CREDS,
   VIEWPORTS,
+  adminApi,
   adminLogin,
   assertScratchData,
   assertServerReadsScratchData,
@@ -204,6 +205,33 @@ test.describe('the admin Dashboard: Business Intelligence', () => {
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
     await openTab(page, 'Dashboard');
     await expect(section(page)).toBeVisible({ timeout: 20000 });
+  });
+
+  test('the Events form has a Capacity field, so "enter Capacity" can be done: it saves, shows in /api/admin/events and the Dashboard counts it', async () => {
+    await openTab(page, 'Events');
+    await page.locator('tr', { hasText: 'All The Best - Melbourne' }).first().getByRole('button', { name: 'Edit' }).click();
+    await expect(page.getByRole('heading', { name: /^Edit: All The Best - Melbourne/, level: 3 })).toBeVisible();
+    const capacity = page.getByLabel('Capacity (seats)');
+    await expect(capacity).toHaveValue('0'); // the form saves 0 for a blank
+    await expect(capacity).toHaveAttribute('type', 'number');
+    await expect(capacity).toHaveAttribute('min', '0');
+    await expect(capacity).toHaveAttribute('step', '1');
+    await capacity.fill('450');
+    await page.getByRole('button', { name: 'Update Event' }).click();
+    await expect(page.getByText('Event updated')).toBeVisible();
+
+    const { status, body } = await adminApi(page, 'GET', '/api/admin/events');
+    expect(status).toBe(200);
+    const stored = (body?.events as Event[]).find((entry) => entry.id === 'evt-1791940946158');
+    expect(stored?.capacity).toBe(450);
+    // nothing else of the event changed
+    expect(stored).toMatchObject({ price: 59, venue: 'Drum Theatre - 226 Lonsdale St Dandenong, VIC, 3175', category: 'Theatre | Comedy | Drama', status: 'upcoming', date: '2027-03-14' });
+
+    // the Dashboard counts it: $59 x 450 = $26,550 joins the $36,000 of Shrimant Damodar Pant
+    await openTab(page, 'Dashboard');
+    await expect(card(page, 'bi-card-potential-gross')).toContainText('$62,550', { timeout: 30000 });
+    await expect(card(page, 'bi-card-potential-gross')).toContainText('recorded for 2 of 14 events with both a price and a capacity');
+    await expect(page.getByTestId('bi-action-add-capacity')).toContainText('Add capacity to 4 upcoming events');
   });
 
   // ─── the forecast: marked as an estimate, with its source ─────────────────

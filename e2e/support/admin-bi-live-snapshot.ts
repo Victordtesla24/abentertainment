@@ -3,7 +3,8 @@
  * for the Business Intelligence tests. The admin-only fields are not part of the public APIs; on the live site none of
  * them is recorded, so tickets sold, ticket revenue, sponsor revenue and sponsor contract value are left out here
  * (LIVE_EVENTS) or saved as 0 the way the Events form saves a blank (LIVE_EVENTS_AS_SAVED). Long descriptions and
- * images are left out: no metric reads them. Titles, venues, categories and ticket links are exactly as stored, spaces
+ * images are left out (every description is one short placeholder, because the Events form will not save an event
+ * without one): no metric reads them. Titles, venues, categories and ticket links are exactly as stored, spaces
  * and all, because the data-quality checks read them.
  */
 
@@ -12,7 +13,7 @@ import type { Event, Sponsor } from '@/lib/data';
 const STAMP = '2026-10-14T00:00:00.000Z';
 
 function event(fields: Pick<Event, 'id' | 'title' | 'date' | 'venue' | 'category' | 'price' | 'status' | 'ticketStatus' | 'order'> & Partial<Event>): Event {
-  return { slug: fields.id, description: '', currency: 'AUD', image: '', capacity: 0, ticketUrl: '', createdAt: STAMP, updatedAt: STAMP, ...fields };
+  return { slug: fields.id, description: 'A short description.', currency: 'AUD', image: '', capacity: 0, ticketUrl: '', createdAt: STAMP, updatedAt: STAMP, ...fields };
 }
 
 export const LIVE_EVENTS: Event[] = [

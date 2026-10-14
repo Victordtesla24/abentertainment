@@ -17,7 +17,7 @@
 
 import { expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
-export { HAS_ADMIN_CREDS, adminLogin } from './email-http';
+export { HAS_ADMIN_CREDS, adminApi, adminLogin } from './email-http';
 export { assertScratchData, assertServerReadsScratchData, backupStores, restoreStores, writeEvents, writeSponsors } from './event-sponsors-http';
 
 export const HARNESS = process.env.E2E_ADMIN_BI_HARNESS === '1';

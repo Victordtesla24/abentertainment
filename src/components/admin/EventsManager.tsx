@@ -742,6 +742,20 @@ export default function EventsManager({ initialEvents, allSponsors = NO_SPONSORS
               />
             </div>
             <div>
+              <label htmlFor="event-capacity" className="block text-xs text-white/60 mb-1">Capacity (seats)</label>
+              <input
+                id="event-capacity"
+                type="number"
+                value={form.capacity}
+                onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
+                min={0}
+                step={1}
+                placeholder="0"
+                title="How many seats can be sold for this event. The Dashboard uses it for sell-through and revenue figures. Leave as 0 if not known."
+                className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C]"
+              />
+            </div>
+            <div>
               <label className="block text-xs text-white/60 mb-1">Status</label>
               <select
                 value={form.status}
