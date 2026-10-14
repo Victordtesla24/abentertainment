@@ -6,6 +6,9 @@
 #   * NEXT_PUBLIC_VPS_API_URL / NEXT_PUBLIC_ESCALATION_EMAIL unset, telemetry off, canonical site URL, script deferral on
 #   * the result is stamped (out/.build-info.json) and verified; refreshed data files are put back afterwards and never committed
 #
+# The live API must not be mid-restart: in the workflow the VPS hold (wait-for-vps-api.sh) runs before this script for pushes that
+# change server-side files, and refresh-build-data.mjs retries a restart for about three minutes before it fails the build.
+#
 # Run from anywhere inside the repository after `npm ci`. Used by .github/workflows/build-export.yml and runnable locally.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
