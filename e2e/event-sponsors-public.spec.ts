@@ -172,6 +172,27 @@ test.describe('sponsors and partners on the public event page', () => {
     });
   }
 
+  test('the cards are the brand glass card: a link has its shimmer, a card without a website keeps its resting look, and the light behind them is decoration only', async ({ page }) => {
+    await page.goto('/events/linked-gala/');
+    const region = section(page);
+    await expect(region).toBeVisible({ timeout: 60000 });
+    // the four links are glass cards with the shimmer; the two organisations without a usable website are glass cards at rest (no shimmer)
+    await expect(region.locator('a.glass-card.hover-shine')).toHaveCount(4);
+    await expect(region.locator('div.glass-card')).toHaveCount(2);
+    await expect(region.locator('div.glass-card.hover-shine')).toHaveCount(0);
+    for (const card of await region.locator('div.glass-card').all()) {
+      expect(await card.evaluate((element) => { const style = getComputedStyle(element); return [style.transform, style.boxShadow]; })).toEqual(['none', 'none']);
+    }
+    // the stage layer is a decorative background of the section: out of the accessibility tree, behind the content, never in the way of the pointer
+    const stage = region.locator('[data-sponsor-stage]');
+    await expect(stage).toHaveCount(1);
+    expect(await stage.evaluate((element) => ({ hidden: element.getAttribute('aria-hidden'), z: getComputedStyle(element).zIndex, pointer: getComputedStyle(element).pointerEvents, inside: element.parentElement?.tagName }))).toEqual({ hidden: 'true', z: '-1', pointer: 'none', inside: 'SECTION' });
+    // it adds nothing a screen reader meets: the same five images, four links and four lists as without it
+    await expect(region.getByRole('img')).toHaveCount(5);
+    await expect(region.getByRole('link')).toHaveCount(4);
+    await expect(region.getByRole('list')).toHaveCount(4);
+  });
+
   test('one role for everybody is a single group with that role as its heading; no role at all needs no heading', async ({ page }) => {
     await page.goto('/events/one-role/');
     await expect(section(page)).toBeVisible({ timeout: 60000 });
