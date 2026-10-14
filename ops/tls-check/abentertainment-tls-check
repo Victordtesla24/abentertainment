@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""Daily health check of the encrypted Hostinger -> VPS API hop (run as root on the VPS by abentertainment-tls-check.timer).
+
+Appends one line per check to /var/log/agent-ops/tls-abentertainment-check.log (rotated by /etc/logrotate.d/agent-ops).
+A line starts with OK, WARN or FAIL.  Exit code: 0 all OK, 1 at least one WARN, 2 at least one FAIL.
+
+  cert        every certificate Traefik serves: days until expiry; WARN below 21 days (Traefik renews at 30, so a WARN means a
+              renewal is failing).  The API hop host is also validated like a client does (chain + host name).
+  egress      Traefik access log (router ab-app@file) of the last 24 h: the proxied requests must come from the Hostinger
+              address(es) in --entrypoints.websecure.forwardedHeaders.trustedIPs.  WARN if requests arrive from any other
+              address or none arrives from the trusted one: if Hostinger's egress address changed, Traefik stops trusting
+              X-Forwarded-For and every visitor looks like one client to the per-visitor limits (login, contact, chat).
+  port3000    the API container's published port must stay on loopback (WARN/FAIL if 0.0.0.0, [::] or the public IP).
+  proxy       the committed api-proxy.php must target https://, and https://abentertainment.com.au/api/events must answer 200.
+
+Fix for a changed Hostinger egress address: edit trustedIPs in /docker/traefik-vplw/docker-compose.yml and `docker compose up -d`.
+"""
+import datetime as dt
+import ipaddress
+import json
+import re
+import socket
+import ssl
+import subprocess
+import sys
+import urllib.request
+
+LOG = "/var/log/agent-ops/tls-abentertainment-check.log"
+API_HOST = "abapi.srv1356245.hstgr.cloud"
+SITE_URL = "https://abentertainment.com.au/api/events"
+ROUTER = "ab-app@file"
+TRAEFIK = "traefik-vplw-traefik-1"
+TRAEFIK_DYNAMIC = "/docker/traefik-vplw/dynamic"
+PROXY_FILE = "/docker/abentertainment/api-proxy.php"
+WARN_DAYS = 21
+LOCAL_NETS = [ipaddress.ip_network(n) for n in ("127.0.0.0/8", "::1/128", "172.16.0.0/12")]
+
+
+def sh(cmd, timeout=60):
+    p = subprocess.run(cmd, shell=isinstance(cmd, str), capture_output=True, text=True, timeout=timeout)
+    return p.returncode, p.stdout, p.stderr
+
+
+# ---------------------------------------------------------------- pure helpers (covered by --self-test)
+def cert_status(days_left):
+    if days_left is None:
+        return "FAIL"
+    if days_left < 0:
+        return "FAIL"
+    return "WARN" if days_left < WARN_DAYS else "OK"
+
+
+def parse_client_host(addr):
+    """'82.180.172.143:52740' or '[2a02:4780::1]:47958' -> the address without the port."""
+    addr = addr.strip()
+    if addr.startswith("["):
+        return addr[1:].split("]", 1)[0]
+    return addr.rsplit(":", 1)[0] if addr.count(":") == 1 else addr
+
+
+def classify_clients(lines, trusted_nets):
+    """Count access-log lines of the API router by origin: trusted Hostinger address / local probe / unexpected."""
+    out = {"trusted": 0, "local": 0, "other": {}, "total": 0}
+    for line in lines:
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            continue
+        if rec.get("RouterName") != ROUTER:
+            continue
+        host = parse_client_host(str(rec.get("ClientAddr", "")))
+        try:
+            ip = ipaddress.ip_address(host)
+        except ValueError:
+            out["other"][host] = out["other"].get(host, 0) + 1
+            out["total"] += 1
+            continue
+        out["total"] += 1
+        if any(ip in n for n in trusted_nets):
+            out["trusted"] += 1
+        elif any(ip in n for n in LOCAL_NETS):
+            out["local"] += 1
+        else:
+            out["other"][str(ip)] = out["other"].get(str(ip), 0) + 1
+    return out
+
+
+def egress_status(counts, trusted_nets):
+    if not trusted_nets:
+        return "FAIL", "no trustedIPs on the websecure entrypoint: Traefik replaces X-Forwarded-For with the proxy address, per-visitor limits collapse"
+    top = ", ".join("%s x%d" % kv for kv in sorted(counts["other"].items(), key=lambda kv: -kv[1])[:5])
+    if counts["other"]:
+        return "WARN", "requests to the API host from unexpected addresses (%s); if Hostinger's egress address changed, update trustedIPs" % top
+    if counts["trusted"] == 0:
+        return "WARN", "no request from the trusted Hostinger address in the log window (proxy idle, or its egress address changed)"
+    return "OK", "all %d proxied requests came from the trusted address(es), %d local probes" % (counts["trusted"], counts["local"])
+
+
+def listeners_status(ss_lines):
+    """ss -Hltn lines -> status for port 3000: loopback only is OK."""
+    bad = []
+    for line in ss_lines:
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        local = parts[3]
+        host, _, port = local.rpartition(":")
+        if port != "3000":
+            continue
+        host = host.strip("[]").split("%")[0]
+        if host not in ("127.0.0.1", "::1"):
+            bad.append(local)
+    return ("FAIL", "API port 3000 listens on %s (public again)" % ", ".join(bad)) if bad else ("OK", "port 3000 is bound to loopback only")
+
+
+def self_test():
+    nets = [ipaddress.ip_network("82.180.172.143/32")]
+    mk = lambda addr: json.dumps({"RouterName": ROUTER, "ClientAddr": addr})
+    c = classify_clients([mk("82.180.172.143:5"), mk("82.180.172.143:6"), mk("127.0.0.1:7"), mk("[2a02:4780:4:3a99::1]:8"), "garbage",
+                          json.dumps({"RouterName": "other@file", "ClientAddr": "9.9.9.9:1"})], nets)
+    assert c["trusted"] == 2 and c["local"] == 1 and c["other"] == {"2a02:4780:4:3a99::1": 1} and c["total"] == 4, c
+    assert egress_status(c, nets)[0] == "WARN"
+    assert egress_status(classify_clients([mk("82.180.172.143:5"), mk("172.16.2.1:9")], nets), nets)[0] == "OK"
+    assert egress_status(classify_clients([mk("172.16.2.1:9")], nets), nets)[0] == "WARN"          # nothing from Hostinger
+    assert egress_status(classify_clients([mk("1.2.3.4:9")], []), [])[0] == "FAIL"                  # not trusted at all
+    assert [cert_status(x) for x in (None, -1, 0, 20, 21, 90)] == ["FAIL", "FAIL", "WARN", "WARN", "OK", "OK"]
+    assert listeners_status(["LISTEN 0 4096 127.0.0.1:3000 0.0.0.0:*"])[0] == "OK"
+    assert listeners_status(["LISTEN 0 4096 0.0.0.0:3000 0.0.0.0:*"])[0] == "FAIL"
+    assert listeners_status(["LISTEN 0 4096 [::]:3000 [::]:*"])[0] == "FAIL"
+    assert listeners_status(["LISTEN 0 4096 187.77.12.13:3000 0.0.0.0:*"])[0] == "FAIL"
+    assert listeners_status(["LISTEN 0 4096 [::1]:3000 [::]:*", "LISTEN 0 128 0.0.0.0:22 0.0.0.0:*"])[0] == "OK"
+    assert parse_client_host("[2a02::1]:47958") == "2a02::1" and parse_client_host("1.2.3.4:80") == "1.2.3.4"
+    print("self-test ok")
+
+
+# ---------------------------------------------------------------- checks
+def served_hosts():
+    hosts = set()
+    rc, out, _ = sh("grep -ho 'Host(`[^`]*`)' %s/*.yml 2>/dev/null" % TRAEFIK_DYNAMIC)
+    hosts.update(re.findall(r"Host\(`([^`]*)`\)", out))
+    rc, ids, _ = sh("docker ps -q")
+    for cid in ids.split():
+        rc, labels, _ = sh(["docker", "inspect", "--format", "{{range $k,$v := .Config.Labels}}{{$k}}={{$v}}{{\"\\n\"}}{{end}}", cid])
+        for line in labels.splitlines():
+            if re.match(r"traefik\.http\.routers\..*\.rule=", line):
+                hosts.update(re.findall(r"Host\(`([^`]*)`\)", line))
+    return sorted(hosts)
+
+
+def days_left_for(host):
+    rc, out, _ = sh("echo | timeout 10 openssl s_client -connect 127.0.0.1:443 -servername %s 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null" % host, timeout=20)
+    m = re.search(r"notAfter=(.+)", out)
+    if not m:
+        return None, None
+    end = dt.datetime.strptime(m.group(1).strip(), "%b %d %H:%M:%S %Y %Z").replace(tzinfo=dt.timezone.utc)
+    return (end - dt.datetime.now(dt.timezone.utc)).total_seconds() / 86400.0, end
+
+
+def check_certs(emit):
+    # the API hop host exactly as a client sees it: public name, IPv4, chain and host name verified
+    try:
+        ip = socket.getaddrinfo(API_HOST, 443, socket.AF_INET)[0][4][0]
+        ctx = ssl.create_default_context()
+        with socket.create_connection((ip, 443), timeout=10) as raw, ctx.wrap_socket(raw, server_hostname=API_HOST) as tls:
+            cert = tls.getpeercert()
+        end = dt.datetime.fromtimestamp(ssl.cert_time_to_seconds(cert["notAfter"]), dt.timezone.utc)
+        days = (end - dt.datetime.now(dt.timezone.utc)).total_seconds() / 86400.0
+        emit(cert_status(days), "cert", "%s chain+host verified, %.1f days left, notAfter %s" % (API_HOST, days, end.strftime("%Y-%m-%d")))
+    except Exception as exc:
+        emit("FAIL", "cert", "%s could not be verified as a client would: %s" % (API_HOST, str(exc)[:160]))
+    soon = []
+    hosts = served_hosts()
+    for host in hosts:
+        days, end = days_left_for(host)
+        if cert_status(days) != "OK":
+            soon.append("%s %s" % (host, "unreadable" if days is None else "%.1f days" % days))
+    if soon:
+        emit("WARN", "cert", "%d of %d Traefik hosts below %d days or unreadable: %s" % (len(soon), len(hosts), WARN_DAYS, "; ".join(soon)[:300]))
+    else:
+        emit("OK", "cert", "all %d Traefik hosts have at least %d days left" % (len(hosts), WARN_DAYS))
+
+
+def live_trusted_nets():
+    rc, out, _ = sh(["docker", "inspect", "--format", "{{json .Args}}", TRAEFIK])
+    nets = []
+    if rc == 0:
+        for arg in json.loads(out or "[]"):
+            m = re.match(r"--entrypoints\.websecure\.forwardedHeaders\.trustedIPs=(.+)", arg, re.I)
+            if m:
+                nets += [ipaddress.ip_network(x.strip(), strict=False) for x in m.group(1).split(",") if x.strip()]
+    return nets
+
+
+def check_egress(emit):
+    nets = live_trusted_nets()
+    rc, out, err = sh("docker logs --since 24h %s 2>&1" % TRAEFIK, timeout=120)
+    lines = [l for l in out.splitlines() if l.startswith("{")]
+    times = [json.loads(l).get("time") for l in lines[:1] + lines[-1:] if '"time"' in l]
+    window = "%s..%s" % (times[0], times[-1]) if len(times) == 2 else "unknown"
+    status, msg = egress_status(classify_clients(lines, nets), nets)
+    emit(status, "egress", "%s [trusted %s; access-log window %s]" % (msg, ",".join(str(n) for n in nets) or "none", window))
+
+
+def check_port(emit):
+    rc, out, _ = sh("ss -Hltn")
+    status, msg = listeners_status(out.splitlines())
+    emit(status, "port3000", msg)
+
+
+def check_proxy(emit):
+    try:
+        text = open(PROXY_FILE, encoding="utf-8").read()
+        m = re.search(r"\$VPS_HOST\s*=\s*'([^']+)'", text)
+        target = m.group(1) if m else "unknown"
+        emit("OK" if target.startswith("https://") else "FAIL", "proxy", "api-proxy.php in the VPS checkout targets %s" % target)
+    except OSError as exc:
+        emit("WARN", "proxy", "cannot read %s: %s" % (PROXY_FILE, exc))
+    try:
+        req = urllib.request.Request(SITE_URL, headers={"User-Agent": "abent-tls-check/1.0"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = json.loads(r.read())
+        emit("OK" if r.status == 200 and isinstance(body, list) and body else "WARN", "proxy", "GET %s -> %s, %d events" % (SITE_URL, r.status, len(body) if isinstance(body, list) else -1))
+    except Exception as exc:
+        emit("FAIL", "proxy", "GET %s failed: %s" % (SITE_URL, str(exc)[:160]))
+
+
+def main():
+    if "--self-test" in sys.argv:
+        return self_test()
+    results = []
+    stamp = lambda: dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    lines = []
+
+    def emit(status, check, msg):
+        results.append(status)
+        lines.append("%s %-4s %-9s %s" % (stamp(), status, check, msg))
+
+    for fn in (check_certs, check_egress, check_port, check_proxy):
+        try:
+            fn(emit)
+        except Exception as exc:
+            emit("FAIL", fn.__name__.replace("check_", ""), "check crashed: %s" % str(exc)[:200])
+    summary = "ok=%d warn=%d fail=%d" % (results.count("OK"), results.count("WARN"), results.count("FAIL"))
+    lines.append("%s %-4s %-9s %s" % (stamp(), "INFO", "summary", summary))
+    text = "\n".join(lines) + "\n"
+    sys.stdout.write(text)
+    try:
+        with open(LOG, "a", encoding="utf-8") as fh:
+            fh.write(text)
+    except OSError as exc:
+        sys.stderr.write("cannot append to %s: %s\n" % (LOG, exc))
+    return 2 if "FAIL" in results else (1 if "WARN" in results else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
