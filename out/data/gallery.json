@@ -482,5 +482,15 @@
     "width": 1200,
     "height": 800,
     "createdAt": "2026-10-15T09:32:07.405Z"
+  },
+  {
+    "id": "img-1792056876073",
+    "src": "WhatsApp Image 2026-10-14 at 11.19.28.jpeg",
+    "alt": "Shrimant Damodar Pant",
+    "eventId": "evt-shrimant-damodar-pant",
+    "category": "events",
+    "width": 1200,
+    "height": 800,
+    "createdAt": "2026-10-15T09:34:36.073Z"
   }
 ]
