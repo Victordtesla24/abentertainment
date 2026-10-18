@@ -1,13 +1,16 @@
 /**
  * The admin Dashboard's business half, in a browser, on a dev server with its own scratch data: the command bar and its filter, the
- * five tiles At a glance, the action centre, revenue and forecast, the event pipeline, the breakdowns and the sponsorship, each
- * with its "View as table" twin.
+ * five tiles At a glance (a dial or a ring each), the beacons that stand for the actions, revenue and forecast (needles, small dials and
+ * rings), the event pipeline, the breakdowns (donuts and dials) and the sponsorship, each with its "View as table" twin.
  *
  * It renders what src/lib/admin-bi.ts calculates (that module is pinned by e2e/admin-bi-model.spec.ts): every figure on the page is
  * compared with the model's own result for the same data, the numbers that do not depend on the public reference data are written
- * here by hand, and the numbers that do are taken from the model. See e2e/support/admin-bi-http.ts for the harness. The system half
- * is in e2e/admin-dashboard-system.spec.ts, the tooltips and charts' interaction in e2e/admin-dashboard-interaction.spec.ts, the
- * ten device sizes in e2e/admin-dashboard-layout.spec.ts and motion in e2e/admin-dashboard-motion.spec.ts.
+ * here by hand, and the numbers that do are taken from the model. See e2e/support/admin-bi-http.ts for the harness. The page keeps
+ * only numbers, shapes and a word or three: what used to be written under a figure is in its tooltip (pointed at, focused or tapped)
+ * or behind the "i" of its panel, so these tests read those places for the same facts. The system half is in
+ * e2e/admin-dashboard-system.spec.ts, the tooltips and charts' interaction in e2e/admin-dashboard-interaction.spec.ts, the beacons
+ * in e2e/admin-dashboard-hotspots.spec.ts, the ten device sizes in e2e/admin-dashboard-layout.spec.ts and motion in
+ * e2e/admin-dashboard-motion.spec.ts.
  */
 
 import { test, expect, type Locator, type Page } from '@playwright/test';
@@ -84,12 +87,7 @@ function event(id: string, extra: Partial<Event> = {}): Event {
 const byId = (page: Page, id: string) => page.getByTestId(id);
 const refresh = (page: Page) => page.getByTestId('dashboard-refresh');
 const scopeButton = (page: Page, scope: bi.TimeScope) => page.getByTestId(`dashboard-scope-${scope}`);
-
-/** Show every action card (the action centre shows the six most urgent until asked). */
-async function showAllActions(page: Page): Promise<void> {
-  const toggle = byId(page, 'bi-actions-toggle');
-  if ((await toggle.count()) > 0 && (await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
-}
+const tooltip = (page: Page) => page.getByTestId('chart-tooltip');
 
 /** Every scroll offset of the page: the window's, and the largest offset of any scrolling container (the content column, if it scrolls). */
 const offsets = (page: Page) =>
@@ -101,13 +99,74 @@ const offsets = (page: Page) =>
     return { window: Math.round(window.scrollY), container: Math.max(0, ...scrolled.map((element) => Math.round(element.scrollTop))) };
   });
 
-/** Scroll down to an action button, click it, and see the tab it opens start at the very top. */
-async function opensAtTop(page: Page): Promise<void> {
-  const button = byId(page, 'bi-action-record-ticket-sales-open');
+/** What a mark says in its tooltip when it is pointed at (its text, the whitespace collapsed); the pointer is moved away again afterwards. */
+async function tipText(page: Page, mark: Locator): Promise<string> {
+  await mark.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(700);
+  await mark.hover();
+  await expect(tooltip(page)).toBeVisible();
+  const text = ((await tooltip(page).textContent()) ?? '').replace(/\s+/g, ' ');
+  await page.mouse.move(5, 5);
+  await expect(tooltip(page)).toHaveCount(0);
+  return text;
+}
+
+/** The page point at the middle of an arc mark of a donut: the middle of its bounding box is not on a ring, so a pointer is aimed along the arc. */
+async function arcPoint(mark: Locator): Promise<{ x: number; y: number }> {
+  return mark.evaluate((element) => {
+    const path = element as unknown as SVGGeometryElement;
+    const point = path.getPointAtLength(path.getTotalLength() / 2);
+    const matrix = (path as unknown as SVGGraphicsElement).getScreenCTM();
+    if (!matrix) throw new Error('the arc has no place on the screen');
+    const at = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+    return { x: at.x, y: at.y };
+  });
+}
+
+/** Point at a slice of a donut and read its tooltip. */
+async function sliceTipText(page: Page, slice: Locator): Promise<string> {
+  await slice.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(700);
+  const { x, y } = await arcPoint(slice);
+  await page.mouse.move(x, y);
+  await expect(tooltip(page)).toBeVisible();
+  const text = ((await tooltip(page).textContent()) ?? '').replace(/\s+/g, ' ');
+  await page.mouse.move(5, 5);
+  await expect(tooltip(page)).toHaveCount(0);
+  return text;
+}
+
+/** Open the "i" of a panel: its method note, legend and sources are in the popover it opens. */
+async function openInfo(page: Page, id: string): Promise<Locator> {
+  const button = byId(page, `${id}-info`);
   await button.scrollIntoViewIfNeeded();
+  await button.click();
+  const popover = byId(page, `${id}-info-popover`);
+  await expect(popover).toBeVisible();
+  return popover;
+}
+
+async function closeInfo(page: Page, id: string): Promise<void> {
+  await page.keyboard.press('Escape');
+  await expect(byId(page, `${id}-info-popover`)).toHaveCount(0);
+}
+
+/** Press the beacon of an action and then the button in its popover: the tab where the work is done opens. */
+async function openActionTab(page: Page, id: string): Promise<void> {
+  const beacon = byId(page, `bi-hotspot-${id}`);
+  await beacon.scrollIntoViewIfNeeded();
+  await beacon.click();
+  await byId(page, `bi-hotspot-${id}-open`).click();
+}
+
+/** Scroll down to a beacon, open it, press its button, and see the tab it opens start at the very top. */
+async function opensAtTop(page: Page): Promise<void> {
+  const beacon = byId(page, 'bi-hotspot-record-ticket-sales');
+  await beacon.scrollIntoViewIfNeeded();
   const before = await offsets(page);
   expect(before.window + before.container, 'the page is scrolled down before the click').toBeGreaterThan(0);
-  await button.click();
+  await beacon.click();
+  await byId(page, 'bi-hotspot-record-ticket-sales-open').click();
   await expect(page.getByRole('button', { name: '+ New Event' })).toBeVisible({ timeout: 20000 });
   await expect.poll(() => offsets(page)).toEqual({ window: 0, container: 0 });
 }
@@ -156,11 +215,14 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
 
   // ─── the command bar ──────────────────────────────────────────────────────
 
-  test('the command bar: the title, how the systems are, when it was updated, Refresh, Auto, Export PDF and the Past / Live / Future / All filter', async () => {
+  test('the command bar: the title, how the systems are, the actions, when it was updated, Refresh, Auto, Export PDF and the Past / Live / Future / All filter', async () => {
     const bar = byId(page, 'dashboard-command-bar');
     await expect(bar.getByRole('heading', { name: 'Dashboard', level: 2 })).toBeVisible();
     await expect(bar).toContainText('Command centre');
     await expect(byId(page, 'dashboard-status-pill')).toHaveAttribute('data-state', /^(ok|issues)$/);
+    // the actions that used to be a list are one chip here: how many, in the colour of the most urgent (the beacons are on the charts)
+    await expect(byId(page, 'dashboard-actions-chip')).toHaveAttribute('data-state', 'actions');
+    await expect(byId(page, 'dashboard-actions-chip')).toContainText(`${LIVE.actions.length} actions`);
     // 14 October 2026, 10:00 in Melbourne: the pretend clock
     await expect(byId(page, 'dashboard-updated')).toHaveText(/^Updated 10:\d\d am$/);
     await expect(bar.locator('span[title="The system health was fetched successfully"]')).toHaveText('Live');
@@ -182,42 +244,56 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
 
   // ─── at a glance ──────────────────────────────────────────────────────────
 
-  test('at a glance: five tiles, each with the model\'s own figure and the line saying what it stands on', async () => {
+  test('at a glance: five tiles, each a dial or a ring with the model\'s own figure, a word or three, and the facts behind it in its tooltip', async () => {
     await expect(byId(page, 'glance').getByRole('heading', { name: 'At a glance', level: 3 })).toBeVisible();
 
-    // upcoming events and the next event's countdown
+    // upcoming events on a scale of days, and the next event's countdown
     await expect(byId(page, 'tile-upcoming-value')).toHaveText(String(LIVE.pipeline.length));
     await expect(byId(page, 'tile-upcoming-value')).toHaveText('5');
     await expect(byId(page, 'tile-upcoming-next')).toContainText('Vinod Rathod Live In Concert - Melbourne');
     await expect(byId(page, 'tile-upcoming-next')).toContainText('15 Nov 2026');
     await expect(byId(page, 'tile-upcoming-countdown')).toHaveText('in 32 days');
     await expect(byId(page, 'tile-upcoming-horizon')).toContainText('in 151 days');
+    await expect(byId(page, 'tile-upcoming-horizon').locator('svg [role="img"]')).toHaveCount(5);
 
-    // forecast revenue: the expected figure, its low to high range, and that it is an estimate
+    // forecast revenue: a needle at the expected figure, the range hatched, and that it is an estimate
     const { low, expected, high } = LIVE.forecast.upcoming.totals[0].revenue;
     await expect(byId(page, 'tile-forecast-value')).toHaveText(EST(expected));
     await expect(byId(page, 'tile-forecast-low')).toHaveText(`Low ${EST(low)}`);
     await expect(byId(page, 'tile-forecast-high')).toHaveText(`High ${EST(high)}`);
-    await expect(byId(page, 'tile-forecast')).toContainText('Estimated for 5 of 5 events');
+    await expect(byId(page, 'tile-forecast-coverage')).toHaveText('5 of 5 events');
+    expect(await tipText(page, byId(page, 'tile-forecast-range'))).toContain('Estimated for 5 of 5 events');
     await expect(byId(page, 'tile-forecast').getByText('Estimate', { exact: true })).toBeVisible();
     await expect(byId(page, 'tile-forecast-range')).toBeVisible();
+    await expect(byId(page, 'tile-forecast-range').locator('path[data-part="band"]')).toHaveCount(1);
+    await expect(byId(page, 'tile-forecast-range').locator('line[data-part="needle"]')).toHaveCount(1);
 
-    // the average ticket price against the national average
+    // the average ticket price: an arc, with the national average as a tick on it
     const national = AVERAGE_TICKET_PRICE.find((price) => price.id === 'all-categories');
     await expect(byId(page, 'tile-price-value')).toHaveText('$44.67');
-    await expect(byId(page, 'tile-price')).toContainText('recorded for 6 of 14 events');
+    await expect(byId(page, 'tile-price-coverage')).toHaveText('6 of 14 events');
+    expect(await tipText(page, byId(page, 'tile-price-dial'))).toContain('recorded for 6 of 14 events');
     await expect(byId(page, 'tile-price-range')).toHaveText('range $25 to $59');
-    await expect(byId(page, 'tile-price-bar-own-value')).toHaveText('$44.67');
-    await expect(byId(page, 'tile-price-bar-national-value')).toHaveText(AUD(national?.value ?? 0));
-    await expect(byId(page, 'tile-price')).toContainText(`national average, all categories, ${national?.year} (paid tickets)`);
-    await expect(byId(page, 'tile-price').getByRole('link', { name: 'source' })).toHaveAttribute('href', national?.source.url ?? '');
+    await expect(byId(page, 'tile-price-dial').locator('path[data-part="fill"]')).toHaveCount(1);
+    await expect(byId(page, 'tile-price-mark-national')).toHaveAttribute('aria-label', `National average, all categories, ${national?.year}: ${AUD(national?.value ?? 0)}`);
+    await expect(byId(page, 'tile-price-national-value')).toHaveText(AUD(national?.value ?? 0));
+    const own = await tipText(page, byId(page, 'tile-price-dial'));
+    expect(own).toContain('Average ticket price of your events');
+    expect(own).toContain('Average$44.67');
+    expect(await tipText(page, byId(page, 'tile-price-mark-national'))).toContain(`National average, all categories, ${national?.year}`);
+    // where the comparison comes from is behind the tile's "i"
+    const source = await openInfo(page, 'tile-price');
+    await expect(byId(page, 'tile-price-source')).toContainText(`National average, all categories, ${national?.year} (paid tickets)`);
+    await expect(source.getByRole('link', { name: 'source' })).toHaveAttribute('href', national?.source.url ?? '');
+    await closeInfo(page, 'tile-price');
 
-    // how much of what is needed is recorded
+    // how much of what is needed is recorded: one ring, and a small ring for each part
     const completeness = bi.dataCompleteness(LIVE);
     await expect(byId(page, 'tile-completeness-value')).toHaveText(bi.formatPercent(completeness.ratio ?? 0));
     await expect(byId(page, 'tile-completeness-value')).toHaveText('16%');
     await expect(byId(page, 'tile-completeness-fields')).toHaveText('7 of 44');
     await expect(byId(page, 'tile-completeness-ring')).toHaveAttribute('aria-valuenow', '16');
+    expect(await tipText(page, byId(page, 'tile-completeness-ring'))).toContain('7 of 44 required fields are recorded, for real revenue figures instead of estimates.');
     for (const [id, label, count] of [
       ['past-sales', 'Ticket sales on past events', '0 of 9'],
       ['upcoming-price', 'Price on upcoming events', '5 of 5'],
@@ -225,8 +301,9 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
       ['upcoming-ticket-link', 'Ticket link on upcoming events', '2 of 5'],
       ['sponsor-contract', 'Contract value on sponsors', '0 of 20'],
     ] as const) {
-      await expect(byId(page, `tile-completeness-${id}`)).toContainText(label);
       await expect(byId(page, `tile-completeness-${id}`)).toContainText(count);
+      await expect(byId(page, `tile-completeness-${id}-ring`)).toHaveAttribute('aria-label', label);
+      expect(await tipText(page, byId(page, `tile-completeness-${id}-ring`))).toContain(label);
     }
 
     // the health of the systems (the tile says it is checking until the answers are in)
@@ -239,97 +316,46 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     await expect(byId(page, 'tile-health-pages')).toHaveText('9 of 9');
   });
 
-  test('the formula of data completeness is written on the tile, and it is the one the model pins', async () => {
+  test('the formula of data completeness is behind the tile\'s "i", and it is the one the model pins', async () => {
+    await expect(byId(page, 'tile-completeness-formula')).toHaveCount(0);
+    await openInfo(page, 'tile-completeness');
     const formula = byId(page, 'tile-completeness-formula');
-    await expect(formula).toBeHidden();
-    await byId(page, 'tile-completeness').getByText('How is this worked out?').click();
     await expect(formula).toBeVisible();
     await expect(formula).toContainText('fields recorded divided by the fields required');
     await expect(formula).toContainText('Every past event needs its ticket sales');
     await expect(formula).toContainText('a price, a capacity recorded on the event itself');
     await expect(formula).toContainText('Every sponsor needs a contract value');
     await expect(formula).toContainText('0, text or a negative number is not recorded');
+    await closeInfo(page, 'tile-completeness');
   });
 
   test('nothing that is not recorded is shown as $0, and no figure is broken', async () => {
-    // what a reader sees: the axis labels of a chart ($0 at its foot) are decoration, not a figure
+    // what a reader sees: the scale labels of a dial ($0 at its foot) are decoration, not a figure
     const text = await visibleText(section(page));
     expect(text).not.toMatch(/\$0(?![\d,.])/);
     for (const broken of ['NaN', 'undefined', 'Infinity', '[object', 'null']) expect(text, broken).not.toContain(broken);
-    expect(await section(page).getByText('Not recorded').count()).toBeGreaterThan(6);
-  });
-
-  // ─── the action centre ────────────────────────────────────────────────────
-
-  test('the action centre: the six most urgent first, the rest on request, the most urgent one marked', async () => {
-    await expect(byId(page, 'bi-actions').getByRole('heading', { name: 'Action centre', level: 3 })).toBeVisible();
-    const listed = () => page.locator('[data-testid^="bi-action-"][data-severity]').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')?.replace('bi-action-', '')));
-    expect(await listed()).toEqual(LIVE.actions.slice(0, 6).map((item) => item.id));
-    const toggle = byId(page, 'bi-actions-toggle');
-    await expect(toggle).toHaveText('Show all 9 actions');
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await toggle.click();
-    await expect(toggle).toHaveText('Show fewer actions');
-    expect(await listed()).toEqual(LIVE.actions.map((item) => item.id));
-    await expect(byId(page, 'bi-actions-summary')).toContainText(`${LIVE.actions.length} actions: `);
-    await expect(byId(page, 'bi-actions-summary')).toHaveText('9 actions: 7 medium, 2 low');
-    // exactly one card is the most urgent: the first
-    await expect(byId(page, 'bi-action-most-urgent')).toHaveCount(1);
-    await expect(byId(page, `bi-action-${LIVE.actions[0].id}`)).toContainText('Most urgent');
-    await toggle.click();
-    expect(await listed()).toHaveLength(6);
-  });
-
-  test('every action the model lists: its severity in words, what it affects, how far it is done, and a button for the right tab', async () => {
-    await showAllActions(page);
-    const progress: Record<string, string> = {
-      'record-contract-values': '0 of 20 contract values recorded',
-      'unlinked-sponsors': '3 of 20 sponsors are linked to an event',
-      'record-ticket-sales': '0 of 9 past events have ticket sales recorded',
-      'add-capacity': '0 of 5 upcoming events have a capacity recorded',
-      'link-sponsors-upcoming': '1 of 5 upcoming events have sponsors linked',
-      'capacity-over-venue': '11 of 14 events have no capacity above their venue\'s size',
-      'fix-ticket-links': '11 of 14 events have no malformed ticket link',
-      'category-spelling': '9 of 14 events are saved with the usual spelling of their category',
-      'venue-duplicates': '9 of 14 events have no look-alike venue spelling',
-    };
-    const percent: Record<string, string> = { 'record-contract-values': '0', 'unlinked-sponsors': '15', 'record-ticket-sales': '0', 'add-capacity': '0', 'link-sponsors-upcoming': '20', 'capacity-over-venue': '79', 'fix-ticket-links': '79', 'category-spelling': '64', 'venue-duplicates': '64' };
-    expect(Object.keys(progress).sort()).toEqual(LIVE.actions.map((item) => item.id).sort());
-    for (const item of LIVE.actions) {
-      const card = byId(page, `bi-action-${item.id}`);
-      await expect(card).toContainText(item.title);
-      await expect(card).toHaveAttribute('data-severity', item.severity);
-      await expect(card).toContainText(item.severity === 'high' ? 'High' : item.severity === 'medium' ? 'Medium' : 'Low');
-      await expect(card).toContainText(`Affects ${item.count} ${item.target === 'sponsors' ? 'sponsor' : 'event'}`);
-      for (const name of item.names) await expect(card).toContainText(name);
-      if (item.moreCount > 0) await expect(card).toContainText(`and ${item.moreCount} more`);
-      await expect(byId(page, `bi-action-${item.id}-progress`)).toContainText(progress[item.id]);
-      const meter = byId(page, `bi-action-${item.id}-progress`).getByRole('meter');
-      await expect(meter).toHaveAttribute('aria-valuenow', percent[item.id]);
-      await expect(meter).toHaveAttribute('aria-valuetext', progress[item.id]);
-      await expect(byId(page, `bi-action-${item.id}-open`)).toHaveText(item.target === 'sponsors' ? 'Open Sponsors' : 'Open Events');
+    // a figure that is not recorded is an empty ring with the words, never a zero: ticket revenue, tickets sold, per ticket, the sponsors' contract value and revenue
+    expect(await section(page).getByText('Not recorded').count()).toBeGreaterThanOrEqual(5);
+    expect(await section(page).locator('[data-state="not-recorded"]').count()).toBeGreaterThanOrEqual(5);
+    for (const id of ['bi-card-ticket-revenue', 'bi-card-tickets-sold', 'bi-card-per-ticket', 'bi-card-sponsor-contract', 'bi-card-sponsor-revenue']) {
+      await expect(byId(page, `${id}-ring`)).toHaveAttribute('data-state', 'not-recorded');
+      await expect(byId(page, `${id}-ring`)).toHaveAttribute('aria-valuenow', '0');
+      await expect(byId(page, `${id}-figure`)).toHaveText('Not recorded');
+      // and what is written inside the ring is a dash: not "0%", not "0/14", nothing a reader could take for a measured zero
+      await expect(byId(page, `${id}-ring`)).toHaveText('–');
     }
-    // the data problems found in the live data: three events with trailing text in the ticket link, "Live Concert " and "Drum Theatre" x3
-    await expect(byId(page, 'bi-action-category-spelling')).toContainText('Category "Live Concert" is saved as "Live Concert " (5 events)');
-    await expect(byId(page, 'bi-action-venue-duplicates')).toContainText('"Drum Theatre, Dandenong, Melbourne" (3), "Drum Theatre, Dandenong" (1), "Drum Theatre - 226 Lonsdale St Dandenong, VIC, 3175" (1)');
-    await expect(byId(page, 'bi-action-fix-ticket-links')).toContainText('DJ Night Sydney, DJ Night - Melbourne, All The Best - Sydney');
+    // no ring or dial that has nothing recorded writes a digit, whichever card it is on
+    const written = await section(page)
+      .locator('[data-viz][data-state="not-recorded"]')
+      .evaluateAll((elements) => elements.map((element) => ({ id: element.getAttribute('data-testid') ?? '', text: ((element as HTMLElement).innerText ?? '').trim() })).filter((entry) => /[0-9%]/.test(entry.text)));
+    expect(written, 'rings and dials with nothing recorded that write a number').toEqual([]);
   });
 
-  test('the progress of an action is what the model records: the five counted by data completeness agree with it', async () => {
-    const completeness = bi.dataCompleteness(LIVE);
-    const done = (id: bi.CompletenessPartId) => {
-      const part = completeness.parts.find((entry) => entry.id === id);
-      return `${part?.recorded} of ${part?.total}`;
-    };
-    await showAllActions(page);
-    await expect(byId(page, 'bi-action-record-ticket-sales-progress')).toContainText(done('past-sales'));
-    await expect(byId(page, 'bi-action-add-capacity-progress')).toContainText(done('upcoming-capacity'));
-    await expect(byId(page, 'bi-action-record-contract-values-progress')).toContainText(done('sponsor-contract'));
-  });
+  // ─── the beacons that open the tab where an action is done ────────────────
+  // (which beacon is on which chart, their popovers and their keyboard behaviour are in e2e/admin-dashboard-hotspots.spec.ts)
 
-  test('an action button opens the tab where it is fixed, at the top of the page, and the Dashboard comes back', async () => {
-    await byId(page, 'bi-action-record-contract-values-open').scrollIntoViewIfNeeded();
-    await byId(page, 'bi-action-record-contract-values-open').click();
+  test('a beacon opens the tab where it is fixed, at the top of the page, and the Dashboard comes back', async () => {
+    await openActionTab(page, 'record-contract-values');
     await expect(page.getByRole('button', { name: '+ New Sponsor' })).toBeVisible({ timeout: 20000 });
     await expect(page.getByRole('heading', { name: 'Sponsors & Partners', level: 2 })).toBeVisible();
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
@@ -337,24 +363,20 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     await openTab(page, 'Dashboard');
     await expect(section(page)).toBeVisible({ timeout: 20000 });
     await expect(note(page)).toHaveAttribute('data-state', 'live', { timeout: 30000 });
-    await byId(page, 'bi-action-record-ticket-sales-open').scrollIntoViewIfNeeded();
-    await byId(page, 'bi-action-record-ticket-sales-open').click();
+    await openActionTab(page, 'record-ticket-sales');
     await expect(page.getByRole('button', { name: '+ New Event' })).toBeVisible({ timeout: 20000 });
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
     await openTab(page, 'Dashboard');
     await expect(section(page)).toBeVisible({ timeout: 20000 });
   });
 
-  test('every action button of the live data opens the tab its card names', async () => {
-    await showAllActions(page);
+  test('every beacon of the live data opens the tab its popover names', async () => {
     for (const item of LIVE.actions) {
-      await byId(page, `bi-action-${item.id}-open`).scrollIntoViewIfNeeded();
-      await byId(page, `bi-action-${item.id}-open`).click();
+      await openActionTab(page, item.id);
       await expect(page.getByRole('button', { name: item.target === 'sponsors' ? '+ New Sponsor' : '+ New Event' })).toBeVisible({ timeout: 20000 });
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
       await openTab(page, 'Dashboard');
       await expect(note(page)).toHaveAttribute('data-state', 'live', { timeout: 30000 });
-      await showAllActions(page);
     }
   });
 
@@ -380,14 +402,13 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
 
     // the Dashboard counts it: $59 x 450 = $26,550 joins the $36,000 of Shrimant Damodar Pant
     await openTab(page, 'Dashboard');
-    await expect(byId(page, 'bi-card-potential-gross')).toContainText('$62,550', { timeout: 30000 });
-    await expect(byId(page, 'bi-card-potential-gross')).toContainText('recorded for 2 of 14 events with both a price and a capacity');
-    await showAllActions(page);
-    await expect(byId(page, 'bi-action-add-capacity')).toContainText('Add capacity to 4 upcoming events');
+    await expect(byId(page, 'bi-card-potential-gross-figure')).toContainText('$62,550', { timeout: 30000 });
+    expect(await tipText(page, byId(page, 'bi-card-potential-gross-ring'))).toContain('recorded for 2 of 14 events with both a price and a capacity');
+    await expect(byId(page, 'bi-hotspot-add-capacity')).toHaveAttribute('aria-label', /^Add capacity to 4 upcoming events: 4 events, Medium priority$/);
     await expect(byId(page, 'tile-completeness-fields')).toHaveText('8 of 44');
   });
 
-  test('an action button starts the opened tab at its top, in the page and in a content column that scrolls', async () => {
+  test('a beacon starts the opened tab at its top, in the page and in a content column that scrolls', async () => {
     await opensAtTop(page);
     await openTab(page, 'Dashboard');
     await expect(section(page)).toBeVisible({ timeout: 20000 });
@@ -398,10 +419,11 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
       element.style.height = '700px';
       element.style.maxHeight = '700px';
     });
-    const button = byId(page, 'bi-action-record-ticket-sales-open');
-    await button.scrollIntoViewIfNeeded();
+    const beacon = byId(page, 'bi-hotspot-record-ticket-sales');
+    await beacon.scrollIntoViewIfNeeded();
     expect(await column.evaluate((element) => element.scrollTop), 'the column is scrolled down before the click').toBeGreaterThan(0);
-    await button.click();
+    await beacon.click();
+    await byId(page, 'bi-hotspot-record-ticket-sales-open').click();
     await expect(page.getByRole('button', { name: '+ New Event' })).toBeVisible({ timeout: 20000 });
     await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
@@ -413,23 +435,32 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     const forecast = byId(page, 'bi-forecast');
     await expect(forecast.getByRole('heading', { name: /^Revenue & forecast/, level: 3 })).toBeVisible();
     await expect(forecast.getByText('Estimate', { exact: true }).first()).toBeVisible();
-    // low and high are the lowest and highest genre averages: a range across genres, not an interval for one event
-    await expect(forecast).toContainText(`Low (lowest genre, ${bi.formatPercent(SELL_THROUGH.low)})`);
-    await expect(forecast).toContainText('Expected (genre average)');
-    await expect(forecast).toContainText(`High (highest genre, ${bi.formatPercent(SELL_THROUGH.high)})`);
     const upcoming = LIVE.forecast.upcoming.totals[0].revenue;
     const upcomingBlock = byId(page, 'bi-forecast-upcoming');
+    // the three figures are on the dial; what each is called (a range across genres, not an interval for one event) is in its tooltip
     await expect(upcomingBlock).toContainText(EST(upcoming.low));
     await expect(upcomingBlock).toContainText(EST(upcoming.expected));
     await expect(upcomingBlock).toContainText(EST(upcoming.high));
-    await expect(upcomingBlock).toContainText(`Estimated for ${LIVE.forecast.upcoming.forecast} of ${LIVE.forecast.upcoming.events} events`);
-    await expect(upcomingBlock).toContainText('5 of them on the public capacity of their venue');
+    await expect(byId(page, 'bi-forecast-upcoming-coverage')).toHaveText('5 of 5 events');
+    const tipUpcoming = await tipText(page, byId(page, 'bi-forecast-upcoming-dial-AUD'));
+    expect(tipUpcoming).toContain(`Low (lowest genre, ${bi.formatPercent(SELL_THROUGH.low)})${EST(upcoming.low)}`);
+    expect(tipUpcoming).toContain(`Expected (genre average)${EST(upcoming.expected)}`);
+    expect(tipUpcoming).toContain(`High (highest genre, ${bi.formatPercent(SELL_THROUGH.high)})${EST(upcoming.high)}`);
+    expect(tipUpcoming).toContain(`Estimated for ${LIVE.forecast.upcoming.forecast} of ${LIVE.forecast.upcoming.events} events`);
+    expect(tipUpcoming).toContain('5 of them on the public capacity of their venue');
     const past = LIVE.forecast.past.totals[0].revenue;
     await expect(byId(page, 'bi-forecast-past')).toContainText(EST(past.expected));
-    await expect(byId(page, 'bi-forecast-past')).toContainText('Estimated for 1 of 9 events');
-    await expect(byId(page, 'bi-forecast-past')).toContainText('Not estimated: 8 have no price');
+    await expect(byId(page, 'bi-forecast-past-coverage')).toHaveText('1 of 9 events');
+    const tipPast = await tipText(page, byId(page, 'bi-forecast-past-dial-AUD'));
+    expect(tipPast).toContain('Estimated for 1 of 9 events');
+    expect(tipPast).toContain('Not estimated: 8 have no price');
+    // the dials say it is an estimate in their drawing too: a hatched range and a needle, never a solid fill
+    await expect(byId(page, 'bi-forecast-upcoming-dial-AUD').locator('path[data-part="band"]')).toHaveCount(1);
+    await expect(byId(page, 'bi-forecast-upcoming-dial-AUD').locator('path[data-part="fill"]')).toHaveCount(0);
 
-    // the legend: the benchmark, its year (LPA 2015), a link to its source, and the rule
+    // the legend: the benchmark, its year (LPA 2015), a link to its source, and the rule: behind the panel's "i"
+    expect(await sectionText(page)).not.toMatch(/scenario/i);
+    const info = await openInfo(page, 'bi-forecast');
     const legend = byId(page, 'bi-estimate-legend');
     await expect(legend).toContainText('Estimate, not a record');
     await expect(legend).toContainText(SELL_THROUGH.label);
@@ -438,41 +469,47 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     await expect(legend).toContainText('a range across genres, not an interval for one event');
     await expect(legend).toContainText('An event with recorded sales is never estimated');
     await expect(legend.getByRole('link', { name: 'source' })).toHaveAttribute('href', SELL_THROUGH.source?.url ?? '');
-    // it is a published benchmark, so these are estimates and not "scenarios"
-    expect(await sectionText(page)).not.toMatch(/scenario/i);
+    expect(await info.innerText()).not.toMatch(/scenario/i);
     // the public venue capacities the estimates stand on are footnoted, each with its source
     const sources = byId(page, 'bi-forecast-sources');
     for (const venue of LIVE.pipeline.flatMap((row) => (row.capacity?.venue ? [row.capacity.venue] : []))) {
       await expect(sources).toContainText(`${venue.name}, ${bi.formatCount(venue.capacity)} seats`);
       await expect(sources.locator(`a[href="${venue.source.url}"]`)).toHaveCount(1);
     }
+    await closeInfo(page, 'bi-forecast');
     // recorded revenue stays "Not recorded": the estimate is never put in its place
     await expect(byId(page, 'bi-card-ticket-revenue')).toContainText('Not recorded');
   });
 
-  test('each upcoming event is a range from its low to its high estimate with the expected value marked, and its recorded revenue beside it', async () => {
+  test('each upcoming event is a small dial on one scale: its range from low to high estimate with the expected value marked, and its recorded revenue beside it', async () => {
     await expect(page.locator('[data-testid^="bi-forecast-row-"]')).toHaveCount(5);
     for (const row of LIVE.pipeline) {
       const element = byId(page, `bi-forecast-row-${row.id}`);
       await expect(element).toHaveAttribute('data-kind', 'estimate');
       await expect(element).toContainText(row.title);
-      await expect(element).toContainText(row.dateLabel);
       await expect(element).toContainText(row.daysLabel);
       await expect(byId(page, `bi-forecast-expected-${row.id}`)).toContainText(EST(row.forecast?.revenue.expected ?? 0));
       await expect(byId(page, `bi-forecast-expected-${row.id}`)).toContainText('Estimate');
-      await expect(element).toContainText('Recorded revenue: Not recorded');
-      // the bar says it in words for a screen reader, and is drawn hatched
-      const bar = byId(page, `bi-forecast-bar-${row.id}`);
-      await expect(bar).toHaveAttribute('aria-label', new RegExp(`${row.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: expected ${EST(row.forecast?.revenue.expected ?? 0).replace('$', '\\$')}`));
-      expect(await bar.locator('div').evaluateAll((parts) => parts.some((part) => getComputedStyle(part).backgroundImage.includes('repeating-linear-gradient')))).toBe(true);
+      // the dial says it in words for a screen reader, and is drawn hatched with a needle
+      const dial = byId(page, `bi-forecast-dial-${row.id}`);
+      await expect(dial).toHaveAttribute('aria-label', new RegExp(`${row.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: expected ${EST(row.forecast?.revenue.expected ?? 0).replace('$', '\\$')}`));
+      await expect(dial.locator('path[data-part="band"]')).toHaveCount(1);
+      await expect(dial.locator('line[data-part="needle"]')).toHaveCount(1);
+      // the date, the range and that the revenue is not recorded are in the tooltip of the card
+      const tip = await tipText(page, element);
+      expect(tip).toContain(row.title);
+      expect(tip).toContain(`${row.dateLabel} · ${row.daysLabel}`);
+      expect(tip).toContain(`Low${EST(row.forecast?.revenue.low ?? 0)}`);
+      expect(tip).toContain('Recorded revenueNot recorded');
       // and a prompt to record the sales
       await expect(byId(page, `bi-forecast-record-${row.id}`)).toHaveText('Record sales');
     }
-    // the axis is in the chart's own currency, from 0
+    // every dial is on the same scale, from 0 (decoration for the eye: the dials say their figures in words)
     await expect(byId(page, 'bi-forecast-events')).toContainText('$0');
+    await expect(byId(page, 'bi-forecast-scale')).toContainText('every dial $0 to $');
   });
 
-  test('"Record sales" opens the Events tab at the top, like the action buttons', async () => {
+  test('"Record sales" opens the Events tab at the top, like the action beacons', async () => {
     const button = byId(page, `bi-forecast-record-${LIVE.pipeline[0].id}`);
     await button.scrollIntoViewIfNeeded();
     expect((await offsets(page)).window).toBeGreaterThan(0);
@@ -483,18 +520,21 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     await expect(section(page)).toBeVisible({ timeout: 20000 });
   });
 
-  test('what is recorded so far: tickets, revenue, revenue per ticket and the potential gross, each with the number of events it stands on', async () => {
+  test('what is recorded so far: tickets, revenue, revenue per ticket and the potential gross, each a ring of the events it stands on', async () => {
     const recorded = byId(page, 'bi-recorded');
-    await expect(byId(page, 'bi-card-ticket-revenue')).toContainText('Ticket revenue (recorded)');
+    await expect(byId(page, 'bi-card-ticket-revenue-ring')).toHaveAttribute('aria-label', 'Ticket revenue (recorded)');
     await expect(byId(page, 'bi-card-ticket-revenue')).toContainText('Not recorded');
-    await expect(byId(page, 'bi-card-ticket-revenue')).toContainText('recorded for 0 of 14 events. Enter Ticket Revenue on each event (Events tab)');
-    await expect(byId(page, 'bi-card-tickets-sold')).toContainText('recorded for 0 of 14 events. Enter Tickets Sold on each event (Events tab)');
-    await expect(byId(page, 'bi-card-per-ticket')).toContainText('Avg per ticket sold');
-    await expect(byId(page, 'bi-card-per-ticket')).toContainText('Enter Tickets Sold and Ticket Revenue on the same event (Events tab)');
+    await expect(byId(page, 'bi-card-ticket-revenue')).toContainText('0 of 14 events');
+    expect(await tipText(page, byId(page, 'bi-card-ticket-revenue-ring'))).toContain('recorded for 0 of 14 events. Enter Ticket Revenue on each event (Events tab)');
+    expect(await tipText(page, byId(page, 'bi-card-tickets-sold-ring'))).toContain('recorded for 0 of 14 events. Enter Tickets Sold on each event (Events tab)');
+    await expect(byId(page, 'bi-card-per-ticket-ring')).toHaveAttribute('aria-label', 'Average revenue per ticket sold');
+    expect(await tipText(page, byId(page, 'bi-card-per-ticket-ring'))).toContain('Enter Tickets Sold and Ticket Revenue on the same event (Events tab)');
     // the single event with both a price and a capacity: $45 x 800
-    await expect(byId(page, 'bi-card-potential-gross')).toContainText('$36,000');
-    await expect(byId(page, 'bi-card-potential-gross')).toContainText('recorded for 1 of 14 events with both a price and a capacity');
-    await expect(byId(page, 'bi-card-potential-gross')).toContainText('if every seat sold at the listed price');
+    await expect(byId(page, 'bi-card-potential-gross-figure')).toContainText('$36,000');
+    await expect(byId(page, 'bi-card-potential-gross')).toContainText('1 of 14 events');
+    const gross = await tipText(page, byId(page, 'bi-card-potential-gross-ring'));
+    expect(gross).toContain('recorded for 1 of 14 events with both a price and a capacity');
+    expect(gross).toContain('if every seat sold at the listed price');
     await expect(recorded).not.toContainText('Combined');
     await expect(recorded).not.toContainText('Projected');
   });
@@ -506,6 +546,7 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     await expect(pipeline.getByRole('heading', { name: 'Event pipeline', level: 3 })).toBeVisible();
     await expect(page.locator('[data-testid^="bi-timeline-marker-"]')).toHaveCount(5);
     await expect(byId(page, 'bi-timeline-list')).toBeHidden();
+    await expect(byId(page, 'bi-timeline')).toHaveAttribute('data-viz', 'timeline');
     for (const row of LIVE.pipeline) {
       const marker = byId(page, `bi-timeline-marker-${row.id}`);
       await expect(marker).toHaveAttribute('data-kind', 'estimate');
@@ -527,6 +568,13 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     for (const text of ['Estimated revenue', 'Recorded revenue', 'No estimate', 'No capacity', 'Ticket link missing or broken', 'No sponsors']) await expect(legend).toContainText(text);
     await expect(legend).not.toContainText('No price');
     await expect(pipeline.locator('svg text', { hasText: 'Today' })).toBeVisible();
+    // the label of a marker is its name and how far away it is; the date is on the axis and in its tooltip
+    await expect(pipeline.locator('p', { hasText: LIVE.pipeline[0].daysLabel }).first()).toBeVisible();
+    // what the panel is about is behind its "i"
+    const info = await openInfo(page, 'bi-pipeline');
+    await expect(info).toContainText('Every upcoming or live event on its date');
+    await expect(info).toContainText('Hover, focus or tap a marker for the details');
+    await closeInfo(page, 'bi-pipeline');
   });
 
   // ─── categories, venues, sponsors ─────────────────────────────────────────
@@ -539,59 +587,84 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     const concert = byId(page, 'bi-group-live concert');
     await expect(concert).toContainText('Live Concert');
     await expect(concert).toContainText('5');
-    await expect(concert.getByText('Spelling variants')).toBeVisible();
-    await expect(concert).toContainText('Saved with other spacing or capitals: "Live Concert " (5).');
+    // the spelling variant is flagged on its row (an icon with its words), and said in full in the row's tooltip
+    await expect(concert.getByRole('img', { name: 'Spelling variants' })).toBeVisible();
+    expect(await tipText(page, concert)).toContain('Saved with other spacing or capitals: "Live Concert " (5).');
     // "Live Concert " and "Live Concert" would have been two rows: there is one
     await expect(categories.locator('li[data-testid^="bi-group-"]')).toHaveCount(2);
     await expect(categories.getByText('How many events')).toBeVisible();
+    // two slices of one donut, 14 events in all
+    await expect(byId(page, 'bi-categories-donut')).toHaveAttribute('data-viz', 'donut');
+    await expect(byId(page, 'bi-categories-total')).toHaveText('14');
+    await expect(byId(page, 'bi-group-theatre | comedy | drama-slice')).toHaveAttribute('aria-label', /^Theatre \| Comedy \| Drama: Events 9, 9 events, 64%$/);
+    await expect(byId(page, 'bi-group-live concert-slice')).toHaveAttribute('aria-label', /^Live Concert: Events 5, 5 events, 36%$/);
+    expect(await sliceTipText(page, byId(page, 'bi-group-live concert-slice'))).toContain('Live Concert5 events');
   });
 
-  test('the switch changes what the bars show: events, average price, forecast and seats, and a figure that is not recorded is not a bar', async () => {
+  test('the switch changes what the slices show: events, average price, forecast and seats, and a figure that is not recorded is not a slice', async () => {
     const categories = byId(page, 'bi-categories');
     const venues = byId(page, 'bi-venues');
     await expect(byId(page, 'bi-breakdowns-metric-events')).toHaveAttribute('aria-pressed', 'true');
 
+    // an average cannot be added up, so it is a small dial for each row (never a donut)
     await byId(page, 'bi-breakdowns-metric-price').click();
     await expect(byId(page, 'bi-breakdowns-metric-price')).toHaveAttribute('aria-pressed', 'true');
     await expect(categories).toContainText('Average ticket price, in AUD');
     await expect(byId(page, 'bi-group-theatre | comedy | drama')).toContainText('$54.33');
     await expect(byId(page, 'bi-group-live concert')).toContainText('$35');
-    // the Theatre row comes first (its average is higher), and a venue without a price says so and where to record it
+    await expect(categories.locator('[data-viz="donut"]')).toHaveCount(0);
+    await expect(byId(page, 'bi-group-theatre | comedy | drama').locator('[data-viz="gauge"]')).toHaveCount(1);
+    // the Theatre row comes first (its average is higher), and a venue without a price says so, and where to record it, in its tooltip
     expect(await categories.locator('li[data-testid^="bi-group-"]').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')))).toEqual(['bi-group-theatre | comedy | drama', 'bi-group-live concert']);
     await byId(page, 'bi-venues-toggle').click();
-    await expect(venues).toContainText('Not recorded Enter Price on each event (Events tab)');
+    const unpriced = LIVE.venues.find((row) => row.summary.price.ranges.length === 0);
+    expect(unpriced, 'a venue without a price').toBeDefined();
+    const unpricedRow = byId(page, `bi-group-${unpriced?.key}`);
+    await expect(unpricedRow).toContainText('Not recorded');
+    await expect(unpricedRow.locator('[data-viz="gauge"]')).toHaveAttribute('data-state', 'not-recorded');
+    expect(await tipText(page, unpricedRow)).toContain('Not recorded: Enter Price on each event (Events tab).');
 
+    // an expected revenue adds up, and is an estimate: a donut of hatched slices
     await byId(page, 'bi-breakdowns-metric-forecast').click();
     await expect(categories).toContainText('Expected revenue: an estimate (hatched), in AUD');
     const theatreForecast = LIVE.categories.find((row) => row.key === 'theatre | comedy | drama')?.forecast.totals[0].revenue.expected ?? 0;
     await expect(byId(page, 'bi-group-theatre | comedy | drama')).toContainText(EST(theatreForecast));
-    await expect(byId(page, 'bi-categories-legend')).toContainText('Forecast bars are estimates, not records');
-    expect(await byId(page, 'bi-group-theatre | comedy | drama').locator('div').evaluateAll((parts) => parts.some((part) => getComputedStyle(part).backgroundImage.includes('repeating-linear-gradient')))).toBe(true);
+    await expect(byId(page, 'bi-categories-legend')).toContainText('Forecast slices are estimates, not records');
+    await expect(categories.locator('[data-viz="donut"] path[data-hatched="true"]').first()).toBeAttached();
+    await expect(categories.locator('[data-viz="donut"] path[data-part="slice"]:not([data-hatched="true"])')).toHaveCount(0);
 
+    // seats offered: only the venues with a recorded capacity are slices; the others are one "Not recorded" row, with where to record it in its tooltip
+    const withSeats = LIVE.venues.filter((row) => row.summary.capacity.value !== null).length;
+    expect(withSeats, 'some venues have a recorded capacity and some do not').toBeGreaterThan(0);
+    expect(withSeats).toBeLessThan(LIVE.venues.length);
     await byId(page, 'bi-breakdowns-metric-seats').click();
     await expect(categories).toContainText('Seats offered (recorded capacity)');
     await expect(byId(page, 'bi-group-theatre | comedy | drama')).toContainText('2,400');
     await expect(byId(page, 'bi-group-live concert')).toContainText('2,400');
-    // 12 venues: 4 have a recorded capacity; the others are "Not recorded", not a zero bar
-    await expect(venues).toContainText('Not recorded Enter Capacity on each event (Events tab)');
-    await byId(page, 'bi-venues-toggle').click();
+    await expect(byId(page, 'bi-venues-not-recorded')).toContainText(`Not recorded (${LIVE.venues.length - withSeats})`);
+    expect(await tipText(page, byId(page, 'bi-venues-not-recorded'))).toContain('Enter Capacity on each event (Events tab).');
+    await expect(venues.locator('[data-viz="donut"] path[data-part="slice"]')).toHaveCount(Math.min(withSeats, 6));
 
     await byId(page, 'bi-breakdowns-metric-events').click();
     await expect(byId(page, 'bi-breakdowns-metric-events')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  test('by venue: twelve venues, six shown and the rest on request, with the warnings built in: capacity above the venue\'s size and names that look the same', async () => {
+  test('by venue: twelve venues, a donut of five and "Other", the rest on request, with the warnings built in: capacity above the venue\'s size and names that look the same', async () => {
     const venues = byId(page, 'bi-venues');
+    // five venues and the other seven folded into one "Other" row: six rows, six slices
     await expect(venues.locator('li[data-testid^="bi-group-"]')).toHaveCount(6);
+    await expect(byId(page, 'bi-group-other')).toContainText('Other (7)');
+    await expect(venues.locator('[data-viz="donut"] path[data-part="slice"]')).toHaveCount(6);
     const drum = byId(page, 'bi-group-drum theatre, dandenong, melbourne');
     await expect(drum).toContainText('Drum Theatre, Dandenong, Melbourne');
-    await expect(drum.getByText('Capacity above venue size')).toBeVisible();
-    await expect(drum.getByText('Possible duplicate', { exact: true })).toBeVisible();
-    await expect(drum).toContainText("Capacity above the venue's published capacity: Varvarche Vadhu Var (600 recorded, 521 published), Marmabandhatli Thev (2,400 recorded, 521 published).");
-    await expect(drum).toContainText('Possible duplicate: the same place is also saved as "Drum Theatre, Dandenong", "Drum Theatre - 226 Lonsdale St Dandenong, VIC, 3175".');
+    await expect(drum.getByRole('img', { name: 'Capacity above venue size' })).toBeVisible();
+    await expect(drum.getByRole('img', { name: 'Possible duplicate' })).toBeVisible();
+    const drumTip = await tipText(page, drum);
+    expect(drumTip).toContain("Capacity above the venue's published capacity: Varvarche Vadhu Var (600 recorded, 521 published), Marmabandhatli Thev (2,400 recorded, 521 published).");
+    expect(drumTip).toContain('Possible duplicate: the same place is also saved as "Drum Theatre, Dandenong", "Drum Theatre - 226 Lonsdale St Dandenong, VIC, 3175".');
     const alexander = byId(page, 'bi-group-alexander theatre, monash pac');
-    await expect(alexander.getByText('Capacity above venue size')).toBeVisible();
-    await expect(alexander).toContainText("Shikayla Gelo Ek! (1,000 recorded, 561 published)");
+    await expect(alexander.getByRole('img', { name: 'Capacity above venue size' })).toBeVisible();
+    expect(await tipText(page, alexander)).toContain('Shikayla Gelo Ek! (1,000 recorded, 561 published)');
     // a venue whose capacity is within what it publishes carries no warning
     await expect(byId(page, 'bi-group-centenary theatre, williamstown, melbourne-warnings')).toHaveCount(0);
     const more = byId(page, 'bi-venues-toggle');
@@ -608,23 +681,31 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
   test('sponsorship: twenty sponsors in two tiers, one event with sponsors, seventeen linked to no event, no contract value recorded', async () => {
     const sponsors = byId(page, 'bi-sponsors');
     await expect(sponsors.getByRole('heading', { name: 'Sponsorship', level: 3 })).toBeVisible();
+    await expect(byId(page, 'bi-tier-donut')).toContainText('platinum');
     await expect(byId(page, 'bi-tier-segment-platinum')).toHaveAttribute('aria-label', 'platinum: 8 sponsors');
     await expect(byId(page, 'bi-tier-segment-silver')).toHaveAttribute('aria-label', 'silver: 12 sponsors');
-    await expect(byId(page, 'bi-tier-bar')).toContainText('platinum');
+    await expect(byId(page, 'bi-tier-total')).toHaveText('20');
     await expect(byId(page, 'bi-card-sponsors')).toContainText('20');
-    await expect(byId(page, 'bi-card-sponsors')).toContainText('20 shown on the website · 0 hidden');
+    expect(await tipText(page, byId(page, 'bi-card-sponsors-ring'))).toContain('20 shown on the website · 0 hidden');
     await expect(byId(page, 'bi-card-events-with-sponsors')).toContainText('1 of 14');
-    await expect(byId(page, 'bi-card-events-with-sponsors')).toContainText('13 in this view have none');
+    await expect(byId(page, 'bi-card-events-with-sponsors')).toContainText('13 have none');
+    expect(await tipText(page, byId(page, 'bi-card-events-with-sponsors-ring'))).toContain('13 in this view have none');
     await expect(byId(page, 'bi-card-unlinked-sponsors')).toContainText('17');
     await expect(byId(page, 'bi-card-sponsor-contract')).toContainText('Not recorded');
-    await expect(byId(page, 'bi-card-sponsor-contract')).toContainText('recorded for 0 of 20 sponsors. Enter Contract Value on each sponsor (Sponsors tab)');
-    await expect(byId(page, 'bi-card-sponsor-revenue')).toContainText('recorded for 0 of 20 sponsors. Enter Revenue on each sponsor (Sponsors tab)');
-    await expect(byId(page, 'bi-tier-platinum')).toContainText('platinum · 8 sponsors');
-    await expect(byId(page, 'bi-tier-silver')).toContainText('12 shown · 0 hidden · revenue not recorded (0 of 12) · contract value not recorded (0 of 12)');
-    await expect(sponsors).toContainText('Sponsor amounts are in AUD');
-    await expect(byId(page, 'bi-amounts-contract')).toContainText('Not recorded. Enter Contract Value on each sponsor (Sponsors tab).');
-    await expect(byId(page, 'bi-amounts-revenue')).toContainText('Not recorded. Enter Revenue on each sponsor (Sponsors tab).');
-    // the sponsors no event links to: six names, the rest on request
+    expect(await tipText(page, byId(page, 'bi-card-sponsor-contract-ring'))).toContain('recorded for 0 of 20 sponsors. Enter Contract Value on each sponsor (Sponsors tab)');
+    expect(await tipText(page, byId(page, 'bi-card-sponsor-revenue-ring'))).toContain('recorded for 0 of 20 sponsors. Enter Revenue on each sponsor (Sponsors tab)');
+    // the tiers are the legend of the donut: the name and how many; what is recorded for a tier is in its tooltip
+    await expect(byId(page, 'bi-tier-platinum')).toContainText('platinum');
+    await expect(byId(page, 'bi-tier-platinum')).toContainText('8');
+    expect(await tipText(page, byId(page, 'bi-tier-silver'))).toContain('12 shown · 0 hidden · revenue not recorded (0 of 12) · contract value not recorded (0 of 12)');
+    expect(await sliceTipText(page, byId(page, 'bi-tier-segment-silver'))).toContain('12 sponsors of 20');
+    const info = await openInfo(page, 'bi-sponsors');
+    await expect(info).toContainText('Sponsor amounts are in AUD');
+    await closeInfo(page, 'bi-sponsors');
+    // nothing recorded: no donut of amounts to draw (the two rings above say "Not recorded")
+    await expect(byId(page, 'bi-sponsor-amounts')).toHaveCount(0);
+    // the sponsors no event links to: six names, the rest on request, behind the ring's button
+    await byId(page, 'bi-unlinked-names-button').click();
     const unlinked = byId(page, 'bi-unlinked-names');
     await expect(unlinked).toContainText(LIVE.sponsors.unlinked.names.slice(0, 6).join(', '));
     await expect(unlinked).toContainText('and 11 more');
@@ -666,7 +747,7 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     await expect(byId(page, 'bi-sponsors-table-sponsors').locator('tbody tr')).toHaveCount(20);
     await expect(byId(page, 'bi-sponsors-table-tiers')).toContainText('not recorded (0 of 8)');
     await byId(page, 'bi-sponsors-view-toggle').click();
-    await expect(byId(page, 'bi-tier-bar')).toBeVisible();
+    await expect(byId(page, 'bi-tier-donut')).toBeVisible();
   });
 
   test('the tables hold the model\'s figures: the glance table, the forecast of every event, and a figure that is not recorded is read out as such', async () => {
@@ -700,40 +781,39 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
   test('the Past / Live / Future / All filter follows the admin status: every section changes with it', async () => {
     await scopeButton(page, 'future').click();
     await expect(scopeButton(page, 'future')).toHaveAttribute('aria-pressed', 'true');
-    await expect(byId(page, 'tile-price')).toContainText('recorded for 5 of 5 events');
+    await expect(byId(page, 'tile-price-coverage')).toHaveText('5 of 5 events');
+    expect(await tipText(page, byId(page, 'tile-price-dial'))).toContain('recorded for 5 of 5 events');
     await expect(byId(page, 'tile-price-value')).toHaveText('$44.60');
     await expect(byId(page, 'tile-upcoming-value')).toHaveText('5');
     await expect(page.locator('[data-testid^="bi-timeline-marker-"]')).toHaveCount(5);
-    await expect(byId(page, 'bi-action-record-ticket-sales')).toHaveCount(0);
-    await showAllActions(page);
-    await expect(byId(page, 'bi-action-add-capacity')).toContainText('Add capacity to 5 upcoming events');
+    await expect(byId(page, 'bi-hotspot-record-ticket-sales')).toHaveCount(0);
+    await expect(byId(page, 'bi-hotspot-add-capacity')).toHaveAttribute('aria-label', /^Add capacity to 5 upcoming events: 5 events, Medium priority$/);
     await expect(byId(page, 'bi-card-potential-gross')).toContainText('Not recorded');
     await expect(byId(page, 'tile-completeness-past-sales')).toContainText('none in view');
     await expect(byId(page, 'tile-completeness-fields')).toHaveText('7 of 35');
 
     await scopeButton(page, 'past').click();
-    await expect(byId(page, 'tile-price')).toContainText('recorded for 1 of 9 events');
+    await expect(byId(page, 'tile-price-coverage')).toHaveText('1 of 9 events');
     await expect(byId(page, 'tile-price-value')).toHaveText('$45');
-    await expect(byId(page, 'bi-card-potential-gross')).toContainText('$36,000');
+    await expect(byId(page, 'bi-card-potential-gross-figure')).toContainText('$36,000');
     await expect(byId(page, 'tile-upcoming-value')).toHaveText('0');
     await expect(byId(page, 'tile-upcoming')).toContainText('No events in this view.');
     await expect(byId(page, 'bi-pipeline')).toContainText('No events in this view.');
     // the forecast tile follows: the past events with no sales recorded
-    await expect(byId(page, 'tile-forecast')).toContainText('past events with no sales recorded');
+    expect(await tipText(page, byId(page, 'tile-forecast-range'))).toContain('past events with no sales recorded');
     await expect(byId(page, 'tile-forecast-value')).toHaveText(EST(LIVE.forecast.past.totals[0].revenue.expected));
-    await showAllActions(page);
-    await expect(byId(page, 'bi-action-record-ticket-sales')).toContainText('Record ticket sales for 9 past events');
-    await expect(byId(page, 'bi-action-add-capacity')).toHaveCount(0);
+    await expect(byId(page, 'bi-hotspot-record-ticket-sales')).toHaveAttribute('aria-label', /^Record ticket sales for 9 past events: 9 events, Medium priority$/);
+    await expect(byId(page, 'bi-hotspot-add-capacity')).toHaveCount(0);
 
     await scopeButton(page, 'live').click();
-    await expect(byId(page, 'tile-price')).toContainText('no events in this view');
+    await expect(byId(page, 'tile-price')).toContainText('No events in this view.');
     await expect(byId(page, 'tile-upcoming')).toContainText('No events in this view.');
     await expect(byId(page, 'tile-forecast')).toContainText('No events in this view.');
     for (const id of ['bi-categories', 'bi-venues', 'bi-pipeline', 'bi-forecast-upcoming', 'bi-forecast-past', 'bi-forecast-events-empty']) await expect(byId(page, id), id).toContainText('No events in this view.');
     expect(await sectionText(page)).not.toMatch(/No (upcoming or live |such )?events(?! in this view)/);
 
     await scopeButton(page, 'all').click();
-    await expect(byId(page, 'tile-price')).toContainText('recorded for 6 of 14 events');
+    await expect(byId(page, 'tile-price-coverage')).toHaveText('6 of 14 events');
     await expect(page.locator('[data-testid^="bi-timeline-marker-"]')).toHaveCount(5);
   });
 
@@ -756,32 +836,47 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     // two currencies are listed apart, never added
     await expect(byId(page, 'bi-card-ticket-revenue')).toContainText('USD 1,800');
     await expect(byId(page, 'bi-card-ticket-revenue')).not.toContainText('$9,000');
-    await expect(byId(page, 'bi-card-ticket-revenue')).toContainText('recorded for 2 of 3 events');
-    await expect(byId(page, 'bi-derived-revenue')).toContainText('plus $2,000 worked out from tickets sold × price for 1 event (not a recorded figure)');
+    await expect(byId(page, 'bi-card-ticket-revenue')).toContainText('2 of 3 events recorded');
+    // a ring of what is recorded says how many of the records have the figure, as recorded/total (never a percent that four cards would share)
+    for (const [id, written] of [['bi-card-ticket-revenue', '2/3'], ['bi-card-tickets-sold', '3/3'], ['bi-card-per-ticket', '2/3'], ['bi-card-potential-gross', '3/3'], ['bi-card-sponsor-revenue', '1/2'], ['bi-card-sponsor-contract', '2/2']]) {
+      await expect(byId(page, `${id}-ring`), id).toHaveText(written);
+    }
+    await expect(byId(page, 'bi-derived-revenue')).toContainText('+ $2,000 derived');
+    expect(await tipText(page, byId(page, 'bi-card-ticket-revenue-ring'))).toContain('plus $2,000 worked out from tickets sold × price for 1 event (not a recorded figure)');
+    expect(await tipText(page, byId(page, 'bi-card-ticket-revenue-ring'))).toContain('recorded for 2 of 3 events');
     // 150 + 50 + 30 tickets; 230 sold of 400 seats over the three events that have both
     await expect(byId(page, 'bi-card-tickets-sold')).toContainText('230');
-    await expect(byId(page, 'bi-card-tickets-sold')).toContainText('recorded for 3 of 3 events');
-    await expect(byId(page, 'bi-sell-through')).toContainText('sell-through 58%: 230 sold of 400 seats, for the 3 events with both recorded');
+    expect(await tipText(page, byId(page, 'bi-card-tickets-sold-ring'))).toContain('recorded for 3 of 3 events');
+    // sell-through: the percent is in the ring and sold/seats on the figure line (it ran out of the ring's hole when it was written there)
+    await expect(byId(page, 'bi-sell-through-ring')).toHaveText('58%');
+    await expect(byId(page, 'bi-sell-through-figure')).toHaveText('230/400');
+    await expect(byId(page, 'bi-sell-through-ring')).toHaveAttribute('aria-valuenow', '58');
+    expect(await tipText(page, byId(page, 'bi-sell-through-ring'))).toContain('sell-through 58%: 230 sold of 400 seats, for the 3 events with both recorded');
     // 7,200 / 150 per ticket for the one event with both (AUD) and 1,800 / 30 for the USD one
     await expect(byId(page, 'bi-card-per-ticket')).toContainText('$48');
     await expect(byId(page, 'bi-card-per-ticket')).toContainText(bi.formatMoney(60, 'USD'));
     // sponsors: only the recorded amounts, a hidden sponsor's contract included
     await expect(byId(page, 'bi-card-sponsor-revenue')).toContainText('$1,500');
-    await expect(byId(page, 'bi-card-sponsor-revenue')).toContainText('recorded for 1 of 2 sponsors');
+    expect(await tipText(page, byId(page, 'bi-card-sponsor-revenue-ring'))).toContain('recorded for 1 of 2 sponsors');
     await expect(byId(page, 'bi-card-sponsor-contract')).toContainText('$7,000');
-    await expect(byId(page, 'bi-card-sponsor-contract')).toContainText('recorded for 2 of 2 sponsors');
-    await expect(byId(page, 'bi-card-sponsors')).toContainText('1 shown on the website · 1 hidden');
-    // the recorded amounts are drawn per sponsor
+    expect(await tipText(page, byId(page, 'bi-card-sponsor-contract-ring'))).toContain('recorded for 2 of 2 sponsors');
+    expect(await tipText(page, byId(page, 'bi-card-sponsors-ring'))).toContain('1 shown on the website · 1 hidden');
+    // the recorded amounts are drawn per sponsor, as a donut of who they come from
     await expect(byId(page, 'bi-amounts-contract')).toContainText('Alpha');
     await expect(byId(page, 'bi-amounts-contract')).toContainText('Beta');
     await expect(byId(page, 'bi-amounts-revenue')).toContainText('Alpha');
     await expect(byId(page, 'bi-amounts-revenue')).not.toContainText('Beta');
-    // an event with recorded sales is reported from them and is not estimated: its marker is solid
+    await expect(byId(page, 'bi-amounts-contract').locator('[data-viz="donut"] path[data-part="slice"]')).toHaveCount(2);
+    // each donut says what it counts, in the one name the section uses for it
+    await expect(byId(page, 'bi-amounts-contract')).toContainText('Contract value (recorded)');
+    await expect(byId(page, 'bi-amounts-revenue')).toContainText('Revenue (recorded)');
+    // an event with recorded sales is reported from them and is not estimated: its marker and its dial are solid
     await expect(byId(page, 'bi-forecast-row-r-c')).toHaveAttribute('data-kind', 'recorded');
     await expect(byId(page, 'bi-forecast-recorded-r-c')).toContainText(bi.formatMoney(1800, 'USD'));
     await expect(byId(page, 'bi-forecast-recorded-r-c')).not.toContainText('Estimate');
     await expect(byId(page, 'bi-timeline-marker-r-c')).toHaveAttribute('data-kind', 'recorded');
-    expect(await byId(page, 'bi-forecast-bar-r-c').locator('div').evaluateAll((parts) => parts.some((part) => getComputedStyle(part).backgroundImage.includes('repeating-linear-gradient')))).toBe(false);
+    await expect(byId(page, 'bi-forecast-dial-r-c').locator('path[data-part="fill"]')).toHaveCount(1);
+    expect(await byId(page, 'bi-forecast-dial-r-c').locator('path').evaluateAll((paths) => paths.some((path) => (path.getAttribute('stroke') ?? '').startsWith('url(')))).toBe(false);
     expect(await visibleText(section(page))).not.toMatch(/\$0(?![\d,.])/);
     // everything recorded at once is a complete picture of what it covers: 1 past event with sales (r-a counts, r-b counts), 3 fields of r-c, 2 contract values
     await expect(byId(page, 'tile-completeness-past-sales')).toContainText('2 of 2');
@@ -796,12 +891,11 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     writeEvents(sold);
     await refresh(page).click();
     await expect(byId(page, 'bi-card-ticket-revenue')).toContainText('$28,800', { timeout: 30000 });
-    await expect(byId(page, 'bi-card-ticket-revenue')).toContainText('recorded for 1 of 14 events');
+    expect(await tipText(page, byId(page, 'bi-card-ticket-revenue-ring'))).toContain('recorded for 1 of 14 events');
     await expect(byId(page, 'bi-card-tickets-sold')).toContainText('640');
     // 640 of 800 seats
-    await expect(byId(page, 'bi-sell-through')).toContainText('sell-through 80%');
-    await showAllActions(page);
-    await expect(byId(page, 'bi-action-record-ticket-sales')).toContainText('Record ticket sales for 8 past events');
+    await expect(byId(page, 'bi-sell-through')).toContainText('80%');
+    await expect(byId(page, 'bi-hotspot-record-ticket-sales')).toHaveAttribute('aria-label', /^Record ticket sales for 8 past events: 8 events, Medium priority$/);
     await expect(byId(page, 'tile-completeness-past-sales')).toContainText('1 of 9');
     await expect(note(page)).toHaveAttribute('data-state', 'live');
   });
@@ -845,32 +939,61 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
 
   // ─── words, colours and the PDF's colour rule ─────────────────────────────
 
-  test('every "Not recorded" says where to record it', async () => {
-    const without = await section(page).evaluate((root) => {
-      // what is seen: the screen-reader-only words of the table cells are answered by the figures above them
+  test('every "Not recorded" says where to record it: in its own card, cell or row, or in the tooltip of the ring in the same card; and the beacon of its action is on the same card', async () => {
+    // every leaf of the section that says "Not recorded" (what is seen: the screen-reader-only words of the table cells are answered by the figures above them)
+    const scan = await section(page).evaluate((root) => {
       const leaves = [...root.querySelectorAll('*')].filter((element) => element.childElementCount === 0 && !element.classList.contains('sr-only') && (element.textContent ?? '').trim() === 'Not recorded');
-      return leaves.filter((leaf) => {
-        let node: Element | null = leaf;
+      const found: { says: boolean; mark: number | null; where: string }[] = [];
+      let marked = 0;
+      for (const leaf of leaves) {
         // the pointer is in the same card, cell or row: at most two levels up
-        for (let level = 0; level < 2 && node; level += 1) {
+        let says = false;
+        let node: Element | null = leaf;
+        let card: Element | null = null;
+        for (let level = 0; level < 5 && node; level += 1) {
           node = node.parentElement;
-          if (node && /\((Events|Sponsors) tab\)/.test(node.textContent ?? '')) return false;
+          if (!node) break;
+          if (level < 2 && /\((Events|Sponsors) tab\)/.test(node.textContent ?? '')) says = true;
+          // the card: the nearest ancestor that holds a ring with nothing recorded (a card with the ring beside its words is four levels up)
+          if (!card && node.querySelector('[data-state="not-recorded"][tabindex="0"]')) card = node;
         }
-        return true;
-      }).map((leaf) => leaf.parentElement?.textContent?.slice(0, 80));
+        // or in the tooltip of the ring of that card: that ring is marked so that it can be hovered
+        let mark: number | null = null;
+        const ring = card?.querySelector('[data-state="not-recorded"][tabindex="0"]') ?? null;
+        if (!says && ring) {
+          mark = marked;
+          ring.setAttribute('data-scan-mark', String(marked));
+          marked += 1;
+        }
+        found.push({ says, mark, where: (leaf.parentElement?.textContent ?? '').slice(0, 80) });
+      }
+      return found;
     });
-    expect(without).toEqual([]);
-    // and the words that stand where a figure would carry the pointer in the same breath
-    expect(await section(page).getByText(/^Not recorded\. Enter /).count()).toBeGreaterThanOrEqual(2);
+    expect(scan.length, 'figures that are not recorded on the Dashboard (the live data has no sales and no contract values)').toBeGreaterThanOrEqual(5);
+    expect(scan.filter((entry) => !entry.says && entry.mark === null).map((entry) => entry.where), 'a "Not recorded" with no pointer in its card and no ring with a tooltip').toEqual([]);
+    for (const entry of scan.filter((entry) => !entry.says && entry.mark !== null)) {
+      const text = await tipText(page, section(page).locator(`[data-scan-mark="${entry.mark}"]`));
+      expect(text, `the tooltip of the ring beside "${entry.where}"`).toMatch(/\((Events|Sponsors) tab\)/);
+    }
+    // and every ring with nothing recorded has such a tooltip
+    const marks = section(page).locator('[data-state="not-recorded"][tabindex="0"]');
+    const count = await marks.count();
+    expect(count, 'rings with nothing recorded').toBeGreaterThanOrEqual(5);
+    for (let index = 0; index < count; index += 1) {
+      const text = await tipText(page, marks.nth(index));
+      expect(text, `the tooltip of the ${index + 1}th figure that is not recorded`).toMatch(/\((Events|Sponsors) tab\)/);
+    }
+    // a figure with an action to take has the beacon of that action on its own card
+    await expect(byId(page, 'bi-card-ticket-revenue').locator('[data-testid="bi-hotspot-record-ticket-sales"]')).toHaveCount(1);
+    await expect(byId(page, 'bi-card-sponsor-contract').locator('[data-testid="bi-hotspot-record-contract-values"]')).toHaveCount(1);
   });
 
   test('one name per concept in every section, and one phrase for an empty view', async () => {
-    await expect(byId(page, 'bi-card-ticket-revenue')).toContainText('Ticket revenue (recorded)');
-    await expect(byId(page, 'bi-card-tickets-sold')).toContainText('Tickets sold (recorded)');
-    await expect(byId(page, 'bi-card-sponsor-revenue')).toContainText('Sponsor revenue (recorded)');
-    await expect(byId(page, 'bi-card-sponsor-contract')).toContainText('Sponsor contract value (recorded)');
-    await expect(byId(page, 'bi-amounts-contract')).toContainText('Contract value (recorded)');
-    await expect(byId(page, 'bi-tier-silver')).toContainText('contract value not recorded');
+    await expect(byId(page, 'bi-card-ticket-revenue-ring')).toHaveAttribute('aria-label', 'Ticket revenue (recorded)');
+    await expect(byId(page, 'bi-card-tickets-sold-ring')).toHaveAttribute('aria-label', 'Tickets sold (recorded)');
+    await expect(byId(page, 'bi-card-sponsor-revenue-ring')).toHaveAttribute('aria-label', 'Sponsor revenue (recorded)');
+    await expect(byId(page, 'bi-card-sponsor-contract-ring')).toHaveAttribute('aria-label', 'Sponsor contract value (recorded)');
+    expect(await tipText(page, byId(page, 'bi-tier-silver'))).toContain('contract value not recorded');
     // an empty view says one thing, everywhere
     await scopeButton(page, 'live').click();
     for (const id of ['bi-categories', 'bi-venues', 'bi-pipeline', 'bi-forecast-upcoming', 'bi-forecast-past']) {
@@ -888,13 +1011,16 @@ test.describe('the admin Dashboard: command bar, tiles, actions, revenue, pipeli
     ]);
     await refresh(page).click();
     await expect(byId(page, 'bi-timeline-marker-c-live')).toBeVisible({ timeout: 30000 });
-    await showAllActions(page);
-    const high = byId(page, 'bi-action-add-prices').getByText('High', { exact: true });
+    const high = byId(page, 'bi-hotspot-add-prices').locator('[data-pill="high"]');
+    await expect(high).toContainText('High');
     expect(await fill(high)).toBe('rgb(220, 38, 38)'); // the brand's danger #DC2626
     expect(await colour(high)).toBe('rgb(255, 255, 255)');
-    const medium = byId(page, 'bi-action-record-contract-values').getByText('Medium', { exact: true });
+    expect(await high.locator('svg').count()).toBe(1);
+    const medium = byId(page, 'bi-hotspot-record-contract-values').locator('[data-pill="medium"]');
+    await expect(medium).toContainText('Medium');
     expect(await fill(medium)).toBe('rgb(245, 158, 11)'); // warning #F59E0B
     expect(await colour(medium)).toBe('rgb(10, 10, 10)');
+    expect(await medium.locator('svg').count()).toBe(1);
     const live = byId(page, 'bi-forecast-row-c-live').getByText('Live', { exact: true });
     expect(await fill(live)).toBe('rgb(34, 197, 94)'); // success #22C55E
     expect(await colour(live)).toBe('rgb(10, 10, 10)');

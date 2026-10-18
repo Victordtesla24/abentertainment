@@ -1,8 +1,10 @@
 /**
  * The Dashboard's charts, interacted with in a browser on the scratch-data dev server (see e2e/support/admin-bi-http.ts): one glass
- * tooltip on every mark that shows on hover, on keyboard focus and on a tap and says what the table twin says; the same event lit in
- * the revenue chart and on the timeline; hit targets bigger than the marks; names written into a tooltip as text, never as markup;
- * the switches, the toggles and the filter by keyboard; and the timeline becoming a list on a phone.
+ * tooltip on every mark (a dial, a needle, a tick, a dot, a slice of a donut, a ring, the health ring, a marker) that shows on hover,
+ * on keyboard focus and on a tap and says what the table twin says; the same event lit in the revenue chart and on the timeline; hit
+ * targets bigger than the marks (on touch an invisible 44 px area round each mark of a dial, and legend rows as tall as a finger); names
+ * written into a tooltip as text, never as markup; the switches, the toggles, the "i" popovers and the filter by keyboard; and the
+ * timeline becoming a list on a phone.
  */
 
 import { test, expect, type Locator, type Page } from '@playwright/test';
@@ -11,6 +13,7 @@ import type { BiReference } from '@/lib/admin-bi';
 import type { Event } from '@/lib/data';
 import { AVERAGE_TICKET_PRICE, REFERENCE_RETRIEVED, SELL_THROUGH, SELL_THROUGH_BY_GENRE, VENUE_REFERENCE } from '@/lib/bi-reference';
 import { LIVE_EVENTS_AS_SAVED, LIVE_SPONSORS } from './support/admin-bi-live-snapshot';
+import { BARE_EVENT } from './support/admin-dashboard-data';
 import {
   HARNESS,
   HARNESS_SKIP,
@@ -24,6 +27,7 @@ import {
   openDashboard,
   restoreStores,
   settled,
+  stubHealth,
   stubPageChecks,
   writeEvents,
   writeSponsors,
@@ -62,6 +66,18 @@ async function expectOnScreen(tip: Locator): Promise<void> {
 async function reveal(locator: Locator): Promise<void> {
   await locator.scrollIntoViewIfNeeded();
   await locator.page().waitForTimeout(700);
+}
+
+/** The page point at the middle of an arc mark of a donut: the middle of its bounding box is not on a ring, so a pointer is aimed along the arc. */
+async function arcPoint(mark: Locator): Promise<{ x: number; y: number }> {
+  return mark.evaluate((element) => {
+    const path = element as unknown as SVGGeometryElement;
+    const point = path.getPointAtLength(path.getTotalLength() / 2);
+    const matrix = (path as unknown as SVGGraphicsElement).getScreenCTM();
+    if (!matrix) throw new Error('the arc has no place on the screen');
+    const at = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+    return { x: at.x, y: at.y };
+  });
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -134,27 +150,66 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await expect(tooltip(page)).toHaveCount(0);
   });
 
-  test('every mark has a tooltip: the range bar of the tile, the price bars, the horizon dots, the tier segments, the category rows and the markers', async () => {
-    const marks: Array<{ locator: Locator; panel: string; text: RegExp | string }> = [
+  test('every mark has a tooltip: the dial and the tick of the tiles, the dots on the scale of days, the slices of a donut, the rows of its legend, the rings and the markers', async () => {
+    const marks: Array<{ locator: Locator; panel: string; text: RegExp | string; arc?: boolean }> = [
       { locator: byId(page, 'tile-forecast-range'), panel: 'tile-forecast', text: 'Estimated revenue' },
-      { locator: byId(page, 'tile-price-bar-own'), panel: 'tile-price', text: 'Average ticket price of your events' },
-      { locator: byId(page, 'tile-price-bar-national'), panel: 'tile-price', text: 'National average, all categories, 2024' },
+      { locator: byId(page, 'tile-price-dial'), panel: 'tile-price', text: 'Average ticket price of your events' },
+      { locator: byId(page, 'tile-price-mark-national'), panel: 'tile-price', text: 'National average, all categories, 2024' },
       { locator: byId(page, 'tile-upcoming-horizon').locator('[role="img"]').first(), panel: 'tile-upcoming', text: VINOD.title },
-      { locator: byId(page, 'bi-tier-segment-platinum'), panel: 'bi-sponsors', text: 'platinum' },
-      { locator: byId(page, 'bi-tier-segment-silver'), panel: 'bi-sponsors', text: 'silver' },
+      { locator: byId(page, 'tile-completeness-ring'), panel: 'tile-completeness', text: 'Data completeness' },
+      { locator: byId(page, 'tile-completeness-past-sales-ring'), panel: 'tile-completeness', text: 'Ticket sales on past events' },
+      { locator: byId(page, 'bi-forecast-upcoming-dial-AUD'), panel: 'bi-forecast', text: 'Estimated revenue' },
+      { locator: byId(page, `bi-forecast-row-${VINOD.id}`), panel: 'bi-forecast', text: VINOD.title },
+      { locator: byId(page, 'bi-card-ticket-revenue-ring'), panel: 'bi-forecast', text: 'Ticket revenue (recorded)' },
+      { locator: byId(page, 'bi-tier-segment-platinum'), panel: 'bi-sponsors', text: 'platinum', arc: true },
+      { locator: byId(page, 'bi-tier-silver'), panel: 'bi-sponsors', text: 'silver' },
+      { locator: byId(page, 'bi-card-unlinked-sponsors-ring'), panel: 'bi-sponsors', text: 'Not linked to any event' },
+      { locator: byId(page, 'bi-group-theatre | comedy | drama-slice'), panel: 'bi-categories', text: 'Theatre | Comedy | Drama', arc: true },
       { locator: byId(page, 'bi-group-theatre | comedy | drama'), panel: 'bi-categories', text: 'Theatre | Comedy | Drama' },
       { locator: byId(page, 'bi-group-drum theatre, dandenong, melbourne'), panel: 'bi-venues', text: 'Drum Theatre, Dandenong, Melbourne' },
       { locator: byId(page, `bi-timeline-marker-${VINOD.id}`), panel: 'bi-pipeline', text: VINOD.title },
     ];
     for (const mark of marks) {
       await reveal(mark.locator);
-      await mark.locator.hover();
+      if (mark.arc) {
+        const { x, y } = await arcPoint(mark.locator);
+        await page.mouse.move(x, y);
+      } else {
+        await mark.locator.hover();
+      }
       await expect(tooltip(page), String(mark.text)).toBeVisible();
       await expect(tooltip(page)).toContainText(mark.text);
       await expectOnScreen(tooltip(page));
       await page.mouse.move(5, 5);
       await expect(tooltip(page)).toHaveCount(0);
     }
+  });
+
+  test('the health ring has a tooltip like every other ring: what the score is, how many pages answer and the agent, on hover and by keyboard', async () => {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await stubHealth(page);
+    await stubPageChecks(page);
+    await openDashboard(page);
+    await settled(page);
+    const ring = byId(page, 'tile-health-ring');
+    await expect(ring).toHaveAttribute('role', 'meter');
+    await reveal(ring);
+    await ring.hover();
+    await expect(tooltip(page)).toBeVisible();
+    await expect(tooltip(page)).toContainText('System health');
+    await expect(tooltip(page)).toContainText('Score');
+    await expect(tooltip(page)).toContainText('out of 100');
+    await expect(tooltip(page)).toContainText('Pages answering');
+    await expect(tooltip(page)).toContainText('9 of 9');
+    await expect(tooltip(page)).toContainText('Reachable');
+    await expect(tooltip(page)).toContainText('The score is made from');
+    await expectOnScreen(tooltip(page));
+    await page.mouse.move(5, 5);
+    await expect(tooltip(page)).toHaveCount(0);
+    await ring.focus();
+    await expect(tooltip(page)).toContainText('Pages answering');
+    await page.keyboard.press('Escape');
+    await expect(tooltip(page)).toHaveCount(0);
   });
 
   test('a category row\'s tooltip carries the figures the chart does not draw, as the model has them', async () => {
@@ -186,7 +241,7 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await byId(page, 'bi-forecast-view-toggle').click();
   });
 
-  test('keyboard focus shows the same tooltip as hover, Escape takes it away, and a marker is reachable by Tab', async () => {
+  test('keyboard focus shows the same tooltip as hover, Escape takes it away, and a marker and a dial are reachable by Tab', async () => {
     const marker = byId(page, `bi-timeline-marker-${NIGHT_SYDNEY.id}`);
     await reveal(marker);
     await marker.focus();
@@ -210,8 +265,8 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
     await expect(tooltip(page)).not.toContainText(LIVE.pipeline[2].title);
-    // the revenue chart's bars are focusable the same way
-    const bar = byId(page, `bi-forecast-bar-${VINOD.id}`);
+    // the dials of the revenue chart are focusable the same way
+    const bar = byId(page, `bi-forecast-dial-${VINOD.id}`);
     await bar.focus();
     await expect(tooltip(page)).toContainText(VINOD.title);
     await page.keyboard.press('Escape');
@@ -239,7 +294,7 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await page.mouse.move(5, 5);
   });
 
-  test('every mark is a bigger target than it is drawn: markers at least 32 px, rows and bars as tall as a finger', async () => {
+  test('every mark is a bigger target than it is drawn: markers at least 32 px, cards, legend rows and slices as tall as a finger', async () => {
     for (const row of LIVE.pipeline) {
       const marker = byId(page, `bi-timeline-marker-${row.id}`);
       await marker.scrollIntoViewIfNeeded();
@@ -285,7 +340,7 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await future.focus();
     await page.keyboard.press('Enter');
     await expect(future).toHaveAttribute('aria-pressed', 'true');
-    await expect(byId(page, 'tile-price')).toContainText('recorded for 5 of 5 events');
+    await expect(byId(page, 'tile-price-coverage')).toHaveText('5 of 5 events');
     await byId(page, 'dashboard-scope-all').focus();
     await page.keyboard.press('Space');
     await expect(byId(page, 'dashboard-scope-all')).toHaveAttribute('aria-pressed', 'true');
@@ -322,13 +377,27 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     expect(ring).toEqual({ style: 'solid', width: '2px', colour: 'rgb(201, 168, 76)' });
   });
 
-  test('the tile\'s "How is this worked out?" and the system header are real disclosure controls', async () => {
-    const summary = byId(page, 'tile-completeness').locator('summary');
-    await summary.focus();
+  test('the "i" of a panel and the system header are real disclosure controls: Enter opens them, focus goes in, Escape closes and puts the focus back', async () => {
+    const info = byId(page, 'tile-completeness-info');
+    await info.scrollIntoViewIfNeeded();
+    await info.focus();
+    await expect(info).toHaveAttribute('aria-expanded', 'false');
+    await expect(info).toHaveAttribute('aria-haspopup', 'dialog');
     await page.keyboard.press('Enter');
+    await expect(info).toHaveAttribute('aria-expanded', 'true');
+    const dialog = byId(page, 'tile-completeness-info-popover');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('role', 'dialog');
+    await expect(dialog).toBeFocused();
     await expect(byId(page, 'tile-completeness-formula')).toBeVisible();
-    await page.keyboard.press('Enter');
-    await expect(byId(page, 'tile-completeness-formula')).toBeHidden();
+    // it hangs from its button and stays on the screen
+    const box = await dialog.boundingBox();
+    const viewport = page.viewportSize();
+    expect(box && viewport && box.x >= 0 && box.x + box.width <= viewport.width && box.y >= 0 && box.y + box.height <= viewport.height).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(info).toBeFocused();
+    await expect(info).toHaveAttribute('aria-expanded', 'false');
     const system = byId(page, 'system-operations-toggle');
     await system.focus();
     await page.keyboard.press('Enter');
@@ -390,7 +459,7 @@ test.describe('on a touch screen', () => {
     if (HARNESS && HAS_ADMIN_CREDS) expect(errors, 'console errors and uncaught errors').toEqual([]);
   });
 
-  test('a tap on a marker shows its tooltip and keeps it until the next tap elsewhere; a tap on a row of the revenue chart does the same', async () => {
+  test('a tap on a marker shows its tooltip and keeps it until the next tap elsewhere; a tap on a dial of the revenue chart does the same', async () => {
     const marker = byId(page, `bi-timeline-marker-${NIGHT_SYDNEY.id}`);
     await reveal(marker);
     await marker.tap();
@@ -412,7 +481,7 @@ test.describe('on a touch screen', () => {
 
     const row = byId(page, `bi-forecast-row-${VINOD.id}`);
     await reveal(row);
-    await row.locator('[role="img"]').tap();
+    await row.locator('[role="img"]').first().tap();
     await expect(tooltip(page)).toContainText(VINOD.title);
     await expect(tooltip(page)).toContainText(`Expected${EST(VINOD.forecast?.revenue.expected ?? 0)}`);
     await page.keyboard.press('Escape');
@@ -434,10 +503,91 @@ test.describe('on a touch screen', () => {
     }
   });
 
-  test('a tap on a tier segment and on a category row shows their tooltips too', async () => {
+  test('on touch a mark of a dial can be pressed anywhere in a 44 px area round it, and every row of a legend is as tall as a finger', async () => {
+    // an invisible disk round each dot and tick (the dial looks as it did): at least 44 px each way
+    for (const dial of ['tile-upcoming-horizon', 'tile-price-dial']) {
+      await reveal(byId(page, dial));
+      const areas = byId(page, dial).locator('[data-part="touch-area"]');
+      expect(await areas.count(), `${dial} has marks to press`).toBeGreaterThan(0);
+      for (const size of await areas.evaluateAll((elements) => elements.map((element) => ({ width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height })))) {
+        expect(size.width, `${dial}: a touch area is 44 px wide`).toBeGreaterThanOrEqual(43.5);
+        expect(size.height, `${dial}: a touch area is 44 px tall`).toBeGreaterThanOrEqual(43.5);
+      }
+      // and the mark itself (the stop of the keyboard that is read out) reaches as far as its area, so it is no small target either
+      for (const size of await byId(page, dial).locator('[data-mark]').evaluateAll((elements) => elements.map((element) => ({ width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height })))) {
+        expect(size.width, `${dial}: a mark is 44 px wide`).toBeGreaterThanOrEqual(43.5);
+        expect(size.height, `${dial}: a mark is 44 px tall`).toBeGreaterThanOrEqual(43.5);
+      }
+    }
+    // pressing 18 px from the middle of the next event's dot (more than its drawn radius, inside its area) shows that event
+    const next = byId(page, 'tile-upcoming-horizon').locator(`[data-mark="${VINOD.id}"]`);
+    const middle = await next.evaluate((element) => {
+      const dot = element.querySelector('circle:last-of-type') as SVGGraphicsElement;
+      const box = dot.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    });
+    await page.touchscreen.tap(middle.x - 18, middle.y);
+    await expect(tooltip(page)).toContainText(VINOD.title);
+    await page.keyboard.press('Escape');
+    // the rows of a legend, the category and the venue ones and the tiers of the sponsors
+    for (const id of ['bi-group-theatre | comedy | drama', 'bi-group-live concert', 'bi-group-drum theatre, dandenong, melbourne', 'bi-tier-silver', 'bi-tier-platinum']) {
+      await reveal(byId(page, id));
+      expect((await byId(page, id).boundingBox())?.height ?? 0, `${id} is as tall as a finger`).toBeGreaterThanOrEqual(43.5);
+    }
+  });
+
+  test('a tap on the middle of any dot of the next-events dial shows that event, however close its neighbours are (a dot\'s area never takes the tap meant for another)', async () => {
+    const dial = byId(page, 'tile-upcoming-horizon');
+    await reveal(dial);
+    const dots = await dial.locator('[data-mark]').evaluateAll((elements) =>
+      elements.map((element) => {
+        const dot = element.querySelector('circle:last-of-type') as SVGGraphicsElement;
+        const box = dot.getBoundingClientRect();
+        return { id: element.getAttribute('data-mark') ?? '', x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      }),
+    );
+    expect(dots.length, 'every upcoming event has its dot').toBe(LIVE.pipeline.filter((row) => row.daysToGo !== null && row.daysToGo >= 0).length);
+    for (const dot of dots) {
+      const row = LIVE.pipeline.find((entry) => entry.id === dot.id) as bi.PipelineRow;
+      await page.touchscreen.tap(dot.x, dot.y);
+      await expect(tooltip(page), `a tap on the middle of the dot of ${row.title}`).toContainText(row.title);
+      await page.keyboard.press('Escape');
+      await expect(tooltip(page)).toHaveCount(0);
+    }
+  });
+
+  test('dots of events a day apart crowd the same few degrees of the arc: a tap on the middle of each still shows its own event', async () => {
+    const dates = ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25', '2027-03-01'];
+    writeEvents(dates.map((date, place) => ({ ...BARE_EVENT, id: `evt-dot-${place}`, title: `Dot ${place}`, date })));
+    writeSponsors([]);
+    await openDashboard(page);
+    await settled(page);
+    const dial = byId(page, 'tile-upcoming-horizon');
+    await reveal(dial);
+    const dots = await dial.locator('[data-mark]').evaluateAll((elements) =>
+      elements.map((element) => {
+        const dot = element.querySelector('circle:last-of-type') as SVGGraphicsElement;
+        const box = dot.getBoundingClientRect();
+        return { id: element.getAttribute('data-mark') ?? '', x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      }),
+    );
+    expect(dots.length, 'every event has its dot').toBe(dates.length);
+    // the dots are close enough for their 44 px areas to overlap: that is the case this is about
+    const near = Math.min(...dots.flatMap((dot, place) => dots.slice(place + 1).map((other) => Math.hypot(dot.x - other.x, dot.y - other.y))));
+    expect(near, 'two dots are closer than a finger').toBeLessThan(40);
+    for (const dot of dots) {
+      await page.touchscreen.tap(dot.x, dot.y);
+      await expect(tooltip(page), `a tap on the middle of ${dot.id}`).toContainText(`Dot ${dot.id.replace('evt-dot-', '')}`);
+      await page.keyboard.press('Escape');
+      await expect(tooltip(page)).toHaveCount(0);
+    }
+  });
+
+  test('a tap on a slice of a donut and on a row of its legend shows their tooltips too', async () => {
     const segment = byId(page, 'bi-tier-segment-platinum');
     await reveal(segment);
-    await segment.tap();
+    const { x, y } = await arcPoint(segment);
+    await page.touchscreen.tap(x, y);
     await expect(tooltip(page)).toContainText('platinum');
     await expect(tooltip(page)).toContainText('8 sponsors of 20');
     const category = byId(page, 'bi-group-live concert');
@@ -478,30 +628,38 @@ test.describe('on a phone the timeline is a list', () => {
     await settled(page);
   });
 
-  test('the same five events, soonest first, each with its details written out and its gaps as words', async () => {
+  test('the same five events, soonest first, each a compact card with its details one tap away and its gaps as icons that say their words', async () => {
     await expect(byId(page, 'bi-timeline')).toBeHidden();
     // no markers are drawn on a phone (the list says everything they would)
     await expect(page.locator('[data-testid^="bi-timeline-marker-"]')).toHaveCount(0);
     const list = byId(page, 'bi-timeline-list');
     await list.scrollIntoViewIfNeeded();
     await expect(list).toBeVisible();
+    await expect(list).toHaveAttribute('data-viz', 'timeline');
     await expect(list.locator('li[data-testid^="bi-timeline-item-"]')).toHaveCount(5);
     expect(await list.locator('li[data-testid^="bi-timeline-item-"]').evaluateAll((items) => items.map((item) => item.getAttribute('data-testid')?.replace('bi-timeline-item-', '')))).toEqual(LIVE.pipeline.map((row) => row.id));
     for (const row of LIVE.pipeline) {
       const item = byId(page, `bi-timeline-item-${row.id}`);
+      // closed: the name, how far away it is, what it may take, that it is an estimate, and what is missing as icons
       await expect(item).toContainText(row.title);
-      await expect(item).toContainText(row.dateLabel);
       await expect(byId(page, `bi-timeline-days-${row.id}`)).toHaveText(row.daysLabel);
-      await expect(item).toContainText(bi.formatMoney(row.price?.amount ?? 0, 'AUD'));
-      await expect(item).toContainText(`public capacity of ${row.capacity?.venue?.name}`);
       await expect(item).toContainText(EST(row.forecast?.revenue.expected ?? 0));
       await expect(item).toContainText('Estimate');
-      // each gap is a chip with an icon and its words
+      await expect(byId(page, `bi-timeline-details-${row.id}`)).toHaveCount(0);
       const gaps = byId(page, `bi-timeline-gaps-${row.id}`);
-      await expect(gaps).toContainText('No capacity');
-      for (const chip of await gaps.locator('span').all()) expect(await chip.locator('svg').count()).toBe(1);
+      await expect(gaps.getByRole('img', { name: 'No capacity' })).toHaveCount(1);
+      for (const flag of await gaps.getByRole('img').all()) expect(await flag.locator('svg').count()).toBe(1);
+      if (row.ticketLink === 'malformed') await expect(gaps.getByRole('img', { name: 'Fix ticket link' })).toHaveCount(1);
+      // the details are one tap away: the date, the price, the capacity and where it comes from, the link, the sponsors, and the estimate's range and source
+      const toggle = byId(page, `bi-timeline-details-toggle-${row.id}`);
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      await expect(byId(page, `bi-timeline-details-${row.id}`)).toBeVisible();
+      await expect(item).toContainText(row.dateLabel);
+      await expect(item).toContainText(bi.formatMoney(row.price?.amount ?? 0, 'AUD'));
+      await expect(item).toContainText(`public capacity of ${row.capacity?.venue?.name}`);
       if (row.ticketLink === 'malformed') {
-        await expect(gaps).toContainText('Fix ticket link');
         await expect(item).toContainText('Not a clean web address');
       } else {
         await expect(item.getByRole('link', { name: 'Open link' })).toHaveAttribute('href', row.ticketUrl);
@@ -510,6 +668,9 @@ test.describe('on a phone the timeline is a list', () => {
     await expect(byId(page, 'bi-timeline-item-evt-1791911034858')).toContainText('Active Aluminium, Radio Masti, Kwik Kopy');
     await expect(byId(page, 'bi-timeline-item-evt-1791911034858')).toContainText('LPA 2015 Contemporary Music average 66%');
     await expect(byId(page, 'bi-timeline-item-evt-1791940946158')).toContainText('LPA 2015 Theatre average 52%');
+    // and it closes again
+    await byId(page, 'bi-timeline-details-toggle-evt-1791911034858').click();
+    await expect(byId(page, 'bi-timeline-details-evt-1791911034858')).toHaveCount(0);
   });
 
   test('the phone\'s list becomes the timeline again from 640 px', async () => {

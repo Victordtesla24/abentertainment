@@ -34,16 +34,30 @@ import {
   settled,
   stubHealth,
   stubPageChecks,
+  visibleText,
   writeEvents,
   writeSponsors,
 } from './support/admin-dashboard-http';
 
 const byId = (page: Page, id: string) => page.getByTestId(id);
+const tooltip = (page: Page) => page.getByTestId('chart-tooltip');
 
-/** Every section of the business half, and the toggle of its "View as table" twin (the sponsors have two tables behind one toggle). */
+/** What a mark says in its tooltip when it is pointed at (its text, the whitespace collapsed); the pointer is moved away again afterwards. */
+async function tipText(page: Page, mark: ReturnType<Page['getByTestId']>): Promise<string> {
+  await mark.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(700);
+  await mark.hover();
+  await expect(tooltip(page)).toBeVisible();
+  const text = ((await tooltip(page).textContent()) ?? '').replace(/\s+/g, ' ');
+  await page.mouse.move(5, 5);
+  await expect(tooltip(page)).toHaveCount(0);
+  return text;
+}
+
+/** Every section of the business half (the actions are the chip of the command bar and the beacons on the charts), and the toggle of its "View as table" twin (the sponsors have two tables behind one toggle). */
 const SECTIONS = [
+  { id: 'dashboard-actions-chip', toggle: null },
   { id: 'glance', toggle: 'glance-view-toggle' },
-  { id: 'bi-actions', toggle: null },
   { id: 'bi-forecast', toggle: 'bi-forecast-view-toggle' },
   { id: 'bi-pipeline', toggle: 'bi-pipeline-view-toggle' },
   { id: 'bi-breakdowns', toggle: null },
@@ -160,6 +174,11 @@ test.describe('the admin Dashboard: loading, empty, failed and extreme data', ()
     await expect(byId(page, 'dashboard-command-bar')).toBeVisible();
     await expect(byId(page, 'glance')).toHaveCount(0);
     expect(((await skeleton.innerText()) ?? '').trim()).toBe('');
+    // it is the shape of the page and nothing more: the two lines of the heading, the five tiles and a block for each of the five panels;
+    // none is the size of an action card (the actions are beacons on the visuals now, not a row of cards)
+    const heights = await skeleton.locator('div[aria-hidden="true"]').evaluateAll((blocks) => blocks.map((block) => Math.round(block.getBoundingClientRect().height)));
+    expect(heights.length, 'two lines of heading, five tiles, five panels').toBe(12);
+    expect(heights.filter((height) => height > 40 && height < 200), 'no block is the size of an action card').toEqual([]);
     expect(await brokenValues(page)).toEqual([]);
     release();
     await expect(skeleton).toHaveCount(0, { timeout: 30000 });
@@ -209,12 +228,17 @@ test.describe('the admin Dashboard: loading, empty, failed and extreme data', ()
     await expect(byId(page, 'tile-upcoming')).toContainText('No events in this view.');
     await expect(byId(page, 'tile-upcoming-value')).toHaveText('0');
     await expect(byId(page, 'tile-forecast')).toContainText('No events in this view.');
-    await expect(byId(page, 'tile-price')).toContainText('Not recorded');
-    await expect(byId(page, 'tile-price')).toContainText('Enter Price on each event (Events tab)');
+    // with no event in the view the price tile says so in the one phrase for an empty view (it used to run "Not recorded" into "no events in this view")
+    await expect(byId(page, 'tile-price')).toContainText('No events in this view.');
+    await expect(byId(page, 'tile-price')).not.toContainText('Not recorded no events');
+    expect(await visibleText(byId(page, 'tile-price'))).not.toMatch(/\$0(?![\d,.])/);
     await expect(byId(page, 'tile-completeness')).toContainText('Nothing is required in this view, so there is nothing to measure.');
-    await expect(byId(page, 'bi-actions')).toContainText('Nothing to check');
-    await expect(byId(page, 'bi-actions')).toContainText('There are no events or sponsors in this view yet. Add them in the Events and Sponsors tabs');
-    await expect(byId(page, 'bi-actions')).not.toContainText('All clear');
+    // nothing to check is not the same as all clear: the chip of the command bar says which, and the sentence is in its tooltip; there is no beacon
+    await expect(byId(page, 'dashboard-actions-chip')).toHaveAttribute('data-state', 'empty');
+    await expect(byId(page, 'dashboard-actions-chip')).toContainText('Nothing to check');
+    await expect(byId(page, 'dashboard-actions-chip')).not.toContainText('All clear');
+    expect(await tipText(page, byId(page, 'dashboard-actions-chip'))).toContain('There are no events or sponsors in this view yet. Add them in the Events and Sponsors tabs');
+    await expect(page.locator('[data-hotspot-id]')).toHaveCount(0);
     for (const id of ['bi-forecast-upcoming', 'bi-forecast-past', 'bi-forecast-events-empty', 'bi-pipeline-empty', 'bi-categories', 'bi-venues']) await expect(byId(page, id), id).toContainText('No events in this view.');
     await expect(byId(page, 'bi-sponsors-empty')).toHaveText('No sponsors yet. Add them in the Sponsors tab.');
     // a figure that is not recorded is "Not recorded" with where to record it, never a zero
@@ -241,20 +265,20 @@ test.describe('the admin Dashboard: loading, empty, failed and extreme data', ()
     await expect(byId(page, 'tile-upcoming-next')).toContainText('A bare event');
     await expect(byId(page, 'tile-forecast')).toContainText('No estimate yet for this event.');
     await expect(byId(page, 'tile-forecast')).toContainText('1 has no price');
-    await expect(byId(page, 'tile-price')).toContainText('Not recorded');
-    await expect(byId(page, 'tile-price')).toContainText('recorded for 0 of 1 event');
+    await expect(byId(page, 'tile-price')).toContainText('Not recorded for the event. Enter Price on each event (Events tab)');
     // nothing is recorded, so completeness is a real 0%: 0 of 3 required fields
     const completeness = dataCompleteness(model);
     expect(completeness.recorded).toBe(0);
     expect(completeness.total).toBe(3);
     await expect(byId(page, 'tile-completeness-value')).toHaveText(formatPercent(completeness.ratio ?? 0));
-    await expect(byId(page, 'tile-completeness')).toContainText('0 of 3 required fields are recorded');
-    // the action centre names what is missing, the revenue row says why there is no bar, and the timeline has its one marker with its flags
-    await expect(byId(page, 'bi-actions')).toContainText('Add a ticket price to 1 upcoming event');
-    await expect(byId(page, 'bi-actions')).toContainText('Add capacity to 1 upcoming event');
-    await expect(byId(page, 'bi-actions')).toContainText('Add a ticket link to 1 upcoming event');
+    expect(await tipText(page, byId(page, 'tile-completeness-ring'))).toContain('0 of 3 required fields are recorded');
+    // the beacons name what is missing, the revenue dial says why there is no estimate, and the timeline has its one marker with its flags
+    await expect(byId(page, 'bi-hotspot-add-prices')).toHaveAttribute('aria-label', /^Add a ticket price to 1 upcoming event: 1 event, /);
+    await expect(byId(page, 'bi-hotspot-add-capacity')).toHaveAttribute('aria-label', /^Add capacity to 1 upcoming event: 1 event, /);
+    await expect(byId(page, 'bi-hotspot-add-ticket-links')).toHaveAttribute('aria-label', /^Add a ticket link to 1 upcoming event: 1 event, /);
     await expect(byId(page, 'bi-forecast-row-evt-bare')).toContainText('No estimate');
-    await expect(byId(page, 'bi-forecast-row-evt-bare')).toContainText('needs a price');
+    await expect(byId(page, 'bi-forecast-dial-evt-bare')).toHaveAttribute('data-state', 'not-recorded');
+    expect(await tipText(page, byId(page, 'bi-forecast-row-evt-bare'))).toContain('needs a price');
     await expect(byId(page, 'bi-timeline-marker-evt-bare')).toBeVisible();
     await expect(byId(page, 'bi-timeline-flags-evt-bare')).toBeAttached();
     await expect(byId(page, 'bi-categories')).toContainText('Concert');
@@ -327,9 +351,20 @@ test.describe('the admin Dashboard: loading, empty, failed and extreme data', ()
     await expect(byId(page, 'tile-upcoming-value')).toHaveText(String(model.pipeline.length));
     await expect(byId(page, 'tile-completeness-value')).toHaveText(formatPercent(dataCompleteness(model).ratio ?? 0));
     await expect(byId(page, 'bi-card-sponsors')).toContainText(String(sponsors.length));
-    // a long name is clipped inside a sentence (the full name stays in the tooltip and the tables), so no card turns into a page
-    const longest = await byId(page, 'bi-actions').locator('li').evaluateAll((items) => Math.max(...items.map((item) => (item as HTMLElement).innerText.length)));
-    expect(longest, 'no action card runs to thousands of characters').toBeLessThan(1500);
+    // a long name is clipped inside a sentence (the full name stays in the tooltip and the tables), so no popover turns into a page
+    const beacons = await page.locator('[data-hotspot-id]').count();
+    expect(beacons, 'the crowd has actions').toBeGreaterThan(5);
+    for (let index = 0; index < beacons; index += 1) {
+      const beacon = page.locator('[data-hotspot-id]').nth(index);
+      await beacon.scrollIntoViewIfNeeded();
+      await beacon.click();
+      const popover = byId(page, 'bi-hotspot-popover');
+      await expect(popover).toBeVisible();
+      const length = await popover.evaluate((element) => (element as HTMLElement).innerText.length);
+      expect(length, `the popover of the ${index + 1}th beacon is not thousands of characters long`).toBeLessThan(1500);
+      await page.keyboard.press('Escape');
+      await expect(popover).toHaveCount(0);
+    }
     // every figure that is large stays on one line in its box
     for (const id of ['bi-card-sponsor-contract', 'bi-card-sponsor-revenue']) {
       const figure = byId(page, id).locator('div.font-display').first();

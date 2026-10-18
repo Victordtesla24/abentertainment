@@ -611,7 +611,7 @@ test.describe('the admin Dashboard: System & operations', () => {
     await expect(byId(page, 'system-escalation')).toContainText('For critical issues the AI Agent cannot resolve, contact: Dev Team <dev@example.com>');
   });
 
-  test('admin console usage: today and in all, the actions by section as bars, and the latest actions; nothing recorded is said in words; a failed fetch leaves it out', async () => {
+  test('admin console usage: today and in all, the actions by section as a donut with its legend, and the latest actions; nothing recorded is said in words; a failed fetch leaves it out', async () => {
     await openWith(page, {
       telemetry: {
         totals: { events: 12, sponsors: 5, gallery: 3, settings: 1 },
@@ -630,14 +630,20 @@ test.describe('the admin Dashboard: System & operations', () => {
     await expect(byId(page, 'system-console-today')).toHaveText('4');
     await expect(byId(page, 'system-console-total')).toHaveText('21');
     await expect(usage).toContainText('Actions by Section');
-    for (const [name, count] of [['Events', '12'], ['Sponsors', '5'], ['Gallery', '3'], ['Settings', '1']]) {
-      await expect(usage.locator('div.flex.items-center.gap-3', { hasText: name }).first()).toContainText(count);
+    // one slice for each section and its row in the legend with the name and the count (a donut: no bars)
+    await expect(byId(page, 'system-console-donut')).toHaveAttribute('data-viz', 'donut');
+    await expect(byId(page, 'system-console-donut').locator('path[data-part="slice"]')).toHaveCount(4);
+    for (const [key, name, count] of [['events', 'Events', '12'], ['sponsors', 'Sponsors', '5'], ['gallery', 'Gallery', '3'], ['settings', 'Settings', '1']]) {
+      await expect(byId(page, `system-console-section-${key}`)).toContainText(name);
+      await expect(byId(page, `system-console-section-${key}`)).toContainText(count);
+      await expect(byId(page, `system-console-slice-${key}`)).toHaveAttribute('aria-label', new RegExp(`^${name}: ${count} action`));
     }
     await expect(usage).toContainText('Recent Activity');
-    await expect(usage.locator('li').first()).toContainText('update');
-    await expect(usage.locator('li').first()).toContainText('Events');
-    await expect(usage.locator('li').nth(1)).toContainText('create');
-    await expect(usage.locator('li').nth(1)).toContainText('Sponsors');
+    const recent = usage.locator('ul.max-h-40 > li');
+    await expect(recent.first()).toContainText('update');
+    await expect(recent.first()).toContainText('Events');
+    await expect(recent.nth(1)).toContainText('create');
+    await expect(recent.nth(1)).toContainText('Sponsors');
     await expect(usage).not.toContainText('No admin actions recorded yet');
 
     await openWith(page, { telemetry: { totals: {}, todayCount: 0, totalCount: 0, recentActions: [], lastLogin: null } });
@@ -647,6 +653,25 @@ test.describe('the admin Dashboard: System & operations', () => {
     expectFailedRequests = true;
     await openWith(page, { telemetry: null });
     await expect(byId(page, 'system-console-usage')).toHaveCount(0);
+  });
+
+  test('the console has one total: the header and the middle of the donut are the same number, the sections added up, whatever the length of the server\'s own log of actions', async () => {
+    // the log is trimmed now and then, so its length (here 5000) is not the all-time count: the sections the server keeps are
+    await openWith(page, {
+      telemetry: { totals: { events: 12, sponsors: 5, gallery: 3, settings: 1 }, todayCount: 4, totalCount: 5000, recentActions: [], lastLogin: null },
+    });
+    const usage = byId(page, 'system-console-usage');
+    await usage.scrollIntoViewIfNeeded();
+    await expect(byId(page, 'system-console-total')).toHaveText('21');
+    await expect(usage).toContainText('all time');
+    await expect(byId(page, 'system-console-donut')).toContainText('21');
+    await expect(byId(page, 'system-console-donut')).toHaveAttribute('aria-description', '21 actions all time, in 4 sections');
+    await expect(usage).not.toContainText('5000');
+    // with no section recorded the log's count stands in, in the header alone (there is no donut to disagree with)
+    await openWith(page, { telemetry: { totals: {}, todayCount: 1, totalCount: 7, recentActions: [{ action: 'update', section: 'events', timestamp: '2026-10-14T00:05:00.000Z' }], lastLogin: null } });
+    await expect(byId(page, 'system-console-total')).toHaveText('7');
+    await expect(byId(page, 'system-console-donut')).toHaveCount(0);
+    await expect(byId(page, 'system-console-usage')).not.toContainText('No admin actions recorded yet');
   });
 
   // ─── refresh, auto-refresh, the notes ─────────────────────────────────────

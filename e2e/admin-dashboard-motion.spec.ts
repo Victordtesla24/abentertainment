@@ -9,6 +9,8 @@
 
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { formatEstimate } from '@/lib/admin-bi';
+import { niceScale } from '@/components/admin/dashboard/chartMath';
+import { dialAngle, polar } from '@/components/admin/dashboard/radial';
 import { LIVE_EVENTS_AS_SAVED, LIVE_SPONSORS } from './support/admin-bi-live-snapshot';
 import { calculate } from './support/admin-dashboard-model';
 import {
@@ -22,8 +24,11 @@ import {
   collectErrors,
   controlLists,
   newDashboardContext,
+  newRealClockContext,
   note,
   restoreStores,
+  scrollThrough,
+  settled,
   stubHealth,
   stubPageChecks,
   writeEvents,
@@ -34,6 +39,12 @@ const byId = (page: Page, id: string) => page.getByTestId(id);
 
 const LIVE = calculate(LIVE_EVENTS_AS_SAVED, LIVE_SPONSORS);
 const FORECAST = formatEstimate(LIVE.forecast.upcoming.totals[0].revenue.expected, LIVE.forecast.upcoming.totals[0].currency);
+
+/** Where the needle of the upcoming forecast's dial ends once it has turned to the expected figure, and where it rests before (the start of its scale), in the dial's own units. */
+const NEEDLE = 37;
+const HUB = { x: 60, y: 62 };
+const FORECAST_NEEDLE = polar(HUB.x, HUB.y, NEEDLE, dialAngle(LIVE.forecast.upcoming.totals[0].revenue.expected / niceScale(LIVE.forecast.upcoming.totals[0].revenue.high, 5).max));
+const NEEDLE_AT_REST = polar(HUB.x, HUB.y, NEEDLE, dialAngle(0));
 
 interface Samples {
   /** The opacity of the first tile's wrapper, frame by frame, from the moment it exists. */
@@ -78,12 +89,17 @@ async function sampleFromStart(context: BrowserContext): Promise<void> {
     };
     requestAnimationFrame(frame);
     new MutationObserver((mutations) => {
+      let host: Element | null = null;
       for (const mutation of mutations) {
         const element = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
-        const host = element?.closest('[data-testid="tile-forecast-value"]');
-        if (host) store.figure.push({ t: performance.now(), text: host.textContent ?? '' });
+        const found = element?.closest('[data-testid="tile-forecast-value"]') ?? null;
+        if (!found) continue;
+        host = found;
+        // a number written twice before the observer is called (two frames in one task on a busy machine) is still seen: each write is recorded with the text it replaced
+        if (mutation.type === 'characterData' && mutation.oldValue !== null) store.figure.push({ t: performance.now(), text: mutation.oldValue });
       }
-    }).observe(document, { subtree: true, childList: true, characterData: true });
+      if (host) store.figure.push({ t: performance.now(), text: host.textContent ?? '' });
+    }).observe(document, { subtree: true, childList: true, characterData: true, characterDataOldValue: true });
   });
 }
 
@@ -225,11 +241,15 @@ test.describe('the admin Dashboard: motion', () => {
       const whole = samples.entrance[samples.entrance.length - 1];
       expect(whole.opacity, 'and ends whole').toBeGreaterThanOrEqual(0.999);
 
-      // everything the browser is asked to animate is opacity or transform, on the brand's four durations and ease (or a slow loop)
-      expect(samples.animations.length).toBeGreaterThan(5);
-      const properties = new Set(samples.animations.flatMap((animation) => animation.props));
+      // everything the browser is asked to animate is opacity or transform, on the brand's four durations and ease (or a slow loop): the
+      // entrance of the panels in view, and (once the page has been scrolled through) the entrance of every other panel, the dials, rings and donuts included
+      await scrollThrough(page);
+      await settled(page);
+      const everything = await samplesOf(page);
+      expect(everything.animations.length).toBeGreaterThan(5);
+      const properties = new Set(everything.animations.flatMap((animation) => animation.props));
       for (const property of properties) expect(['opacity', 'transform'], `animated property ${property}`).toContain(property);
-      for (const animation of samples.animations) {
+      for (const animation of everything.animations) {
         if (animation.iterations === Infinity) {
           expect(animation.duration, 'a loop is slow').toBeGreaterThanOrEqual(20000);
         } else {
@@ -258,6 +278,71 @@ test.describe('the admin Dashboard: motion', () => {
   });
 
   // ─── reduced motion ───────────────────────────────────────────────────────
+
+  test('whatever shows on the screen is drawn: with the fold set a few pixels into a figure or a block, on a phone, it is faded in and its figure counts (a figure that sat 19 percent in view on the fold stayed blank)', async () => {
+    // on the real clock: a pretend clock puts the browser's own animation timeline out of step with the page's time, more with every load, and a figure would start its fade late
+    const context = await newRealClockContext(browserOf, { width: 390, height: 844, touch: true });
+    const page = await context.newPage();
+    errors = collectErrors(page);
+    try {
+      await adminLogin(page);
+      await stubHealth(page);
+      await stubPageChecks(page);
+      await page.goto('/admin');
+      await expect(note(page)).toHaveAttribute('data-state', 'live', { timeout: 60000 });
+      await page.waitForTimeout(1500);
+      // the figures and blocks that fade in when they are seen (each has an inline opacity), from the top of the page down; the figure on the fold of a phone is one of them
+      // (an element is told by the position of each of its ancestors among their siblings: the same on every load of the same data)
+      const candidates = await page.evaluate(() => {
+        const root = document.getElementById('health-dashboard-content');
+        const pathOf = (element: Element): string => {
+          const parts: number[] = [];
+          for (let node: Element | null = element; node && node !== root; node = node.parentElement) parts.unshift([...(node.parentElement?.children ?? [])].indexOf(node));
+          return parts.join('/');
+        };
+        const label = (element: Element) => `${element.tagName.toLowerCase()}${element.getAttribute('data-testid') ? `[${element.getAttribute('data-testid')}]` : ''}`;
+        const list = [...(root?.querySelectorAll('[style*="opacity"]') ?? [])]
+          .map((element) => ({ element, box: element.getBoundingClientRect() }))
+          .filter(({ box }) => box.width > 0 && box.height > 0)
+          .map(({ element, box }) => ({ path: pathOf(element), label: label(element), top: Math.round(box.top + window.scrollY) }))
+          .filter((entry) => entry.top > 100 && entry.top < 2600)
+          .sort((a, b) => a.top - b.top);
+        // a sample that spreads down the page (never two within 120 px of each other), and the figure on the fold of a phone in any case
+        const picked: typeof list = [];
+        for (const entry of list) if (picked.length < 8 && (picked.length === 0 || entry.top - picked[picked.length - 1].top >= 120)) picked.push(entry);
+        const fold = list.find((entry) => entry.label.includes('tile-upcoming-value'));
+        if (fold && !picked.some((entry) => entry.path === fold.path)) picked.push(fold);
+        return picked;
+      });
+      expect(candidates.length, 'figures and blocks that fade in when seen (the page has a below-the-fold to test)').toBeGreaterThanOrEqual(4);
+      expect(candidates.map((entry) => entry.label).join(' '), 'the figure on the fold of a phone is among them').toContain('tile-upcoming-value');
+      for (const entry of candidates) {
+        // the fold set 6 px into a figure; a block rises 16 px as it fades in (it is below the fold until the fold is 16 px into it), so 6 px more than that into a block
+        const sliver = entry.label.startsWith('span') ? 6 : 22;
+        await page.setViewportSize({ width: 390, height: entry.top + sliver });
+        await page.goto('/admin');
+        await expect(note(page)).toHaveAttribute('data-state', 'live', { timeout: 60000 });
+        const stateOf = () =>
+          page.evaluate((path) => {
+            let element: Element | null = document.getElementById('health-dashboard-content');
+            for (const index of path.split('/').filter(Boolean).map(Number)) element = element ? (element.children[index] ?? null) : null;
+            if (!element) return null;
+            const box = element.getBoundingClientRect();
+            return { opacity: Number(getComputedStyle(element).opacity), counting: element.getAttribute('data-counting'), top: Math.round(box.top), bottom: Math.round(box.bottom), scrollY: Math.round(window.scrollY), innerHeight: window.innerHeight };
+          }, entry.path);
+        const where = `${entry.label} at ${entry.top} px (${entry.path})`;
+        expect(await stateOf(), `${where} is still where it was`).not.toBeNull();
+        // it fades in (400 ms) and counts (400 ms) from the moment it is seen, on a busy machine a little later
+        await page.waitForTimeout(2500);
+        const state = await stateOf();
+        expect(state?.opacity, `${where}: ${sliver} px of it are on the screen, so it is drawn (${JSON.stringify(state)})`).toBeGreaterThanOrEqual(0.999);
+        expect(state?.counting, `${where} has finished counting`).toBeNull();
+      }
+      expect(errors, 'console errors and uncaught errors').toEqual([]);
+    } finally {
+      await context.close();
+    }
+  });
 
   test('reduced motion: no backdrop, every figure and chart in its final state at once, and nothing moves', async () => {
     const { context, page } = await opened({ reducedMotion: true, sample: true });
@@ -292,6 +377,25 @@ test.describe('the admin Dashboard: motion', () => {
       });
       expect(hidden).toEqual([]);
 
+      // no control of the Dashboard goes on fading or moving with reduced motion: the site's stylesheet gives every button, link and field a
+      // transition outside any layer (which a plain utility never beats in the production build, so the opt-out is the important one; a dev
+      // server's stylesheet hides the difference), so every control is looked at, not only the ones that name a transition in their classes
+      const fadingControls = () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('#health-dashboard-content :is(button, a, input, select, textarea, [role="button"]), [role="dialog"] :is(button, a, input, select, textarea, [role="button"])')]
+            .filter((element) => getComputedStyle(element).transitionProperty !== 'none')
+            .map((element) => `${element.tagName.toLowerCase()}[${element.getAttribute('data-testid') ?? element.getAttribute('aria-label') ?? ''}]: ${getComputedStyle(element).transitionProperty}`)
+            .slice(0, 12),
+        );
+      const controls = await page.evaluate(() => document.querySelectorAll('#health-dashboard-content :is(button, a, input, select, textarea, [role="button"])').length);
+      expect(controls, 'the page has controls to look at').toBeGreaterThan(25);
+      expect(await fadingControls(), 'controls still on a transition with reduced motion').toEqual([]);
+      // and the ones that open on request: a beacon's popover, a panel's "i"
+      await byId(page, 'bi-hotspot-record-ticket-sales').click();
+      await expect(byId(page, 'bi-hotspot-popover')).toBeVisible();
+      expect(await fadingControls(), 'controls in a popover too').toEqual([]);
+      await page.keyboard.press('Escape');
+
       // no animation runs forever, and the page is still: the transforms of every element are the same a second later
       const infinite = await page.evaluate(() => document.getAnimations().filter((animation) => animation.playState === 'running' && animation.effect?.getComputedTiming().iterations === Infinity).length);
       expect(infinite).toBe(0);
@@ -306,10 +410,114 @@ test.describe('the admin Dashboard: motion', () => {
       await expect(body).toBeVisible();
       expect(await body.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
       await expect(byId(page, 'system-gauge-health')).toBeVisible();
+      expect(await fadingControls(), 'the controls of System & operations too').toEqual([]);
       // and its arcs are drawn to their figure on the first frame (the memory gauge: 120 of 512 MB is 0.234 of the arc)
       const drawn = await byId(page, 'system-gauge-memory').getByRole('meter').locator('svg path').last().evaluate((element) => parseFloat(getComputedStyle(element).strokeDasharray));
       expect(drawn).toBeGreaterThan(0.2);
       expect(drawn).toBeLessThan(0.27);
+      expect(errors).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  });
+
+  // ─── the dials, rings and donuts ──────────────────────────────────────────
+
+  /** The end of the needle of a dial, and how far a slice of a donut is drawn (0 to 1), as the page has them now. */
+  const needleOf = (page: Page) => page.getByTestId('bi-forecast-upcoming-dial-AUD').locator('line[data-part="needle"]').evaluate((line) => ({ x: Number(line.getAttribute('x2')), y: Number(line.getAttribute('y2')) }));
+  const sliceDrawn = (page: Page) => page.locator('[data-testid="bi-tier-chart"] path[data-part="slice"]').first().evaluate((path) => parseFloat(getComputedStyle(path).strokeDasharray));
+  const arcDrawn = (page: Page) => page.getByTestId('tile-completeness-upcoming-price-ring').locator('circle[data-part="fill"]').evaluate((circle) => parseFloat(getComputedStyle(circle).strokeDasharray));
+
+  test('the dials sweep in when they are first scrolled to: a needle turns from the start of its scale to its figure, a ring and a donut draw round, and each stops exactly on the model\'s figure', async () => {
+    const { context, page } = await opened({ reducedMotion: false });
+    try {
+      await expect(note(page)).toHaveAttribute('data-state', 'live', { timeout: 60000 });
+      // below the fold and not yet seen: the needle rests at the start of its scale and the donut is not drawn
+      const rest = await needleOf(page);
+      expect(rest.x).toBeCloseTo(NEEDLE_AT_REST.x, 0);
+      expect(rest.y).toBeCloseTo(NEEDLE_AT_REST.y, 0);
+      expect(await sliceDrawn(page)).toBe(0);
+      // scrolled to, it turns in many steps (never backwards) and stops on the expected figure
+      await byId(page, 'bi-forecast-upcoming-dial-AUD').scrollIntoViewIfNeeded();
+      const seen: number[] = [];
+      for (let index = 0; index < 14; index += 1) {
+        seen.push((await needleOf(page)).x);
+        await page.waitForTimeout(50);
+      }
+      expect(new Set(seen.map((value) => value.toFixed(1))).size, 'the needle turns in many steps, not a jump').toBeGreaterThan(3);
+      for (let index = 1; index < seen.length; index += 1) expect(seen[index], `step ${index} does not go back`).toBeGreaterThanOrEqual(seen[index - 1] - 0.01);
+      await expect.poll(async () => (await needleOf(page)).x, { timeout: 5000 }).toBeCloseTo(FORECAST_NEEDLE.x, 1);
+      expect((await needleOf(page)).y).toBeCloseTo(FORECAST_NEEDLE.y, 1);
+      // the donut of the tiers and the ring of the completeness draw round when they are seen, and end whole / at the model's share
+      await byId(page, 'bi-tier-chart').scrollIntoViewIfNeeded();
+      await expect.poll(() => sliceDrawn(page), { timeout: 5000 }).toBeCloseTo(1, 2);
+      await byId(page, 'tile-completeness-upcoming-price-ring').scrollIntoViewIfNeeded();
+      await expect.poll(() => arcDrawn(page), { timeout: 5000 }).toBeCloseTo(1, 2);
+      expect(errors).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('reduced motion: every dial, ring and donut is drawn complete on the first frame, the beacons stand still, and nothing pulses', async () => {
+    const { context, page } = await opened({ reducedMotion: true });
+    try {
+      await expect(note(page)).toHaveAttribute('data-state', 'live', { timeout: 60000 });
+      // not scrolled to, and already on the figure: the needle, the donut and the ring
+      const needle = await needleOf(page);
+      expect(needle.x).toBeCloseTo(FORECAST_NEEDLE.x, 1);
+      expect(needle.y).toBeCloseTo(FORECAST_NEEDLE.y, 1);
+      expect(await sliceDrawn(page)).toBeCloseTo(1, 2);
+      expect(await arcDrawn(page)).toBeCloseTo(1, 2);
+      // the beacons are there, drawn static: no pulse is made at all, and nothing on the page runs forever
+      expect(await page.locator('[data-hotspot-id]').count()).toBeGreaterThan(5);
+      await expect(page.locator('.ab-hotspot-pulse')).toHaveCount(0);
+      const infinite = await page.evaluate(() => document.getAnimations().filter((animation) => animation.playState === 'running' && animation.effect?.getComputedTiming().iterations === Infinity).length);
+      expect(infinite).toBe(0);
+      const still = await page.evaluate(() => [...document.querySelectorAll('[data-hotspot-id]')].map((element) => getComputedStyle(element.firstElementChild as Element).transform).join('|'));
+      await page.waitForTimeout(800);
+      expect(await page.evaluate(() => [...document.querySelectorAll('[data-hotspot-id]')].map((element) => getComputedStyle(element.firstElementChild as Element).transform).join('|'))).toBe(still);
+      expect(errors).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('with motion on, the beacons pulse (a soft ring that grows and fades, on the brand\'s curve) so the stillness above is the reduced-motion choice, not a missing feature', async () => {
+    const { context, page } = await opened({ reducedMotion: false });
+    try {
+      await expect(note(page)).toHaveAttribute('data-state', 'live', { timeout: 60000 });
+      const pulses = page.locator('.ab-hotspot-pulse');
+      expect(await pulses.count(), 'one pulse for each beacon').toBe(await page.locator('[data-hotspot-id]').count());
+      const style = await pulses.first().evaluate((element) => {
+        const computed = getComputedStyle(element);
+        return { name: computed.animationName, timing: computed.animationTimingFunction, duration: computed.animationDuration, count: computed.animationIterationCount, events: computed.pointerEvents, fill: computed.backgroundColor };
+      });
+      expect(style.name).toBe('ab-hotspot-pulse');
+      expect(style.timing).toBe('cubic-bezier(0.25, 1, 0.5, 1)');
+      // built from the brand's 600 ms cinematic duration: one beat of that length, then three beats of rest (a 2.4 s loop)
+      expect(style.duration).toBe('2.4s');
+      expect(style.count).toBe('infinite');
+      expect(style.events, 'a pulse never catches the pointer').toBe('none');
+      expect(style.fill, 'a ring, not a fill').toBe('rgba(0, 0, 0, 0)');
+      // it moves by transform and opacity alone: the two properties its keyframes write
+      const { properties, offsets } = await page.evaluate(() => {
+        const names = new Set<string>();
+        const marks = new Set<number>();
+        for (const animation of document.getAnimations()) {
+          const effect = animation.effect as KeyframeEffect | null;
+          if (effect && (animation as CSSAnimation).animationName === 'ab-hotspot-pulse') {
+            for (const frame of effect.getKeyframes()) {
+              marks.add(Number(frame.computedOffset));
+              Object.keys(frame).filter((name) => !['offset', 'easing', 'composite', 'computedOffset'].includes(name)).forEach((name) => names.add(name));
+            }
+          }
+        }
+        return { properties: [...names].sort(), offsets: [...marks].sort((a, b) => a - b) };
+      });
+      expect(properties).toEqual(['opacity', 'transform']);
+      // the ring grows and fades over the first quarter of the loop: 0.25 x 2.4 s = the brand's 600 ms; the rest of the loop is still
+      expect(offsets).toEqual([0, 0.25, 1]);
       expect(errors).toEqual([]);
     } finally {
       await context.close();

@@ -3,9 +3,10 @@
  * and a mobile user agent on the phones and tablets), in a browser on the scratch-data dev server (see e2e/support/admin-bi-http.ts),
  * with System & operations open so the whole tab is on the page.
  *
- * At every size: every panel is there, nothing sticks out sideways (outside a table's own scrolling block), the timeline is the rail
- * from 640 px and a list below it, every panel is glass (translucent, blurred), no text is smaller than 10 px, on touch every button
- * is at least 44 px each way, and the browser logs no error.
+ * At every size: every panel is there (the command bar with its actions chip, the dials, rings and donuts, the beacons of the
+ * actions), nothing sticks out sideways (outside a table's own scrolling block), the timeline is the rail from 640 px and a list
+ * below it, every panel is glass (translucent, blurred), no text is smaller than 10 px, on touch every button is at least 44 px each
+ * way, and the browser logs no error.
  */
 
 import { test, expect, type Page } from '@playwright/test';
@@ -36,22 +37,30 @@ import {
 
 const byId = (page: Page, id: string) => page.getByTestId(id);
 
-/** The panels of the tab, top to bottom. */
+/** The panels of the tab, top to bottom: the command bar with its actions chip, the tiles, and the charts with the beacons of their actions. */
 const PANELS = [
   'dashboard-command-bar',
+  'dashboard-actions-chip',
   'glance',
   'tile-upcoming',
   'tile-forecast',
   'tile-price',
   'tile-completeness',
   'tile-health',
-  'bi-actions',
   'bi-forecast',
+  'bi-forecast-upcoming',
+  'bi-forecast-past',
+  'bi-forecast-events',
+  'bi-recorded',
   'bi-pipeline',
+  'bi-hotspots-pipeline',
   'bi-breakdowns',
   'bi-categories',
+  'bi-hotspots-category',
   'bi-venues',
+  'bi-hotspots-venue',
   'bi-sponsors',
+  'bi-tier-donut',
   'system-operations',
   'system-operations-body',
   'system-gauges',

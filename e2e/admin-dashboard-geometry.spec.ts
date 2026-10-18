@@ -11,7 +11,7 @@ import type { Event } from '@/lib/data';
 import { AVERAGE_TICKET_PRICE, REFERENCE_RETRIEVED, SELL_THROUGH, SELL_THROUGH_BY_GENRE, VENUE_REFERENCE } from '@/lib/bi-reference';
 import { markerRadius, monthTicks, niceScale } from '@/components/admin/dashboard/chartMath';
 import { capacityAboveVenue, metricOf, nextEvent, primaryCurrency } from '@/components/admin/dashboard/selectors';
-import { FLAG, LABEL_W, MAX_R, MAX_TIERS, MIN_R, PAD, RAIL_GAP, TIER_H, layoutTimeline, type PlacedMarker } from '@/components/admin/dashboard/timelineLayout';
+import { FLAG, LABEL_OFFSET, LABEL_W, MAX_R, MAX_TIERS, MIN_R, PAD, RAIL_GAP, TIER_H, layoutTimeline, type PlacedMarker } from '@/components/admin/dashboard/timelineLayout';
 import { LIVE_EVENTS_AS_SAVED, LIVE_SPONSORS } from './support/admin-bi-live-snapshot';
 
 const REFERENCE: BiReference = {
@@ -117,7 +117,8 @@ test.describe('the event timeline layout', () => {
   const rows = LIVE.pipeline;
   const labelled = (markers: readonly PlacedMarker[]) => markers.filter((marker): marker is PlacedMarker & { tier: number } => marker.tier !== null);
   /** The span a label takes, the way the layout places it. */
-  const span = (marker: PlacedMarker, width: number): [number, number] => (marker.x - 8 + LABEL_W > width - PAD ? [marker.x + 8 - LABEL_W, marker.x + 8] : [marker.x - 8, marker.x - 8 + LABEL_W]);
+  const span = (marker: PlacedMarker, width: number): [number, number] =>
+    marker.x + LABEL_OFFSET + LABEL_W > width - PAD ? [marker.x - LABEL_OFFSET - LABEL_W, marker.x - LABEL_OFFSET] : [marker.x + LABEL_OFFSET, marker.x + LABEL_OFFSET + LABEL_W];
 
   test('the five upcoming events of the live data on a 900 px timeline: today at the left edge, the last event at the right edge, in date order', () => {
     const layout = layoutTimeline(rows, TODAY, 900, 'AUD');
@@ -166,11 +167,27 @@ test.describe('the event timeline layout', () => {
 
   test('the three events within 13 days of each other need three tiers; the two a week apart at the far end need two', () => {
     const layout = layoutTimeline(rows, TODAY, 900, 'AUD');
-    expect(layout.markers.map((marker) => marker.tier)).toEqual([0, 1, 2, 0, 1]);
+    // the label of the rightmost of a crowd takes the tier nearest the rail, and each marker to its left a higher one (labels written to the left of
+    // their markers, at the far end, the other way round), so no marker's leader line goes up through the label of a neighbour
+    expect(layout.markers.map((marker) => marker.tier)).toEqual([2, 1, 0, 0, 1]);
     // the last label would run past the right edge, so it is written to the left of its marker
     expect(layout.markers.map((marker) => marker.align)).toEqual(['left', 'left', 'left', 'right', 'right']);
     expect(layout.labelsHeight).toBe(3 * TIER_H + 6);
     expect(layout.railY).toBe(layout.labelsHeight + RAIL_GAP);
+  });
+
+  test('no leader line (from a label down to its marker) crosses the label of a neighbour, at any width where the labels can be arranged so', () => {
+    for (const width of [700, 900, 1100, 1400]) {
+      const layout = layoutTimeline(rows, TODAY, width, 'AUD');
+      const labels = labelled(layout.markers);
+      for (const marker of labels) {
+        for (const other of labels) {
+          if (other === marker || other.tier >= marker.tier) continue;
+          const [left, right] = span(other, width);
+          expect(marker.x < left || marker.x > right, `${width} px: the leader of ${marker.row.title} runs through the label of ${other.row.title}`).toBe(true);
+        }
+      }
+    }
   });
 
   test('the flags under a marker are its gaps, never the date, and they set the height of the flag zone', () => {
@@ -220,6 +237,25 @@ test.describe('the event timeline layout', () => {
     expect(byId.plain.r).toBe(6);
     // $4,000 recorded against an estimate of about $3,000 (50 x 100 x 0.61 for a category that names no genre): the record is the largest
     expect(byId.sold.r).toBe(MAX_R);
+  });
+
+  test('events a day apart (three at each edge) still have no leader line through a neighbour\'s label', () => {
+    const bunched = [
+      ...[0, 1, 2].map((index) => ev(`near-${index}`, { date: `2026-10-${20 + index}`, price: 40, capacity: 100 })),
+      ...[0, 1, 2].map((index) => ev(`far-${index}`, { date: `2026-12-${10 + index}`, price: 40, capacity: 100 })),
+    ];
+    const result = bi.computeBusinessIntelligence({ events: bunched, sponsors: [], scope: 'all', now: NOW, reference: REFERENCE });
+    for (const width of [600, 900, 1200]) {
+      const labels = labelled(layoutTimeline(result.pipeline, TODAY, width, 'AUD').markers);
+      expect(labels.length, `${width} px: every label has room`).toBe(6);
+      for (const marker of labels) {
+        for (const other of labels) {
+          if (other === marker || other.tier >= marker.tier) continue;
+          const [left, right] = span(other, width);
+          expect(marker.x < left || marker.x > right, `${width} px: the leader of ${marker.row.title} runs through the label of ${other.row.title}`).toBe(true);
+        }
+      }
+    }
   });
 
   test('many events close together keep every label that has room and drop the rest, never overlapping', () => {
