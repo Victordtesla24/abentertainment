@@ -1,13 +1,8 @@
 import { Metadata } from 'next';
 import { CinematicHero } from '@/components/sections/CinematicHero';
-import { IntroSection } from '@/components/sections/IntroSection';
-import EventsShowcase from '@/components/EventsShowcase';
-import { VisionSection } from '@/components/VisionSection';
-import { TestimonialsSection } from '@/components/TestimonialsSection';
-import CTASection from '@/components/CTASection';
-import ScrollNarrative from '@/components/ScrollNarrative';
-import VideoHighlights from '@/components/VideoHighlights';
-import { HydrateLater, PrimeNumberFormatting, ScrollReveal, StageLightingOverlay } from '@/components/ui/ScrollReveal';
+import UpcomingEventsCarousel from '@/components/sections/UpcomingEventsCarousel';
+import { toCarouselEvents } from '@/components/sections/upcoming-events';
+import { HydrateLater, PrimeNumberFormatting, StageLightingOverlay } from '@/components/ui/ScrollReveal';
 import { getPublicEvents, getPublicSiteMetrics } from '@/lib/data';
 import { SITE_CONFIG } from '@/lib/constants';
 import { getStaticEventSlugs } from '@/lib/static-event-slugs';
@@ -31,7 +26,7 @@ export default async function Home() {
   }
 
   // Build-time (or revalidated) snapshot of the admin-managed metrics; the
-  // components then fetch the live values from /api/metrics.
+  // hero then fetches the live values from /api/metrics.
   let metrics: SiteMetric[] = [];
 
   try {
@@ -47,36 +42,12 @@ export default async function Home() {
 
       <CinematicHero initialMetrics={metrics} />
 
-      {/* Everything below the first screen is hydrated one section at a time once the first screen is usable. */}
-      {/* Dramatic section entrance — VisionSection emerges from darkness */}
-      <HydrateLater id="vision">
-        <ScrollReveal variant="dramatic" duration={1.3}>
-          <VisionSection />
-        </ScrollReveal>
-      </HydrateLater>
-
-      <HydrateLater id="intro">
-        <IntroSection initialMetrics={metrics} />
-      </HydrateLater>
-      <HydrateLater id="highlights">
-        <VideoHighlights />
-      </HydrateLater>
-      <HydrateLater id="story">
-        <ScrollNarrative />
-      </HydrateLater>
-
-      {/* Dramatic section entrance — EventsShowcase rises with stage-light effect */}
+      {/* Everything below the first screen is hydrated once the first screen is usable. */}
+      {/* The one section after the hero: the upcoming events, moving. Past events live on /events/, and the rest of the
+          old landing page (vision, intro, highlights, story, testimonials, call to action) is on /about/. Only the
+          upcoming events, in the admin portal's order, are handed to the browser. */}
       <HydrateLater id="events">
-        <ScrollReveal variant="dramatic" duration={1.5} delay={0.05}>
-          <EventsShowcase events={allEvents} staticEventSlugs={staticEventSlugs} />
-        </ScrollReveal>
-      </HydrateLater>
-
-      <HydrateLater id="testimonials">
-        <TestimonialsSection />
-      </HydrateLater>
-      <HydrateLater id="cta">
-        <CTASection />
+        <UpcomingEventsCarousel events={toCarouselEvents(allEvents)} staticEventSlugs={staticEventSlugs} />
       </HydrateLater>
 
       <PrimeNumberFormatting />

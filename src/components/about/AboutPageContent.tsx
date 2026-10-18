@@ -1,15 +1,20 @@
 'use client';
 
-import Link from 'next/link';
 import { motion, useInView } from 'framer-motion';
-import { useRef, useEffect, useMemo, useState } from 'react';
-import { ABOUT_CONTENT, SITE_CONFIG, FOUR_PILLARS, TEAM_MEMBERS, telHref } from '@/lib/constants';
+import { useRef, useMemo } from 'react';
+import { ABOUT_CONTENT, TEAM_MEMBERS } from '@/lib/constants';
 import PageHero from '@/components/ui/PageHero';
 import OptimizedImage from '@/components/ui/OptimizedImage';
+import { HydrateLater, PrimeNumberFormatting, ScrollReveal } from '@/components/ui/ScrollReveal';
+import { IntroSection } from '@/components/sections/IntroSection';
+import VideoHighlights from '@/components/VideoHighlights';
+import ScrollNarrative from '@/components/ScrollNarrative';
+import { VisionSection } from '@/components/VisionSection';
+import { TestimonialsSection } from '@/components/TestimonialsSection';
+import CTASection from '@/components/CTASection';
 import type { SiteMetric } from '@/lib/data';
-import { buildFootprintSentence, formatMetricValue, metricGridColumns } from '@/lib/site-metrics';
+import { buildFootprintSentence } from '@/lib/site-metrics';
 import { useSiteMetrics } from '@/lib/use-site-metrics';
-import { FIGURE_FIT_STYLE, FIGURE_TILE_CLASS, figureGridStyle, widestFigureEm } from '@/lib/metric-fit';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -23,40 +28,6 @@ const fadeUp = {
   }),
 };
 
-const staggerContainer = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
-};
-
-const staggerItem = {
-  hidden: { opacity: 0, y: 35 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: EASE } },
-};
-
-// ─── Pillar Icons ─────────────────────────────────────────────────────────────
-
-const PILLAR_ICONS: Record<string, React.ReactNode> = {
-  network: (
-    <svg className="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-    </svg>
-  ),
-  heritage: (
-    <svg className="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-    </svg>
-  ),
-  culture: (
-    <svg className="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  ),
-  community: (
-    <svg className="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-    </svg>
-  ),
-};
 
 // ─── Ornamental Divider ───────────────────────────────────────────────────────
 
@@ -67,78 +38,6 @@ function GoldDivider() {
       <div className="w-2 h-2 rotate-45 border border-[#C9A84C]/50" />
       <div className="w-16 h-[1px] bg-gradient-to-l from-transparent to-[#C9A84C]/40" />
     </div>
-  );
-}
-
-// ─── Animated Counter ─────────────────────────────────────────────────────────
-
-function AnimatedStat({ value, label }: { value: string; label: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: '-80px' });
-  const [displayed, setDisplayed] = useState('0');
-
-  useEffect(() => {
-    if (!isInView) return;
-    const numeric = parseFloat(value.replace(/[^0-9.]/g, ''));
-    // The suffix is only the unit ("+", "K", "%") — thousands separators belong to the number.
-    const suffix = value.replace(/[0-9.,]/g, '');
-    if (isNaN(numeric)) { setDisplayed(value); return; }
-    const duration = 1600;
-    const steps = 40;
-    const stepTime = duration / steps;
-    let step = 0;
-    const timer = setInterval(() => {
-      step++;
-      const progress = step / steps;
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const current = Math.round(numeric * eased);
-      // Intermediate frames carry thousands separators like the home counter; the
-      // last frame is exactly the store-derived string ("25,000+").
-      setDisplayed(step >= steps ? value : current.toLocaleString('en-US') + suffix);
-      if (step >= steps) clearInterval(timer);
-    }, stepTime);
-    return () => clearInterval(timer);
-  }, [isInView, value]);
-
-  return (
-    <div ref={ref} className="text-center group">
-      {/* --figure-size repeats text-4xl / md:text-5xl / lg:text-6xl: the fit may only ever make the figure smaller. */}
-      <div
-        className="text-4xl md:text-5xl lg:text-6xl [--figure-size:2.25rem] md:[--figure-size:3rem] lg:[--figure-size:3.75rem] font-display font-black mb-2 leading-none gold-shimmer"
-        style={FIGURE_FIT_STYLE}
-        aria-label={value}
-      >
-        {isInView ? displayed : '0'}
-      </div>
-      <p className="text-white/40 text-xs uppercase tracking-[0.25em] font-body">{label}</p>
-    </div>
-  );
-}
-
-// ─── Stats Grid ───────────────────────────────────────────────────────────────
-
-// The reveal is driven by an `animate` label (not `whileInView`) so a tile that
-// joins after the strip has already been revealed — an admin adds a metric
-// while a visitor is on the page — inherits "visible" instead of staying hidden.
-function StatsGrid({ metrics }: { metrics: SiteMetric[] }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: '-80px' });
-  const figures = metrics.map((stat) => formatMetricValue(stat.value, stat.suffix));
-  return (
-    <motion.div
-      ref={ref}
-      className={`grid ${metricGridColumns(metrics.length)} gap-8 md:gap-12`}
-      style={figureGridStyle(widestFigureEm(figures, 'black'))}
-      initial="hidden"
-      animate={inView ? 'visible' : 'hidden'}
-      variants={staggerContainer}
-    >
-      {metrics.map((stat, index) => (
-        <motion.div key={stat.id} variants={staggerItem} className={FIGURE_TILE_CLASS}>
-          <AnimatedStat value={figures[index]} label={stat.label} />
-        </motion.div>
-      ))}
-    </motion.div>
   );
 }
 
@@ -171,6 +70,21 @@ function Reveal({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+/**
+ * The About page: its own hero, story and team, with the sections that used to make up the landing page. The landing page is
+ * now the hero and the upcoming events only, so the vision (four pillars), the intro with the live figures, the highlight reel,
+ * the scrolling story, the testimonials and the closing call to action live here, as the same components, in the order a visitor
+ * reads a company's story. Like they were on the landing page, each one is hydrated on its own once the first screen is usable
+ * (HydrateLater), so the page stays as light as the landing page was.
+ *
+ * Four blocks this page used to write by hand are no longer written twice, because the landing sections show exactly the same
+ * information: the figures strip (the intro's stats bar shows the same live metrics), "Our Purpose" (the intro opens with the
+ * same tagline and description), the four pillars (the vision section shows the same pillars) and the closing call to action
+ * (the same two links, to /events and /contact; the phone and e-mail links are in the footer on every page).
+ *
+ * The pillars come right after the hero and the intro after them, so no figure that counts up is on the first screen: a counting
+ * figure moves its line by a pixel or two a frame, which is layout shift whenever it is visible without scrolling.
+ */
 export default function AboutPageContent({ initialMetrics }: { initialMetrics: SiteMetric[] }) {
   // Build-time snapshot first, then the live admin-managed values.
   const metrics = useSiteMetrics(initialMetrics);
@@ -187,7 +101,10 @@ export default function AboutPageContent({ initialMetrics }: { initialMetrics: S
   );
 
   return (
-    <div className="bg-[#0A0A0A]">
+    // No background of its own: the sections that came from the landing page were drawn over the page's backdrop there (the
+    // narrative's translucent gradient lets it show through), so they are here. The team section below, which relies on a
+    // solid base, brings its own.
+    <div>
 
       {/* ── 1. Hero ─────────────────────────────────────────────────────────── */}
       <PageHero
@@ -198,44 +115,17 @@ export default function AboutPageContent({ initialMetrics }: { initialMetrics: S
         subtitle="Where every detail is meticulously crafted to create unforgettable experiences"
       />
 
-      {/* ── 2. Stats Strip ──────────────────────────────────────────────────── */}
-      {metrics.length > 0 && (
-        <section className="relative py-16 md:py-20 border-b border-[#C9A84C]/8 overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(201,168,76,0.04)_0%,transparent_65%)]" />
-          <div className="film-grain" />
-          <div className="container-eu relative z-10">
-            <StatsGrid metrics={metrics} />
-          </div>
-          {/* Gold line accents */}
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/20 to-transparent" />
-        </section>
-      )}
+      {/* ── 2. Four pillars (from the landing page; it emerges from darkness as it did there) ── */}
+      <HydrateLater id="vision">
+        <ScrollReveal variant="dramatic" duration={1.3}>
+          <VisionSection />
+        </ScrollReveal>
+      </HydrateLater>
 
-      {/* ── 3. Mission Statement ────────────────────────────────────────────── */}
-      <section className="relative py-24 md:py-32 overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #C9A84C 0.5px, transparent 0)', backgroundSize: '60px 60px' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[400px] bg-[radial-gradient(ellipse,rgba(201,168,76,0.04),transparent_60%)] pointer-events-none" />
-        <div className="container-eu relative z-10 max-w-4xl">
-          <Reveal>
-            <span className="text-[#C9A84C] text-xs uppercase tracking-[0.3em] font-body font-semibold mb-5 block text-center">
-              Our Purpose
-            </span>
-          </Reveal>
-          <Reveal delay={0.1}>
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-white text-center leading-[1.15] mb-6">
-              <span className="gold-shimmer">{ABOUT_CONTENT.tagline}</span>
-            </h2>
-          </Reveal>
-          <Reveal delay={0.2}>
-            <GoldDivider />
-          </Reveal>
-          <Reveal delay={0.3}>
-            <p className="text-white/55 font-body text-lg md:text-xl leading-relaxed text-center mt-6">
-              {ABOUT_CONTENT.description}
-            </p>
-          </Reveal>
-        </div>
-      </section>
+      {/* ── 3. Intro — the live figures, who we are, and the productions (from the landing page) ───── */}
+      <HydrateLater id="intro">
+        <IntroSection initialMetrics={initialMetrics} />
+      </HydrateLater>
 
       {/* ── 4. Story Chapters ───────────────────────────────────────────────── */}
       <section className="relative py-20 md:py-28 border-t border-[#C9A84C]/8 overflow-hidden">
@@ -282,8 +172,17 @@ export default function AboutPageContent({ initialMetrics }: { initialMetrics: S
         </div>
       </section>
 
-      {/* ── 5. Team Section ─────────────────────────────────────────────────── */}
-      <section className="relative py-24 md:py-32 border-t border-[#C9A84C]/8 overflow-hidden">
+
+      {/* ── 5. Highlight reel and the scrolling story (from the landing page) ─────────────── */}
+      <HydrateLater id="highlights">
+        <VideoHighlights />
+      </HydrateLater>
+      <HydrateLater id="story">
+        <ScrollNarrative />
+      </HydrateLater>
+
+      {/* ── 6. Team Section ─────────────────────────────────────────────────── */}
+      <section className="relative py-24 md:py-32 border-t border-[#C9A84C]/8 overflow-hidden bg-[#0A0A0A]">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(201,168,76,0.04)_0%,transparent_55%)]" />
         <div className="film-grain" />
         <div className="container-eu relative z-10">
@@ -350,159 +249,15 @@ export default function AboutPageContent({ initialMetrics }: { initialMetrics: S
         </div>
       </section>
 
-      {/* ── 6. Four Pillars ─────────────────────────────────────────────────── */}
-      <section className="relative py-24 md:py-32 bg-[#0D0D0D] border-t border-[#C9A84C]/8 overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #C9A84C 0.5px, transparent 0)', backgroundSize: '50px 50px' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-[radial-gradient(ellipse,rgba(201,168,76,0.03),transparent_60%)] pointer-events-none" />
-        <div className="section-divider-top" />
+      {/* ── 7. Testimonials and the closing call to action (from the landing page) ──────────── */}
+      <HydrateLater id="testimonials">
+        <TestimonialsSection />
+      </HydrateLater>
+      <HydrateLater id="cta">
+        <CTASection />
+      </HydrateLater>
 
-        <div className="container-eu relative z-10">
-          {/* Header */}
-          <Reveal className="text-center mb-20">
-            <span className="text-[#C9A84C] text-xs uppercase tracking-[0.3em] font-body font-semibold mb-4 block">
-              What We Stand For
-            </span>
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-white mb-4">
-              Our Four <span className="gold-shimmer">Pillars</span>
-            </h2>
-            <GoldDivider />
-          </Reveal>
-
-          {/* Pillars grid */}
-          <motion.div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-7"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-60px' }}
-            variants={staggerContainer}
-          >
-            {FOUR_PILLARS.map((pillar, index) => (
-              <motion.div key={pillar.title} variants={staggerItem} className="group">
-                <div className="glass-card hover-shine p-8 lg:p-9 h-full relative">
-                  {/* Number watermark */}
-                  <div className="absolute top-4 right-5 text-[#C9A84C]/[0.06] text-6xl font-display font-black">
-                    {String(index + 1).padStart(2, '0')}
-                  </div>
-                  {/* Icon */}
-                  <div className="relative text-[#C9A84C]/60 mb-6 group-hover:text-[#C9A84C] transition-all duration-500">
-                    <div className="absolute -inset-2 bg-[#C9A84C]/[0.04] rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <div className="relative">
-                      {PILLAR_ICONS[pillar.icon] ?? PILLAR_ICONS.community}
-                    </div>
-                  </div>
-                  {/* Animated line */}
-                  <div className="w-8 h-[1px] bg-[#C9A84C]/25 mb-5 group-hover:w-14 group-hover:bg-[#C9A84C]/50 transition-all duration-700" />
-                  <h3 className="text-lg font-display font-bold text-white mb-3 group-hover:text-[#C9A84C] transition-colors duration-500">
-                    {pillar.title}
-                  </h3>
-                  <p className="text-white/50 font-body text-sm leading-relaxed group-hover:text-white/70 transition-colors duration-500">
-                    {pillar.description}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ── 7. CTA — Get in Touch ────────────────────────────────────────────── */}
-      <section className="relative py-28 md:py-36 border-t border-[#C9A84C]/8 overflow-hidden bg-black">
-        <div className="section-divider-top" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(201,168,76,0.05)_0%,transparent_60%)]" />
-        <div className="film-grain" />
-
-        <motion.div
-          className="container-eu relative z-10 text-center"
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.3 }}
-          variants={staggerContainer}
-        >
-          {/* AB Logo */}
-          <motion.div variants={staggerItem} className="mb-10">
-            <div className="relative w-20 h-20 mx-auto">
-              <div className="absolute inset-0 bg-[#C9A84C]/10 blur-2xl rounded-full" />
-              <OptimizedImage
-                src="/images/AB_Logo_transparent.png"
-                alt=""
-                width={500}
-                height={500}
-                sizes="80px"
-                className="absolute inset-0 h-full w-full object-contain opacity-30"
-              />
-            </div>
-          </motion.div>
-
-          <motion.h2
-            variants={staggerItem}
-            className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white mb-5 leading-[1.05]"
-          >
-            Experience Culture{' '}
-            <span className="gold-shimmer">Like Never Before</span>
-          </motion.h2>
-
-          <motion.div variants={staggerItem}>
-            <GoldDivider />
-          </motion.div>
-
-          <motion.p
-            variants={staggerItem}
-            className="text-white/50 text-lg md:text-xl font-body max-w-2xl mx-auto mt-6 mb-12 leading-relaxed"
-          >
-            From intimate theatre to grand celebrations — AB Entertainment brings the richness of Indian & Marathi culture to Melbourne's finest stages.
-          </motion.p>
-
-          {/* Contact details */}
-          <motion.div
-            variants={staggerItem}
-            className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12 mb-12"
-          >
-            <div className="text-center">
-              <p className="text-[#C9A84C]/50 text-[10px] uppercase tracking-[0.25em] font-body mb-1">Phone</p>
-              <a
-                href={telHref(SITE_CONFIG.contact.phone)}
-                className="inline-flex min-h-11 items-center text-white/70 hover:text-[#C9A84C] transition-colors font-body text-sm"
-              >
-                {SITE_CONFIG.contact.phone}
-              </a>
-            </div>
-            <div className="hidden sm:block w-px h-8 bg-[#C9A84C]/15" />
-            <div className="text-center">
-              <p className="text-[#C9A84C]/50 text-[10px] uppercase tracking-[0.25em] font-body mb-1">Email</p>
-              <a
-                href={`mailto:${SITE_CONFIG.contact.email}`}
-                className="inline-flex min-h-11 items-center text-white/70 hover:text-[#C9A84C] transition-colors font-body text-sm [overflow-wrap:anywhere]"
-              >
-                {SITE_CONFIG.contact.email}
-              </a>
-            </div>
-          </motion.div>
-
-          {/* CTAs */}
-          <motion.div
-            variants={staggerItem}
-            className="flex flex-col sm:flex-row gap-5 justify-center items-center"
-          >
-            <Link
-              href="/events"
-              className="group relative px-12 py-4 bg-gradient-to-r from-[#C9A84C] via-[#D4B65C] to-[#C9A84C] text-black text-sm font-bold uppercase tracking-[0.15em] overflow-hidden transition-all duration-500 hover:shadow-[0_0_50px_rgba(201,168,76,0.4)]"
-            >
-              <span className="relative z-10">Browse Events</span>
-              <div className="absolute inset-0 bg-gradient-to-r from-[#D4B65C] via-[#E8D5A3] to-[#D4B65C] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            </Link>
-            <Link
-              href="/contact"
-              className="px-12 py-4 border border-[#C9A84C]/25 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-black text-sm font-bold uppercase tracking-[0.15em] transition-all duration-500 hover:shadow-[0_0_30px_rgba(201,168,76,0.2)]"
-            >
-              Get in Touch
-            </Link>
-          </motion.div>
-        </motion.div>
-
-        {/* Bottom accent */}
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/20 to-transparent" />
-      </section>
-
+      <PrimeNumberFormatting />
     </div>
   );
 }
