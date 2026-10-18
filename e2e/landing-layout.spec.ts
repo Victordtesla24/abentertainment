@@ -128,7 +128,7 @@ for (const viewport of VIEWPORTS) {
       expect(geometry.first.width).toBeLessThanOrEqual(340.5);
       expect(Math.round(geometry.first.width)).toBe(Math.round(Math.min(viewport.width * 0.8, 340)));
       expect(geometry.row.scrollWidth, 'the row scrolls inside its own box').toBeGreaterThan(geometry.row.clientWidth);
-      expect(geometry.buttons).toHaveLength(2);
+      expect(geometry.buttons, 'Previous, Pause / Play and Next').toHaveLength(3);
       for (const button of geometry.buttons) {
         expect(button.width).toBeGreaterThanOrEqual(44);
         expect(button.height).toBeGreaterThanOrEqual(44);

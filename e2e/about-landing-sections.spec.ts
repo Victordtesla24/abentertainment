@@ -8,8 +8,9 @@ import { test, expect, type Page } from '@playwright/test';
  * the figures follow the live metrics and the story chapters appear as the page scrolls.
  *
  * It also checks the four blocks the About page used to write by hand and no longer does (its own strip of figures, its "Our
- * Purpose" block, its own four pillars and its own call to action), because the sections above show exactly the same information:
- * nothing is said twice, and nothing they said is missing.
+ * Purpose" block, its own four pillars and its own call to action's buttons), because the sections above show the same information:
+ * nothing is said twice, and nothing they said is missing. What the old closing block said besides its buttons (its heading, its
+ * paragraph, the "Our Purpose" label, and the phone and e-mail links) is kept, as the lead-in to the one shared call to action.
  *
  * Runs against the dev server by default (see playwright.config.ts); set E2E_BASE_URL to use a built server or a static export.
  */
@@ -41,6 +42,7 @@ test.describe('about page: what is on it', () => {
       'h2:Experience the Magic',
       'h2:Meet the Visionaries',
       'h2:What People Say',
+      'h2:Experience Culture Like Never Before',
       "h2:Let's Turn Your Dreams Into Reality",
     ]);
     // The scrolling story sits between the reel and the team, as a named region; no figure that counts up is on the first screen
@@ -72,10 +74,18 @@ test.describe('about page: what is on it', () => {
       expect(count(pillar), `${pillar} appears once`).toBe(1);
     }
     expect(count('Where Every Detail is Meticulously Crafted'), 'the tagline is a heading once (it was a heading twice: "Our Purpose" and the intro)').toBe(1);
-    await expect(page.getByRole('heading', { name: /Our Purpose|Experience Culture Like Never Before/ })).toHaveCount(0);
+    // The old "Our Purpose" block is not written again (its tagline is the intro's heading); the label survives once, as the closing lead-in's.
+    await expect(page.getByRole('heading', { name: /Our Purpose/ })).toHaveCount(0);
+    expect(count(/our purpose/gi), '"Our Purpose" appears once').toBe(1);
+    expect(count(/experience culture like never before/gi), 'the old closing heading appears once').toBe(1);
+    expect(count('From intimate theatre to grand celebrations'), 'the old closing paragraph appears once').toBe(1);
     await expect(page.locator('div.font-black[aria-label]')).toHaveCount(0); // the About strip of figures
     await expect(page.locator('section .border-b .grid > div')).not.toHaveCount(0); // the intro's stats bar is the one strip
     await expect(page.getByRole('heading', { level: 2, name: /Dreams Into Reality/ })).toHaveCount(1);
+    // One call to action: one pair of buttons (the old page's own pair, "Browse Events" and "Get in Touch", is not written again).
+    await expect(page.locator('main').getByRole('link', { name: 'Buy Tickets' })).toHaveCount(1);
+    await expect(page.locator('main').getByRole('link', { name: 'Get in Touch' })).toHaveCount(1);
+    await expect(page.locator('main').getByRole('link', { name: /Browse Events/ })).toHaveCount(0);
   });
 
   test('keeps every fact and link the About page had: the figures, the pillars, the tagline, and the links to events and contact', async ({ page }) => {
@@ -86,7 +96,8 @@ test.describe('about page: what is on it', () => {
     await expect(main).toContainText("Let's Turn Your Dreams Into Reality"); // the tagline's last sentence, from "Our Purpose"
     await expect(main).toContainText('Melbourne');
     await expect(main).toContainText('Marathi');
-    // The call to action keeps both links; the phone and e-mail links of the old call to action are in the footer on every page.
+    // The call to action keeps both links (its labels are the shared call to action's); the phone and e-mail links of the old call to
+    // action are in the closing lead-in (below) and in the footer on every page.
     await expect(main.getByRole('link', { name: 'Buy Tickets' })).toHaveAttribute('href', /\/events\/?$/);
     await expect(main.getByRole('link', { name: 'Get in Touch' })).toHaveAttribute('href', /\/contact\/?$/);
     await expect(page.locator('footer a[href^="tel:"]').first()).toBeAttached();
@@ -96,6 +107,45 @@ test.describe('about page: what is on it', () => {
       await expect(page.getByRole('heading', { level: 3, name: heading, exact: true })).toBeAttached();
     }
     for (const member of ['Abhijit Kadam', 'Vrushali Deshpande']) await expect(page.getByRole('heading', { level: 3, name: member })).toBeAttached();
+  });
+
+  test('keeps what the old closing call to action said: its heading and paragraph, with visible phone and e-mail links, lead into the one shared call to action', async ({ page }) => {
+    await openAbout(page);
+    const closing = page.locator('section[aria-labelledby="about-closing-title"]');
+    await closing.scrollIntoViewIfNeeded();
+    await expect(closing.getByRole('heading', { level: 2, name: 'Experience Culture Like Never Before' })).toBeVisible();
+    await expect(closing.getByText('Our Purpose', { exact: true })).toBeVisible();
+    await expect(closing).toContainText(
+      "From intimate theatre to grand celebrations — AB Entertainment brings the richness of Indian & Marathi culture to Melbourne's finest stages.",
+    );
+    // Visible phone and e-mail links, to the same numbers and addresses as the footer's (one source: the site's contact details).
+    const footerTel = (await page.locator('footer a[href^="tel:"]').first().getAttribute('href'))!;
+    const footerMail = (await page.locator('footer a[href^="mailto:"]').first().getAttribute('href'))!;
+    const phone = closing.locator('a[href^="tel:"]');
+    const mail = closing.locator('a[href^="mailto:"]');
+    await expect(phone).toHaveCount(1);
+    await expect(mail).toHaveCount(1);
+    await expect(phone).toBeVisible();
+    await expect(mail).toBeVisible();
+    await expect(phone).toHaveAttribute('href', footerTel);
+    await expect(mail).toHaveAttribute('href', footerMail);
+    expect((await phone.innerText()).replace(/\D/g, ''), 'the phone link shows the number it dials').toBe(footerTel.replace(/\D/g, ''));
+    expect((await mail.innerText()).trim().toLowerCase(), 'the e-mail link shows the address it writes to').toBe(footerMail.replace('mailto:', '').toLowerCase());
+    await expect(closing.getByText('Phone', { exact: true })).toBeVisible();
+    await expect(closing.getByText('Email', { exact: true })).toBeVisible();
+    // Both links are real targets at least 44 px tall.
+    for (const link of [phone, mail]) expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    // It is a lead-in, not a second call to action: no buttons of its own, and the shared call to action follows it directly.
+    await expect(closing.locator('a[href*="/events"], a[href*="/contact"]')).toHaveCount(0);
+    const next = await closing.evaluate((element) => {
+      const following = element.nextElementSibling as HTMLElement | null;
+      return {
+        heading: following?.querySelector('h2')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+        gap: following ? Math.round(following.getBoundingClientRect().top - element.getBoundingClientRect().bottom) : 999,
+      };
+    });
+    expect(next.heading).toBe("Let's Turn Your Dreams Into Reality");
+    expect(Math.abs(next.gap), 'no gap between the lead-in and the call to action').toBeLessThanOrEqual(1);
   });
 });
 
@@ -110,9 +160,16 @@ test.describe('about page: the moved sections still work', () => {
     await reel.scrollIntoViewIfNeeded();
     // preload="none": nothing of the reel is fetched until somebody presses play.
     expect(await reel.getAttribute('preload')).toBe('none');
+    await reel.evaluate((video: HTMLVideoElement) => {
+      (window as unknown as { __reelPlaying: boolean }).__reelPlaying = false;
+      video.addEventListener('playing', () => ((window as unknown as { __reelPlaying: boolean }).__reelPlaying = true), { once: true });
+    });
     await reel.click({ force: true });
     await expect(page.getByText('Click to play highlight reel')).toHaveCount(0);
     await expect.poll(() => reel.evaluate((video: HTMLVideoElement) => !video.paused), { timeout: 15000 }).toBe(true);
+    // Pause once it is really playing: pausing while the browser is still starting the video makes play() reject ("interrupted by a call
+    // to pause()"), which is what pressing twice within milliseconds does, not a fault of the page.
+    await page.waitForFunction(() => (window as unknown as { __reelPlaying: boolean }).__reelPlaying === true, undefined, { timeout: 15000 }).catch(() => undefined);
     await reel.click({ force: true });
     await expect.poll(() => reel.evaluate((video: HTMLVideoElement) => video.paused), { timeout: 5000 }).toBe(true);
     expect(errors).toEqual([]);

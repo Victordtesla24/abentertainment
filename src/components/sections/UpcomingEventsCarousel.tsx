@@ -35,6 +35,11 @@ import {
  * it or has just scrolled it, while the tab is hidden and while it is off screen. Under prefers-reduced-motion nothing moves by
  * itself: it is a plain scrollable row and the buttons step it. One event is a centred card with no motion and no buttons; none
  * is a line and a link to /events/.
+ *
+ * Moving content that starts by itself and goes on for more than five seconds must be stoppable (WCAG 2.2.2, Level A), so the
+ * control row has a Pause/Play button beside Previous and Next. Paused with it, the row stays paused until Play is pressed:
+ * the pointer and keyboard focus coming and going, a finger lifting, the tab returning and the carousel scrolling back into view
+ * all leave it where it is. The button is not drawn under prefers-reduced-motion (nothing moves by itself there), nor with one event.
  */
 
 /** The brand easing (--ease-brand in the design system), the same curve every section of the site uses. */
@@ -74,6 +79,9 @@ interface MotionApi {
   reduced: boolean;
   /** Only meaningful without copies (reduced motion): whether the row can still move each way. */
   edges: { start: boolean; end: boolean; scrollable: boolean };
+  /** The visitor has paused the automatic glide with the Pause button; it stays paused until they press Play. */
+  paused: boolean;
+  setPaused: (paused: boolean) => void;
 }
 
 function useCarouselMotion(
@@ -91,6 +99,17 @@ function useCarouselMotion(
   /** The scroll position the code itself last set, to tell its own scroll events from the visitor's. */
   const expectedLeft = useRef(0);
   const lastInteraction = useRef(0);
+  const [paused, setPausedState] = useState(false);
+  const pausedRef = useRef(false);
+  /** What the automatic glide offers the Pause/Play button; null while there is no automatic glide (one event, reduced motion). */
+  const autoplayRef = useRef<{ pause: () => void; play: () => void } | null>(null);
+
+  const setPaused = useCallback((next: boolean) => {
+    pausedRef.current = next;
+    setPausedState(next);
+    if (next) autoplayRef.current?.pause();
+    else autoplayRef.current?.play();
+  }, []);
 
   // prefers-reduced-motion, live: the visitor can change it while the page is open.
   useEffect(() => {
@@ -232,6 +251,9 @@ function useCarouselMotion(
     const group = groupRef.current;
     if (!group || !loop || reduced) return;
     const holds = new Set<string>(['offscreen']);
+    // Paused with the button: a hold that only the button lifts, so hover, focus, touch, the tab and the viewport coming and going
+    // around it never start the glide again. It is carried over when this effect starts afresh (the number of events changed).
+    if (pausedRef.current) holds.add('user');
     let timer = 0;
     const clear = () => {
       window.clearTimeout(timer);
@@ -262,6 +284,14 @@ function useCarouselMotion(
     };
     const touched = () => {
       lastInteraction.current = performance.now();
+    };
+    // The Pause/Play button: a pause stops a glide where it is (as a finger does) and holds until Play lifts it.
+    autoplayRef.current = {
+      pause: () => {
+        hold('user');
+        cancelGlide();
+      },
+      play: () => release('user'),
     };
 
     const onEnter = (event: PointerEvent) => {
@@ -315,6 +345,7 @@ function useCarouselMotion(
     if (document.visibilityState === 'hidden') holds.add('hidden');
 
     return () => {
+      autoplayRef.current = null;
       clear();
       observer.disconnect();
       group.removeEventListener('pointerenter', onEnter);
@@ -333,7 +364,7 @@ function useCarouselMotion(
   // Never leave a glide running (or the browser's snapping switched off) behind an unmounted carousel.
   useEffect(() => () => cancelGlide(), [cancelGlide]);
 
-  return { step, reduced, edges };
+  return { step, reduced, edges, paused, setPaused };
 }
 
 /**
@@ -458,6 +489,24 @@ function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
   );
 }
 
+/** Pause: two bars (the automatic glide is running). */
+function PauseIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5v14M15 5v14" />
+    </svg>
+  );
+}
+
+/** Play: a triangle (the automatic glide is paused). */
+function PlayIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 5.5v13l10.5-6.5L8 5.5z" />
+    </svg>
+  );
+}
+
 const CONTROL_CLASS =
   'w-11 h-11 flex items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-400 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)] aria-disabled:opacity-30 aria-disabled:pointer-events-none';
 
@@ -494,7 +543,7 @@ export default function UpcomingEventsCarousel({
   const groupRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const { step, reduced, edges } = useCarouselMotion(groupRef, scrollerRef, listRef, loop);
+  const { step, reduced, edges, paused, setPaused } = useCarouselMotion(groupRef, scrollerRef, listRef, loop);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (count < 2 || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -599,6 +648,15 @@ export default function UpcomingEventsCarousel({
                   onClick={() => !prevDisabled && step(-1)}
                 >
                   <ChevronIcon direction="left" />
+                </button>
+                {/* Pause / Play (WCAG 2.2.2): the label says what pressing it does. Not drawn under reduced motion, where nothing moves by itself. */}
+                <button
+                  type="button"
+                  className={`${CONTROL_CLASS} motion-reduce:hidden`}
+                  aria-label={paused ? 'Play' : 'Pause'}
+                  onClick={() => setPaused(!paused)}
+                >
+                  {paused ? <PlayIcon /> : <PauseIcon />}
                 </button>
                 <button
                   type="button"

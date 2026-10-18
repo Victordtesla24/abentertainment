@@ -319,7 +319,7 @@ export default function SettingsManager({ initialSettings }: SettingsManagerProp
                 placeholder="https://youtube.com/watch?v=..."
                 className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
               />
-              <p className="text-[9px] text-white/25 mt-1">YouTube URL for the homepage highlight video. Leave empty to show placeholder.</p>
+              <p className="text-[9px] text-white/25 mt-1">YouTube URL for the highlight video on the About page. Leave empty to show placeholder.</p>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import { motion, useInView } from 'framer-motion';
 import { useRef, useMemo } from 'react';
-import { ABOUT_CONTENT, TEAM_MEMBERS } from '@/lib/constants';
+import { ABOUT_CONTENT, SITE_CONFIG, TEAM_MEMBERS, telHref } from '@/lib/constants';
 import PageHero from '@/components/ui/PageHero';
 import OptimizedImage from '@/components/ui/OptimizedImage';
 import { HydrateLater, PrimeNumberFormatting, ScrollReveal } from '@/components/ui/ScrollReveal';
@@ -77,10 +77,12 @@ function Reveal({
  * reads a company's story. Like they were on the landing page, each one is hydrated on its own once the first screen is usable
  * (HydrateLater), so the page stays as light as the landing page was.
  *
- * Four blocks this page used to write by hand are no longer written twice, because the landing sections show exactly the same
+ * Four blocks this page used to write by hand are no longer written twice, because the landing sections show the same
  * information: the figures strip (the intro's stats bar shows the same live metrics), "Our Purpose" (the intro opens with the
- * same tagline and description), the four pillars (the vision section shows the same pillars) and the closing call to action
- * (the same two links, to /events and /contact; the phone and e-mail links are in the footer on every page).
+ * same tagline and description; its last sentence is the closing call to action's heading), the four pillars (the vision
+ * section shows the same pillars) and the closing call to action's buttons (the shared call to action has the same two links,
+ * to /events and /contact). What the old closing block said besides its buttons is kept, as the lead-in to the shared call to
+ * action: its heading and paragraph, with the phone and e-mail links, under the "Our Purpose" label. No copy is lost.
  *
  * The pillars come right after the hero and the intro after them, so no figure that counts up is on the first screen: a counting
  * figure moves its line by a pixel or two a frame, which is layout shift whenever it is visible without scrolling.
@@ -249,10 +251,62 @@ export default function AboutPageContent({ initialMetrics }: { initialMetrics: S
         </div>
       </section>
 
-      {/* ── 7. Testimonials and the closing call to action (from the landing page) ──────────── */}
+      {/* ── 7. Testimonials (from the landing page) ───────────────────────────────────────── */}
       <HydrateLater id="testimonials">
         <TestimonialsSection />
       </HydrateLater>
+
+      {/* ── 8. The closing area: what this page's own call to action said besides its buttons, as the lead-in to the shared
+              call to action below (which has the same two links), so no copy is lost and there is still one call to action ── */}
+      <section aria-labelledby="about-closing-title" className="relative bg-black pt-24 md:pt-32 pb-16 md:pb-20 overflow-hidden">
+        <div className="container-eu relative z-10 text-center">
+          <Reveal>
+            <span className="text-[#C9A84C] text-xs uppercase tracking-[0.3em] font-body font-semibold mb-5 block">
+              Our Purpose
+            </span>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <h2 id="about-closing-title" className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-white mb-5 leading-[1.1]">
+              Experience Culture{' '}
+              <span className="gold-shimmer">Like Never Before</span>
+            </h2>
+          </Reveal>
+          <Reveal delay={0.2}>
+            <GoldDivider />
+          </Reveal>
+          <Reveal delay={0.3}>
+            <p className="text-white/50 text-lg md:text-xl font-body max-w-2xl mx-auto mt-6 mb-10 leading-relaxed">
+              From intimate theatre to grand celebrations — AB Entertainment brings the richness of Indian &amp; Marathi culture to Melbourne&apos;s finest stages.
+            </p>
+          </Reveal>
+          {/* Contact details */}
+          <Reveal delay={0.4}>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12">
+              <div className="text-center">
+                <p className="text-gold-accessible text-[10px] uppercase tracking-[0.25em] font-body mb-1">Phone</p>
+                <a
+                  href={telHref(SITE_CONFIG.contact.phone)}
+                  className="inline-flex min-h-11 items-center text-white/70 hover:text-[#C9A84C] transition-colors font-body text-sm"
+                >
+                  {SITE_CONFIG.contact.phone}
+                </a>
+              </div>
+              <div className="hidden sm:block w-px h-8 bg-[#C9A84C]/15" />
+              <div className="text-center">
+                <p className="text-gold-accessible text-[10px] uppercase tracking-[0.25em] font-body mb-1">Email</p>
+                <a
+                  href={`mailto:${SITE_CONFIG.contact.email}`}
+                  className="inline-flex min-h-11 items-center text-white/70 hover:text-[#C9A84C] transition-colors font-body text-sm [overflow-wrap:anywhere]"
+                >
+                  {SITE_CONFIG.contact.email}
+                </a>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── 9. The shared closing call to action (from the landing page) ──────────────────── */}
       <HydrateLater id="cta">
         <CTASection />
       </HydrateLater>

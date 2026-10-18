@@ -61,13 +61,17 @@ export function ticketHref(value: unknown): string | null {
 
 /**
  * The badge over the poster. It comes from the admin-set ticket status only; nothing is worked out from dates, so the
- * server HTML and the browser never disagree about it. The colours are the brand design system's status colours
- * (docs/design-system/colors_and_type.css: success, warning, danger).
+ * server HTML and the browser never disagree about it.
+ *
+ * The fills are the brand's status colours (docs/design-system/colors_and_type.css: success, warning, danger) with the ink
+ * that reads on each, exactly as the brand writes a status chip (STATUS_FILL in src/components/admin/dashboard/brand.ts):
+ * black on the success and warning fills, white on the danger fill. Every pair reaches WCAG AA for small text (4.5:1):
+ * black on success 8.7:1, black on warning 9.2:1, white on danger 4.8:1. (White on the success fill is only 2.3:1.)
  */
 export function statusBadge(ticketStatus: CarouselEvent['ticketStatus']): { label: string; className: string } | null {
   if (ticketStatus === 'sold_out') return { label: 'Sold Out', className: 'bg-[#DC2626] text-white' };
-  if (ticketStatus === 'selling_fast') return { label: 'Selling Fast', className: 'bg-[#F59E0B] text-black' };
-  if (ticketStatus === 'available') return { label: 'On Sale Now', className: 'bg-[#22C55E] text-white' };
+  if (ticketStatus === 'selling_fast') return { label: 'Selling Fast', className: 'bg-[#F59E0B] text-[#0A0A0A]' };
+  if (ticketStatus === 'available') return { label: 'On Sale Now', className: 'bg-[#22C55E] text-[#0A0A0A]' };
   return null;
 }
 

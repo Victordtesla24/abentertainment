@@ -8,7 +8,8 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
  *  - keep the freshness the old landing list had: /api/events straight away, again when the tab regains focus;
  *  - glide one card at a time with the brand easing, by itself, and stand still while the pointer, keyboard focus or a finger is on
  *    it, while the tab is hidden and while it is off screen;
- *  - move only on request under prefers-reduced-motion (no copies drawn, buttons step the row);
+ *  - stop for good when the visitor presses Pause (WCAG 2.2.2) and start again only when they press Play;
+ *  - move only on request under prefers-reduced-motion (no copies drawn, buttons step the row, no Pause button);
  *  - work with a swipe and with the keyboard, name itself ("2 of 5") for assistive technology, and never expose its copies;
  *  - show one event as a centred card without motion, and no event as a line with a link to /events/;
  *  - offer "Get Tickets" only for a valid ticket link.
@@ -210,8 +211,8 @@ test.describe('landing page: what is on it', () => {
       await expect(slides.nth(i)).toHaveAttribute('aria-roledescription', 'slide');
       await expect(slides.nth(i)).toHaveAttribute('aria-label', `${i + 1} of 5`);
     }
-    for (const name of ['Previous event', 'Next event']) {
-      const box = (await carousel.getByRole('button', { name }).boundingBox())!;
+    for (const name of ['Previous event', 'Pause', 'Next event']) {
+      const box = (await carousel.getByRole('button', { name, exact: true }).boundingBox())!;
       expect(box.width, `${name} width`).toBeGreaterThanOrEqual(44);
       expect(box.height, `${name} height`).toBeGreaterThanOrEqual(44);
     }
@@ -540,6 +541,175 @@ test.describe('landing page: it moves by itself, and holds still', () => {
   });
 });
 
+test.describe('landing page: the Pause / Play button (WCAG 2.2.2)', () => {
+  test.setTimeout(150000);
+
+  const pauseButton = (page: Page) => group(page).getByRole('button', { name: 'Pause', exact: true });
+  const playButton = (page: Page) => group(page).getByRole('button', { name: 'Play', exact: true });
+  /** Where the visitor can be that has nothing to do with the button: over the carousel, then away from it. */
+  const hover = async (page: Page) => {
+    const box = (await group(page).boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 120);
+  };
+
+  test('is a real button in the control row between Previous and Next, 44 px, named for what pressing it does', async ({ page }) => {
+    await openWith(page, makeEvents(5));
+    const carousel = group(page);
+    await expect(pauseButton(page)).toBeVisible();
+    expect(await pauseButton(page).evaluate((element) => element.tagName)).toBe('BUTTON');
+    // The label says what pressing it does (it switches); there is no second signal (aria-pressed) to contradict it.
+    expect(await pauseButton(page).getAttribute('aria-pressed')).toBeNull();
+    // Measured in one go: the section is still fading in and moving a few pixels as it is revealed, which would put separate measurements out of step.
+    const boxes = await carousel.evaluate((element) =>
+      ['Previous event', 'Pause', 'Next event'].map((name) => {
+        const rect = element.querySelector(`button[aria-label="${name}"]`)!.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      }),
+    );
+    for (const box of boxes) {
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    // One row, in this order, on screen and in the markup.
+    expect(Math.abs(boxes[0].y - boxes[1].y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(boxes[1].y - boxes[2].y)).toBeLessThanOrEqual(1);
+    expect(boxes[0].x + boxes[0].width).toBeLessThanOrEqual(boxes[1].x);
+    expect(boxes[1].x + boxes[1].width).toBeLessThanOrEqual(boxes[2].x);
+    expect(await carousel.evaluate((element) => [...element.querySelectorAll('button')].map((button) => button.getAttribute('aria-label')))).toEqual(['Previous event', 'Pause', 'Next event']);
+    // It can be reached and pressed from the keyboard, and shows where the focus is.
+    await carousel.getByRole('button', { name: 'Previous event' }).focus();
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe('Pause');
+    expect(await pauseButton(page).evaluate((button) => getComputedStyle(button).outlineStyle)).not.toBe('none');
+    await page.keyboard.press('Enter');
+    await expect(playButton(page)).toBeVisible();
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'the focus stays on the button').toBe('Play');
+    await page.keyboard.press('Space');
+    await expect(pauseButton(page)).toBeVisible();
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe('Pause');
+  });
+
+  test('pressing it stops the automatic glide: the label becomes Play and the row stays where it is', async ({ page }) => {
+    await openWith(page, makeEvents(4));
+    const row = scroller(page);
+    await expect.poll(() => left(row), { timeout: 15000 }).toBeGreaterThan(0); // it moves by itself first
+    await pauseButton(page).click();
+    await expect(playButton(page)).toBeVisible();
+    await expect(pauseButton(page)).toHaveCount(0);
+    await page.mouse.move(2, 2); // nothing but the button is holding it now
+    await staysPut(row, 2 * ONE_STEP_MS + 1000);
+  });
+
+  test('pressing it in the middle of a glide stops the row there, and it does not go on', async ({ page }) => {
+    await openWith(page, makeEvents(4));
+    const row = scroller(page);
+    await page.mouse.move(2, 2);
+    // A glide is the list being moved by a transform: wait for one to be under way, then press Pause.
+    await expect
+      .poll(() => page.evaluate(() => getComputedStyle(document.querySelector('[data-event-list="home"]')!).transform), { timeout: 20000, intervals: [25] })
+      .not.toBe('none');
+    await pauseButton(page).click();
+    await page.mouse.move(2, 2);
+    await expect(playButton(page)).toBeVisible();
+    // It has come to rest (the row stops where it was, then settles on a card) and then it does not move again.
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => getComputedStyle(document.querySelector('[data-event-list="home"]')!).transform)).toBe('none');
+    await staysPut(row, 2 * ONE_STEP_MS);
+  });
+
+  test('stays paused through the pointer leaving, keyboard focus leaving, a finger lifting, the tab coming back and the carousel scrolling back into view', async ({ page }) => {
+    await openWith(page, makeEvents(4));
+    const row = scroller(page);
+    await expect.poll(() => left(row), { timeout: 15000 }).toBeGreaterThan(0);
+    await pauseButton(page).click();
+    await page.mouse.move(2, 2);
+    await page.waitForTimeout(1500);
+    const held = await left(row);
+    const stillHeld = async (what: string, wait: number) => {
+      await page.waitForTimeout(wait);
+      expect(await left(row), `the row moved after ${what} although it was paused with the button`).toBe(held);
+    };
+
+    // The pointer comes over the carousel and goes again (a restart would follow 1.5 s after it leaves).
+    await hover(page);
+    await page.waitForTimeout(500);
+    await page.mouse.move(2, 2);
+    await stillHeld('the pointer left', 3500);
+
+    // Keyboard focus comes into the carousel (by Tab, so it is :focus-visible) and goes again.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    for (let i = 0; i < 40 && !(await page.evaluate(() => Boolean(document.activeElement?.closest('[role="group"][aria-roledescription="carousel"]')))); i++) {
+      await page.keyboard.press('Tab');
+    }
+    expect(await page.evaluate(() => Boolean(document.activeElement?.closest('[role="group"][aria-roledescription="carousel"]')))).toBe(true);
+    await page.waitForTimeout(500);
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+    await stillHeld('keyboard focus left', 3500);
+
+    // A finger comes down on it and lifts (a restart would follow 5 s after it lifts).
+    await group(page).evaluate((element) => {
+      element.dispatchEvent(new Event('touchstart', { bubbles: true }));
+      element.dispatchEvent(new Event('touchend', { bubbles: true }));
+    });
+    await stillHeld('a finger lifted', 7000);
+
+    // The tab is hidden and comes back.
+    const hide = (state: 'hidden' | 'visible') =>
+      page.evaluate((value) => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => value });
+        document.dispatchEvent(new Event('visibilitychange'));
+      }, state);
+    await hide('hidden');
+    await page.waitForTimeout(500);
+    await hide('visible');
+    await stillHeld('the tab came back', 3500);
+
+    // The carousel scrolls out of view and back (a restart would follow 4.5 s after it is back).
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    await page.waitForTimeout(800);
+    await page.locator('#upcoming-events').scrollIntoViewIfNeeded();
+    await page.mouse.move(2, 2);
+    await stillHeld('it scrolled back into view', 6500);
+    await expect(playButton(page)).toBeVisible();
+  });
+
+  test('Play starts it again, and the button goes back to Pause', async ({ page }) => {
+    await openWith(page, makeEvents(4));
+    const row = scroller(page);
+    await pauseButton(page).click();
+    await page.mouse.move(2, 2);
+    await staysPut(row, ONE_STEP_MS);
+    const held = await left(row);
+    await playButton(page).click();
+    await expect(pauseButton(page)).toBeVisible();
+    await page.mouse.move(2, 2);
+    await expect.poll(() => left(row), { timeout: 20000 }).not.toBe(held);
+    // ...and it can be paused again.
+    await pauseButton(page).click();
+    await page.mouse.move(2, 2);
+    await staysPut(row, ONE_STEP_MS);
+  });
+
+  test('stays paused when the events change underneath it (the live refresh takes them down to one and back)', async ({ page }) => {
+    let events = makeEvents(4);
+    await openWith(page, () => events);
+    const row = scroller(page);
+    await pauseButton(page).click();
+    await page.mouse.move(2, 2);
+    await page.waitForTimeout(1500);
+    // One event: no motion, no buttons (so the carousel's bookkeeping stops); four again: it starts afresh, and is still paused.
+    events = [makeEvent(1)];
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(realCards(page)).toHaveCount(1, { timeout: 15000 });
+    await expect(group(page).getByRole('button')).toHaveCount(0);
+    events = makeEvents(4);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(realCards(page)).toHaveCount(4, { timeout: 15000 });
+    await expect(playButton(page)).toBeVisible();
+    await staysPut(row, ONE_STEP_MS + 1000);
+  });
+});
+
 test.describe('landing page: a swipe moves it', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   test.setTimeout(90000);
@@ -585,6 +755,10 @@ test.describe('landing page: reduced motion', () => {
     expect(await left(row)).toBe(0);
 
     const pitch = await pitchOf(page);
+    // Nothing moves by itself, so there is nothing to pause: the Pause / Play button is not drawn (it is in the markup, display: none).
+    await expect(group(page).getByRole('button', { name: /^(Pause|Play)$/ })).toHaveCount(0);
+    const pauseDisplay = await page.evaluate(() => [...document.querySelectorAll('#upcoming-events button')].filter((b) => /^(Pause|Play)$/.test(b.getAttribute('aria-label') ?? '')).map((b) => getComputedStyle(b).display));
+    expect(pauseDisplay).toEqual(['none']);
     const prev = group(page).getByRole('button', { name: 'Previous event' });
     const next = group(page).getByRole('button', { name: 'Next event' });
     await expect(prev).toHaveAttribute('aria-disabled', 'true'); // at the start

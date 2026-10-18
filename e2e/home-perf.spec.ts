@@ -22,7 +22,7 @@ const BASE = process.env.E2E_BASE_URL ?? '';
  */
 const PAGES = {
   home: { path: '/', blocks: 'main#main-content > div > *', index: { hero: 1, events: 2 } },
-  about: { path: '/about/', blocks: 'main#main-content > div > * > *', index: { vision: 1, intro: 2, highlights: 4, story: 5, testimonials: 7, cta: 8 } },
+  about: { path: '/about/', blocks: 'main#main-content > div > * > *', index: { vision: 1, intro: 2, highlights: 4, story: 5, testimonials: 7, cta: 9 } },
 } as const;
 type PageName = keyof typeof PAGES;
 const sectionsOf = (name: PageName) => Object.keys(PAGES[name].index);
