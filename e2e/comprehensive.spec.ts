@@ -138,14 +138,20 @@ test.describe('@req-hero-section', () => {
   });
   test('hero CTAs', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('link', { name: /buy tickets/i }).first()).toBeVisible();
-    await expect(page.getByRole('link', { name: /get in touch/i }).first()).toBeVisible();
+    const hero = page.locator('section[aria-label="Hero slideshow"]');
+    await expect(hero.getByRole('link', { name: /buy tickets/i })).toBeVisible();
+    // The hero's second button is "Contact Us". The "Get in Touch" link this test used to find was the call to action below the
+    // hero, which is on the About page now.
+    await expect(hero.getByRole('link', { name: /contact us/i })).toBeVisible();
+    await page.goto('/about/');
+    await expect(page.getByRole('link', { name: /get in touch/i }).first()).toBeAttached();
   });
 });
 
 test.describe('@req-four-pillars', () => {
   test('pillars titles', async ({ page }) => {
-    await page.goto('/');
+    // The four pillars moved from the landing page to the About page.
+    await page.goto('/about/');
     await expect(page.getByText('Networking')).toBeVisible();
     await expect(page.getByText('Heritage Bequest')).toBeVisible();
     await expect(page.getByText('Cultural Kaleidoscope')).toBeVisible();
@@ -156,8 +162,12 @@ test.describe('@req-four-pillars', () => {
 test.describe('@req-events-grid', () => {
   test('events on homepage', async ({ page }) => {
     await page.goto('/');
-    // EventsShowcase uses "Our Productions" label + "Signature Events" heading
-    await expect(page.getByText('Our Productions')).toBeVisible();
+    // The landing page's events section is the upcoming-events carousel: "Featured" label + "Upcoming Events" heading,
+    // and the way on to the full list (the old "Signature Events" list is on /events/ now).
+    const section = page.locator('#upcoming-events');
+    await expect(section.getByText('Featured', { exact: true })).toBeVisible();
+    await expect(section.getByRole('heading', { level: 2, name: 'Upcoming Events' })).toBeVisible();
+    await expect(section.getByRole('link', { name: 'View All Events' })).toBeVisible();
   });
   test('events page loads', async ({ page }) => {
     const errors = attachErrorSpy(page);

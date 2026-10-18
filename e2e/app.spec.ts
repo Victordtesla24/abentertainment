@@ -46,6 +46,11 @@ test.describe('Public Pages', () => {
     // Should have CTA buttons or hero content
     const heroContent = page.locator('section').first().locator('h1');
     await expect(heroContent).toBeVisible();
+
+    // The hero is followed by the upcoming-events carousel and by nothing else: the rest of what the landing page used to
+    // show is on the About page.
+    await expect(page.locator('main section')).toHaveCount(2);
+    await expect(page.getByRole('heading', { level: 2, name: 'Upcoming Events' })).toBeVisible();
   });
 
   test('about page loads correctly', async ({ page }) => {

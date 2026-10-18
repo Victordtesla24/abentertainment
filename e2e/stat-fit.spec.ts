@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Metric figures against their tiles: the home stats bar and the About stats strip.
+ * Metric figures against their tiles: the stats bar of the intro section, which is on the About page (it moved there from the landing
+ * page, and the About page's own, older strip of the same figures was folded into it).
  *
  * "Fits" is judged on the text itself, with a Range over the figure's text, against the figure's own box and
  * its tile (`scrollWidth` hides a gradient-clipped overflow, which is exactly how "25,000+" lost its last
@@ -27,23 +28,19 @@ const LONG_SET = [
 ].map((metric, index) => ({ ...metric, displayOrder: index, visible: true, updatedAt: '' }));
 
 const BLOCKS = {
-  home: { path: '/', strip: 'section .border-b .grid', figure: ':scope > div div[class*="font-display"]' },
-  about: { path: '/about/', strip: null, figure: null },
+  intro: { path: '/about/' },
 } as const;
 
 type Block = keyof typeof BLOCKS;
 
 /** The figures of a block, found the same way for both: the value element and its tile. */
-async function measure(page: Page, block: Block) {
-  return page.evaluate((which) => {
-    const values: HTMLElement[] =
-      which === 'about'
-        ? [...document.querySelectorAll<HTMLElement>('.gold-shimmer[aria-label]')]
-        : [...document.querySelectorAll<HTMLElement>('section .border-b .grid > div')]
-            .map((tile) => tile.querySelector<HTMLElement>('div[class*="font-display"]'))
-            .filter((value): value is HTMLElement => value !== null);
+async function measure(page: Page) {
+  return page.evaluate(() => {
+    const values: HTMLElement[] = [...document.querySelectorAll<HTMLElement>('section .border-b .grid > div')]
+      .map((tile) => tile.querySelector<HTMLElement>('div[class*="font-display"]'))
+      .filter((value): value is HTMLElement => value !== null);
     return values.map((value) => {
-      const tile = (which === 'about' ? value.parentElement?.parentElement : value.parentElement) as HTMLElement;
+      const tile = value.parentElement as HTMLElement;
       const range = document.createRange();
       range.selectNodeContents(value);
       const text = range.getBoundingClientRect();
@@ -56,7 +53,7 @@ async function measure(page: Page, block: Block) {
         outOfTile: Math.max(cell.left - text.left, text.right - cell.right, 0),
       };
     });
-  }, block);
+  });
 }
 
 /** Bring the strip into view and wait for the count-up to finish (the figures stop changing for ~1 s). */
@@ -70,26 +67,20 @@ async function openStrip(page: Page, block: Block, liveLabel?: string) {
   );
   // The tiles are replaced when the live metrics replace the build-time ones: wait for them before scrolling.
   if (liveLabel) await page.getByText(liveLabel, { exact: true }).first().waitFor({ state: 'attached', timeout: 20000 });
-  const first = block === 'about' ? page.locator('.gold-shimmer[aria-label]').first() : page.locator('section .border-b .grid > div').first();
+  const first = page.locator('section .border-b .grid > div').first();
   await first.scrollIntoViewIfNeeded();
   // A figure counts up when its tile scrolls into view: visit every tile (a long set wraps onto a second row).
-  await page.evaluate(async (which) => {
-    const tiles =
-      which === 'about'
-        ? [...document.querySelectorAll('.gold-shimmer[aria-label]')]
-        : [...document.querySelectorAll('section .border-b .grid > div')];
-    for (const tile of tiles) {
+  await page.evaluate(async () => {
+    for (const tile of document.querySelectorAll('section .border-b .grid > div')) {
       tile.scrollIntoView({ block: 'center', behavior: 'instant' });
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
-  }, block);
+  });
   await page.evaluate(
-    (which) =>
+    () =>
       new Promise<void>((resolve) => {
         const read = () =>
-          which === 'about'
-            ? [...document.querySelectorAll('.gold-shimmer[aria-label]')].map((element) => element.textContent).join('|')
-            : [...document.querySelectorAll('section .border-b .grid > div div[class*="font-display"]')].map((element) => element.textContent).join('|');
+          [...document.querySelectorAll('section .border-b .grid > div div[class*="font-display"]')].map((element) => element.textContent).join('|');
         let last = '';
         let still = 0;
         const tick = () => {
@@ -101,12 +92,11 @@ async function openStrip(page: Page, block: Block, liveLabel?: string) {
         };
         tick();
       }),
-    block,
   );
 }
 
 async function expectFits(page: Page, block: Block) {
-  const figures = await measure(page, block);
+  const figures = await measure(page);
   expect(figures.length, `${block} figures found`).toBeGreaterThan(0);
   for (const figure of figures) {
     expect(figure.outOfFigure, `"${figure.text}" sticks out of its figure box`).toBeLessThanOrEqual(0.5);
@@ -117,7 +107,7 @@ async function expectFits(page: Page, block: Block) {
   return figures;
 }
 
-for (const block of ['home', 'about'] as const) {
+for (const block of ['intro'] as const) {
   test.describe(`${block} figures`, () => {
     for (const width of WIDTHS) {
       test(`fit their tiles at ${width}px`, async ({ page }) => {

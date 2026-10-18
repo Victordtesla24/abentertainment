@@ -36,7 +36,8 @@ const hydrated = () => Object.keys(document.body.firstElementChild ?? {}).some((
 
 /**
  * Answer GET /api/events with the live list plus one more event, as if the admin had just created it.
- * `featured` picks which event becomes the next upcoming one (the home page's golden ticket).
+ * `featured` picks which event is upcoming and so on the landing page, whose carousel shows upcoming events only: the created one,
+ * or the pre-rendered one (a past event in the data, made upcoming here).
  */
 async function serveEvents(page: Page, featured: 'runtime' | 'prerendered') {
   const soon = new Date(Date.now() + 60 * 60 * 1000).toISOString();
@@ -153,21 +154,6 @@ for (const viewport of VIEWPORTS) {
       });
     }
 
-    test('home: the golden ticket for one opens the viewer with no payload request', async ({ page }) => {
-      await serveEvents(page, 'runtime');
-      const seen = watch(page);
-      await openListing(page, '/');
-
-      const book = page.getByRole('button', { name: 'Book Now' });
-      await book.scrollIntoViewIfNeeded();
-      await book.click();
-
-      await expect(page).toHaveURL(new RegExp(`/events/${RUNTIME.slug}/?$`));
-      await expect(page.getByRole('heading', { name: RUNTIME.title, level: 1 })).toBeVisible();
-      expect(seen.payloadRequests(RUNTIME.slug)).toEqual([]);
-      expect(seen.consoleErrors).toEqual([]);
-    });
-
     test('search: choosing one opens the viewer with no payload request', async ({ page }) => {
       await serveEvents(page, 'runtime');
       const seen = watch(page);
@@ -197,7 +183,7 @@ for (const viewport of VIEWPORTS) {
 
     for (const { path, label } of LISTING_PAGES) {
       test(`${label}: their link is still prefetched`, async ({ page }) => {
-        await serveEvents(page, 'runtime');
+        await serveEvents(page, label === 'home' ? 'prerendered' : 'runtime');
         const seen = watch(page);
         await openListing(page, path);
 
@@ -207,7 +193,7 @@ for (const viewport of VIEWPORTS) {
       });
 
       test(`${label}: their link is still followed without loading a new document`, async ({ page }) => {
-        await serveEvents(page, 'runtime');
+        await serveEvents(page, label === 'home' ? 'prerendered' : 'runtime');
         const seen = watch(page);
         await openListing(page, path);
         await markDocument(page);
@@ -223,23 +209,6 @@ for (const viewport of VIEWPORTS) {
         expect(seen.documentRequests().slice(documentsBefore)).toEqual([]);
       });
     }
-
-    test('home: the golden ticket for one is still followed without loading a new document', async ({ page }) => {
-      await serveEvents(page, 'prerendered');
-      const seen = watch(page);
-      await openListing(page, '/');
-      await markDocument(page);
-
-      const book = page.getByRole('button', { name: 'Book Now' });
-      await book.scrollIntoViewIfNeeded();
-      const documentsBefore = seen.documentRequests().length;
-      await book.click();
-
-      await expect(page).toHaveURL(new RegExp(`/events/${PRERENDERED.slug}/?$`));
-      await expect(page.getByRole('heading', { name: PRERENDERED.title }).first()).toBeVisible();
-      expect(await isSameDocument(page)).toBe(true);
-      expect(seen.documentRequests().slice(documentsBefore)).toEqual([]);
-    });
 
     test('search: choosing one is still followed without loading a new document', async ({ page }) => {
       await serveEvents(page, 'runtime');

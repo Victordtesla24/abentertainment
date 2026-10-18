@@ -1,8 +1,10 @@
 /**
  * Site Metrics E2E — admin-editable headline numbers with a single source of truth
  *
- * The landing page stats bar and badge, the hero strap-line, the About page
- * strip and its "Our Story" sentence all render from data/site-metrics.json via
+ * The stats bar and badge of the About page's intro section (they moved there from
+ * the landing page, and the About page's own older strip of the same figures was
+ * folded into them), the landing page's hero strap-line and the About page's
+ * "Our Story" sentence all render from data/site-metrics.json via
  * GET /api/metrics. These tests prove the public API contract (shape, order,
  * visibility, no-store), that every admin endpoint is protected, that the pages
  * show exactly the figures the API serves, and — when ADMIN_TEST_PASSWORD is set —
@@ -47,12 +49,9 @@ function storedMetrics(): Metric[] {
   return existsSync(DATA_FILE) ? JSON.parse(readFileSync(DATA_FILE, 'utf-8')) : [];
 }
 
-/** The stats-bar tiles on the landing page. */
-const homeTiles = (page: Page) =>
+/** The stats-bar tiles of the intro section, on the About page. */
+const statsTiles = (page: Page) =>
   page.locator('div.grid > div.text-center.group').filter({ has: page.locator('div.text-4xl') });
-
-/** The figures of the About page strip. */
-const aboutFigures = (page: Page) => page.locator('div.font-black[aria-label]');
 
 async function showStats(page: Page): Promise<void> {
   await page.getByText('Audience Reach', { exact: true }).first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
@@ -126,20 +125,11 @@ test.describe('Site metrics — admin API requires authentication', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 test.describe('Site metrics — pages follow the API', () => {
-  test('landing page stats bar, badge and hero strap-line show the served figures', async ({ page, request }) => {
+  test('landing page hero strap-line shows the served figures', async ({ page, request }) => {
     const live = await publicMetrics(request);
     test.skip(live.length === 0, 'no visible metrics to display');
 
     await page.goto('/');
-    await showStats(page);
-    const tiles = homeTiles(page);
-    await expect(tiles).toHaveCount(live.length);
-    for (const [index, metric] of live.entries()) {
-      // The count-up animation settles on the exact figure.
-      await expect(tiles.nth(index).locator('div.text-4xl')).toHaveText(figure(metric), { timeout: 30000 });
-      await expect(tiles.nth(index)).toContainText(metric.label);
-    }
-
     await showMetricsSlide(page);
     const strapline = page.locator('section[aria-label="Hero slideshow"] p').first();
     for (const metric of live.filter((m) => m.id !== 'countries')) {
@@ -147,16 +137,18 @@ test.describe('Site metrics — pages follow the API', () => {
     }
   });
 
-  test('about page strip and "Our Story" sentence show the served figures', async ({ page, request }) => {
+  test('about page stats bar and "Our Story" sentence show the served figures', async ({ page, request }) => {
     const live = await publicMetrics(request);
     test.skip(live.length === 0, 'no visible metrics to display');
 
     await page.goto('/about/');
     await showStats(page);
-    const figures = aboutFigures(page);
-    await expect(figures).toHaveCount(live.length);
+    const tiles = statsTiles(page);
+    await expect(tiles).toHaveCount(live.length);
     for (const [index, metric] of live.entries()) {
-      await expect(figures.nth(index)).toHaveText(figure(metric), { timeout: 30000 });
+      // The count-up animation settles on the exact figure.
+      await expect(tiles.nth(index).locator('div.text-4xl')).toHaveText(figure(metric), { timeout: 30000 });
+      await expect(tiles.nth(index)).toContainText(metric.label);
     }
 
     const events = live.find((m) => m.id === 'events' && m.value > 0);
@@ -168,7 +160,9 @@ test.describe('Site metrics — pages follow the API', () => {
   test('landing page and about page never print a malformed figure', async ({ page }) => {
     for (const path of ['/', '/about/']) {
       await page.goto(path);
-      await showStats(page);
+      // The figures of the landing page are the hero's strap-line; the stats bar is on the About page.
+      if (path === '/') await showMetricsSlide(page);
+      else await showStats(page);
       await page.waitForTimeout(3500);
       const text = await page.locator('main').innerText();
       // e.g. the old count-up bug that settled on "25000,+"
@@ -297,24 +291,23 @@ test.describe('Site metrics — admin CRUD (requires ADMIN_TEST_PASSWORD)', () =
       const live = await publicMetrics(request);
 
       await page.goto('/');
-      await showStats(page);
-      await expect(homeTiles(page)).toHaveCount(live.length);
-      const tile = homeTiles(page).filter({ hasText: label });
-      await expect(tile.locator('div.text-4xl')).toHaveText('7+', { timeout: 30000 });
       await showMetricsSlide(page);
       await expect(page.locator('section[aria-label="Hero slideshow"] p').first()).toContainText(`7+ ${label}`, { timeout: 15000 });
 
       await page.goto('/about/');
       await showStats(page);
-      await expect(aboutFigures(page)).toHaveCount(live.length);
-      await expect(page.locator('p', { hasText: label }).first()).toBeVisible();
+      await expect(statsTiles(page)).toHaveCount(live.length);
+      const tile = statsTiles(page).filter({ hasText: label });
+      await expect(tile.locator('div.text-4xl')).toHaveText('7+', { timeout: 30000 });
+      // (the intro's tile prints the label in a div; the About strip it replaced printed it in a p)
+      await expect(tile).toContainText(label);
     } finally {
       expect((await admin.delete('/api/admin/metrics', { headers, data: { id: metric.id } })).status()).toBe(200);
     }
 
-    await page.goto('/');
+    await page.goto('/about/');
     await showStats(page);
-    await expect(homeTiles(page).filter({ hasText: label })).toHaveCount(0);
+    await expect(statsTiles(page).filter({ hasText: label })).toHaveCount(0);
   });
 
   test('the admin panel adds and removes a metric from the Site Metrics tab', async ({ page, request }) => {

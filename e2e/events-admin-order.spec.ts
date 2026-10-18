@@ -8,6 +8,8 @@ import { test, expect, type Page } from '@playwright/test';
  * GET /api/events is answered in the browser with four live events whose status, order and date deliberately
  * disagree, so a list that groups or sorts by date fails here. Nothing is written anywhere.
  *
+ * The landing page lists the Upcoming events only (a past event is never shown there), in the same order as /events/ Upcoming.
+ *
  * Runs against the dev server by default (see playwright.config.ts); set E2E_BASE_URL to use a static export.
  */
 
@@ -45,11 +47,15 @@ test('the /events/ Upcoming and Past lists follow the admin status and order, no
   await expect.poll(() => slugsIn(page, '[aria-label="Past events"] [data-event-slug]')).toEqual([pastFuture]);
 });
 
-test('the home event list follows the admin order, not the date', async ({ page }) => {
+test('the landing carousel lists exactly the upcoming and live events in the admin order, and never a past event', async ({ page }) => {
   const [pastFuture, upcomingOld, upcomingSoon, live] = await serveAdversarialEvents(page);
   await page.goto(`${BASE}/`);
   await page.locator('[data-event-list="home"]').scrollIntoViewIfNeeded();
+  // Upcoming and live only, in the admin's order (1, 2, 3), whatever the dates say; the Past event, dated far in the future, is not there.
   await expect
     .poll(() => slugsIn(page, '[data-event-list="home"] [data-event-slug]'), { timeout: 20000 })
-    .toEqual([pastFuture, upcomingSoon, upcomingOld, live]);
+    .toEqual([upcomingSoon, upcomingOld, live]);
+  // ...and it is nowhere else on the landing page either: no card, no link to its page.
+  await expect(page.locator(`[data-event-slug="${pastFuture}"]`)).toHaveCount(0);
+  await expect(page.locator(`a[href^="/events/${pastFuture}"]`)).toHaveCount(0);
 });

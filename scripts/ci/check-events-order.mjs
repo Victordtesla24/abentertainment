@@ -6,7 +6,11 @@
 // src/lib/event-display.ts implements that rule for the site; this check re-derives it from the data the export
 // was built from (data/events.json, refreshed from the live API by refresh-build-data.mjs) and compares it with
 // the event slugs, in document order, inside out/events/index.html (Upcoming and Past lists) and out/index.html
-// (the home page event list).
+// (the landing page's "Upcoming Events" carousel).
+//
+// The landing page shows the upcoming and live events only, in the admin portal's order, each exactly once, and never a past
+// event: the expected list is therefore the Upcoming list, and no past event may appear anywhere on the page (as a card, or as
+// a link to its event page). Copies of cards that only keep the carousel's row full carry no data-event-slug and are not counted.
 //
 // usage: node scripts/ci/check-events-order.mjs [repoRoot]
 import { readFileSync } from 'node:fs';
@@ -24,8 +28,9 @@ const isPast = (e) => e.status === 'past';
 const expected = {
   upcoming: byAdminOrder(events.filter((e) => !isPast(e))).map((e) => e.slug),
   past: byAdminOrder(events.filter(isPast)).map((e) => e.slug),
-  home: byAdminOrder(events).map((e) => e.slug),
 };
+// the landing page lists exactly the upcoming and live events, in the same order as the /events/ Upcoming list
+expected.home = expected.upcoming;
 
 // slugs of the elements carrying data-event-slug inside the element that opens at `marker`, in document order
 function slugsInList(html, marker, label) {
@@ -73,7 +78,20 @@ if (upcomingList === null && pastList === null) {
   compare('/events/ Past', pastList, expected.past);
 }
 const homeHtml = readFileSync(join(root, 'out/index.html'), 'utf8');
-compare('home event list', slugsInList(homeHtml, 'data-event-list="home"', 'home'), expected.home);
+compare('home event list (upcoming and live events only)', slugsInList(homeHtml, 'data-event-list="home"', 'home'), expected.home);
+
+// No past event on the landing page, anywhere: not as a card of the list (the comparison above), not as a card elsewhere on the
+// page, and not as a link to its event page.
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const htmlAttr = (text) => text.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+const pastOnHome = [];
+for (const slug of expected.past) {
+  const cardMarker = new RegExp(`data-event-slug="${escapeRegExp(htmlAttr(slug))}"`);
+  const link = new RegExp(`href="/events/${escapeRegExp(htmlAttr(encodeURI(slug)))}/?"`);
+  if (cardMarker.test(homeHtml) || link.test(homeHtml)) pastOnHome.push(slug);
+}
+if (pastOnHome.length) failures.push(`home: past events appear on the landing page: ${JSON.stringify(pastOnHome)}`);
+else console.log(`[events-order] home: none of the ${expected.past.length} past events appears on the landing page`);
 
 if (failures.length) {
   console.error(`[events-order] the export does not match the admin portal's event order:\n  ${failures.join('\n  ')}`);

@@ -62,7 +62,8 @@ test.describe('on-demand interface', () => {
   });
 
   test('story chapter text is revealed by the scroll animation once the section is reached', async ({ page }) => {
-    await open(page, '/');
+    // The scrolling story moved from the landing page to the About page.
+    await open(page, '/about/');
     const section = page.getByRole('region', { name: 'Our Story' });
     const title = section.locator('.narrative-title').first();
 

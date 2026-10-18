@@ -717,14 +717,18 @@ test.describe('Empty Array Handling — All Public Endpoints', () => {
     }
   });
 
-  test('homepage handles empty testimonials gracefully', async ({ page }) => {
+  test('homepage and about page handle empty testimonials gracefully', async ({ page }) => {
     const FILE = 'testimonials.json';
     backupFile(FILE);
     try {
       writeJson(FILE, []);
-      await page.goto('/');
-      await page.waitForTimeout(3000);
-      await expect(page.locator('body')).toBeVisible();
+      // The testimonials are on the About page now (they moved there from the landing page): it must still render.
+      for (const path of ['/', '/about']) {
+        await page.goto(path);
+        await page.waitForTimeout(3000);
+        await expect(page.locator('body')).toBeVisible();
+        await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+      }
     } finally {
       restoreFile(FILE);
     }
