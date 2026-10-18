@@ -5,7 +5,8 @@ import { useId, useState, type ReactNode } from 'react';
 import { DURATION, EASE, GOLD_A, WHITE, type StatusTone } from './brand';
 import { Icon, type IconName } from './icons';
 import { CountUp, useDashMotion } from './motion';
-import { Chip, EmptyNote, Eyebrow, HalfGauge, StatusChip, buttonClass } from './ui';
+import { HalfGauge } from './dial';
+import { Chip, EmptyNote, Eyebrow, StatusChip, buttonClass } from './ui';
 import type { ActionResult, HealthData, Issue, PageCheck } from './systemTypes';
 
 /**
@@ -112,7 +113,7 @@ export function QuickActions({ agentStatus, actionLoading, actionResult, onRun }
               disabled={actionLoading !== null}
               title={action.desc}
               data-testid={`system-action-${action.id}`}
-              className={`inline-flex items-center gap-2 border px-4 py-3 font-body text-xs font-bold uppercase tracking-[0.1em] transition-all duration-300 disabled:opacity-40 pointer-coarse:min-h-11 ${
+              className={`inline-flex items-center gap-2 border px-4 py-3 font-body text-xs font-bold uppercase tracking-[0.1em] transition-all duration-300 motion-reduce:transition-none! disabled:opacity-40 pointer-coarse:min-h-11 ${
                 running
                   ? 'border-[rgba(201,168,76,0.4)] bg-[rgba(201,168,76,0.1)] text-accent'
                   : prominent
@@ -165,7 +166,7 @@ export function AgentPanel({ healthData, agentStatus, agentMemory }: { healthDat
 
   return (
     <div data-testid="system-agent">
-      <button type="button" onClick={() => setOpen((previous) => !previous)} aria-expanded={open} aria-controls={open ? bodyId : undefined} data-testid="system-agent-toggle" className="mb-4 flex w-full flex-wrap items-center justify-between gap-3 text-left pointer-coarse:min-h-11">
+      <button type="button" onClick={() => setOpen((previous) => !previous)} aria-expanded={open} aria-controls={open ? bodyId : undefined} data-testid="system-agent-toggle" className="mb-4 flex w-full flex-wrap items-center justify-between gap-3 text-left pointer-coarse:min-h-11 motion-reduce:transition-none!">
         <span className="flex flex-wrap items-center gap-3">
           <Eyebrow>AI Agent</Eyebrow>
           {agentStatus === 'awake' ? (
@@ -180,7 +181,7 @@ export function AgentPanel({ healthData, agentStatus, agentMemory }: { healthDat
         </span>
         <span className="inline-flex items-center gap-1.5 font-body text-xs font-bold uppercase tracking-[0.12em]" style={{ color: WHITE.a65 }}>
           {open ? 'Less' : 'Details'}
-          <Icon name="chevronDown" className={`h-4 w-4 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+          <Icon name="chevronDown" className={`h-4 w-4 transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} />
         </span>
       </button>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
@@ -380,7 +381,7 @@ export function PageHealth({ pages }: { pages: readonly PageCheck[] }) {
               aria-expanded={active}
               aria-controls={active ? detailId : undefined}
               data-testid={`system-page-${entry.path.replace(/\W+/g, '') || 'home'}`}
-              className="flex items-center gap-3 border p-3 text-left transition-colors duration-300 hover:border-[rgba(201,168,76,0.4)]"
+              className="flex items-center gap-3 border p-3 text-left transition-colors duration-300 motion-reduce:transition-none! hover:border-[rgba(201,168,76,0.4)]"
               style={{ borderColor: active ? GOLD_A.a50 : WHITE.a08, background: active ? GOLD_A.a08 : WHITE.a02 }}
             >
               <div className="min-w-0 flex-1">
@@ -448,10 +449,10 @@ export function IssuesList({ issues, loading, onCopy }: { issues: readonly Issue
             const isOpen = expanded === issue.id;
             return (
               <li key={issue.id} data-testid={`system-issue-${issue.id}`} className="border" style={surface}>
-                <button type="button" onClick={() => setExpanded(isOpen ? null : issue.id)} aria-expanded={isOpen} className="flex w-full flex-wrap items-center gap-3 px-4 py-3 text-left transition-colors duration-300 hover:bg-[rgba(255,255,255,0.04)]">
+                <button type="button" onClick={() => setExpanded(isOpen ? null : issue.id)} aria-expanded={isOpen} className="flex w-full flex-wrap items-center gap-3 px-4 py-3 text-left transition-colors duration-300 motion-reduce:transition-none! hover:bg-[rgba(255,255,255,0.04)]">
                   <SeverityChip severity={issue.severity} />
                   <span className="min-w-0 flex-1 font-body text-xs text-white [overflow-wrap:anywhere]">{issue.title}</span>
-                  <Icon name="chevronDown" className={`h-4 w-4 shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                  <Icon name="chevronDown" className={`h-4 w-4 shrink-0 transition-transform duration-300 motion-reduce:transition-none ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
                 <AnimatePresence initial={false}>
                   {isOpen ? (
@@ -513,10 +514,10 @@ export function QuickDiagnostics({ onCopy }: { onCopy: (prompt: string) => void 
       <Eyebrow className="mb-3">Quick Diagnostics — Copy &amp; Paste into AI Agent</Eyebrow>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {DIAGNOSTICS.map((item) => (
-          <button key={item.label} type="button" onClick={() => onCopy(item.prompt)} data-testid={`system-diagnostic-${item.label.toLowerCase().replace(/\W+/g, '-')}`} className="group flex items-start gap-3 border p-3 text-left transition-colors duration-300 hover:border-[rgba(201,168,76,0.4)]" style={surface}>
+          <button key={item.label} type="button" onClick={() => onCopy(item.prompt)} data-testid={`system-diagnostic-${item.label.toLowerCase().replace(/\W+/g, '-')}`} className="group flex items-start gap-3 border p-3 text-left transition-colors duration-300 motion-reduce:transition-none! hover:border-[rgba(201,168,76,0.4)]" style={surface}>
             <Icon name="copy" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
             <span className="min-w-0">
-              <span className="block font-body text-xs font-bold text-white transition-colors duration-300 group-hover:text-accent">{item.label}</span>
+              <span className="block font-body text-xs font-bold text-white transition-colors duration-300 motion-reduce:transition-none group-hover:text-accent">{item.label}</span>
               <span className="mt-0.5 block truncate font-body text-[11px]" style={{ color: WHITE.a50 }}>
                 {item.prompt.substring(0, 60)}...
               </span>

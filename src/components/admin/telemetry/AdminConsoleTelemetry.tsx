@@ -1,9 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
-import { COLOR, WHITE } from '../dashboard/brand';
-import { CountUp, Grow } from '../dashboard/motion';
+import { OTHER_FILL, WHITE, seriesFill } from '../dashboard/brand';
+import { FIGURE } from '../dashboard/dial';
+import { Donut, type DonutSegment } from '../dashboard/donut';
+import { DonutLegend, type LegendRow } from '../dashboard/donutLegend';
+import { CountUp } from '../dashboard/motion';
+import { foldOther } from '../dashboard/radial';
+import { TipBody, useChartTip } from '../dashboard/tooltip';
 import { Chip, Eyebrow } from '../dashboard/ui';
 
 interface TelemetryData {
@@ -32,10 +37,46 @@ const SECTION_LABELS: Record<string, string> = {
 
 const surface = { borderColor: WHITE.a08, background: WHITE.a02 } as const;
 
-/** The admin console's own usage: what was done today and in all, in which section, and the latest actions. Not critical: when it cannot be fetched it is left out. */
+/**
+ * The admin console's own usage: what was done today and in all, in which section (a donut of about six slices), and the latest actions. Not
+ * critical: when it cannot be fetched it is left out. One total runs through the panel: the all-time count the server keeps for each section,
+ * added up (the header says "all time" and the middle of the donut is the same number). The server's log of actions is trimmed now and then,
+ * so its length is not that total and is used only when there are no sections to add up.
+ */
 export function AdminConsoleTelemetry() {
   const [data, setData] = useState<TelemetryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [active, setActive] = useState<string | null>(null);
+  const tip = useChartTip();
+  const sections = useMemo(() => {
+    const rows = Object.entries(data?.totals ?? {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([key, count]) => ({ key, label: SECTION_LABELS[key] || key, value: count }));
+    const { shown, rest } = foldOther(rows, 6);
+    const sum = [...shown, ...rest].reduce((total, row) => total + row.value, 0);
+    const share = (value: number) => (sum > 0 ? `${Math.round((value / sum) * 100)}%` : '0%');
+    const made = shown.map((row, place) => ({
+      key: row.key,
+      label: row.label,
+      value: row.value,
+      fill: seriesFill(place),
+      aria: `${row.label}: ${row.value} ${row.value === 1 ? 'action' : 'actions'}, ${share(row.value)}`,
+      content: () => <TipBody title={row.label} rows={[{ label: 'Actions', value: String(row.value) }, { label: 'Share', value: share(row.value) }]} />,
+    }));
+    if (rest.length > 0) {
+      const other = rest.reduce((total, row) => total + row.value, 0);
+      made.push({
+        key: 'other',
+        label: `Other (${rest.length})`,
+        value: other,
+        fill: OTHER_FILL,
+        aria: `Other: ${rest.length} sections, ${other} actions, ${share(other)}`,
+        content: () => <TipBody title={`Other (${rest.length})`} rows={rest.map((row) => ({ label: row.label, value: String(row.value) }))} />,
+      });
+    }
+    return { rows: made, sum };
+  }, [data]);
+  const allTime = data ? (sections.sum > 0 ? sections.sum : data.totalCount) : 0;
 
   useEffect(() => {
     const load = async () => {
@@ -56,7 +97,7 @@ export function AdminConsoleTelemetry() {
 
   if (loading) {
     return (
-      <div data-testid="system-console-usage" className="border p-4" style={surface}>
+      <div data-testid="system-console-usage" data-state="loading" className="border p-4" style={surface}>
         <Eyebrow className="mb-3">Admin Console Usage</Eyebrow>
         <p className="font-body text-xs" style={{ color: WHITE.a50 }}>
           Loading telemetry...
@@ -66,10 +107,6 @@ export function AdminConsoleTelemetry() {
   }
 
   if (!data) return null;
-
-  const sectionEntries = Object.entries(data.totals).sort((a, b) => b[1] - a[1]);
-  const topSections = sectionEntries.slice(0, 6);
-  const maxVal = Math.max(...topSections.map(([, v]) => v), 1);
 
   return (
     <div data-testid="system-console-usage" className="space-y-5 border p-4 sm:p-5" style={surface}>
@@ -82,26 +119,36 @@ export function AdminConsoleTelemetry() {
           </div>
           <span aria-hidden="true" className="block h-8 w-px" style={{ background: WHITE.a10 }} />
           <div className="text-center">
-            <CountUp value={data.totalCount} format={(value) => String(Math.round(value))} className="block font-display text-2xl font-bold leading-none text-white [font-variant-numeric:lining-nums]" testId="system-console-total" />
-            <p className="mt-1 font-body text-[10px]" style={{ color: WHITE.a50 }}>total</p>
+            <CountUp value={allTime} format={(value) => String(Math.round(value))} className="block font-display text-2xl font-bold leading-none text-white [font-variant-numeric:lining-nums]" testId="system-console-total" />
+            <p className="mt-1 font-body text-[10px]" style={{ color: WHITE.a50 }}>all time</p>
           </div>
         </div>
       </div>
 
-      {topSections.length > 0 && (
+      {sections.rows.length > 0 && (
         <div className="space-y-2.5">
           <p className="font-body text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: WHITE.a65 }}>Actions by Section</p>
-          {topSections.map(([section, count]) => (
-            <div key={section} className="flex items-center gap-3">
-              <span className="w-24 shrink-0 truncate font-body text-xs" style={{ color: WHITE.a65 }}>
-                {SECTION_LABELS[section] || section}
-              </span>
-              <div className="h-1.5 flex-1" style={{ background: WHITE.a08 }}>
-                <Grow className="h-full" style={{ width: `${(count / maxVal) * 100}%`, background: COLOR.gold, borderRadius: '0 4px 4px 0' }} />
-              </div>
-              <span className="w-8 shrink-0 text-right font-body text-xs font-bold tabular-nums text-white">{count}</span>
-            </div>
-          ))}
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 sm:justify-start">
+            <Donut
+              segments={sections.rows.map<DonutSegment>((row) => ({ key: row.key, ariaLabel: row.aria, value: row.value, fill: row.fill, tip: tip.bind(`console-${row.key}`, row.content), testId: `system-console-slice-${row.key}` }))}
+              label="Admin actions by section"
+              valueText={`${allTime} actions all time, in ${sections.rows.length} ${sections.rows.length === 1 ? 'section' : 'sections'}`}
+              size={120}
+              thickness={14}
+              testId="system-console-donut"
+              activeKey={active}
+              onActive={setActive}
+            >
+              <span className={`text-xl ${FIGURE}`}>{allTime}</span>
+              <span className="mt-0.5 font-body text-[10px]" style={{ color: WHITE.a50 }}>actions</span>
+            </Donut>
+            <DonutLegend
+              className="min-w-[10rem] max-w-[18rem]"
+              activeKey={active}
+              onActive={setActive}
+              rows={sections.rows.map<LegendRow>((row) => ({ key: row.key, label: row.label, value: row.value, fill: row.fill, ariaLabel: row.aria, testId: `system-console-section-${row.key}`, tip: tip.bind(`console-row-${row.key}`, row.content) }))}
+            />
+          </div>
         </div>
       )}
 
@@ -124,7 +171,7 @@ export function AdminConsoleTelemetry() {
         </div>
       )}
 
-      {data.totalCount === 0 && (
+      {allTime === 0 && (
         <p className="py-2 text-center font-body text-xs" style={{ color: WHITE.a50 }}>
           No admin actions recorded yet
         </p>

@@ -1,24 +1,32 @@
 'use client';
 
-import { memo, useState } from 'react';
-import { SPONSOR_CURRENCY, describeCoverage, formatMoney, type AdminBi, type MoneyStat, type SponsorTierGroup } from '@/lib/admin-bi';
+import { memo, useMemo, useState } from 'react';
+import { SPONSOR_CURRENCY, describeCoverage, formatCount, formatMoney, formatPercent, type AdminBi, type MoneyStat, type SponsorTierGroup } from '@/lib/admin-bi';
 import { clipName } from './biText';
-import { COLOR, GOLD_A, WHITE, tierFill } from './brand';
-import { moneyFigure, StatBox } from './chartParts';
-import { Icon } from './icons';
-import { Grow } from './motion';
+import { GOLD_A, OTHER_FILL, WHITE, seriesFill, tierFill } from './brand';
+import { moneyFigure } from './chartParts';
+import { FIGURE } from './dial';
+import { Donut, type DonutSegment } from './donut';
+import { DonutLegend, type LegendRow } from './donutLegend';
+import { HotspotNotes, Hotspots, PanelBeacons } from './hotspots';
+import { CountUp } from './motion';
+import { InfoButton, PopoverText } from './popover';
+import { foldOther } from './radial';
+import { StatRing } from './statRing';
 import { TipBody, useChartTip } from './tooltip';
-import { ChartSection, DataTable, EmptyNote, Meter, buttonClass, type TableColumn } from './ui';
+import { ChartSection, DataTable, EmptyNote, buttonClass, type TableColumn } from './ui';
 
 /**
- * SPONSORSHIP: the tiers as one composition bar, how many events have sponsors, the sponsors that no event links to, and how much
- * contract value and revenue is recorded (never $0 for what is not). Sponsors have no status, so the Past / Live / Future / All view
- * does not filter their amounts; only "Events with sponsors" follows the view.
+ * SPONSORSHIP: the tiers as a donut, how many events have sponsors and how many sponsors no event links to, and how much contract value
+ * and revenue is recorded (never $0 for what is not), each as a ring of how many sponsors it stands on. The sponsors who have an amount
+ * recorded are a second donut of who it comes from. Sponsors have no status, so the Past / Live / Future / All view does not filter their
+ * amounts; only "Events with sponsors" follows the view.
  */
 
 const label11 = 'font-body text-[11px] font-bold uppercase tracking-[0.12em]';
 const NAMES_SHOWN = 6;
-const AMOUNT_ROWS = 8;
+/** A donut carries about six slices; the rest are folded into "Other". */
+const SLICES = 6;
 
 function moneyText(stat: MoneyStat): string {
   return stat.amounts.length === 0 ? 'not recorded' : stat.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' and ');
@@ -28,51 +36,67 @@ function tierSummary(tier: SponsorTierGroup): string {
   return `${tier.visible} shown · ${tier.hidden} hidden · revenue ${moneyText(tier.revenue)} (${tier.revenue.coverage.recorded} of ${tier.revenue.coverage.total}) · contract value ${moneyText(tier.contractValue)} (${tier.contractValue.coverage.recorded} of ${tier.contractValue.coverage.total})`;
 }
 
-// ─── The composition bar ─────────────────────────────────────────────────────
+const sponsorWord = (count: number): string => (count === 1 ? 'sponsor' : 'sponsors');
 
-function TierBar({ tiers, total }: { tiers: readonly SponsorTierGroup[]; total: number }) {
+// ─── The tiers ───────────────────────────────────────────────────────────────
+
+function TierDonut({ tiers, total }: { tiers: readonly SponsorTierGroup[]; total: number }) {
   const tip = useChartTip();
+  const [active, setActive] = useState<string | null>(null);
+  const { segments, rows } = useMemo(() => {
+    const entries = tiers.map((tier) => ({ key: tier.key || 'none', label: tier.label, value: tier.sponsors.length, tier }));
+    const { shown, rest } = foldOther(entries, SLICES);
+    const built: Array<{ segment: Omit<DonutSegment, 'tip'>; row: Omit<LegendRow, 'tip'>; content: () => React.ReactNode }> = shown.map((entry) => ({
+      segment: { key: entry.key, ariaLabel: `${entry.label}: ${entry.value} ${sponsorWord(entry.value)}`, value: entry.value, fill: tierFill(entry.tier.key), testId: `bi-tier-segment-${entry.key}` },
+      row: { key: entry.key, label: entry.label, value: entry.value, fill: tierFill(entry.tier.key), ariaLabel: `${entry.label}: ${entry.value} ${sponsorWord(entry.value)}`, testId: `bi-tier-${entry.key}` },
+      content: () => (
+        <TipBody
+          title={entry.label}
+          subtitle={`${entry.value} ${sponsorWord(entry.value)} of ${total}`}
+          rows={[
+            { label: 'Shown on the website', value: String(entry.tier.visible) },
+            { label: 'Hidden', value: String(entry.tier.hidden) },
+            { label: 'Revenue (recorded)', value: `${moneyText(entry.tier.revenue)} (${entry.tier.revenue.coverage.recorded} of ${entry.tier.revenue.coverage.total})` },
+            { label: 'Contract value (recorded)', value: `${moneyText(entry.tier.contractValue)} (${entry.tier.contractValue.coverage.recorded} of ${entry.tier.contractValue.coverage.total})` },
+          ]}
+          note={tierSummary(entry.tier)}
+        />
+      ),
+    }));
+    if (rest.length > 0) {
+      const sum = rest.reduce((count, entry) => count + entry.value, 0);
+      built.push({
+        segment: { key: 'other', ariaLabel: `Other: ${sum} ${sponsorWord(sum)}`, value: sum, fill: OTHER_FILL, testId: 'bi-tier-segment-other' },
+        row: { key: 'other', label: 'Other', value: sum, fill: OTHER_FILL, ariaLabel: `Other: ${sum} ${sponsorWord(sum)}`, testId: 'bi-tier-other' },
+        content: () => <TipBody title="Other" subtitle={`${sum} ${sponsorWord(sum)} of ${total}`} rows={rest.map((entry) => ({ label: entry.label, value: String(entry.value) }))} />,
+      });
+    }
+    return { segments: built, rows: built };
+  }, [tiers, total]);
+
   return (
-    <div data-testid="bi-tier-bar">
-      <p className={label11} style={{ color: WHITE.a65 }}>
-        Sponsors by tier
-      </p>
-      <Grow className="mt-3">
-        <div className="flex h-7 gap-0.5" role="group" aria-label={`${total} sponsors by tier`}>
-          {tiers.map((tier, index) => (
-            <div
-              key={tier.key || 'none'}
-              role="img"
-              tabIndex={0}
-              aria-label={`${tier.label}: ${tier.sponsors.length} ${tier.sponsors.length === 1 ? 'sponsor' : 'sponsors'}`}
-              data-testid={`bi-tier-segment-${tier.key || 'none'}`}
-              className="min-w-[6px]"
-              style={{ flex: `${tier.sponsors.length} 1 0%`, background: tierFill(tier.key), borderRadius: index === tiers.length - 1 ? '0 4px 4px 0' : 0 }}
-              {...tip.bind(`tier-${tier.key || 'none'}`, () => (
-                <TipBody
-                  title={tier.label}
-                  subtitle={`${tier.sponsors.length} ${tier.sponsors.length === 1 ? 'sponsor' : 'sponsors'} of ${total}`}
-                  rows={[
-                    { label: 'Shown on the website', value: String(tier.visible) },
-                    { label: 'Hidden', value: String(tier.hidden) },
-                    { label: 'Revenue (recorded)', value: `${moneyText(tier.revenue)} (${tier.revenue.coverage.recorded} of ${tier.revenue.coverage.total})` },
-                    { label: 'Contract value (recorded)', value: `${moneyText(tier.contractValue)} (${tier.contractValue.coverage.recorded} of ${tier.contractValue.coverage.total})` },
-                  ]}
-                />
-              ))}
-            />
-          ))}
-        </div>
-      </Grow>
-      <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-        {tiers.map((tier) => (
-          <li key={tier.key || 'none'} className="inline-flex items-center gap-2 font-body text-xs" style={{ color: WHITE.a65 }}>
-            <span aria-hidden="true" className="block h-2.5 w-5" style={{ background: tierFill(tier.key), borderRadius: '0 3px 3px 0' }} />
-            <span className="capitalize">{tier.label}</span>
-            <span className="font-bold tabular-nums text-white">{tier.sponsors.length}</span>
-          </li>
-        ))}
-      </ul>
+    <div data-testid="bi-tier-donut" className="flex flex-wrap items-center justify-center gap-x-6 gap-y-4">
+      <Donut
+        segments={segments.map((entry) => ({ ...entry.segment, tip: tip.bind(`tier-${entry.segment.key}`, entry.content) }))}
+        label="Sponsors by tier"
+        valueText={`${total} ${sponsorWord(total)}`}
+        size={168}
+        testId="bi-tier-chart"
+        activeKey={active}
+        onActive={setActive}
+      >
+        <CountUp value={total} format={(value) => formatCount(Math.round(value))} className={`block text-4xl ${FIGURE}`} testId="bi-tier-total" />
+        <span className="mt-1.5 font-body text-xs" style={{ color: WHITE.a65 }}>
+          sponsors
+        </span>
+      </Donut>
+      <DonutLegend
+        className="min-w-[10rem] max-w-[16rem]"
+        capitalise
+        activeKey={active}
+        onActive={setActive}
+        rows={rows.map((entry) => ({ ...entry.row, tip: tip.bind(`tier-row-${entry.row.key}`, entry.content) }))}
+      />
     </div>
   );
 }
@@ -86,12 +110,36 @@ interface AmountRow {
   amount: number;
 }
 
-function AmountBars({ title, rows, testId, pointer }: { title: string; rows: readonly AmountRow[]; testId: string; pointer: string }) {
-  const [expanded, setExpanded] = useState(false);
+function AmountDonut({ title, rows, testId, pointer }: { title: string; rows: readonly AmountRow[]; testId: string; pointer: string }) {
   const tip = useChartTip();
-  const sorted = [...rows].sort((a, b) => b.amount - a.amount);
-  const shown = expanded ? sorted : sorted.slice(0, AMOUNT_ROWS);
-  const max = Math.max(0, ...sorted.map((row) => row.amount));
+  const [active, setActive] = useState<string | null>(null);
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  const { legend, segments } = useMemo(() => {
+    const entries = rows.map((row) => ({ ...row, value: row.amount }));
+    const { shown, rest } = foldOther(entries, SLICES);
+    const share = (amount: number) => (total > 0 ? formatPercent(amount / total) : '0%');
+    const made = shown.map((entry, place) => ({
+      key: entry.key,
+      label: entry.name,
+      fill: seriesFill(place),
+      value: entry.amount,
+      aria: `${entry.name}: ${formatMoney(entry.amount, SPONSOR_CURRENCY)}, ${share(entry.amount)}`,
+      content: () => <TipBody title={entry.name} subtitle={entry.tier} rows={[{ label: title, value: formatMoney(entry.amount, SPONSOR_CURRENCY), swatch: 'gold' as const }, { label: 'Share', value: share(entry.amount) }]} />,
+    }));
+    if (rest.length > 0) {
+      const sum = rest.reduce((count, entry) => count + entry.amount, 0);
+      made.push({
+        key: 'other',
+        label: `Other (${rest.length})`,
+        fill: OTHER_FILL,
+        value: sum,
+        aria: `Other: ${rest.length} sponsors, ${formatMoney(sum, SPONSOR_CURRENCY)}, ${share(sum)}`,
+        content: () => <TipBody title={`Other (${rest.length})`} rows={rest.map((entry) => ({ label: entry.name, value: formatMoney(entry.amount, SPONSOR_CURRENCY) }))} />,
+      });
+    }
+    return { legend: made, segments: made };
+  }, [rows, title, total]);
+
   return (
     <div data-testid={testId} className="min-w-0">
       <p className={label11} style={{ color: WHITE.a65 }}>
@@ -100,36 +148,25 @@ function AmountBars({ title, rows, testId, pointer }: { title: string; rows: rea
       {rows.length === 0 ? (
         <EmptyNote>Not recorded. {pointer}</EmptyNote>
       ) : (
-        <>
-          <ul className="mt-2">
-            {shown.map((row) => (
-              <li
-                key={row.key}
-                tabIndex={0}
-                role="group"
-                aria-label={`${row.name}: ${formatMoney(row.amount, SPONSOR_CURRENCY)}`}
-                className="grid grid-cols-[minmax(5.5rem,9rem)_minmax(0,1fr)] items-center gap-x-3 py-1.5"
-                {...tip.bind(`${testId}-${row.key}`, () => <TipBody title={row.name} subtitle={row.tier} rows={[{ label: title, value: formatMoney(row.amount, SPONSOR_CURRENCY), swatch: 'gold' }]} />)}
-              >
-                <p className="truncate font-body text-xs text-white" title={row.name}>
-                  {row.name}
-                </p>
-                <div className="relative h-5">
-                  <Grow className="absolute inset-y-0.5 left-0" style={{ width: `calc((100% - 5.5rem) * ${max > 0 ? row.amount / max : 0})`, minWidth: 3, background: COLOR.gold, borderRadius: '0 4px 4px 0' }} />
-                  <span className="absolute top-1/2 whitespace-nowrap font-body text-xs font-bold tabular-nums text-white" style={{ left: `calc((100% - 5.5rem) * ${max > 0 ? row.amount / max : 0} + 8px)`, transform: 'translateY(-50%)' }}>
-                    {formatMoney(row.amount, SPONSOR_CURRENCY)}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {rows.length > AMOUNT_ROWS ? (
-            <button type="button" onClick={() => setExpanded((previous) => !previous)} aria-expanded={expanded} className={`${buttonClass('ghost', 'sm')} mt-2`}>
-              <Icon name="chevronDown" className={`h-3.5 w-3.5 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
-              {expanded ? 'Show fewer' : `Show all ${rows.length}`}
-            </button>
-          ) : null}
-        </>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-3">
+          <Donut
+            segments={segments.map((entry) => ({ key: entry.key, ariaLabel: entry.aria, value: entry.value, fill: entry.fill, tip: tip.bind(`${testId}-${entry.key}`, entry.content), testId: `${testId}-slice-${entry.key}` }))}
+            label={title}
+            valueText={`${formatMoney(total, SPONSOR_CURRENCY)} from ${rows.length} ${sponsorWord(rows.length)}`}
+            size={128}
+            thickness={14}
+            activeKey={active}
+            onActive={setActive}
+          >
+            <span className="font-display text-sm font-bold leading-none text-white [font-variant-numeric:lining-nums]">{formatMoney(total, SPONSOR_CURRENCY)}</span>
+          </Donut>
+          <DonutLegend
+            className="min-w-[9rem] max-w-[15rem]"
+            activeKey={active}
+            onActive={setActive}
+            rows={legend.map((entry) => ({ key: entry.key, label: entry.label, value: formatMoney(entry.value, SPONSOR_CURRENCY), fill: entry.fill, ariaLabel: entry.aria, testId: `${testId}-${entry.key}`, tip: tip.bind(`${testId}-row-${entry.key}`, entry.content) }))}
+          />
+        </div>
       )}
     </div>
   );
@@ -191,83 +228,144 @@ function SponsorTables({ bi }: { bi: AdminBi }) {
   );
 }
 
-function SponsorChart({ bi }: { bi: AdminBi }) {
-  const { sponsors } = bi;
-  const [allNames, setAllNames] = useState(false);
-  if (sponsors.total === 0) return <EmptyNote testId="bi-sponsors-empty">No sponsors yet. Add them in the Sponsors tab.</EmptyNote>;
+/** The sponsors no event links to: the first six names, the rest on request (it is behind the "Not linked" ring). */
+function UnlinkedNames({ names }: { names: readonly string[] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? names : names.slice(0, NAMES_SHOWN);
+  return (
+    <div data-testid="bi-unlinked-names">
+      <p className="font-display text-base font-bold leading-snug text-white">Sponsors not linked to any event</p>
+      <p className="mt-2 font-body text-xs leading-relaxed [overflow-wrap:anywhere]" style={{ color: WHITE.a65 }}>
+        {shown.map((name) => clipName(name)).join(', ')}
+        {!all && names.length > NAMES_SHOWN ? ` and ${names.length - NAMES_SHOWN} more` : ''}
+      </p>
+      {names.length > NAMES_SHOWN ? (
+        <button type="button" onClick={() => setAll((previous) => !previous)} aria-expanded={all} className={`${buttonClass('ghost', 'sm')} mt-3`}>
+          {all ? 'Show fewer names' : `Show all ${names.length} names`}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
-  const names = allNames ? sponsors.unlinked.names : sponsors.unlinked.names.slice(0, NAMES_SHOWN);
+function SponsorChart({ bi }: { bi: AdminBi }) {
+  const tip = useChartTip();
+  const { sponsors } = bi;
+  if (sponsors.total === 0) {
+    // no sponsors yet, and the events in view may still have none linked: that action still has its ring to sit on
+    const none = sponsors.eventsWithSponsors;
+    return (
+      <div className="space-y-6">
+        <EmptyNote testId="bi-sponsors-empty">No sponsors yet. Add them in the Sponsors tab.</EmptyNote>
+        <div className="mx-auto grid max-w-[16rem] grid-cols-1">
+          <StatRing
+            testId="bi-card-events-with-sponsors"
+            label="Events with sponsors"
+            figure={`${none.recorded} of ${none.total}`}
+            ratio={none.total === 0 ? null : none.recorded / none.total}
+            caption={none.total === 0 ? 'none in view' : `${none.total - none.recorded} have none`}
+            ringLabel="Events with sponsors"
+            valueText={`${none.recorded} of ${none.total} events`}
+            tip={tip.bind('sponsors-events', <TipBody title="Events with sponsors" rows={[{ label: 'With sponsors', value: `${none.recorded} of ${none.total}` }]} note={none.total === 0 ? 'no events in this view' : `${none.total - none.recorded} in this view have none`} />)}
+            hotspots={<Hotspots ids={['link-sponsors-upcoming']} label="events with sponsors" slug="events-with-sponsors" className="" />}
+          />
+        </div>
+      </div>
+    );
+  }
+
   const entries = sponsors.tiers.flatMap((tier) => tier.sponsors.map((sponsor) => ({ sponsor, tier })));
   const revenueRows: AmountRow[] = entries.flatMap(({ sponsor, tier }, index) => (sponsor.revenue === null ? [] : [{ key: sponsor.id || `r-${index}`, name: sponsor.name, tier: tier.label, amount: sponsor.revenue }]));
   const contractRows: AmountRow[] = entries.flatMap(({ sponsor, tier }, index) => (sponsor.contractValue === null ? [] : [{ key: sponsor.id || `c-${index}`, name: sponsor.name, tier: tier.label, amount: sponsor.contractValue }]));
   const withSponsors = sponsors.eventsWithSponsors;
+  const share = (recorded: number, total: number): number | null => (total === 0 ? null : recorded / total);
 
   return (
     <div className="space-y-6">
-      <TierBar tiers={sponsors.tiers} total={sponsors.total} />
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <StatBox testId="bi-card-sponsors" label="Sponsors" figure={sponsors.total} coverage={`${sponsors.visible} shown on the website · ${sponsors.hidden} hidden`} />
-        <StatBox
-          testId="bi-card-events-with-sponsors"
-          label="Events with sponsors"
-          figure={`${withSponsors.recorded} of ${withSponsors.total}`}
-          coverage={withSponsors.total === 0 ? 'no events in this view' : `${withSponsors.total - withSponsors.recorded} in this view have none`}
-        >
-          <Meter ratio={withSponsors.total === 0 ? null : withSponsors.recorded / withSponsors.total} label="Events with sponsors" valueText={`${withSponsors.recorded} of ${withSponsors.total} events`} className="mt-2" />
-        </StatBox>
-        <StatBox testId="bi-card-unlinked-sponsors" label="Not linked to any event" figure={sponsors.unlinked.count} coverage="any event, past or upcoming" />
-        <StatBox
-          testId="bi-card-sponsor-contract"
-          label="Sponsor contract value (recorded)"
-          figure={moneyFigure(sponsors.contractValue)}
-          coverage={`${describeCoverage(sponsors.contractValue.coverage, 'sponsor')}${sponsors.contractValue.amounts.length === 0 ? '. Enter Contract Value on each sponsor (Sponsors tab)' : ''}`}
-        />
-        <StatBox
-          testId="bi-card-sponsor-revenue"
-          label="Sponsor revenue (recorded)"
-          figure={moneyFigure(sponsors.revenue)}
-          coverage={`${describeCoverage(sponsors.revenue.coverage, 'sponsor')}${sponsors.revenue.amounts.length === 0 ? '. Enter Revenue on each sponsor (Sponsors tab)' : ''}`}
-        />
+      <div className="grid grid-cols-1 items-center gap-x-6 gap-y-6 xl:grid-cols-[minmax(18rem,22rem)_1fr]">
+        <TierDonut tiers={sponsors.tiers} total={sponsors.total} />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <StatRing
+            testId="bi-card-sponsors"
+            label="Sponsors"
+            figure={String(sponsors.total)}
+            ratio={share(sponsors.visible, sponsors.total)}
+            caption={`${sponsors.visible} shown, ${sponsors.hidden} hidden`}
+            ringLabel="Sponsors shown on the website"
+            valueText={`${sponsors.visible} shown on the website, ${sponsors.hidden} hidden`}
+            tip={tip.bind('sponsors-count', <TipBody title="Sponsors" rows={[{ label: 'Shown on the website', value: String(sponsors.visible) }, { label: 'Hidden', value: String(sponsors.hidden) }]} note={`${sponsors.visible} shown on the website · ${sponsors.hidden} hidden`} />)}
+          />
+          <StatRing
+            testId="bi-card-events-with-sponsors"
+            label="Events with sponsors"
+            figure={`${withSponsors.recorded} of ${withSponsors.total}`}
+            ratio={share(withSponsors.recorded, withSponsors.total)}
+            caption={withSponsors.total === 0 ? 'none in view' : `${withSponsors.total - withSponsors.recorded} have none`}
+            ringLabel="Events with sponsors"
+            valueText={`${withSponsors.recorded} of ${withSponsors.total} events`}
+            tip={tip.bind('sponsors-events', <TipBody title="Events with sponsors" rows={[{ label: 'With sponsors', value: `${withSponsors.recorded} of ${withSponsors.total}` }]} note={withSponsors.total === 0 ? 'no events in this view' : `${withSponsors.total - withSponsors.recorded} in this view have none`} />)}
+            hotspots={<Hotspots ids={['link-sponsors-upcoming']} label="events with sponsors" slug="events-with-sponsors" className="" />}
+          />
+          <StatRing
+            testId="bi-card-unlinked-sponsors"
+            label="Not linked"
+            figure={String(sponsors.unlinked.count)}
+            ratio={share(sponsors.unlinked.count, sponsors.total)}
+            caption={`of ${sponsors.total} sponsors`}
+            ringLabel="Sponsors not linked to any event"
+            valueText={`${sponsors.unlinked.count} of ${sponsors.total} sponsors are not linked to any event`}
+            tip={tip.bind('sponsors-unlinked', <TipBody title="Not linked to any event" rows={[{ label: 'Sponsors', value: `${sponsors.unlinked.count} of ${sponsors.total}` }]} note="any event, past or upcoming" />)}
+            topLeft={
+              sponsors.unlinked.count > 0 ? (
+                <InfoButton label="the sponsors not linked to any event" buttonLabel="Names of the sponsors not linked to any event" icon="users" testId="bi-unlinked-names-button" width={380}>
+                  <UnlinkedNames names={sponsors.unlinked.names} />
+                </InfoButton>
+              ) : null
+            }
+            hotspots={<Hotspots ids={['unlinked-sponsors']} label="sponsors not linked to any event" slug="unlinked-sponsors" className="" />}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <StatRing
+            layout="row"
+            testId="bi-card-sponsor-contract"
+            label="Contract value"
+            figure={moneyFigure(sponsors.contractValue)}
+            ratio={share(sponsors.contractValue.coverage.recorded, sponsors.contractValue.coverage.total)}
+            coverage={sponsors.contractValue.coverage}
+            caption={`${sponsors.contractValue.coverage.recorded} of ${sponsors.contractValue.coverage.total} sponsors recorded`}
+            ringLabel="Sponsor contract value (recorded)"
+            valueText={describeCoverage(sponsors.contractValue.coverage, 'sponsor')}
+            tip={tip.bind('sponsors-contract', <TipBody title="Sponsor contract value (recorded)" rows={[{ label: 'Recorded for', value: `${sponsors.contractValue.coverage.recorded} of ${sponsors.contractValue.coverage.total} sponsors` }]} note={`${describeCoverage(sponsors.contractValue.coverage, 'sponsor')}${sponsors.contractValue.amounts.length === 0 ? '. Enter Contract Value on each sponsor (Sponsors tab)' : ''}`} />)}
+            hotspots={<Hotspots ids={['record-contract-values']} label="contract value" slug="contract-value" className="" />}
+          />
+          <StatRing
+            layout="row"
+            testId="bi-card-sponsor-revenue"
+            label="Revenue"
+            figure={moneyFigure(sponsors.revenue)}
+            ratio={share(sponsors.revenue.coverage.recorded, sponsors.revenue.coverage.total)}
+            coverage={sponsors.revenue.coverage}
+            caption={`${sponsors.revenue.coverage.recorded} of ${sponsors.revenue.coverage.total} sponsors recorded`}
+            ringLabel="Sponsor revenue (recorded)"
+            valueText={describeCoverage(sponsors.revenue.coverage, 'sponsor')}
+            tip={tip.bind('sponsors-revenue', <TipBody title="Sponsor revenue (recorded)" rows={[{ label: 'Recorded for', value: `${sponsors.revenue.coverage.recorded} of ${sponsors.revenue.coverage.total} sponsors` }]} note={`${describeCoverage(sponsors.revenue.coverage, 'sponsor')}${sponsors.revenue.amounts.length === 0 ? '. Enter Revenue on each sponsor (Sponsors tab)' : ''}`} />)}
+          />
       </div>
 
-      {sponsors.unlinked.count > 0 ? (
-        <div data-testid="bi-unlinked-names" className="border p-4" style={{ borderColor: WHITE.a08, background: WHITE.a02 }}>
-          <p className={label11} style={{ color: WHITE.a65 }}>
-            Sponsors not linked to any event
-          </p>
-          <p className="mt-2 font-body text-xs leading-relaxed [overflow-wrap:anywhere]" style={{ color: WHITE.a65 }}>
-            {names.map((name) => clipName(name)).join(', ')}
-            {!allNames && sponsors.unlinked.names.length > NAMES_SHOWN ? ` and ${sponsors.unlinked.names.length - NAMES_SHOWN} more` : ''}
-          </p>
-          {sponsors.unlinked.names.length > NAMES_SHOWN ? (
-            <button type="button" onClick={() => setAllNames((previous) => !previous)} aria-expanded={allNames} className={`${buttonClass('ghost', 'sm')} mt-3`}>
-              {allNames ? 'Show fewer names' : `Show all ${sponsors.unlinked.names.length} names`}
-            </button>
-          ) : null}
+      {contractRows.length > 0 || revenueRows.length > 0 ? (
+        <div className="grid grid-cols-1 gap-x-8 gap-y-6 border-t pt-4 lg:grid-cols-2" style={{ borderColor: GOLD_A.a10 }} data-testid="bi-sponsor-amounts">
+          <AmountDonut title="Contract value (recorded)" rows={contractRows} testId="bi-amounts-contract" pointer="Enter Contract Value on each sponsor (Sponsors tab)." />
+          <AmountDonut title="Revenue (recorded)" rows={revenueRows} testId="bi-amounts-revenue" pointer="Enter Revenue on each sponsor (Sponsors tab)." />
         </div>
       ) : null}
-
-      <ul className="space-y-3 border-t pt-4" style={{ borderColor: GOLD_A.a10 }}>
-        {sponsors.tiers.map((tier) => (
-          <li key={tier.key || 'none'} data-testid={`bi-tier-${tier.key || 'none'}`}>
-            <p className="font-body text-xs text-white">
-              <span className="font-bold capitalize">{tier.label}</span> · <span className="font-bold tabular-nums">{tier.sponsors.length}</span> {tier.sponsors.length === 1 ? 'sponsor' : 'sponsors'}
-            </p>
-            <p className="mt-0.5 font-body text-[11px] leading-relaxed" style={{ color: WHITE.a50 }}>
-              {tierSummary(tier)}
-            </p>
-          </li>
-        ))}
-      </ul>
-
-      <div className="grid grid-cols-1 gap-x-8 gap-y-6 border-t pt-4 lg:grid-cols-2" style={{ borderColor: GOLD_A.a10 }} data-testid="bi-sponsor-amounts">
-        <AmountBars title="Contract value (recorded)" rows={contractRows} testId="bi-amounts-contract" pointer="Enter Contract Value on each sponsor (Sponsors tab)." />
-        <AmountBars title="Revenue (recorded)" rows={revenueRows} testId="bi-amounts-revenue" pointer="Enter Revenue on each sponsor (Sponsors tab)." />
-      </div>
     </div>
   );
 }
+
+/** The actions that concern the sponsors and where they are linked. */
+const SPONSOR_ACTIONS = ['link-sponsors-upcoming', 'unlinked-sponsors', 'record-contract-values'] as const;
 
 export const Sponsorship = memo(function Sponsorship({ bi, delay = 0 }: { bi: AdminBi; delay?: number }) {
   const hasSponsors = bi.sponsors.total > 0;
@@ -276,17 +374,25 @@ export const Sponsorship = memo(function Sponsorship({ bi, delay = 0 }: { bi: Ad
       testId="bi-sponsors"
       eyebrow="Partners"
       title="Sponsorship"
-      description="Who sponsors AB Entertainment, how many events they are linked to, and how much contract value is recorded."
+      info={{
+        label: 'sponsorship',
+        content: (
+          <PopoverText title="Sponsorship">
+            <p>Who sponsors AB Entertainment, how many events they are linked to, and how much contract value is recorded.</p>
+            {hasSponsors ? (
+              <p data-testid="bi-sponsors-footnote">
+                Sponsors have no status, so the Past / Live / Future view does not filter their amounts; &ldquo;Events with sponsors&rdquo; follows the view. Sponsor amounts are in AUD.
+              </p>
+            ) : null}
+          </PopoverText>
+        ),
+      }}
       delay={delay}
       chart={<SponsorChart bi={bi} />}
       table={hasSponsors ? <SponsorTables bi={bi} /> : <EmptyNote>No sponsors yet. Add them in the Sponsors tab.</EmptyNote>}
-      footer={
-        hasSponsors ? (
-          <p className="mt-5 border-t pt-4 font-body text-[11px] leading-relaxed" style={{ borderColor: GOLD_A.a10, color: WHITE.a50 }}>
-            Sponsors have no status, so the Past / Live / Future view does not filter their amounts; &ldquo;Events with sponsors&rdquo; follows the view. Sponsor amounts are in AUD.
-          </p>
-        ) : null
-      }
+      beaconsOnVisuals
+      beacons={<PanelBeacons ids={SPONSOR_ACTIONS} label="sponsorship" slug="sponsorship-panel" />}
+      notes={<HotspotNotes ids={SPONSOR_ACTIONS} label="sponsorship" slug="sponsorship" />}
     />
   );
 });

@@ -8,6 +8,8 @@ import type { PipelineGap, PipelineRow } from '@/lib/admin-bi';
 
 export const PAD = 22;
 export const LABEL_W = 150;
+/** How far a label stands off its marker's leader line: the text of a label that runs to the right starts this far to the right of the leader, one that runs to the left ends this far to the left of it. */
+export const LABEL_OFFSET = 4;
 export const TIER_H = 38;
 export const MAX_TIERS = 4;
 export const RAIL_GAP = 26;
@@ -59,8 +61,8 @@ const EMPTY_LAYOUT: TimelineLayout = { markers: [], ticks: [], todayX: null, lab
 
 /**
  * Where everything goes on a timeline `width` pixels wide: markers by date (today is the left edge, or earlier for an event whose date
- * has gone), their size, and a label for each in the first tier where it does not run into another. A label that fits in no
- * tier is left off (its marker still has its tooltip, and the event is in the table). Pure, so the rules can be tested.
+ * has gone), their size, and a label for each in the first tier where it does not run into another (and where no leader line crosses
+ * a label, when that can be had). A label that fits in no tier is left off (its marker still has its tooltip, and the event is in the table). Pure, so the rules can be tested.
  */
 export function layoutTimeline(rows: readonly PipelineRow[], todayDay: number, width: number, currency: string | null): TimelineLayout {
   const dated = rows.flatMap((row) => (row.daysToGo === null ? [] : [{ row, days: row.daysToGo }]));
@@ -72,24 +74,50 @@ export function layoutTimeline(rows: readonly PipelineRow[], todayDay: number, w
 
   const kinds = dated.map((entry) => kindOf(entry.row, currency));
   const largest = Math.max(0, ...dated.map((entry, index) => sizeValue(entry.row, kinds[index])));
-  const tiers: Array<Array<[number, number]>> = Array.from({ length: MAX_TIERS }, () => []);
-
-  const markers: PlacedMarker[] = dated.map((entry, index) => {
+  // where each marker is and where its label would run: to the right of it, or to the left of it near the right edge
+  const drawn = dated.map((entry, index) => {
     const kind = kinds[index];
     const px = x(entry.days);
     const r = kind === 'none' ? NONE_R : markerRadius(sizeValue(entry.row, kind), largest, MIN_R, MAX_R);
-    const align: 'left' | 'right' = px + LABEL_W - 8 > width - PAD ? 'right' : 'left';
-    const interval: [number, number] = align === 'left' ? [px - 8, px - 8 + LABEL_W] : [px + 8 - LABEL_W, px + 8];
-    let tier: number | null = null;
-    for (let candidate = 0; candidate < MAX_TIERS; candidate += 1) {
-      if (tiers[candidate].every(([left, right]) => interval[1] + 8 <= left || interval[0] >= right + 8)) {
-        tier = candidate;
-        tiers[candidate].push(interval);
-        break;
-      }
-    }
-    return { row: entry.row, id: entry.row.id || entry.row.title, x: px, r, kind, tier, align, flags: entry.row.gaps.filter((gap) => gap !== 'date') };
+    const align: 'left' | 'right' = px + LABEL_OFFSET + LABEL_W > width - PAD ? 'right' : 'left';
+    const interval: [number, number] = align === 'left' ? [px + LABEL_OFFSET, px + LABEL_OFFSET + LABEL_W] : [px - LABEL_OFFSET - LABEL_W, px - LABEL_OFFSET];
+    return { entry, kind, px, r, align, interval };
   });
+
+  // A label goes in the first tier (the one nearest the rail) where it runs into no other label and where no leader line (the thin line from
+  // a label down to its marker) crosses a label: its own leader goes up through every tier below it, and the leaders of the labels above go up
+  // through its tier. Labels that run to the right are placed from the right, so the rightmost takes the tier nearest the rail and each one
+  // to its left a higher one, and no leader meets the label of a neighbour; labels that run to the left are placed from the left, the same
+  // way round. Where that leaves no tier, the first tier where labels do not overlap is taken (a leader may then cross a label).
+  const placed: Array<{ x: number; interval: [number, number]; tier: number }> = [];
+  const apart = (tier: number, interval: [number, number]) => placed.every((other) => other.tier !== tier || interval[1] + 8 <= other.interval[0] || interval[0] >= other.interval[1] + 8);
+  const clear = (tier: number, px: number, interval: [number, number]) =>
+    !placed.some((other) => other.tier < tier && px >= other.interval[0] - 1 && px <= other.interval[1] + 1) && !placed.some((other) => other.tier > tier && other.x >= interval[0] - 1 && other.x <= interval[1] + 1);
+  const tierOf: Array<number | null> = drawn.map(() => null);
+  const order = drawn
+    .map((_, index) => index)
+    .sort((a, b) => (drawn[a].align !== drawn[b].align ? (drawn[a].align === 'right' ? -1 : 1) : drawn[a].align === 'right' ? drawn[a].px - drawn[b].px : drawn[b].px - drawn[a].px));
+  for (const index of order) {
+    const { px, interval } = drawn[index];
+    let tier: number | null = null;
+    for (let candidate = 0; candidate < MAX_TIERS && tier === null; candidate += 1) if (apart(candidate, interval) && clear(candidate, px, interval)) tier = candidate;
+    for (let candidate = 0; candidate < MAX_TIERS && tier === null; candidate += 1) if (apart(candidate, interval)) tier = candidate;
+    if (tier !== null) {
+      placed.push({ x: px, interval, tier });
+      tierOf[index] = tier;
+    }
+  }
+
+  const markers: PlacedMarker[] = drawn.map(({ entry, kind, px, r, align }, index) => ({
+    row: entry.row,
+    id: entry.row.id || entry.row.title,
+    x: px,
+    r,
+    kind,
+    tier: tierOf[index],
+    align,
+    flags: entry.row.gaps.filter((gap) => gap !== 'date'),
+  }));
 
   const usedTiers = markers.reduce((top, marker) => (marker.tier === null ? top : Math.max(top, marker.tier + 1)), 0);
   const labelsHeight = usedTiers === 0 ? 8 : usedTiers * TIER_H + 6;

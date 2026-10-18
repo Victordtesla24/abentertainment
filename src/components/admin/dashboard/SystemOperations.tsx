@@ -128,7 +128,7 @@ export const SystemOperations = memo(function SystemOperations(props: SystemOper
       <section aria-labelledby={titleId} data-testid="system-operations" id="system-operations">
         <GlassPanel padded={false}>
           <h3 id={titleId} className="m-0">
-            <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={open ? bodyId : undefined} data-testid="system-operations-toggle" className="flex w-full flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4 text-left sm:p-6">
+            <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={open ? bodyId : undefined} data-testid="system-operations-toggle" className="flex w-full flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4 text-left sm:p-6 motion-reduce:transition-none!">
               <span className="min-w-0">
                 <span className="block font-body text-xs font-semibold uppercase tracking-[0.25em] text-accent">Operations</span>
                 <span className="mt-1 block font-display text-2xl font-bold leading-tight text-white">System &amp; operations</span>
@@ -138,7 +138,7 @@ export const SystemOperations = memo(function SystemOperations(props: SystemOper
               </span>
               <span className="inline-flex items-center gap-2 font-body text-xs font-bold uppercase tracking-[0.12em] text-accent">
                 {open ? 'Hide' : 'Show'}
-                <Icon name="chevronDown" className={`h-4 w-4 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+                <Icon name="chevronDown" className={`h-4 w-4 transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} />
               </span>
             </button>
           </h3>

@@ -1,7 +1,7 @@
 'use client';
 
-import { animate, motion, useInView, useReducedMotion } from 'framer-motion';
-import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { animate, motion, useInView, useMotionValue, useReducedMotion, type MotionValue } from 'framer-motion';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { DURATION, EASE } from './brand';
 
 /**
@@ -10,16 +10,19 @@ import { DURATION, EASE } from './brand';
  * complete. The motion that is left is transform and opacity only, with the brand's easing and durations.
  */
 
-const MotionContext = createContext<{ enabled: boolean }>({ enabled: true });
+const MotionContext = createContext<{ enabled: boolean; exporting: boolean }>({ enabled: true, exporting: false });
 
-/** Says whether the Dashboard may animate: not for reduced motion, and not while the page is captured for the PDF export. */
+/**
+ * Says whether the Dashboard may animate (not for reduced motion, and not while the page is captured for the PDF export), and whether the
+ * page is being captured: a capture cannot be hovered or clicked, so what is only on hover or click is written out on the page then.
+ */
 export function DashMotionProvider({ exporting = false, children }: { exporting?: boolean; children: ReactNode }) {
   const reduced = useReducedMotion();
-  const value = useMemo(() => ({ enabled: !reduced && !exporting }), [reduced, exporting]);
+  const value = useMemo(() => ({ enabled: !reduced && !exporting, exporting }), [reduced, exporting]);
   return <MotionContext.Provider value={value}>{children}</MotionContext.Provider>;
 }
 
-export function useDashMotion(): { enabled: boolean } {
+export function useDashMotion(): { enabled: boolean; exporting: boolean } {
   return useContext(MotionContext);
 }
 
@@ -29,10 +32,37 @@ export function staggerDelay(index: number): number {
 }
 
 /** True once the element has been seen (and always when motion is off), so a chart or a panel draws in when it is scrolled to. */
-export function useSeen<T extends Element>(ref: RefObject<T | null>, amount = 0.15): boolean {
+export function useSeen<T extends Element>(ref: RefObject<T | null>, amount: number | 'some' = 0.15): boolean {
   const { enabled } = useDashMotion();
   const inView = useInView(ref, { once: true, amount });
   return !enabled || inView;
+}
+
+interface SweepOptions {
+  /** Where the value starts from; 0 by default. */
+  from?: number;
+  delay?: number;
+  duration?: number;
+}
+
+/**
+ * A number that sweeps to `target` on the brand's ease once `seen` (a needle turning, an angle opening), and is simply at `target`
+ * when motion is off. The value is a motion value, so a needle or an arc that follows it moves without a render per frame.
+ */
+export function useSweep(target: number, seen: boolean, options: SweepOptions = {}): MotionValue<number> {
+  const { enabled } = useDashMotion();
+  const { from = 0, delay = 0, duration = DURATION.cinematic } = options;
+  const value = useMotionValue(enabled ? from : target);
+  useEffect(() => {
+    if (!enabled) {
+      value.set(target);
+      return undefined;
+    }
+    if (!seen) return undefined;
+    const controls = animate(value, target, { duration, ease: EASE, delay });
+    return () => controls.stop();
+  }, [target, seen, enabled, duration, delay, value]);
+  return value;
 }
 
 interface RevealProps {
@@ -45,11 +75,11 @@ interface RevealProps {
   testId?: string;
 }
 
-/** A block that fades and rises into place when it is scrolled to (and is simply there with reduced motion). */
+/** A block that fades and rises into place as soon as any of it is scrolled to (and is simply there with reduced motion): what is on the screen is never left blank. */
 export function Reveal({ children, className, style, delay = 0, y = 16, id, testId }: RevealProps) {
   const { enabled } = useDashMotion();
   const ref = useRef<HTMLDivElement>(null);
-  const seen = useSeen(ref, 0.08);
+  const seen = useSeen(ref, 'some');
   return (
     <motion.div
       ref={ref}
@@ -60,41 +90,6 @@ export function Reveal({ children, className, style, delay = 0, y = 16, id, test
       initial={enabled ? { opacity: 0, y } : false}
       animate={seen ? { opacity: 1, y: 0 } : { opacity: 0, y }}
       transition={{ duration: enabled ? DURATION.slow : 0, ease: EASE, delay: enabled ? delay : 0 }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-interface GrowProps {
-  children?: ReactNode;
-  className?: string;
-  style?: CSSProperties;
-  axis?: 'x' | 'y';
-  /** Where the growth starts: the left or the top of the element (the baseline of a bar), or its middle. */
-  from?: 'start' | 'center' | 'end';
-  delay?: number;
-  duration?: number;
-  title?: string;
-}
-
-/** A mark that grows from its baseline when it is scrolled to: a bar, a range, a meter. Transform only. */
-export function Grow({ children, className, style, axis = 'x', from = 'start', delay = 0, duration = DURATION.cinematic, title }: GrowProps) {
-  const { enabled } = useDashMotion();
-  const ref = useRef<HTMLDivElement>(null);
-  const seen = useSeen(ref, 0.2);
-  const hidden = axis === 'x' ? { scaleX: 0 } : { scaleY: 0 };
-  const shown = axis === 'x' ? { scaleX: 1 } : { scaleY: 1 };
-  const origin = from === 'start' ? 0 : from === 'end' ? 1 : 0.5;
-  return (
-    <motion.div
-      ref={ref}
-      title={title}
-      className={className}
-      style={{ ...style, ...(axis === 'x' ? { originX: origin } : { originY: origin }) }}
-      initial={enabled ? hidden : false}
-      animate={seen ? shown : hidden}
-      transition={{ duration: enabled ? duration : 0, ease: EASE, delay: enabled ? delay : 0 }}
     >
       {children}
     </motion.div>
@@ -121,7 +116,8 @@ interface CountUpProps {
 export function CountUp({ value, format, duration = DURATION.slow, delay = 0, className, style, testId }: CountUpProps) {
   const { enabled } = useDashMotion();
   const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, amount: 0.3 });
+  // as soon as any of it is on the screen: a figure that is only partly in view is never left blank
+  const inView = useInView(ref, { once: true, amount: 'some' });
   const formatRef = useRef(format);
   const shown = useRef(0);
   const final = format(value);

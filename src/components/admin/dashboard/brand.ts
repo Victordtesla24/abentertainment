@@ -92,8 +92,26 @@ export function tierFill(key: string): string {
   return TIER_FILL[key] ?? (key === '' ? NO_TIER_FILL : OTHER_TIER_FILL);
 }
 
+/** The lines of the hatch of an estimate as numbers, so the CSS fill (HATCH) and the SVG pattern of a dial or a donut (HatchPattern) are the same lines. */
+export const HATCH_SPEC = { angle: 45, line: 1, gap: 6 } as const;
+
 /** The hatched fill of an estimate: 45 degree gold lines on a faint gold wash (an estimate is never a solid fill, a record always is). */
-export const HATCH = `repeating-linear-gradient(45deg, ${COLOR.gold} 0px, ${COLOR.gold} 1px, ${GOLD_A.a10} 1px, ${GOLD_A.a10} 6px)`;
+export const HATCH = `repeating-linear-gradient(${HATCH_SPEC.angle}deg, ${COLOR.gold} 0px, ${COLOR.gold} ${HATCH_SPEC.line}px, ${GOLD_A.a10} ${HATCH_SPEC.line}px, ${GOLD_A.a10} ${HATCH_SPEC.gap}px)`;
 
 /** The same hatch, lighter, for a small estimate chip. */
 export const HATCH_FAINT = `repeating-linear-gradient(45deg, ${GOLD_A.a30} 0px, ${GOLD_A.a30} 1px, transparent 1px, transparent 5px)`;
+
+/**
+ * The fills of the unordered series of a donut (categories, venues, sponsors, sections of the console), in a fixed order: brand gold, burgundy,
+ * pale gold, white at 40 percent, white at 65 percent and white. A donut gives its slices these in the order it draws them, so neighbours (the
+ * last and the first included) differ by a Delta E of 19.9 or more in OKLab (x100), for normal vision and for the simulated protanopia and
+ * deuteranopia (the dataviz palette validator's gates are 15 and 8). Every slice also has its name and value in the legend and in its tooltip,
+ * and a 2px surface gap round it. A tail beyond six is folded into "Other", drawn in OTHER_FILL.
+ */
+export const SERIES_FILL: readonly string[] = [COLOR.gold, COLOR.burgundy, COLOR.goldPale, WHITE.a40, WHITE.a65, COLOR.white];
+export const OTHER_FILL = WHITE.a25;
+
+/** The fill of the nth slice of a donut, in the order it is drawn. */
+export function seriesFill(slot: number): string {
+  return SERIES_FILL[slot % SERIES_FILL.length];
+}

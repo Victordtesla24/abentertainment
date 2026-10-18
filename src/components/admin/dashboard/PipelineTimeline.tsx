@@ -1,12 +1,14 @@
 'use client';
 
-import { memo, useId, useMemo } from 'react';
+import { memo, useId, useMemo, useState } from 'react';
 import { formatCount, formatDay, formatEstimate, formatMoney, formatPercent, parseEventDay, type AdminBi, type PipelineRow } from '@/lib/admin-bi';
 import { COLOR, GOLD_A, HATCH, WHITE } from './brand';
 import { clipName, describeSellThrough, gapLabel, GAP_ICON, noEstimateReason, SourceLink } from './biText';
 import { LegendSwatch, NoFigure } from './chartParts';
 import { markerRadius } from './chartMath';
-import { MAX_R, MIN_R, NONE_R, PAD, TIER_H, LABEL_W, kindOf, layoutTimeline, sizeValue, type MarkerKind } from './timelineLayout';
+import { HotspotNotes, Hotspots, PanelBeacons } from './hotspots';
+import { PopoverText } from './popover';
+import { MAX_R, MIN_R, NONE_R, PAD, TIER_H, LABEL_OFFSET, LABEL_W, kindOf, layoutTimeline, sizeValue, type MarkerKind } from './timelineLayout';
 import { Icon } from './icons';
 import { Pop, staggerDelay, useElementWidth } from './motion';
 import { primaryCurrency } from './selectors';
@@ -16,7 +18,8 @@ import { Chip, ChartSection, DataTable, EmptyNote, EstimateChip, type TableColum
 /**
  * EVENT PIPELINE: every upcoming or live event on a date timeline. A marker's size follows its expected revenue (hatched: an
  * estimate; solid: a recorded figure; a dashed ring: no estimate), the flags under it say what is still missing, and hovering,
- * focusing or tapping it shows the details. On a phone the same events are a vertical list with the details written out.
+ * focusing or tapping it shows the details. On a phone the same events are a vertical list, each with its details one tap away.
+ * The beacons of the actions that concern the pipeline (dates, ticket links) sit on the legend row above it.
  */
 
 // ─── The marker's words ──────────────────────────────────────────────────────
@@ -81,7 +84,7 @@ function Rail({ bi, currency, activeId, onActive }: { bi: AdminBi; currency: str
   const undated = bi.pipeline.filter((row) => row.daysToGo === null);
 
   return (
-    <div ref={widthRef} className="hidden sm:block" data-testid="bi-timeline">
+    <div ref={widthRef} className="hidden sm:block" data-testid="bi-timeline" data-viz="timeline">
       <div className="relative" style={{ height: width === 0 ? 220 : height }}>
         {width > 0 && markers.length > 0 ? (
           <>
@@ -118,7 +121,7 @@ function Rail({ bi, currency, activeId, onActive }: { bi: AdminBi; currency: str
                   aria-hidden="true"
                   className="pointer-events-none absolute min-w-0"
                   style={{
-                    left: marker.align === 'left' ? marker.x - 8 : marker.x + 8 - LABEL_W,
+                    left: marker.align === 'left' ? marker.x + LABEL_OFFSET : marker.x - LABEL_OFFSET - LABEL_W,
                     top: labelsHeight - (marker.tier + 1) * TIER_H,
                     width: LABEL_W,
                     height: TIER_H - 4,
@@ -127,7 +130,7 @@ function Rail({ bi, currency, activeId, onActive }: { bi: AdminBi; currency: str
                 >
                   <p className="truncate font-body text-xs font-bold leading-4 text-white">{marker.row.title}</p>
                   <p className="truncate font-body text-[11px] leading-4" style={{ color: WHITE.a65 }}>
-                    {marker.row.dateLabel} · {marker.row.daysLabel}
+                    {marker.row.daysLabel}
                   </p>
                 </div>
               ),
@@ -162,7 +165,7 @@ function Rail({ bi, currency, activeId, onActive }: { bi: AdminBi; currency: str
                   data-testid={`bi-timeline-marker-${marker.row.id}`}
                   data-kind={marker.kind}
                   data-active={active ? 'true' : undefined}
-                  className="absolute grid place-items-center rounded-full"
+                  className="absolute grid place-items-center rounded-full motion-reduce:transition-none!"
                   style={{ left: marker.x, top: railY, width: hit, height: hit, transform: 'translate(-50%, -50%)', zIndex: 2 * MAX_R - Math.round(marker.r) }}
                   {...handlers}
                 >
@@ -217,130 +220,160 @@ function Fact({ label, children, note }: { label: string; children: React.ReactN
 const TICKET_STATUS = { available: 'Available', selling_fast: 'Selling fast', sold_out: 'Sold out' } as const;
 const SPONSORS_SHOWN = 3;
 
-function ListItem({ row, kind, r, assumptions, activeId, onActive }: { row: PipelineRow; kind: MarkerKind; r: number; assumptions: AdminBi['forecast']['assumptions']; activeId: string | null; onActive: (id: string | null) => void }) {
-  const id = row.id || row.title;
+/** Everything the card of an event says: what the long list used to write out, now one tap away behind "Details". */
+function ItemDetails({ row, assumptions }: { row: PipelineRow; assumptions: AdminBi['forecast']['assumptions'] }) {
   const shownSponsors = row.sponsors.slice(0, SPONSORS_SHOWN);
   const more = row.sponsors.length - shownSponsors.length;
+  return (
+    <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3" data-testid={`bi-timeline-details-${row.id}`}>
+      <Fact label="Date">{row.dateLabel}</Fact>
+      <Fact label="Venue">{row.venue || 'No venue'}</Fact>
+      <Fact label="Price" note={row.price === null ? 'Enter Price (Events tab)' : undefined}>
+        {row.price === null ? <span className="font-normal" style={{ color: WHITE.a50 }}>Not recorded</span> : formatMoney(row.price.amount, row.price.currency)}
+      </Fact>
+      <Fact
+        label="Capacity"
+        note={
+          row.capacity?.kind === 'reference' ? (
+            <>
+              public capacity of {row.capacity.venue?.name}
+              {row.capacity.venue ? (
+                <>
+                  {' '}
+                  (<SourceLink url={row.capacity.venue.source.url}>source</SourceLink>)
+                </>
+              ) : null}
+              . Enter Capacity (Events tab)
+            </>
+          ) : row.capacity === null ? (
+            'Enter Capacity (Events tab)'
+          ) : undefined
+        }
+      >
+        {row.capacity === null ? (
+          <span className="font-normal" style={{ color: WHITE.a50 }}>
+            Not recorded
+          </span>
+        ) : (
+          <>
+            {formatCount(row.capacity.value)}
+            {row.capacity.kind === 'reference' ? (
+              <Chip tone="neutral" className="ml-2" title="Published capacity of the venue, not recorded on the event">
+                Public
+              </Chip>
+            ) : null}
+          </>
+        )}
+      </Fact>
+      <Fact
+        label="Tickets"
+        note={
+          row.sold === null
+            ? 'tickets sold not recorded'
+            : `${formatCount(row.sold)} sold${row.sellThrough === null ? '' : ` · ${formatPercent(row.sellThrough)} of capacity`}${row.revenue ? ` · ${formatMoney(row.revenue.amount, row.revenue.currency)} recorded` : ''}`
+        }
+      >
+        <span className="font-normal">{TICKET_STATUS[row.ticketStatus] ?? row.ticketStatus}</span>
+      </Fact>
+      <Fact label="Ticket link">
+        {row.ticketLink === 'ok' ? (
+          <a href={row.ticketUrl} target="_blank" rel="noopener noreferrer" className="font-normal text-accent underline-offset-2 hover:underline focus-visible:underline motion-reduce:transition-none!">
+            Open link
+          </a>
+        ) : (
+          <span className="font-normal">{row.ticketLink === 'malformed' ? 'Not a clean web address' : 'Missing'}</span>
+        )}
+      </Fact>
+      <Fact label="Sponsors">
+        {row.sponsors.length === 0 ? (
+          <span className="font-normal">None linked</span>
+        ) : (
+          <span className="font-normal">
+            {shownSponsors.map((sponsor) => `${sponsor.name}${sponsor.hidden ? ' (hidden)' : ''}`).join(', ')}
+            {more > 0 ? ` and ${more} more` : ''}
+          </span>
+        )}
+      </Fact>
+      <Fact
+        label="Expected revenue"
+        note={
+          row.forecast
+            ? `${formatEstimate(row.forecast.revenue.low, row.forecast.currency)} to ${formatEstimate(row.forecast.revenue.high, row.forecast.currency)} (lowest to highest genre average) · at ${describeSellThrough(row.forecast.sellThrough, assumptions)}, genre inferred from the category${row.ticketStatus === 'sold_out' ? ' · marked sold out, so this may be low' : ''}`
+            : noEstimateReason(row)
+        }
+      >
+        {row.forecast ? (
+          <span className="flex flex-wrap items-center gap-2">
+            {formatEstimate(row.forecast.revenue.expected, row.forecast.currency)}
+            <EstimateChip />
+          </span>
+        ) : (
+          <span className="font-normal" style={{ color: WHITE.a65 }}>
+            No estimate
+          </span>
+        )}
+      </Fact>
+    </dl>
+  );
+}
+
+function ListItem({ row, kind, r, assumptions, activeId, onActive }: { row: PipelineRow; kind: MarkerKind; r: number; assumptions: AdminBi['forecast']['assumptions']; activeId: string | null; onActive: (id: string | null) => void }) {
+  const id = row.id || row.title;
+  const [open, setOpen] = useState(false);
+  const detailsId = useId();
   const size = Math.round(2 * r);
   return (
     <li data-testid={`bi-timeline-item-${row.id}`} data-active={activeId === id ? 'true' : undefined} className="relative pb-5 last:pb-0" onPointerEnter={() => onActive(id)} onPointerLeave={() => onActive(null)}>
       <span aria-hidden="true" className="absolute block rounded-full" style={{ left: -24 - size / 2 - 0.5, top: 6, ...markerVisual(kind, r, activeId === id) }} />
       <div className="border p-3" style={{ borderColor: activeId === id ? GOLD_A.a40 : WHITE.a08, background: WHITE.a02 }}>
         <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-          <div className="min-w-0">
-            <p className="font-body text-sm font-bold leading-snug text-white [overflow-wrap:anywhere]">
-              {row.title}
-              {row.status === 'live' ? (
-                <Chip tone="success" icon="pulse" className="ml-2 align-middle">
-                  Live
-                </Chip>
-              ) : null}
-            </p>
-            <p className="font-body text-[11px] [overflow-wrap:anywhere]" style={{ color: WHITE.a50 }}>
-              {row.venue || 'No venue'}
-            </p>
-          </div>
-          <div className="shrink-0 text-right">
-            <p className="font-body text-xs font-bold text-white">{row.dateLabel}</p>
-            <p data-testid={`bi-timeline-days-${row.id}`} className="font-body text-[11px] font-bold text-accent">
-              {row.daysLabel}
-            </p>
-          </div>
-        </div>
-        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3">
-          <Fact label="Price" note={row.price === null ? 'Enter Price (Events tab)' : undefined}>
-            {row.price === null ? <span className="font-normal" style={{ color: WHITE.a50 }}>Not recorded</span> : formatMoney(row.price.amount, row.price.currency)}
-          </Fact>
-          <Fact
-            label="Capacity"
-            note={
-              row.capacity?.kind === 'reference' ? (
-                <>
-                  public capacity of {row.capacity.venue?.name}
-                  {row.capacity.venue ? (
-                    <>
-                      {' '}
-                      (<SourceLink url={row.capacity.venue.source.url}>source</SourceLink>)
-                    </>
-                  ) : null}
-                  . Enter Capacity (Events tab)
-                </>
-              ) : row.capacity === null ? (
-                'Enter Capacity (Events tab)'
-              ) : undefined
-            }
-          >
-            {row.capacity === null ? (
-              <span className="font-normal" style={{ color: WHITE.a50 }}>
-                Not recorded
-              </span>
-            ) : (
-              <>
-                {formatCount(row.capacity.value)}
-                {row.capacity.kind === 'reference' ? (
-                  <Chip tone="neutral" className="ml-2" title="Published capacity of the venue, not recorded on the event">
-                    Public
-                  </Chip>
-                ) : null}
-              </>
-            )}
-          </Fact>
-          <Fact
-            label="Tickets"
-            note={
-              row.sold === null
-                ? 'tickets sold not recorded'
-                : `${formatCount(row.sold)} sold${row.sellThrough === null ? '' : ` · ${formatPercent(row.sellThrough)} of capacity`}${row.revenue ? ` · ${formatMoney(row.revenue.amount, row.revenue.currency)} recorded` : ''}`
-            }
-          >
-            <span className="font-normal">{TICKET_STATUS[row.ticketStatus] ?? row.ticketStatus}</span>
-          </Fact>
-          <Fact label="Ticket link">
-            {row.ticketLink === 'ok' ? (
-              <a href={row.ticketUrl} target="_blank" rel="noopener noreferrer" className="font-normal text-accent underline-offset-2 hover:underline focus-visible:underline">
-                Open link
-              </a>
-            ) : (
-              <span className="font-normal">{row.ticketLink === 'malformed' ? 'Not a clean web address' : 'Missing'}</span>
-            )}
-          </Fact>
-          <Fact label="Sponsors">
-            {row.sponsors.length === 0 ? (
-              <span className="font-normal">None linked</span>
-            ) : (
-              <span className="font-normal">
-                {shownSponsors.map((sponsor) => `${sponsor.name}${sponsor.hidden ? ' (hidden)' : ''}`).join(', ')}
-                {more > 0 ? ` and ${more} more` : ''}
-              </span>
-            )}
-          </Fact>
-          <Fact
-            label="Expected revenue"
-            note={
-              row.forecast
-                ? `${formatEstimate(row.forecast.revenue.low, row.forecast.currency)} to ${formatEstimate(row.forecast.revenue.high, row.forecast.currency)} (lowest to highest genre average) · at ${describeSellThrough(row.forecast.sellThrough, assumptions)}, genre inferred from the category${row.ticketStatus === 'sold_out' ? ' · marked sold out, so this may be low' : ''}`
-                : noEstimateReason(row)
-            }
-          >
-            {row.forecast ? (
-              <span className="flex flex-wrap items-center gap-2">
-                {formatEstimate(row.forecast.revenue.expected, row.forecast.currency)}
-                <EstimateChip />
-              </span>
-            ) : (
-              <span className="font-normal" style={{ color: WHITE.a65 }}>
-                No estimate
-              </span>
-            )}
-          </Fact>
-        </dl>
-        {row.gaps.length > 0 ? (
-          <div data-testid={`bi-timeline-gaps-${row.id}`} className="mt-3 flex flex-wrap gap-1.5">
-            {row.gaps.map((gap) => (
-              <Chip key={gap} tone="warning" icon={GAP_ICON[gap]}>
-                {gapLabel(gap, row)}
+          <p className="min-w-0 font-body text-sm font-bold leading-snug text-white [overflow-wrap:anywhere]">
+            {row.title}
+            {row.status === 'live' ? (
+              <Chip tone="success" icon="pulse" className="ml-2 align-middle">
+                Live
               </Chip>
-            ))}
+            ) : null}
+          </p>
+          <p data-testid={`bi-timeline-days-${row.id}`} className="shrink-0 font-body text-xs font-bold text-accent">
+            {row.daysLabel}
+          </p>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          {row.forecast ? (
+            <span className="flex flex-wrap items-center gap-2 font-body text-sm font-bold tabular-nums text-white">
+              {formatEstimate(row.forecast.revenue.expected, row.forecast.currency)}
+              <EstimateChip />
+            </span>
+          ) : (
+            <span className="font-body text-xs font-bold" style={{ color: WHITE.a65 }}>
+              No estimate
+            </span>
+          )}
+          {row.gaps.length > 0 ? (
+            <span data-testid={`bi-timeline-gaps-${row.id}`} className="flex items-center gap-1">
+              {row.gaps.map((gap) => (
+                <span key={gap} title={gapLabel(gap, row)} role="img" aria-label={gapLabel(gap, row)} className="grid h-6 w-6 place-items-center rounded-full border text-accent" style={{ borderColor: GOLD_A.a50, background: COLOR.black }}>
+                  <Icon name={GAP_ICON[gap]} className="h-3 w-3" />
+                </span>
+              ))}
+            </span>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={open ? detailsId : undefined}
+          data-testid={`bi-timeline-details-toggle-${row.id}`}
+          onClick={() => setOpen((previous) => !previous)}
+          className="mt-2 inline-flex items-center gap-1.5 font-body text-[11px] font-bold uppercase tracking-[0.12em] text-accent pointer-coarse:min-h-11 motion-reduce:transition-none!"
+        >
+          <Icon name="chevronDown" className={`h-3.5 w-3.5 transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} />
+          {open ? 'Hide details' : 'Details'}
+        </button>
+        {open ? (
+          <div id={detailsId}>
+            <ItemDetails row={row} assumptions={assumptions} />
           </div>
         ) : null}
       </div>
@@ -352,7 +385,7 @@ function List({ bi, currency, activeId, onActive }: { bi: AdminBi; currency: str
   const kinds = bi.pipeline.map((row) => kindOf(row, currency));
   const largest = Math.max(0, ...bi.pipeline.map((row, index) => sizeValue(row, kinds[index])));
   return (
-    <ol className="ml-3 border-l pl-6 sm:hidden" style={{ borderColor: WHITE.a15 }} data-testid="bi-timeline-list">
+    <ol className="ml-3 border-l pl-6 sm:hidden" style={{ borderColor: WHITE.a15 }} data-testid="bi-timeline-list" data-viz="timeline">
       {bi.pipeline.map((row, index) => (
         <ListItem key={row.id || row.title} row={row} kind={kinds[index]} r={kinds[index] === 'none' ? NONE_R : markerRadius(sizeValue(row, kinds[index]), largest, MIN_R, 12)} assumptions={bi.forecast.assumptions} activeId={activeId} onActive={onActive} />
       ))}
@@ -405,6 +438,9 @@ function PipelineTable({ bi }: { bi: AdminBi }) {
 
 // ─── The section ─────────────────────────────────────────────────────────────
 
+/** The actions that concern the dates and the ticket links of the events on the pipeline. */
+const PIPELINE_ACTIONS = ['status-date-mismatch', 'date-unreadable', 'add-ticket-links', 'fix-ticket-links'] as const;
+
 export const PipelineTimeline = memo(function PipelineTimeline({ bi, activeId, onActive, delay = 0 }: { bi: AdminBi; activeId: string | null; onActive: (id: string | null) => void; delay?: number }) {
   const rows = bi.pipeline;
   const currency = useMemo(
@@ -419,31 +455,47 @@ export const PipelineTimeline = memo(function PipelineTimeline({ bi, activeId, o
       testId="bi-pipeline"
       eyebrow="Upcoming"
       title="Event pipeline"
-      description="Every upcoming or live event on its date. A marker's size follows its expected revenue, and the flags under it say what is still missing. Hover, focus or tap a marker for the details."
+      info={{
+        label: 'the event pipeline',
+        content: (
+          <PopoverText title="Event pipeline">
+            <p>Every upcoming or live event on its date. A marker&apos;s size follows its expected revenue, and the flags under it say what is still missing. Hover, focus or tap a marker for the details.</p>
+          </PopoverText>
+        ),
+      }}
       delay={delay}
       chart={
         rows.length === 0 ? (
-          <EmptyNote testId="bi-pipeline-empty">No events in this view.</EmptyNote>
+          <>
+            <EmptyNote testId="bi-pipeline-empty">No events in this view.</EmptyNote>
+            {/* events with a status that contradicts their date, an unreadable date or a broken link are in the view without being on the pipeline: their beacons stay */}
+            <div className="flex justify-end">
+              <Hotspots ids={PIPELINE_ACTIONS} label="the event pipeline" slug="pipeline" className="ml-auto" />
+            </div>
+          </>
         ) : (
           <>
-            <div id={legendId} className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2" data-testid="bi-timeline-legend">
-              <span className="inline-flex items-center gap-2 font-body text-xs" style={{ color: WHITE.a65 }}>
-                <span aria-hidden="true" className="block h-3 w-3 rounded-full" style={{ backgroundImage: HATCH, border: `1px solid ${GOLD_A.a50}` }} />
-                Estimated revenue
-              </span>
-              <LegendSwatch kind="solid" label="Recorded revenue" />
-              <span className="inline-flex items-center gap-2 font-body text-xs" style={{ color: WHITE.a65 }}>
-                <span aria-hidden="true" className="block h-3 w-3 rounded-full" style={{ border: `1.5px dashed ${WHITE.a50}` }} />
-                No estimate
-              </span>
-              {flagKinds.map((gap) => (
-                <span key={gap} className="inline-flex items-center gap-1.5 font-body text-xs" style={{ color: WHITE.a65 }}>
-                  <span aria-hidden="true" className="grid h-4 w-4 place-items-center rounded-full border text-accent" style={{ borderColor: GOLD_A.a50 }}>
-                    <Icon name={GAP_ICON[gap]} className="h-2.5 w-2.5" />
-                  </span>
-                  {gap === 'ticket-link' ? 'Ticket link missing or broken' : gapLabel(gap, { ticketLink: 'missing' })}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              <div id={legendId} className="flex flex-wrap items-center gap-x-5 gap-y-2" data-testid="bi-timeline-legend">
+                <span className="inline-flex items-center gap-2 font-body text-xs" style={{ color: WHITE.a65 }}>
+                  <span aria-hidden="true" className="block h-3 w-3 rounded-full" style={{ backgroundImage: HATCH, border: `1px solid ${GOLD_A.a50}` }} />
+                  Estimated revenue
                 </span>
-              ))}
+                <LegendSwatch kind="solid" label="Recorded revenue" />
+                <span className="inline-flex items-center gap-2 font-body text-xs" style={{ color: WHITE.a65 }}>
+                  <span aria-hidden="true" className="block h-3 w-3 rounded-full" style={{ border: `1.5px dashed ${WHITE.a50}` }} />
+                  No estimate
+                </span>
+                {flagKinds.map((gap) => (
+                  <span key={gap} className="inline-flex items-center gap-1.5 font-body text-xs" style={{ color: WHITE.a65 }}>
+                    <span aria-hidden="true" className="grid h-4 w-4 place-items-center rounded-full border text-accent" style={{ borderColor: GOLD_A.a50 }}>
+                      <Icon name={GAP_ICON[gap]} className="h-2.5 w-2.5" />
+                    </span>
+                    {gap === 'ticket-link' ? 'Ticket link missing or broken' : gapLabel(gap, { ticketLink: 'missing' })}
+                  </span>
+                ))}
+              </div>
+              <Hotspots ids={PIPELINE_ACTIONS} label="the event pipeline" slug="pipeline" className="ml-auto" />
             </div>
             <Rail bi={bi} currency={currency} activeId={activeId} onActive={onActive} />
             <List bi={bi} currency={currency} activeId={activeId} onActive={onActive} />
@@ -451,6 +503,9 @@ export const PipelineTimeline = memo(function PipelineTimeline({ bi, activeId, o
         )
       }
       table={<PipelineTable bi={bi} />}
+      beaconsOnVisuals
+      beacons={<PanelBeacons ids={PIPELINE_ACTIONS} label="the event pipeline" slug="pipeline-panel" />}
+      notes={<HotspotNotes ids={PIPELINE_ACTIONS} label="the event pipeline" slug="pipeline" />}
     />
   );
 });

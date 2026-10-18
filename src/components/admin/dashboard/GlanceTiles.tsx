@@ -1,20 +1,26 @@
 'use client';
 
-import { memo, useId, useState } from 'react';
-import { describeCoverage, formatCount, formatEstimate, formatMoney, formatPercent, type AdminBi, type DataCompleteness, type TimeScope } from '@/lib/admin-bi';
+import { memo, useId, useState, type ReactNode } from 'react';
+import { describeCoverage, formatCount, formatEstimate, formatMoney, formatPercent, type AdminBi, type CompletenessPartId, type DataCompleteness, type TimeScope } from '@/lib/admin-bi';
 import { COLOR, WHITE } from './brand';
-import { describeLeftOut, SourceLink, theseEvents } from './biText';
-import { RangeBar } from './chartParts';
+import { describeLeftOut, EstimateLegend, SourceLink, theseEvents } from './biText';
+import { niceScale } from './chartMath';
+import { Dial, FIGURE, Ring, type DialMark } from './dial';
+import { dotLanes, laneOffset } from './radial';
+import { MirrorHotspot } from './hotspots';
 import { Icon } from './icons';
-import { CountUp, Grow, Reveal, staggerDelay } from './motion';
+import { CountUp, Reveal, staggerDelay } from './motion';
+import { InfoButton, PopoverText } from './popover';
 import { nextEvent, primaryCurrency } from './selectors';
 import { scoreChip, scoreLabel } from './systemStatus';
 import { TipBody, useChartTip } from './tooltip';
-import { Chip, DataTable, EmptyNote, Eyebrow, EstimateChip, GlassPanel, Meter, NotRecorded, Ring, SectionHeader, ViewToggle, buttonClass } from './ui';
+import { Chip, DataTable, EmptyNote, Eyebrow, EstimateChip, GlassPanel, NotRecorded, SectionHeader, ViewToggle, buttonClass } from './ui';
 
 /**
- * AT A GLANCE: five floating tiles. Every figure is the model's (computeBusinessIntelligence, dataCompleteness) or the system's
- * own health score; the tiles only lay them out, count them up, and draw the small chart that goes with each.
+ * AT A GLANCE: five floating tiles, each a dial or a ring with one big number, a word or three, and a unit. Every figure is the model's
+ * (computeBusinessIntelligence, dataCompleteness) or the system's own health score; the tiles only lay them out, count them up and
+ * draw them on a scale. What used to be written under a figure (how it is worked out, where it comes from, how many events stand
+ * behind it) is in the tile's tooltip and behind its "i".
  */
 
 export interface SystemGlance {
@@ -35,15 +41,30 @@ interface GlanceTilesProps {
   onOpenSystem: () => void;
 }
 
-const FIGURE = 'font-display font-bold leading-none text-white [font-variant-numeric:lining-nums] [overflow-wrap:anywhere]';
+interface TileProps {
+  testId: string;
+  eyebrow: string;
+  tag?: ReactNode;
+  info?: { label: string; content: ReactNode; width?: number };
+  index: number;
+  className?: string;
+  children: ReactNode;
+}
 
-function Tile({ testId, eyebrow, tag, index, className = '', children }: { testId: string; eyebrow: string; tag?: React.ReactNode; index: number; className?: string; children: React.ReactNode }) {
+function Tile({ testId, eyebrow, tag, info, index, className = '', children }: TileProps) {
   return (
     <Reveal delay={staggerDelay(index)} className={`h-full ${className}`}>
-      <GlassPanel testId={testId} className="h-full" innerClassName="flex h-full flex-col gap-4">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <Eyebrow>{eyebrow}</Eyebrow>
-          {tag}
+      <GlassPanel testId={testId} className="h-full" innerClassName="flex h-full flex-col gap-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <Eyebrow>{eyebrow}</Eyebrow>
+            {tag}
+          </div>
+          {info ? (
+            <InfoButton label={info.label} testId={`${testId}-info`} width={info.width}>
+              {info.content}
+            </InfoButton>
+          ) : null}
         </div>
         {children}
       </GlassPanel>
@@ -51,7 +72,16 @@ function Tile({ testId, eyebrow, tag, index, className = '', children }: { testI
   );
 }
 
-// ─── 1. Upcoming events and the next one's countdown ─────────────────────────
+/** The line under a big number: what it is in a word or three, in the muted ink. */
+function Caption({ children, testId }: { children: ReactNode; testId?: string }) {
+  return (
+    <p data-testid={testId} className="font-body text-xs" style={{ color: WHITE.a65 }}>
+      {children}
+    </p>
+  );
+}
+
+// ─── 1. Upcoming events on a scale of days ───────────────────────────────────
 
 const UpcomingTile = memo(function UpcomingTile({ bi, index }: { bi: AdminBi; index: number }) {
   const rows = bi.pipeline;
@@ -59,77 +89,72 @@ const UpcomingTile = memo(function UpcomingTile({ bi, index }: { bi: AdminBi; in
   const ahead = rows.flatMap((row) => (row.daysToGo !== null && row.daysToGo >= 0 ? [{ row, days: row.daysToGo }] : []));
   const horizon = Math.max(0, ...ahead.map((entry) => entry.days));
   const tip = useChartTip();
+  // events whose days are close would touch on the arc: each goes to the nearest free lane, so every one can be pointed at
+  const ratios = ahead.map(({ days }) => (horizon === 0 ? 0 : days / horizon));
+  const lanes = dotLanes(ratios, 0.09);
+  const marks: DialMark[] = ahead.map(({ row }, place) => {
+    const isNext = next !== null && row.id === next.id;
+    const id = row.id || row.title;
+    return {
+      id,
+      ratio: ratios[place],
+      offset: laneOffset(lanes[place]),
+      label: `${row.title}, ${row.dateLabel}, ${row.daysLabel}`,
+      shape: 'dot',
+      emphasis: isNext,
+      tip: tip.bind(`horizon-${id}`, () => <TipBody title={row.title} subtitle={`${row.dateLabel} · ${row.daysLabel}`} />),
+    };
+  });
+  const scale: readonly [string, string] = ['Today', horizon === 0 ? 'Today' : `in ${horizon} days`];
 
   return (
     <Tile testId="tile-upcoming" eyebrow="Upcoming events" index={index} className="lg:col-span-2">
-      <div>
-        <CountUp value={rows.length} format={(value) => formatCount(Math.round(value))} className={`block text-5xl ${FIGURE}`} testId="tile-upcoming-value" />
-        <p className="mt-1 font-body text-xs" style={{ color: WHITE.a65 }}>
-          {rows.length === 1 ? 'event' : 'events'} upcoming or live in this view
-        </p>
-      </div>
-      {rows.length === 0 ? (
-        <EmptyNote>No events in this view.</EmptyNote>
-      ) : next ? (
-        <div data-testid="tile-upcoming-next" className="min-w-0">
-          <p className="font-body text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: WHITE.a50 }}>
-            Next event
-          </p>
-          <p className="mt-1 font-body text-sm font-bold leading-snug text-white [overflow-wrap:anywhere]">{next.title}</p>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 font-body text-xs" style={{ color: WHITE.a65 }}>
-            <Icon name="calendar" className="h-3.5 w-3.5" />
-            {next.dateLabel}
-            <span aria-hidden="true">·</span>
-            <span data-testid="tile-upcoming-countdown" className="font-bold text-accent">
-              {next.daysLabel}
+      {/* the tile is the shortest of its row: its picture and its next event sit in the middle of what the row gives it, not in its top with a blank under them */}
+      <div className="flex flex-1 flex-col justify-center gap-3">
+        <div data-testid="tile-upcoming-horizon" className="min-w-0">
+          <Dial
+            ratio={null}
+            state="recorded"
+            marks={marks}
+            divisions={4}
+            scale={scale}
+            width={236}
+            label="Upcoming and live events on a scale of days from today"
+            valueText={`${rows.length} ${rows.length === 1 ? 'event' : 'events'}${ahead.length > 0 ? `, the last in ${horizon} days` : ''}`}
+          >
+            <CountUp value={rows.length} format={(value) => formatCount(Math.round(value))} className={`block text-5xl ${FIGURE}`} testId="tile-upcoming-value" />
+            <span className="mt-1.5 font-body text-xs" style={{ color: WHITE.a65 }}>
+              upcoming or live
             </span>
+          </Dial>
+        </div>
+        {rows.length === 0 ? (
+          <EmptyNote>No events in this view.</EmptyNote>
+        ) : next ? (
+          <div data-testid="tile-upcoming-next" className="min-w-0 text-center">
+            <p className="truncate font-body text-sm font-bold leading-snug text-white" title={next.title}>
+              {next.title}
+            </p>
+            <p className="mt-0.5 flex flex-wrap items-center justify-center gap-x-2 font-body text-xs" style={{ color: WHITE.a65 }}>
+              <Icon name="calendar" className="h-3.5 w-3.5" />
+              {next.dateLabel}
+              <span aria-hidden="true">·</span>
+              <span data-testid="tile-upcoming-countdown" className="font-bold text-accent">
+                {next.daysLabel}
+              </span>
+            </p>
+          </div>
+        ) : (
+          <p className="font-body text-xs" style={{ color: WHITE.a65 }}>
+            None of these events has a date from today onwards. Check the dates in the Events tab.
           </p>
-        </div>
-      ) : (
-        <p className="font-body text-xs" style={{ color: WHITE.a65 }}>
-          None of these events has a date from today onwards. Check the dates in the Events tab.
-        </p>
-      )}
-      {ahead.length > 0 ? (
-        <div className="mt-auto" data-testid="tile-upcoming-horizon">
-          <div className="relative mx-2 h-6">
-            <span aria-hidden="true" className="absolute inset-x-0 top-1/2 h-px" style={{ background: WHITE.a15 }} />
-            {ahead.map(({ row, days }) => {
-              const isNext = next !== null && row.id === next.id;
-              const size = isNext ? 12 : 8;
-              return (
-                <span
-                  key={row.id || row.title}
-                  role="img"
-                  tabIndex={0}
-                  aria-label={`${row.title}, ${row.dateLabel}, ${row.daysLabel}`}
-                  className="absolute top-1/2 block rounded-full"
-                  style={{
-                    left: `${horizon === 0 ? 0 : (days / horizon) * 100}%`,
-                    width: size,
-                    height: size,
-                    transform: 'translate(-50%, -50%)',
-                    background: isNext ? COLOR.gold : COLOR.goldPale,
-                    boxShadow: `0 0 0 2px ${COLOR.black}`,
-                  }}
-                  {...tip.bind(`horizon-${row.id || row.title}`, () => (
-                    <TipBody title={row.title} subtitle={`${row.dateLabel} · ${row.daysLabel}`} />
-                  ))}
-                />
-              );
-            })}
-          </div>
-          <div className="mt-1 flex justify-between font-body text-[10px]" style={{ color: WHITE.a50 }}>
-            <span>Today</span>
-            <span>{horizon === 0 ? 'Today' : `in ${horizon} days`}</span>
-          </div>
-        </div>
-      ) : null}
+        )}
+      </div>
     </Tile>
   );
 });
 
-// ─── 2. Forecast revenue with its low to high range ──────────────────────────
+// ─── 2. Forecast revenue: a needle on a scale, the range hatched ─────────────
 
 /** Which forecast the tile shows: the upcoming and live events', or (when only past events are in view) the past events' with no sales recorded. */
 function forecastView(bi: AdminBi, scope: TimeScope) {
@@ -143,9 +168,18 @@ function forecastView(bi: AdminBi, scope: TimeScope) {
 const ForecastTile = memo(function ForecastTile({ bi, scope, index }: { bi: AdminBi; scope: TimeScope; index: number }) {
   const { assumptions } = bi.forecast;
   const { stat, subject, currency, total, others } = forecastView(bi, scope);
+  const tip = useChartTip();
+  const scale = total ? niceScale(total.revenue.high, 5).max : 1;
 
   return (
-    <Tile testId="tile-forecast" eyebrow="Forecast revenue" tag={<EstimateChip />} index={index} className="lg:col-span-2">
+    <Tile
+      testId="tile-forecast"
+      eyebrow="Forecast revenue"
+      tag={<EstimateChip />}
+      info={{ label: 'the forecast', content: <PopoverText title="How the forecast is made"><EstimateLegend assumptions={assumptions} testId="tile-forecast-legend" /></PopoverText>, width: 380 }}
+      index={index}
+      className="lg:col-span-2"
+    >
       {!assumptions.usable ? (
         <EmptyNote>No estimate can be made while the sell-through values in the reference data are not valid.</EmptyNote>
       ) : stat.events === 0 ? (
@@ -156,21 +190,18 @@ const ForecastTile = memo(function ForecastTile({ bi, scope, index }: { bi: Admi
         </EmptyNote>
       ) : (
         <>
-          <div>
-            <CountUp value={total.revenue.expected} format={(value) => formatEstimate(value, currency)} className={`block text-4xl ${FIGURE}`} testId="tile-forecast-value" />
-            <p className="mt-1 font-body text-xs" style={{ color: WHITE.a65 }}>
-              expected, {subject}
-              {stat.totals.length > 1 ? ` (${currency})` : ''}
-            </p>
-          </div>
-          <RangeBar
-            tipId="tile-forecast-range"
-            low={total.revenue.low}
-            expected={total.revenue.expected}
-            high={total.revenue.high}
+          <Dial
+            ratio={total.revenue.expected / scale}
+            band={{ from: total.revenue.low / scale, to: total.revenue.high / scale }}
+            needle
+            hatched
+            divisions={4}
+            scale={[formatMoney(0, currency), formatMoney(scale, currency)]}
+            width={236}
             testId="tile-forecast-range"
-            ariaLabel="Estimated range from low to high, with the expected value marked"
-            tipContent={
+            label="Estimated revenue from low to high, with the expected value marked"
+            valueText={`expected ${formatEstimate(total.revenue.expected, currency)}, from ${formatEstimate(total.revenue.low, currency)} to ${formatEstimate(total.revenue.high, currency)}`}
+            tip={tip.bind('tile-forecast-range', () => (
               <TipBody
                 title="Estimated revenue"
                 subtitle={subject}
@@ -179,10 +210,20 @@ const ForecastTile = memo(function ForecastTile({ bi, scope, index }: { bi: Admi
                   { label: 'Expected', value: formatEstimate(total.revenue.expected, currency), swatch: 'hatch' },
                   { label: 'High', value: formatEstimate(total.revenue.high, currency), swatch: 'hatch' },
                 ]}
-                note="An estimate, not a record. Low and high are the lowest and highest genre averages: a range across genres."
+                note={
+                  <>
+                    Estimated for {stat.forecast} of {stat.events} {stat.events === 1 ? 'event' : 'events'}
+                    {others > 0 ? `; ${others} other ${others === 1 ? 'currency is' : 'currencies are'} listed in the table` : ''}. An estimate, not a record. Low and high are the lowest and highest genre averages: a range across genres.
+                  </>
+                }
               />
-            }
-          />
+            ))}
+          >
+            <CountUp value={total.revenue.expected} format={(value) => formatEstimate(value, currency)} className={`block text-4xl ${FIGURE}`} testId="tile-forecast-value" />
+            <span className="mt-1.5 font-body text-xs" style={{ color: WHITE.a65 }}>
+              expected{stat.totals.length > 1 ? ` (${currency})` : ''}
+            </span>
+          </Dial>
           <div className="flex justify-between gap-3 font-body text-xs" style={{ color: WHITE.a65 }}>
             <span data-testid="tile-forecast-low">
               Low <span className="font-bold text-white">{formatEstimate(total.revenue.low, currency)}</span>
@@ -191,33 +232,16 @@ const ForecastTile = memo(function ForecastTile({ bi, scope, index }: { bi: Admi
               High <span className="font-bold text-white">{formatEstimate(total.revenue.high, currency)}</span>
             </span>
           </div>
-          <p className="mt-auto font-body text-[11px] leading-relaxed" style={{ color: WHITE.a50 }}>
-            Estimated for {stat.forecast} of {stat.events} {stat.events === 1 ? 'event' : 'events'}
-            {others > 0 ? `; ${others} other ${others === 1 ? 'currency is' : 'currencies are'} listed in the table below` : ''}.
-          </p>
+          <Caption testId="tile-forecast-coverage">
+            {stat.forecast} of {stat.events} {stat.events === 1 ? 'event' : 'events'}
+          </Caption>
         </>
       )}
     </Tile>
   );
 });
 
-// ─── 3. Average ticket price against the national average ────────────────────
-
-function PriceBar({ label, value, currency, share, fill, testId, tip, id, detail }: { label: string; value: number; currency: string; share: number; fill: string; testId: string; tip: ReturnType<typeof useChartTip>; id: string; detail: React.ReactNode }) {
-  return (
-    <div>
-      <div className="flex items-baseline justify-between gap-3 font-body text-xs">
-        <span style={{ color: WHITE.a65 }}>{label}</span>
-        <span data-testid={`${testId}-value`} className="font-bold tabular-nums text-white">
-          {formatMoney(value, currency)}
-        </span>
-      </div>
-      <div className="mt-1 h-2" style={{ background: WHITE.a08 }} data-testid={testId} role="img" tabIndex={0} aria-label={`${label}: ${formatMoney(value, currency)}`} {...tip.bind(id, detail)}>
-        <Grow className="h-full" style={{ width: `${Math.max(2, share * 100)}%`, background: fill, borderRadius: '0 4px 4px 0' }} />
-      </div>
-    </div>
-  );
-}
+// ─── 3. Average ticket price: an arc against the national average ────────────
 
 const PriceTile = memo(function PriceTile({ bi, index }: { bi: AdminBi; index: number }) {
   const { summary, nationalAveragePrice: national } = bi;
@@ -226,126 +250,218 @@ const PriceTile = memo(function PriceTile({ bi, index }: { bi: AdminBi; index: n
   const range = summary.price.ranges.find((entry) => entry.currency === currency);
   const comparable = national !== null && range !== undefined && national.currency === currency;
   const largest = range ? Math.max(range.average, comparable && national ? national.value : 0) : 0;
+  const scale = niceScale(largest, 5).max;
+  const marks: DialMark[] =
+    comparable && national
+      ? [
+          {
+            id: 'national',
+            ratio: national.value / scale,
+            label: `National average, all categories, ${national.year}: ${formatMoney(national.value, national.currency)}`,
+            testId: 'tile-price-mark-national',
+            tip: tip.bind('price-national', <TipBody title={`National average, all categories, ${national.year}`} subtitle="paid tickets, Live Performance Australia" rows={[{ label: 'Average', value: formatMoney(national.value, national.currency), swatch: 'ivory' }]} note="Context only: it is never part of a figure." />),
+          },
+        ]
+      : [];
 
   return (
-    <Tile testId="tile-price" eyebrow="Average ticket price" index={index} className="lg:col-span-2">
+    <Tile
+      testId="tile-price"
+      eyebrow="Average ticket price"
+      info={
+        range && comparable && national
+          ? {
+              label: 'the average ticket price',
+              content: (
+                <PopoverText title="Where the comparison comes from">
+                  <p data-testid="tile-price-source">
+                    National average, all categories, {national.year} (paid tickets) (
+                    <SourceLink url={national.source.url} title={national.source.title}>
+                      source
+                    </SourceLink>
+                    ). It is context only: it is never part of a figure.
+                  </p>
+                </PopoverText>
+              ),
+            }
+          : undefined
+      }
+      index={index}
+      className="lg:col-span-2"
+    >
       {!range || !currency ? (
         <>
-          <NotRecorded>
-            {describeCoverage(summary.price.coverage)}. Enter Price on each event (Events tab)
-          </NotRecorded>
+          <Dial ratio={null} width={236} label="Average ticket price" valueText="Not recorded" divisions={4} testId="tile-price-dial" />
+          {summary.price.coverage.total === 0 ? (
+            <EmptyNote testId="tile-price-empty">No events in this view.</EmptyNote>
+          ) : (
+            <NotRecorded className="block text-center">
+              for {summary.price.coverage.total === 1 ? 'the event' : `any of the ${summary.price.coverage.total} events`}. Enter Price on each event (Events tab)
+            </NotRecorded>
+          )}
         </>
       ) : (
         <>
-          <div>
-            <CountUp value={range.average} format={(value) => formatMoney(value, currency)} className={`block text-4xl ${FIGURE}`} testId="tile-price-value" />
-            <p className="mt-1 font-body text-xs" style={{ color: WHITE.a65 }}>
-              {describeCoverage(summary.price.coverage)}
-              {summary.price.ranges.length > 1 ? ` (${currency}; ${summary.price.ranges.length - 1} other ${summary.price.ranges.length === 2 ? 'currency is' : 'currencies are'} in the table)` : ''}
-            </p>
-          </div>
-          <div className="space-y-3">
-            <PriceBar
-              label="Your events"
-              value={range.average}
-              currency={currency}
-              share={largest > 0 ? range.average / largest : 0}
-              fill={COLOR.gold}
-              testId="tile-price-bar-own"
-              tip={tip}
-              id="price-own"
-              detail={
-                <TipBody
-                  title="Average ticket price of your events"
-                  rows={[
-                    { label: 'Average', value: formatMoney(range.average, currency), swatch: 'gold' },
-                    { label: 'Lowest', value: formatMoney(range.min, currency) },
-                    { label: 'Highest', value: formatMoney(range.max, currency) },
-                    { label: 'Priced events', value: `${range.count} of ${summary.price.coverage.total}` },
-                  ]}
-                />
-              }
-            />
-            {comparable && national ? (
-              <PriceBar
-                label={`National average, ${national.year}`}
-                value={national.value}
-                currency={national.currency}
-                share={largest > 0 ? national.value / largest : 0}
-                fill={COLOR.ivory}
-                testId="tile-price-bar-national"
-                tip={tip}
-                id="price-national"
-                detail={<TipBody title={`National average, all categories, ${national.year}`} subtitle="paid tickets, Live Performance Australia" rows={[{ label: 'Average', value: formatMoney(national.value, national.currency), swatch: 'ivory' }]} note="Context only: it is never part of a figure." />}
+          <Dial
+            ratio={range.average / scale}
+            marks={marks}
+            divisions={4}
+            width={236}
+            readout="below"
+            scale={[formatMoney(0, currency), formatMoney(scale, currency)]}
+            testId="tile-price-dial"
+            label="Average ticket price of your events"
+            valueText={`${formatMoney(range.average, currency)}${comparable && national ? `, the national average is ${formatMoney(national.value, national.currency)}` : ''}`}
+            tip={tip.bind('price-own', () => (
+              <TipBody
+                title="Average ticket price of your events"
+                rows={[
+                  { label: 'Average', value: formatMoney(range.average, currency), swatch: 'gold' },
+                  { label: 'Lowest', value: formatMoney(range.min, currency) },
+                  { label: 'Highest', value: formatMoney(range.max, currency) },
+                  { label: 'Priced events', value: `${range.count} of ${summary.price.coverage.total}` },
+                ]}
+                note={`${describeCoverage(summary.price.coverage)}${summary.price.ranges.length > 1 ? ` (${currency}; ${summary.price.ranges.length - 1} other ${summary.price.ranges.length === 2 ? 'currency is' : 'currencies are'} in the table)` : ''}`}
               />
-            ) : null}
-          </div>
-          <p className="mt-auto font-body text-[11px] leading-relaxed" style={{ color: WHITE.a50 }}>
+            ))}
+          >
+            <CountUp value={range.average} format={(value) => formatMoney(value, currency)} className={`block text-4xl ${FIGURE}`} testId="tile-price-value" />
+            <span className="mt-1.5 font-body text-xs" style={{ color: WHITE.a65 }}>
+              <span data-testid="tile-price-coverage">
+                {range.count} of {summary.price.coverage.total} {summary.price.coverage.total === 1 ? 'event' : 'events'}
+              </span>
+            </span>
+          </Dial>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-body text-xs" style={{ color: WHITE.a65 }}>
             <span data-testid="tile-price-range">
               range {formatMoney(range.min, currency)} to {formatMoney(range.max, currency)}
             </span>
             {comparable && national ? (
-              <>
-                {' · '}national average, all categories, {national.year} (paid tickets) (
-                <SourceLink url={national.source.url} title={national.source.title}>
-                  source
-                </SourceLink>
-                )
-              </>
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="inline-block h-3 w-0.5 rounded-full" style={{ background: COLOR.cream }} />
+                National {national.year}{' '}
+                <span data-testid="tile-price-national-value" className="font-bold tabular-nums text-white">
+                  {formatMoney(national.value, national.currency)}
+                </span>
+              </span>
             ) : null}
-          </p>
+          </div>
         </>
       )}
     </Tile>
   );
 });
 
-// ─── 4. Data completeness ────────────────────────────────────────────────────
+// ─── 4. Data completeness: one ring, and a small ring for each part ──────────
+
+/** The short name each part of the completeness is drawn under: a word or two (the full name is in its tooltip). */
+const PART_NAME: Record<CompletenessPartId, string> = {
+  'past-sales': 'Past sales',
+  'upcoming-price': 'Prices',
+  'upcoming-capacity': 'Capacity',
+  'upcoming-ticket-link': 'Ticket links',
+  'sponsor-contract': 'Contracts',
+};
+
+/** The actions that concern each part (the beacon is on the visual that shows the same measure; here it is drawn small beside the part). */
+const PART_ACTIONS: Record<CompletenessPartId, readonly string[]> = {
+  'past-sales': ['record-ticket-sales'],
+  'upcoming-price': ['add-prices'],
+  'upcoming-capacity': ['add-capacity'],
+  'upcoming-ticket-link': ['add-ticket-links', 'fix-ticket-links'],
+  'sponsor-contract': ['record-contract-values'],
+};
+
+const TAB_OF: Record<DataCompleteness['parts'][number]['target'], string> = { events: 'Events', sponsors: 'Sponsors' };
 
 const CompletenessTile = memo(function CompletenessTile({ completeness, index }: { completeness: DataCompleteness; index: number }) {
   const { ratio, recorded, total, parts } = completeness;
-  const detailsId = useId();
+  const tip = useChartTip();
   return (
-    <Tile testId="tile-completeness" eyebrow="Data completeness" index={index} className="lg:col-span-3">
+    <Tile
+      testId="tile-completeness"
+      eyebrow="Data completeness"
+      info={{
+        label: 'data completeness',
+        content: (
+          <PopoverText title="How data completeness is worked out">
+            <p data-testid="tile-completeness-formula">
+              Completeness is the fields recorded divided by the fields required. Every past event needs its ticket sales (tickets sold or ticket revenue). Every upcoming or live event needs a price, a capacity recorded on the
+              event itself (the public capacity of its venue is a reference, not a record) and a ticket link that is one clean web address. Every sponsor needs a contract value; sponsors are always counted in full, whichever
+              events are shown. A blank, 0, text or a negative number is not recorded.
+            </p>
+          </PopoverText>
+        ),
+        width: 380,
+      }}
+      index={index}
+      className="lg:col-span-3"
+    >
       {ratio === null ? (
         <EmptyNote>Nothing is required in this view, so there is nothing to measure.</EmptyNote>
       ) : (
-        <div className="flex flex-wrap items-center gap-x-8 gap-y-5">
-          <div className="flex items-center gap-4">
-            <Ring ratio={ratio} size={124} label="Data completeness" valueText={`${formatPercent(ratio)}: ${recorded} of ${total} required fields recorded`} testId="tile-completeness-ring">
-              <CountUp value={ratio} format={(value) => formatPercent(value)} className={`text-3xl ${FIGURE}`} testId="tile-completeness-value" />
-            </Ring>
-            <p className="max-w-[11rem] font-body text-xs leading-relaxed" style={{ color: WHITE.a65 }}>
-              <span data-testid="tile-completeness-fields" className="font-bold text-white">
-                {recorded} of {total}
-              </span>{' '}
-              required fields are recorded, for real revenue figures instead of estimates.
-            </p>
-          </div>
-          <ul className="min-w-[14rem] flex-1 space-y-2.5" data-testid="tile-completeness-parts">
+        <div className="@container">
+          {/* the overall ring and a small ring for each part in one grid: three columns (the overall ring first) while the tile is narrow, and the overall ring beside a block of the parts when it is wide */}
+          <ul
+            data-testid="tile-completeness-parts"
+            className="grid grid-cols-3 items-start gap-x-2 gap-y-4 @[27rem]:grid-cols-[auto_repeat(3,minmax(0,1fr))] @[27rem]:gap-x-3 @[42rem]:grid-cols-[auto_repeat(5,minmax(0,1fr))]"
+          >
+            <li data-testid="tile-completeness-overall" className="flex flex-col items-center gap-2 @[27rem]:row-span-2 @[27rem]:self-center @[27rem]:pr-3 @[42rem]:row-span-1">
+              <Ring
+                ratio={ratio}
+                size={96}
+                ticks
+                glow
+                label="Data completeness"
+                valueText={`${formatPercent(ratio)}: ${recorded} of ${total} required fields recorded`}
+                testId="tile-completeness-ring"
+                tip={tip.bind('completeness-ring', () => (
+                  <TipBody
+                    title="Data completeness"
+                    rows={[{ label: 'Fields recorded', value: `${recorded} of ${total}` }]}
+                    note={`${recorded} of ${total} required fields are recorded, for real revenue figures instead of estimates.`}
+                  />
+                ))}
+              >
+                <CountUp value={ratio} format={(value) => formatPercent(value)} className={`text-2xl ${FIGURE}`} testId="tile-completeness-value" />
+              </Ring>
+              <p className="font-body text-xs" style={{ color: WHITE.a65 }}>
+                <span data-testid="tile-completeness-fields" className="font-bold text-white">
+                  {recorded} of {total}
+                </span>{' '}
+                fields
+              </p>
+            </li>
             {parts.map((part) => (
-              <li key={part.id} data-testid={`tile-completeness-${part.id}`}>
-                <div className="flex items-baseline justify-between gap-3 font-body text-xs">
-                  <span style={{ color: WHITE.a65 }}>{part.label}</span>
-                  <span className="shrink-0 font-bold tabular-nums text-white">{part.total === 0 ? 'none in view' : `${part.recorded} of ${part.total}`}</span>
-                </div>
-                <Meter ratio={part.ratio} label={part.label} valueText={part.total === 0 ? 'none in this view' : `${part.recorded} of ${part.total} ${part.noun}s`} className="mt-1" />
+              <li key={part.id} data-testid={`tile-completeness-${part.id}`} className="mx-auto flex w-[5.25rem] flex-col items-center gap-1 text-center">
+                <Ring
+                  ratio={part.ratio}
+                  size={64}
+                  thickness={10}
+                  label={part.label}
+                  valueText={part.total === 0 ? 'none in this view' : `${part.recorded} of ${part.total} ${part.noun}s`}
+                  testId={`tile-completeness-${part.id}-ring`}
+                  tip={tip.bind(`completeness-${part.id}`, () => (
+                    <TipBody
+                      title={part.label}
+                      rows={[{ label: 'Recorded', value: part.total === 0 ? 'none in view' : `${part.recorded} of ${part.total} ${part.noun}s` }]}
+                      note={part.total > 0 && part.recorded < part.total ? `Enter it on each ${part.noun} (${TAB_OF[part.target]} tab).` : undefined}
+                    />
+                  ))}
+                >
+                  <span className="font-display text-sm font-bold leading-none text-white [font-variant-numeric:lining-nums]">{part.ratio === null ? '–' : formatPercent(part.ratio)}</span>
+                </Ring>
+                <p className="font-body text-xs font-bold leading-tight text-white">{PART_NAME[part.id]}</p>
+                <p className="font-body text-[11px] tabular-nums" style={{ color: WHITE.a65 }}>
+                  {part.total === 0 ? 'none in view' : `${part.recorded} of ${part.total}`}
+                </p>
+                {/* the action that concerns this part, on the line under its words: never on the ring, so no part of the arc is hidden and the two have nothing in common to press */}
+                <MirrorHotspot ids={PART_ACTIONS[part.id]} testId={`tile-completeness-${part.id}-action`} />
               </li>
             ))}
           </ul>
         </div>
       )}
-      <details id={detailsId} className="mt-auto font-body text-[11px] leading-relaxed" style={{ color: WHITE.a50 }}>
-        <summary className="inline-flex cursor-pointer items-center gap-1.5 font-bold uppercase tracking-[0.12em] text-accent pointer-coarse:min-h-11">
-          <Icon name="info" className="h-3.5 w-3.5" />
-          How is this worked out?
-        </summary>
-        <p className="mt-2" data-testid="tile-completeness-formula">
-          Completeness is the fields recorded divided by the fields required. Every past event needs its ticket sales (tickets sold or ticket revenue). Every upcoming or live event needs a price, a capacity recorded
-          on the event itself (the public capacity of its venue is a reference, not a record) and a ticket link that is one clean web address. Every sponsor needs a contract value; sponsors are always counted in
-          full, whichever events are shown. A blank, 0, text or a negative number is not recorded.
-        </p>
-      </details>
     </Tile>
   );
 });
@@ -354,9 +470,10 @@ const CompletenessTile = memo(function CompletenessTile({ completeness, index }:
 
 function HealthTile({ system, onOpenSystem, index }: { system: SystemGlance; onOpenSystem: () => void; index: number }) {
   const chip = scoreChip(system.score);
+  const tip = useChartTip();
   return (
     <Tile testId="tile-health" eyebrow="System health" index={index} className="sm:col-span-2 lg:col-span-3">
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-5">
+      <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 sm:justify-start">
         {system.checking ? (
           <Ring ratio={null} indeterminate size={124} label="System health score" valueText="Checking the systems" testId="tile-health-ring">
             <span className="font-body text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: WHITE.a65 }}>
@@ -364,11 +481,30 @@ function HealthTile({ system, onOpenSystem, index }: { system: SystemGlance; onO
             </span>
           </Ring>
         ) : (
-          <Ring ratio={system.score / 100} size={124} label="System health score" valueText={`${system.score} out of 100`} testId="tile-health-ring">
+          <Ring
+            ratio={system.score / 100}
+            size={124}
+            ticks
+            glow
+            label="System health score"
+            valueText={`${system.score} out of 100`}
+            testId="tile-health-ring"
+            tip={tip.bind('health-ring', () => (
+              <TipBody
+                title="System health"
+                rows={[
+                  { label: 'Score', value: `${system.score} out of 100 (${scoreLabel(system.score)})` },
+                  { label: 'Pages answering', value: `${system.passedPages} of ${system.totalPages}` },
+                  { label: 'Agent', value: system.hasAgentData ? 'Reachable' : 'Not reachable from here' },
+                ]}
+                note="The score is made from the agent's version, workspace, API keys, models and whether it is running, and how many of the pages answer."
+              />
+            ))}
+          >
             <CountUp value={system.score} format={(value) => `${Math.round(value)}%`} className={`text-3xl ${FIGURE}`} testId="tile-health-value" />
           </Ring>
         )}
-        <div className="min-w-[12rem] flex-1 space-y-3">
+        <div className="min-w-[10rem] flex-1 space-y-3">
           {system.checking ? (
             <Chip tone="neutral" icon="clock" testId="tile-health-status">
               Checking
@@ -378,13 +514,13 @@ function HealthTile({ system, onOpenSystem, index }: { system: SystemGlance; onO
           )}
           <dl className="space-y-1.5 font-body text-xs">
             <div className="flex justify-between gap-3">
-              <dt style={{ color: WHITE.a65 }}>Pages healthy</dt>
+              <dt style={{ color: WHITE.a65 }}>Pages</dt>
               <dd data-testid="tile-health-pages" className="font-bold tabular-nums text-white">
                 {system.checking ? 'Checking...' : `${system.passedPages} of ${system.totalPages}`}
               </dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt style={{ color: WHITE.a65 }}>Agent server</dt>
+              <dt style={{ color: WHITE.a65 }}>Agent</dt>
               <dd data-testid="tile-health-agent" className="font-bold text-white">
                 {system.checking ? 'Checking...' : system.hasAgentData ? 'Reachable' : 'Not reachable from here'}
               </dd>

@@ -1,15 +1,16 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { COLOR, DURATION, EASE, GOLD_A, HATCH, HATCH_FAINT, STATUS_FILL, WHITE, type StatusTone } from './brand';
+import { useId, useState, type CSSProperties, type ReactNode } from 'react';
+import { COLOR, DURATION, EASE, GOLD_A, HATCH_FAINT, STATUS_FILL, WHITE, type StatusTone } from './brand';
 import { Icon, type IconName } from './icons';
-import { Grow, Reveal, useDashMotion, useSeen } from './motion';
+import { InfoButton } from './popover';
+import { Reveal, useDashMotion } from './motion';
 
 /**
  * The pieces every Dashboard section is made of: the glass panel, the eyebrow and the section header, the chips, the buttons,
- * the segmented control, the meters and rings, the skeleton, and the chart section with its "View as table" twin. They are the
- * brand's own (docs/design-system: GlassCard, StatusBadge, Button, OrnamentDivider) written for this page.
+ * the segmented control, the skeleton, and the chart section with its "View as table" twin. They are the brand's own (docs/design-system:
+ * GlassCard, StatusBadge, Button, OrnamentDivider) written for this page. The dials, rings and donuts are in dial.tsx and donut.tsx.
  */
 
 // ─── Text ────────────────────────────────────────────────────────────────────
@@ -167,8 +168,9 @@ export function EstimateChip({ className = '' }: { className?: string }) {
 
 // ─── Buttons and controls ────────────────────────────────────────────────────
 
+// (the `!` on the reduced-motion opt-out: globals.css gives every button and link a transition outside any layer, which a layered utility never beats in the production build, so a button would still fade)
 const BUTTON_BASE =
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap font-body font-bold uppercase leading-none tracking-[0.12em] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:min-h-11';
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap font-body font-bold uppercase leading-none tracking-[0.12em] transition-all duration-300 motion-reduce:transition-none! disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:min-h-11';
 const BUTTON_SIZE = { sm: 'px-3 py-2 text-[10px]', md: 'px-5 py-3 text-[11px]' } as const;
 const BUTTON_VARIANT = {
   /** The brand's outline button: a gold edge that fills with gold on hover. */
@@ -205,7 +207,7 @@ export function Segmented<T extends string>({ label, value, options, onChange, t
             title={option.title}
             data-testid={`${testId}-${option.value}`}
             onClick={() => onChange(option.value)}
-            className={`relative px-4 py-2.5 font-body text-[11px] font-bold uppercase leading-none tracking-[0.12em] transition-colors duration-300 pointer-coarse:min-h-11 ${active ? 'text-accent' : 'text-[rgba(255,255,255,0.65)] hover:text-white'}`}
+            className={`relative px-4 py-2.5 font-body text-[11px] font-bold uppercase leading-none tracking-[0.12em] transition-colors duration-300 motion-reduce:transition-none! pointer-coarse:min-h-11 ${active ? 'text-accent' : 'text-[rgba(255,255,255,0.65)] hover:text-white'}`}
           >
             {active ? (
               <motion.span
@@ -238,113 +240,6 @@ export function Skeleton({ className = '' }: { className?: string }) {
           transition={{ duration: 1.8, ease: 'linear', repeat: Infinity }}
         />
       ) : null}
-    </div>
-  );
-}
-
-// ─── Meters and rings ────────────────────────────────────────────────────────
-
-const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
-
-/** A horizontal meter: a faint track and a bar that grows from the left, 4px rounded at its end, hatched when the figure is an estimate. */
-export function Meter({ ratio, label, valueText, hatched = false, testId, className = '' }: { ratio: number | null; label: string; valueText: string; hatched?: boolean; testId?: string; className?: string }) {
-  const share = ratio === null ? 0 : clamp01(ratio);
-  return (
-    <div role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)} aria-valuetext={valueText} data-testid={testId} className={`h-1.5 w-full ${className}`} style={{ background: WHITE.a08 }}>
-      {share > 0 ? <Grow className="h-full" style={{ width: `${share * 100}%`, borderRadius: '0 4px 4px 0', ...(hatched ? { backgroundImage: HATCH } : { background: COLOR.gold }) }} /> : null}
-    </div>
-  );
-}
-
-interface RingProps {
-  /** 0 to 1; null or 0 draws only the track. */
-  ratio: number | null;
-  size?: number;
-  label: string;
-  valueText: string;
-  children?: ReactNode;
-  testId?: string;
-  /** The figure is not known yet: a short gold arc goes round the track (it stands still with reduced motion) and no value is claimed. */
-  indeterminate?: boolean;
-}
-
-/** A ring gauge: a faint track and a gold arc that draws in from the top; the number goes in the middle. */
-export function Ring({ ratio, size = 120, label, valueText, children, testId, indeterminate = false }: RingProps) {
-  const { enabled } = useDashMotion();
-  const ref = useRef<HTMLDivElement>(null);
-  const seen = useSeen(ref, 0.3);
-  const share = ratio === null ? 0 : clamp01(ratio);
-  if (indeterminate) {
-    return (
-      <div ref={ref} role="progressbar" aria-busy="true" aria-label={label} aria-valuetext={valueText} data-testid={testId} className="relative shrink-0" style={{ width: size, height: size }}>
-        <svg viewBox="0 0 100 100" className="h-full w-full" aria-hidden="true" focusable="false">
-          <circle cx="50" cy="50" r="42" fill="none" stroke={WHITE.a08} strokeWidth="8" />
-          <motion.g animate={enabled ? { rotate: 360 } : { rotate: 0 }} transition={enabled ? { duration: 1.6, ease: 'linear', repeat: Infinity } : { duration: 0 }}>
-            <circle cx="50" cy="50" r="42" fill="none" stroke={COLOR.gold} strokeWidth="8" strokeLinecap="round" strokeDasharray="66 198" transform="rotate(-90 50 50)" />
-          </motion.g>
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">{children}</div>
-      </div>
-    );
-  }
-  return (
-    <div ref={ref} role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)} aria-valuetext={valueText} data-testid={testId} className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 100 100" className="h-full w-full" aria-hidden="true" focusable="false">
-        <circle cx="50" cy="50" r="42" fill="none" stroke={WHITE.a08} strokeWidth="8" />
-        {share > 0 ? (
-          <g transform="rotate(-90 50 50)">
-            <motion.circle
-              cx="50"
-              cy="50"
-              r="42"
-              fill="none"
-              stroke={COLOR.gold}
-              strokeWidth="8"
-              strokeLinecap="round"
-              initial={enabled ? { pathLength: 0 } : false}
-              animate={{ pathLength: seen ? share : 0 }}
-              transition={{ duration: enabled ? DURATION.cinematic : 0, ease: EASE }}
-            />
-          </g>
-        ) : null}
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">{children}</div>
-    </div>
-  );
-}
-
-interface HalfGaugeProps {
-  ratio: number | null;
-  label: string;
-  valueText: string;
-  children?: ReactNode;
-  testId?: string;
-}
-
-/** A half-ring gauge for the system numbers: the same arc the Dashboard has always drawn, in gold, with the figure under the arch. */
-export function HalfGauge({ ratio, label, valueText, children, testId }: HalfGaugeProps) {
-  const { enabled } = useDashMotion();
-  const ref = useRef<HTMLDivElement>(null);
-  const seen = useSeen(ref, 0.3);
-  const share = ratio === null ? 0 : clamp01(ratio);
-  return (
-    <div ref={ref} role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)} aria-valuetext={valueText} data-testid={testId} className="relative mx-auto w-full max-w-[148px]">
-      <svg viewBox="0 0 100 58" className="block w-full" aria-hidden="true" focusable="false">
-        <path d="M 10 52 A 40 40 0 0 1 90 52" fill="none" stroke={WHITE.a08} strokeWidth="7" strokeLinecap="round" />
-        {share > 0 ? (
-          <motion.path
-            d="M 10 52 A 40 40 0 0 1 90 52"
-            fill="none"
-            stroke={COLOR.gold}
-            strokeWidth="7"
-            strokeLinecap="round"
-            initial={enabled ? { pathLength: 0 } : false}
-            animate={{ pathLength: seen ? share : 0 }}
-            transition={{ duration: enabled ? DURATION.cinematic : 0, ease: EASE }}
-          />
-        ) : null}
-      </svg>
-      <div className="absolute inset-x-0 bottom-0 flex flex-col items-center text-center">{children}</div>
     </div>
   );
 }
@@ -423,13 +318,27 @@ interface ChartSectionProps {
   table: ReactNode;
   /** Footnotes and sources, shown with either view. */
   footer?: ReactNode;
+  /** The panel's method note, legend and sources: one tap away behind its "i" button instead of written on the panel. */
+  info?: InfoSpec;
+  /** The panel's beacons in a row: shown with the table, and with the chart too unless `beaconsOnVisuals` (they sit on the visuals then). */
+  beacons?: ReactNode;
+  beaconsOnVisuals?: boolean;
+  /** What the beacons say, written out for the report: outside the swap, so the table view carries it too (nothing at all on screen). */
+  notes?: ReactNode;
   /** Position in the entrance: each section starts a little after the one above it. */
   delay?: number;
   className?: string;
 }
 
+/** What the "i" button of a panel opens: the panel's name for a screen reader, and the words. */
+export interface InfoSpec {
+  label: string;
+  content: ReactNode;
+  width?: number;
+}
+
 /** A landmark section with a glass panel, its heading, and a "View as table" toggle that swaps the chart for its table twin. */
-export function ChartSection({ testId, eyebrow, title, description, tag, actions, chart, table, footer, delay = 0, className = '' }: ChartSectionProps) {
+export function ChartSection({ testId, eyebrow, title, description, tag, actions, chart, table, footer, info, beacons, beaconsOnVisuals = false, notes, delay = 0, className = '' }: ChartSectionProps) {
   const [asTable, setAsTable] = useState(false);
   const titleId = useId();
   return (
@@ -445,11 +354,18 @@ export function ChartSection({ testId, eyebrow, title, description, tag, actions
             actions={
               <>
                 {actions}
+                {info ? (
+                  <InfoButton label={info.label} testId={`${testId}-info`} width={info.width}>
+                    {info.content}
+                  </InfoButton>
+                ) : null}
                 <ViewToggle pressed={asTable} onToggle={() => setAsTable((previous) => !previous)} testId={`${testId}-view-toggle`} />
               </>
             }
           />
+          {beacons && (asTable || !beaconsOnVisuals) ? beacons : null}
           {asTable ? <div data-testid={`${testId}-table`}>{table}</div> : chart}
+          {notes}
           {footer}
         </GlassPanel>
       </section>
@@ -464,19 +380,33 @@ interface ChartPanelProps {
   chart: ReactNode;
   table: ReactNode;
   footer?: ReactNode;
+  info?: InfoSpec;
+  /** As for a section: the panel's beacons in a row, and what they say for the report. */
+  beacons?: ReactNode;
+  beaconsOnVisuals?: boolean;
+  notes?: ReactNode;
   className?: string;
 }
 
 /** A glass panel inside a section: an eyebrow title, the "View as table" toggle, and the chart or its table twin. */
-export function ChartPanel({ testId, eyebrow, chart, table, footer, className = '' }: ChartPanelProps) {
+export function ChartPanel({ testId, eyebrow, chart, table, footer, info, beacons, beaconsOnVisuals = false, notes, className = '' }: ChartPanelProps) {
   const [asTable, setAsTable] = useState(false);
   return (
     <GlassPanel testId={testId} className={`h-full ${className}`}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <Eyebrow>{eyebrow}</Eyebrow>
-        <ViewToggle pressed={asTable} onToggle={() => setAsTable((previous) => !previous)} testId={`${testId}-view-toggle`} />
+        <div className="flex flex-wrap items-center gap-2">
+          {info ? (
+            <InfoButton label={info.label} testId={`${testId}-info`} width={info.width}>
+              {info.content}
+            </InfoButton>
+          ) : null}
+          <ViewToggle pressed={asTable} onToggle={() => setAsTable((previous) => !previous)} testId={`${testId}-view-toggle`} />
+        </div>
       </div>
+      {beacons && (asTable || !beaconsOnVisuals) ? beacons : null}
       {asTable ? <div data-testid={`${testId}-table`}>{table}</div> : chart}
+      {notes}
       {footer}
     </GlassPanel>
   );

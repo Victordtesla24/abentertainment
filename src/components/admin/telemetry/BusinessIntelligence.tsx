@@ -4,11 +4,12 @@ import { memo, useMemo, useState } from 'react';
 import type { Event, Sponsor } from '@/lib/data';
 import { computeBusinessIntelligence, dataCompleteness, eventsInScope, isoOfDay, todayDayNumber, type AdminTab, type BiReference, type TimeScope } from '@/lib/admin-bi';
 import { AVERAGE_TICKET_PRICE, REFERENCE_RETRIEVED, SELL_THROUGH, SELL_THROUGH_BY_GENRE, VENUE_REFERENCE } from '@/lib/bi-reference';
-import { ActionCentre } from '../dashboard/ActionCentre';
 import { WHITE } from '../dashboard/brand';
 import { Breakdowns } from '../dashboard/Breakdowns';
 import { DashboardSkeleton } from '../dashboard/DashboardSkeleton';
 import { GlanceTiles, type SystemGlance } from '../dashboard/GlanceTiles';
+import { progressMap } from '../dashboard/actionProgress';
+import { usePublishActions } from '../dashboard/hotspots';
 import { PipelineTimeline } from '../dashboard/PipelineTimeline';
 import { RevenueForecast } from '../dashboard/RevenueForecast';
 import { Sponsorship } from '../dashboard/Sponsorship';
@@ -71,9 +72,10 @@ interface BusinessIntelligenceProps {
 }
 
 /**
- * The Dashboard's business sections, from the top: at a glance, the action centre, revenue and forecast, the event pipeline, the
- * breakdowns and the sponsorship. Every number comes from src/lib/admin-bi.ts; this only lays the results out. The Past / Live /
- * Future / All filter (kept in the command bar above) follows the admin's status, never the date.
+ * The Dashboard's business sections, from the top: at a glance, revenue and forecast, the event pipeline, the breakdowns and the
+ * sponsorship. The actions are not a section of their own: each is a beacon on the visual whose number it concerns, and the counter
+ * chip in the command bar leads to them (this hands the model's actions to both). Every number comes from src/lib/admin-bi.ts; this
+ * only lays the results out. The Past / Live / Future / All filter (kept in the command bar above) follows the admin's status, never the date.
  */
 export const BusinessIntelligence = memo(function BusinessIntelligence({ events: eventsArrived, sponsors: sponsorsArrived, scope, source, system, onOpenSystem, onNavigate }: BusinessIntelligenceProps) {
   const events = useSameWhileEqual(eventsArrived);
@@ -87,6 +89,9 @@ export const BusinessIntelligence = memo(function BusinessIntelligence({ events:
   // One event can be lit from two places: hovering a row of the revenue chart lights its marker on the timeline, and the other way round.
   const [activeId, setActiveId] = useState<string | null>(null);
   const waiting = source.loading && source.updatedAt === null && events.length === 0 && sponsors.length === 0;
+  // the model's actions go to the beacons on the visuals and to the counter chip of the command bar
+  const progress = useMemo(() => progressMap(bi), [bi]);
+  usePublishActions(bi.actions, waiting ? 'loading' : 'ready', bi.eventsInScope === 0 && bi.sponsors.total === 0, progress);
 
   return (
     <div data-testid="business-intelligence" className="space-y-10">
@@ -94,9 +99,8 @@ export const BusinessIntelligence = memo(function BusinessIntelligence({ events:
       {waiting ? (
         <DashboardSkeleton />
       ) : (
-        <div className="space-y-10 transition-opacity duration-300" style={{ opacity: source.loading && source.updatedAt !== null ? 0.6 : 1 }}>
+        <div className="space-y-10 transition-opacity duration-300 motion-reduce:transition-none" style={{ opacity: source.loading && source.updatedAt !== null ? 0.6 : 1 }}>
           <GlanceTiles bi={bi} completeness={completeness} scope={scope} system={system} onOpenSystem={onOpenSystem} />
-          <ActionCentre bi={bi} onNavigate={onNavigate} />
           <RevenueForecast bi={bi} events={scopedEvents} reference={REFERENCE} activeId={activeId} onActive={setActiveId} onNavigate={onNavigate} />
           <PipelineTimeline bi={bi} activeId={activeId} onActive={setActiveId} />
           <Breakdowns bi={bi} events={scopedEvents} reference={REFERENCE} />

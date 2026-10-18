@@ -15,7 +15,7 @@ import type { IconName } from './icons';
 export function SourceLink({ url, title, children }: { url: string; title?: string; children: ReactNode }) {
   if (ticketLinkState(url) !== 'ok') return <span>{children}</span>;
   return (
-    <a href={url} title={title} target="_blank" rel="noopener noreferrer" className="text-accent underline-offset-2 hover:underline focus-visible:underline">
+    <a href={url} title={title} target="_blank" rel="noopener noreferrer" className="text-accent underline-offset-2 hover:underline focus-visible:underline motion-reduce:transition-none!">
       {children}
     </a>
   );

@@ -52,10 +52,3 @@ export function monthTicks(fromDay: number, toDay: number): MonthTick[] {
   }
   return ticks;
 }
-
-/** A path for a bar that is square at its baseline (the left) and rounded by `radius` at its data end (the right). */
-export function barPath(width: number, height: number, radius = 4): string {
-  const r = Math.max(0, Math.min(radius, width, height / 2));
-  if (width <= 0 || height <= 0) return '';
-  return `M0 0H${width - r}A${r} ${r} 0 0 1 ${width} ${r}V${height - r}A${r} ${r} 0 0 1 ${width - r} ${height}H0Z`;
-}

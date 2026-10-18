@@ -2,6 +2,7 @@
 
 import type { TimeScope } from '@/lib/admin-bi';
 import { GOLD_A, STATUS_FILL, WHITE } from './brand';
+import { ActionsChip } from './hotspots';
 import { Icon, type IconName } from './icons';
 import { Reveal } from './motion';
 import { TimeScopeFilter } from '../telemetry/TimeScopeFilter';
@@ -32,7 +33,7 @@ function StatusPill({ status, onClick }: { status: SystemStatus; onClick: () => 
       title="Show System & operations"
       data-testid="dashboard-status-pill"
       data-state={status.kind}
-      className="inline-flex min-w-[10.75rem] items-center justify-center gap-2 rounded-full px-4 py-2 font-body text-xs font-bold uppercase leading-none tracking-[0.08em] transition-all duration-300 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)] pointer-coarse:min-h-11"
+      className="inline-flex min-w-[10.75rem] items-center justify-center gap-2 rounded-full px-4 py-2 font-body text-xs font-bold uppercase leading-none tracking-[0.08em] transition-all duration-300 motion-reduce:transition-none! hover:shadow-[0_0_20px_rgba(201,168,76,0.3)] pointer-coarse:min-h-11"
       style={pill.fill}
     >
       <Icon name={pill.icon} className="h-4 w-4" />
@@ -74,6 +75,7 @@ export function CommandBar({ scope, onScope, status, onStatusClick, lastRefresh,
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill status={status} onClick={onStatusClick} />
+            <ActionsChip />
             <button type="button" onClick={onRefresh} disabled={loading} aria-busy={loading} data-testid="dashboard-refresh" className={buttonClass('outline')}>
               <Icon name="refresh" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh

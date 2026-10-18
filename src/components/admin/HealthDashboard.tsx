@@ -5,6 +5,8 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { BusinessIntelligence } from './telemetry/BusinessIntelligence';
 import { CommandBar, type Freshness, type SystemStatus } from './dashboard/CommandBar';
 import { DashboardBackdrop } from './dashboard/DashboardBackdrop';
+import { prepareCapture, withBaselineFix } from './dashboard/exportCapture';
+import { HotspotProvider } from './dashboard/hotspots';
 import { DashMotionProvider } from './dashboard/motion';
 import { SystemOperations } from './dashboard/SystemOperations';
 import type { ActionResult, HealthData, Issue, PageCheck } from './dashboard/systemTypes';
@@ -123,10 +125,43 @@ const PAGE_BREAK_BEFORE = [
   '[data-testid="system-diagnostics"]',
   '[data-testid="system-escalation"]',
   '[data-testid="system-console-usage"]',
+  '[data-testid="bi-forecast-events"]',
+  '[data-testid="bi-recorded"]',
 ].join(', ');
 
-/** Two animation frames and a moment: lets what was just rendered (the System & operations content, the reveals) settle before the page is captured. */
+/** A moment: lets what was just rendered (System & operations and its content, the reveals) settle before the page is captured. */
 const settle = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Waits, for at most `maxMs`, until everything on the page is drawn as it will be captured: no block is still fading in, no number is still
+ * counting, no animation of the entrance is still running and the console usage has its answer. Then whatever is still faded out is made
+ * whole, by its style as well as by what is drawn now: the capture copies the page's styles, not the moment of an animation, so a block that
+ * is whole on the screen but still has opacity 0 in its style (an animation finished a frame ago on a busy machine) would be blank in the
+ * report. So no section of the report can be blank.
+ */
+async function untilDrawn(root: HTMLElement, maxMs: number): Promise<void> {
+  const started = performance.now();
+  const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  const faded = () =>
+    [...root.querySelectorAll<HTMLElement>('[style*="opacity"]')].filter((node) => {
+      const styled = node.style.opacity;
+      return (styled !== '' && Number(styled) < 0.999) || Number(getComputedStyle(node).opacity) < 0.999;
+    });
+  for (;;) {
+    await frame();
+    const pending = faded().length > 0 || root.querySelector('[data-counting="true"], [data-state="loading"]') !== null;
+    if (!pending || performance.now() - started > maxMs) break;
+  }
+  // the animations that have an end (the entrance of a block, a sweep) are given a moment to reach it; the slow loops of the backdrop never do
+  const finite = document.getAnimations().filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity);
+  await Promise.race([Promise.allSettled(finite.map((animation) => animation.finished)), new Promise((resolve) => setTimeout(resolve, 1500))]);
+  for (const node of faded()) {
+    node.style.opacity = '1';
+    node.style.transform = 'none';
+  }
+  await frame();
+  await frame();
+}
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
@@ -420,8 +455,10 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
       const { default: jsPDF } = await import('jspdf');
       const element = document.getElementById('health-dashboard-content');
       if (!element) return;
+      await untilDrawn(element, 6000);
       // A browser cannot draw a canvas much taller than 16,000 px, so a long Dashboard is captured a little smaller.
-      const canvas = await html2canvas(element, { backgroundColor: COLOR.black, scale: Math.min(2, 16000 / Math.max(element.scrollHeight, 1)) });
+      // (the picture is put right where the library draws differently from the screen: the baseline of the text, the ellipsis, the hatch of an estimate)
+      const canvas = await withBaselineFix(() => html2canvas(element, { backgroundColor: COLOR.black, scale: Math.min(2, 16000 / Math.max(element.scrollHeight, 1)), onclone: prepareCapture }));
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
@@ -433,16 +470,35 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
       const breaks = Array.from(element.querySelectorAll(PAGE_BREAK_BEFORE), (block) => Math.round((block.getBoundingClientRect().top - box.top) * (canvas.width / box.width)))
         .filter((y) => y > 0)
         .sort((a, b) => a - b);
+      // where each section ends: one that ends only a little below the foot of a page is drawn a little smaller, so its last lines are not left on a page of their own
+      const ends = Array.from(element.querySelectorAll('section'), (block) => Math.round((block.getBoundingClientRect().bottom - box.top) * (canvas.width / box.width))).sort((a, b) => a - b);
+      // what the beacons' popovers say is written out under their visuals while the page is captured: where each note begins (in pixels of the
+      // captured image) and its words, so the report carries them as text too (invisible, over the picture: searchable and readable by a screen reader)
+      const notes = Array.from(element.querySelectorAll<HTMLElement>('[data-export-note]'), (note) => {
+        const place = note.getBoundingClientRect();
+        const ratio = canvas.width / box.width;
+        return { top: Math.round((place.top - box.top) * ratio), left: Math.round((place.left - box.left) * ratio), width: Math.round(place.width * ratio), text: (note.innerText ?? '').replace(/\s+/g, ' ').trim() };
+      });
       let offset = 0;
       let pageIndex = 0;
       while (offset < canvas.height) {
         const top = pageIndex === 0 ? 25 : margin;
         const room = Math.floor((pageHeight - top - margin) * pixelsPerMm);
         let slice = Math.min(canvas.height - offset, room);
+        let fit = 1;
         if (offset + slice < canvas.height) {
           // the page ends where a panel begins, when one begins in its lower half
           const cut = breaks.filter((y) => y > offset + room / 2 && y <= offset + room).pop();
-          if (cut !== undefined) slice = cut - offset;
+          if (cut !== undefined) {
+            slice = cut - offset;
+          } else {
+            // otherwise a section that ends less than 6 percent below the foot of the page is drawn that much smaller and ends on it
+            const end = ends.find((y) => y > offset + room && y <= offset + room * 1.06);
+            if (end !== undefined) {
+              slice = end - offset;
+              fit = room / slice;
+            }
+          }
         }
         const part = document.createElement('canvas');
         part.width = canvas.width;
@@ -460,7 +516,14 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
           pdf.text(new Date().toLocaleString(), 14, 21);
         }
         // 'FAST' deflates the pixels; jsPDF stores them raw by default, which makes each page of the report about 19 MB.
-        pdf.addImage(part.toDataURL('image/png'), 'PNG', margin, top, imageWidth, slice / pixelsPerMm, undefined, 'FAST');
+        const drawnWidth = imageWidth * fit;
+        const left = margin + (imageWidth - drawnWidth) / 2;
+        pdf.addImage(part.toDataURL('image/png'), 'PNG', left, top, drawnWidth, (slice / pixelsPerMm) * fit, undefined, 'FAST');
+        pdf.setFontSize(8);
+        for (const note of notes.filter((entry) => entry.top >= offset && entry.top < offset + slice && entry.text !== '')) {
+          // where the note is in the picture (two panels side by side have their notes side by side), so no two notes' words are written over each other
+          pdf.text(note.text, left + (note.left / pixelsPerMm) * fit, top + ((note.top - offset) / pixelsPerMm) * fit + 4, { renderingMode: 'invisible', maxWidth: Math.max(20, (note.width / pixelsPerMm) * fit) });
+        }
         offset += slice;
         pageIndex += 1;
       }
@@ -472,6 +535,7 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
 
   return (
     <DashMotionProvider exporting={exporting}>
+      <HotspotProvider onNavigate={onNavigate ? navigate : undefined}>
       <div id="health-dashboard-content" className="relative isolate mx-auto w-full max-w-[1440px] [font-variant-numeric:lining-nums]">
         <DashboardBackdrop />
         <div className="relative space-y-8">
@@ -538,6 +602,7 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
         <ChartTip />
         <CopyToast visible={copied} />
       </div>
+      </HotspotProvider>
     </DashMotionProvider>
   );
 }

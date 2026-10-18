@@ -20,21 +20,26 @@ import {
   type ForecastStat,
   type PipelineRow,
 } from '@/lib/admin-bi';
-import { COLOR, HATCH, GOLD_A, WHITE } from './brand';
+import { GOLD_A, WHITE } from './brand';
 import { describeLeftOut, describeSellThrough, EstimateLegend, noEstimateReason, scenarioLabels, SourceLink, theseEvents } from './biText';
-import { AxisLabels, ExpectedMarker, GridLines, LegendSwatch, moneyFigure, NoFigure, RangeBar, StatBox } from './chartParts';
+import { LegendSwatch, moneyFigure, NoFigure } from './chartParts';
 import { niceScale } from './chartMath';
-import { scrollToTop } from './ActionCentre';
+import { Dial, FIGURE } from './dial';
+import { HotspotNotes, Hotspots, PanelBeacons, scrollToTop, useActions } from './hotspots';
 import { Icon } from './icons';
-import { Grow } from './motion';
+import { CountUp } from './motion';
+import { PopoverText } from './popover';
 import { primaryCurrency } from './selectors';
+import { StatRing } from './statRing';
 import { TipBody, useChartTip, withActive } from './tooltip';
 import { Chip, ChartSection, DataTable, EmptyNote, EstimateChip, buttonClass, type TableColumn } from './ui';
 
 /**
- * REVENUE & FORECAST: each upcoming or live event as a range from its low to its high estimate with the expected value marked,
- * the revenue recorded beside it (and a prompt to record sales where there is none), the totals, and the sources. An estimate is
- * hatched and marked "Estimate"; a record is solid; the two are never added together.
+ * REVENUE & FORECAST: the estimate for the upcoming and the past events as a needle on a scale with its range hatched, each event as a
+ * small dial on one shared scale, and what is recorded so far as rings that say how many events each figure stands on. An estimate
+ * is hatched and marked "Estimate"; a record is solid; the two are never added together; a figure that is not recorded is an empty
+ * ring and "Not recorded", never a zero. The method, the legend and the sources are behind the panel's "i", the figures behind each
+ * mark are in its tooltip, and every mark has its row in the table twin.
  */
 
 interface RevenueForecastProps {
@@ -51,63 +56,25 @@ interface RevenueForecastProps {
 const TICKET_STATUS = { available: 'Available', selling_fast: 'Selling fast', sold_out: 'Sold out' } as const;
 const label11 = 'font-body text-[11px] font-bold uppercase tracking-[0.12em]';
 
-// ─── The totals ──────────────────────────────────────────────────────────────
+// ─── The two forecasts: upcoming and past ────────────────────────────────────
 
-function TotalRange({ tipId, total, stat, labels, multi }: { tipId: string; total: ForecastStat['totals'][number]; stat: ForecastStat; labels: [string, string, string]; multi: boolean }) {
-  const { low, expected, high } = total.revenue;
-  const figures: readonly [string, number][] = [
-    [labels[0], low],
-    [labels[1], expected],
-    [labels[2], high],
-  ];
+/**
+ * One forecast dial with its title. The block's beacon sits in the title's row, after the title, in the flow: a beacon floating over the dial
+ * would cover a corner of it (and take the touches meant for it). `reserve` gives both blocks of the panel the height of that row, so the two
+ * dials stay level whichever of them has the beacon.
+ */
+function ForecastGauge({ title, testId, stat, labels, hotspot, reserve = false }: { title: string; testId: string; stat: ForecastStat; labels: [string, string, string]; hotspot?: React.ReactNode; reserve?: boolean }) {
+  const tip = useChartTip();
+  const total = stat.totals[0];
+  const scale = total ? niceScale(total.revenue.high, 5).max : 1;
   return (
-    <div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {figures.map(([name, amount]) => (
-          <div key={name} className="border p-3" style={{ borderColor: WHITE.a08, background: WHITE.a02 }}>
-            <p className="font-body text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: WHITE.a50 }}>
-              {name}
-            </p>
-            <p className="mt-1 font-display text-lg font-bold leading-tight text-white [font-variant-numeric:lining-nums]">{formatEstimate(amount, total.currency)}</p>
-            {multi ? (
-              <p className="mt-0.5 font-body text-[10px]" style={{ color: WHITE.a50 }}>
-                {total.currency}
-              </p>
-            ) : null}
-          </div>
-        ))}
+    <div data-testid={testId} className="relative min-w-0">
+      <div className={`flex flex-wrap items-center gap-x-3 ${reserve ? 'min-h-11' : ''}`}>
+        <p className={label11} style={{ color: WHITE.a65 }}>
+          {title}
+        </p>
+        {hotspot}
       </div>
-      <div className="mt-3">
-        <RangeBar
-          tipId={tipId}
-          low={low}
-          expected={expected}
-          high={high}
-          ariaLabel={`Estimated range from ${formatEstimate(low, total.currency)} to ${formatEstimate(high, total.currency)}, expected ${formatEstimate(expected, total.currency)}`}
-          tipContent={
-            <TipBody
-              title="Estimated revenue"
-              subtitle={`${stat.forecast} of ${stat.events} ${stat.events === 1 ? 'event' : 'events'}`}
-              rows={[
-                { label: 'Low', value: formatEstimate(low, total.currency), swatch: 'hatch' },
-                { label: 'Expected', value: formatEstimate(expected, total.currency), swatch: 'hatch' },
-                { label: 'High', value: formatEstimate(high, total.currency), swatch: 'hatch' },
-              ]}
-              note="An estimate, not a record."
-            />
-          }
-        />
-      </div>
-    </div>
-  );
-}
-
-function ForecastBlock({ title, testId, stat, labels }: { title: string; testId: string; stat: ForecastStat; labels: [string, string, string] }) {
-  return (
-    <div data-testid={testId} className="min-w-0">
-      <p className={label11} style={{ color: WHITE.a65 }}>
-        {title}
-      </p>
       {stat.events === 0 ? (
         <EmptyNote>No events in this view.</EmptyNote>
       ) : stat.forecast === 0 ? (
@@ -115,14 +82,55 @@ function ForecastBlock({ title, testId, stat, labels }: { title: string; testId:
           No estimate yet for {theseEvents(stat.events)}. {describeLeftOut(stat)}. Enter Price and Capacity on each event (Events tab).
         </EmptyNote>
       ) : (
-        <div className="mt-3 space-y-4">
-          {stat.totals.map((total) => (
-            <TotalRange key={total.currency} tipId={`${testId}-range-${total.currency}`} total={total} stat={stat} labels={labels} multi={stat.totals.length > 1} />
-          ))}
-          <p className="font-body text-[11px] leading-relaxed" style={{ color: WHITE.a50 }}>
-            Estimated for {stat.forecast} of {stat.events} {stat.events === 1 ? 'event' : 'events'}
-            {stat.referenceCapacity > 0 ? `, ${stat.referenceCapacity} of them on the public capacity of their venue` : ''}
-            {describeLeftOut(stat) ? `. Not estimated: ${describeLeftOut(stat)}` : ''}.
+        <div className={`${reserve ? 'mt-1' : 'mt-3'} space-y-6`}>
+          {stat.totals.map((entry) => {
+            const { low, expected, high } = entry.revenue;
+            const leftOut = describeLeftOut(stat);
+            return (
+              <div key={entry.currency} className="flex flex-col items-center gap-3">
+                <Dial
+                  ratio={expected / scale}
+                  band={{ from: low / scale, to: high / scale }}
+                  needle
+                  hatched
+                  divisions={4}
+                  scale={[formatMoney(0, entry.currency), formatMoney(scale, entry.currency)]}
+                  width={260}
+                  testId={`${testId}-dial-${entry.currency}`}
+                  label={`${title}: estimated revenue from ${formatEstimate(low, entry.currency)} to ${formatEstimate(high, entry.currency)}, expected ${formatEstimate(expected, entry.currency)}`}
+                  valueText="an estimate, not a record"
+                  tip={tip.bind(`${testId}-range-${entry.currency}`, () => (
+                    <TipBody
+                      title="Estimated revenue"
+                      subtitle={`${stat.forecast} of ${stat.events} ${stat.events === 1 ? 'event' : 'events'}`}
+                      rows={[
+                        { label: labels[0], value: formatEstimate(low, entry.currency), swatch: 'hatch' },
+                        { label: labels[1], value: formatEstimate(expected, entry.currency), swatch: 'hatch' },
+                        { label: labels[2], value: formatEstimate(high, entry.currency), swatch: 'hatch' },
+                      ]}
+                      note={`An estimate, not a record. Estimated for ${stat.forecast} of ${stat.events} ${stat.events === 1 ? 'event' : 'events'}${stat.referenceCapacity > 0 ? `, ${stat.referenceCapacity} of them on the public capacity of their venue` : ''}${leftOut ? `. Not estimated: ${leftOut}` : ''}.`}
+                    />
+                  ))}
+                >
+                  <CountUp value={expected} format={(value) => formatEstimate(value, entry.currency)} className={`block text-4xl ${FIGURE}`} testId={`${testId}-expected-${entry.currency}`} />
+                  <span className="mt-1.5 inline-flex items-center gap-2 font-body text-xs" style={{ color: WHITE.a65 }}>
+                    expected{stat.totals.length > 1 ? ` (${entry.currency})` : ''}
+                    <EstimateChip />
+                  </span>
+                </Dial>
+                <div className="flex w-full max-w-[260px] justify-between gap-3 font-body text-xs" style={{ color: WHITE.a65 }}>
+                  <span data-testid={`${testId}-low-${entry.currency}`}>
+                    Low <span className="font-bold text-white">{formatEstimate(low, entry.currency)}</span>
+                  </span>
+                  <span data-testid={`${testId}-high-${entry.currency}`}>
+                    High <span className="font-bold text-white">{formatEstimate(high, entry.currency)}</span>
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          <p data-testid={`${testId}-coverage`} className="text-center font-body text-xs" style={{ color: WHITE.a65 }}>
+            {stat.forecast} of {stat.events} {stat.events === 1 ? 'event' : 'events'}
           </p>
         </div>
       )}
@@ -130,7 +138,7 @@ function ForecastBlock({ title, testId, stat, labels }: { title: string; testId:
   );
 }
 
-// ─── The events, one range each ──────────────────────────────────────────────
+// ─── The events, one small dial each, on one scale ───────────────────────────
 
 type RowKind = 'estimate' | 'recorded' | 'none';
 
@@ -142,7 +150,7 @@ function kindOf(row: PipelineRow, currency: string | null): RowKind {
 }
 
 function RecordPrompt({ id, onNavigate }: { id: string; onNavigate?: (tab: AdminTab) => void }) {
-  if (!onNavigate) return <span>Record sales (Events tab)</span>;
+  if (!onNavigate) return null;
   return (
     <button
       type="button"
@@ -159,11 +167,19 @@ function RecordPrompt({ id, onNavigate }: { id: string; onNavigate?: (tab: Admin
   );
 }
 
-function EventRow({ row, currency, scaleMax, ticks, assumptions, tip, activeId, onActive, onNavigate }: {
+function EventDial({
+  row,
+  currency,
+  scale,
+  assumptions,
+  tip,
+  activeId,
+  onActive,
+  onNavigate,
+}: {
   row: PipelineRow;
   currency: string | null;
-  scaleMax: number;
-  ticks: readonly number[];
+  scale: number;
   assumptions: AdminBi['forecast']['assumptions'];
   tip: ReturnType<typeof useChartTip>;
   activeId: string | null;
@@ -174,8 +190,6 @@ function EventRow({ row, currency, scaleMax, ticks, assumptions, tip, activeId, 
   const kind = kindOf(row, currency);
   const active = activeId === id;
   const forecast = row.forecast;
-  const percent = (value: number) => (scaleMax > 0 ? (value / scaleMax) * 100 : 0);
-  const positions = ticks.map(percent);
 
   const tipRows = (() => {
     if (kind === 'estimate' && forecast) {
@@ -223,77 +237,54 @@ function EventRow({ row, currency, scaleMax, ticks, assumptions, tip, activeId, 
       data-testid={`bi-forecast-row-${row.id}`}
       data-kind={kind}
       data-active={active ? 'true' : undefined}
-      className="grid grid-cols-1 gap-x-4 gap-y-2 px-2 py-3 transition-colors duration-300 sm:grid-cols-[minmax(8rem,13rem)_minmax(0,1fr)_minmax(10rem,14rem)] sm:items-center"
-      style={{ borderBottom: `1px solid ${WHITE.a08}`, background: active ? WHITE.a04 : undefined }}
+      className="flex min-w-0 flex-col items-center gap-2 border p-3 text-center transition-colors duration-300 motion-reduce:transition-none"
+      style={{ borderColor: active ? GOLD_A.a40 : WHITE.a08, background: active ? WHITE.a04 : WHITE.a02 }}
       {...handlers}
     >
-      <div className="min-w-0">
-        <p className="font-body text-sm font-bold leading-snug text-white [overflow-wrap:anywhere]">
-          {row.title}
-          {row.status === 'live' ? (
-            <Chip tone="success" icon="pulse" className="ml-2 align-middle">
-              Live
-            </Chip>
-          ) : null}
-        </p>
-        <p className="mt-0.5 font-body text-[11px]" style={{ color: WHITE.a50 }}>
-          {row.dateLabel} · {row.daysLabel}
-        </p>
-      </div>
-
-      <div className="relative h-7" role="img" tabIndex={0} aria-label={ariaLabel} data-testid={`bi-forecast-bar-${row.id}`}>
-        <GridLines positions={positions} />
-        {kind === 'estimate' && forecast ? (
-          <>
-            <Grow
-              from="center"
-              className="absolute inset-y-1.5"
-              style={{
-                left: `${percent(forecast.revenue.low)}%`,
-                width: `${Math.max(1.5, percent(forecast.revenue.high) - percent(forecast.revenue.low))}%`,
-                backgroundImage: HATCH,
-                borderRadius: 4,
-                outline: `1px solid ${GOLD_A.a50}`,
-              }}
-            />
-            <ExpectedMarker left={`${percent(forecast.revenue.expected)}%`} />
-          </>
-        ) : kind === 'recorded' && row.revenue ? (
-          <Grow className="absolute inset-y-1.5 left-0" style={{ width: `${Math.max(1.5, percent(row.revenue.amount))}%`, background: COLOR.gold, borderRadius: '0 4px 4px 0' }} />
+      <Dial
+        ratio={kind === 'estimate' && forecast ? forecast.revenue.expected / scale : kind === 'recorded' && row.revenue ? row.revenue.amount / scale : null}
+        band={kind === 'estimate' && forecast ? { from: forecast.revenue.low / scale, to: forecast.revenue.high / scale } : null}
+        needle={kind === 'estimate'}
+        hatched={kind === 'estimate'}
+        divisions={4}
+        width={150}
+        testId={`bi-forecast-dial-${row.id}`}
+        label={ariaLabel}
+        valueText={kind === 'estimate' ? 'an estimate' : kind === 'recorded' ? 'recorded' : 'no estimate'}
+        state={kind === 'none' ? 'not-recorded' : 'recorded'}
+        focusable
+      />
+      <p className="line-clamp-2 min-h-8 w-full font-body text-xs font-bold leading-snug text-white [overflow-wrap:anywhere]" title={row.title}>
+        {row.title}
+        {row.status === 'live' ? (
+          <Chip tone="success" icon="pulse" className="ml-2 align-middle">
+            Live
+          </Chip>
         ) : null}
-      </div>
-
-      <div className="min-w-0 font-body text-xs">
-        {kind === 'estimate' && forecast ? (
-          <p data-testid={`bi-forecast-expected-${row.id}`} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-sm font-bold tabular-nums text-white">{formatEstimate(forecast.revenue.expected, forecast.currency)}</span>
-            <EstimateChip />
-          </p>
-        ) : kind === 'recorded' && row.revenue ? (
-          <p data-testid={`bi-forecast-recorded-${row.id}`} className="text-sm font-bold tabular-nums text-white">
-            {formatMoney(row.revenue.amount, row.revenue.currency)} <span className="font-body text-[11px] font-normal" style={{ color: WHITE.a65 }}>recorded</span>
-          </p>
-        ) : (
-          <p className="font-bold" style={{ color: WHITE.a65 }}>
-            No estimate
-          </p>
-        )}
-        {kind === 'recorded' ? (
-          <p className="mt-1 text-[11px]" style={{ color: WHITE.a50 }}>
-            {row.sold !== null ? `${formatCount(row.sold)} tickets sold${row.sellThrough !== null ? ` · ${formatPercent(row.sellThrough)} of capacity` : ''}` : 'tickets sold not recorded'}
-          </p>
-        ) : (
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]" style={{ color: WHITE.a50 }}>
-            {kind === 'none' ? <span className="[overflow-wrap:anywhere]">{noEstimateReason(row)}</span> : <span>Recorded revenue: Not recorded</span>}
-            {!row.recordedSales ? <RecordPrompt id={row.id} onNavigate={onNavigate} /> : row.sold !== null ? <span>{formatCount(row.sold)} tickets sold; revenue not recorded</span> : null}
-          </div>
-        )}
-      </div>
+      </p>
+      <p className="font-body text-[11px]" style={{ color: WHITE.a65 }}>
+        {row.daysLabel}
+      </p>
+      {kind === 'estimate' && forecast ? (
+        <p data-testid={`bi-forecast-expected-${row.id}`} className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-body">
+          <span className="text-sm font-bold tabular-nums text-white">{formatEstimate(forecast.revenue.expected, forecast.currency)}</span>
+          <EstimateChip />
+        </p>
+      ) : kind === 'recorded' && row.revenue ? (
+        <p data-testid={`bi-forecast-recorded-${row.id}`} className="font-body text-sm font-bold tabular-nums text-white">
+          {formatMoney(row.revenue.amount, row.revenue.currency)} <span className="text-[11px] font-normal" style={{ color: WHITE.a65 }}>recorded</span>
+        </p>
+      ) : (
+        <p className="font-body text-xs font-bold" style={{ color: WHITE.a65 }}>
+          No estimate
+        </p>
+      )}
+      {!row.recordedSales ? <RecordPrompt id={row.id} onNavigate={onNavigate} /> : null}
     </li>
   );
 }
 
-function EventRanges({ bi, activeId, onActive, onNavigate }: { bi: AdminBi; activeId: string | null; onActive: (id: string | null) => void; onNavigate?: (tab: AdminTab) => void }) {
+function EventDials({ bi, activeId, onActive, onNavigate }: { bi: AdminBi; activeId: string | null; onActive: (id: string | null) => void; onNavigate?: (tab: AdminTab) => void }) {
   const tip = useChartTip();
   const rows = bi.pipeline;
   const currency = useMemo(
@@ -313,41 +304,27 @@ function EventRanges({ bi, activeId, onActive, onNavigate }: { bi: AdminBi; acti
 
   return (
     <div data-testid="bi-forecast-events">
-      {plotted ? (
-        <div className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-2 px-2">
-          <LegendSwatch kind="hatch" label="Estimated range, low to high" />
-          <LegendSwatch kind="diamond" label="Expected" />
+      {plotted && currency ? (
+        <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <LegendSwatch kind="hatch" label="Estimated range" />
+          <LegendSwatch kind="needle" label="Expected" />
           <LegendSwatch kind="solid" label="Recorded" />
+          <span data-testid="bi-forecast-scale" aria-hidden="true" className="font-body text-xs tabular-nums" style={{ color: WHITE.a50 }}>
+            every dial {formatMoney(0, currency)} to {formatMoney(scale.max, currency)}
+          </span>
         </div>
       ) : (
-        <p className="mb-2 px-2 font-body text-xs" style={{ color: WHITE.a65 }}>
+        <p className="mb-3 font-body text-xs" style={{ color: WHITE.a65 }}>
           No event has an estimate or recorded revenue to draw yet. Enter Price and Capacity on each event (Events tab).
         </p>
       )}
-      <ul>
+      <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         {rows.map((row) => (
-          <EventRow
-            key={row.id || row.title}
-            row={row}
-            currency={currency}
-            scaleMax={scale.max}
-            ticks={scale.ticks}
-            assumptions={bi.forecast.assumptions}
-            tip={tip}
-            activeId={activeId}
-            onActive={onActive}
-            onNavigate={onNavigate}
-          />
+          <EventDial key={row.id || row.title} row={row} currency={currency} scale={scale.max} assumptions={bi.forecast.assumptions} tip={tip} activeId={activeId} onActive={onActive} onNavigate={onNavigate} />
         ))}
       </ul>
-      {plotted && currency ? (
-        <div className="grid grid-cols-1 gap-x-4 px-2 pt-1 sm:grid-cols-[minmax(8rem,13rem)_minmax(0,1fr)_minmax(10rem,14rem)]">
-          <span aria-hidden="true" className="hidden sm:block" />
-          <AxisLabels ticks={scale.ticks} max={scale.max} format={(value) => formatMoney(value, currency)} />
-        </div>
-      ) : null}
       {otherCurrencies > 0 && currency ? (
-        <p className="px-2 pt-2 font-body text-[11px]" style={{ color: WHITE.a50 }}>
+        <p className="pt-2 font-body text-[11px]" style={{ color: WHITE.a50 }}>
           Drawn in {currency}. {otherCurrencies} {otherCurrencies === 1 ? 'event has its amounts' : 'events have their amounts'} in another currency, listed in the table.
         </p>
       ) : null}
@@ -358,72 +335,140 @@ function EventRanges({ bi, activeId, onActive, onNavigate }: { bi: AdminBi; acti
 // ─── What is recorded so far ─────────────────────────────────────────────────
 
 function RecordedStrip({ bi, events }: { bi: AdminBi; events: readonly Event[] }) {
+  const tip = useChartTip();
   const { summary } = bi;
   const derived = summary.derivedRevenue;
   const sellThrough = summary.sellThrough;
   const perTicket = revenuePerTicket(events);
+  const share = (recorded: number, total: number): number | null => (total === 0 ? null : recorded / total);
+  const noun = (total: number) => (total === 1 ? 'event' : 'events');
+  const sentence = (coverage: { recorded: number; total: number }, suffix = '') => (coverage.total === 0 ? `no events in this view${suffix}` : `recorded for ${coverage.recorded} of ${coverage.total} ${noun(coverage.total)}${suffix}`);
+
+  const revenueFigure = moneyFigure(summary.ticketRevenue);
+  const soldFigure = summary.ticketsSold.value === null ? null : formatCount(summary.ticketsSold.value);
+  const perTicketFigure =
+    perTicket.rates.length === 0
+      ? null
+      : perTicket.rates.map((rate) => (
+          <p key={rate.currency} className={perTicket.rates.length > 1 ? 'text-[0.8em]' : undefined}>
+            {formatMoney(rate.perTicket, rate.currency)}
+          </p>
+        ));
+  const grossFigure = moneyFigure(summary.potentialGross);
+
   return (
     <div data-testid="bi-recorded" className="mt-6 border-t pt-5" style={{ borderColor: GOLD_A.a10 }}>
       <p className={label11} style={{ color: WHITE.a65 }}>
         Recorded so far
       </p>
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatBox
+      <div className={`mt-3 grid grid-cols-2 gap-3 ${sellThrough.ratio !== null ? 'md:grid-cols-3 xl:grid-cols-5' : 'md:grid-cols-4'}`}>
+        <StatRing
           testId="bi-card-ticket-revenue"
-          label="Ticket revenue (recorded)"
-          figure={moneyFigure(summary.ticketRevenue)}
-          coverage={summary.ticketRevenue.amounts.length === 0 ? `${describeCoverage(summary.ticketRevenue.coverage)}. Enter Ticket Revenue on each event (Events tab)` : describeCoverage(summary.ticketRevenue.coverage)}
-        >
-          {derived.amounts.length > 0 ? (
-            <p data-testid="bi-derived-revenue" className="mt-1 font-body text-[11px] leading-relaxed" style={{ color: WHITE.a50 }}>
-              plus {derived.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' and ')} worked out from tickets sold × price for {derived.coverage.recorded}{' '}
-              {derived.coverage.recorded === 1 ? 'event' : 'events'} (not a recorded figure)
-            </p>
-          ) : null}
-        </StatBox>
-        <StatBox
-          testId="bi-card-tickets-sold"
-          label="Tickets sold (recorded)"
-          figure={summary.ticketsSold.value === null ? null : formatCount(summary.ticketsSold.value)}
-          coverage={summary.ticketsSold.value === null ? `${describeCoverage(summary.ticketsSold.coverage)}. Enter Tickets Sold on each event (Events tab)` : describeCoverage(summary.ticketsSold.coverage)}
-        >
-          {sellThrough.ratio !== null ? (
-            <p data-testid="bi-sell-through" className="mt-1 font-body text-[11px] leading-relaxed" style={{ color: WHITE.a50 }}>
-              sell-through {formatPercent(sellThrough.ratio)}: {formatCount(sellThrough.sold)} sold of {formatCount(sellThrough.capacity)} seats, for the {sellThrough.coverage.recorded}{' '}
-              {sellThrough.coverage.recorded === 1 ? 'event' : 'events'} with both recorded
-            </p>
-          ) : null}
-        </StatBox>
-        <StatBox
-          testId="bi-card-per-ticket"
-          label="Avg per ticket sold"
-          figure={
-            perTicket.rates.length === 0
-              ? null
-              : perTicket.rates.map((rate) => (
-                  <p key={rate.currency} className={perTicket.rates.length > 1 ? 'text-lg' : undefined}>
-                    {formatMoney(rate.perTicket, rate.currency)}
-                  </p>
-                ))
+          label="Ticket revenue"
+          figure={revenueFigure}
+          ratio={share(summary.ticketRevenue.coverage.recorded, summary.ticketRevenue.coverage.total)}
+          coverage={summary.ticketRevenue.coverage}
+          caption={`${summary.ticketRevenue.coverage.recorded} of ${summary.ticketRevenue.coverage.total} ${noun(summary.ticketRevenue.coverage.total)} recorded`}
+          extra={
+            derived.amounts.length > 0 ? (
+              <p data-testid="bi-derived-revenue" className="font-body text-[11px] leading-snug" style={{ color: WHITE.a50 }}>
+                + {derived.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' and ')} derived
+              </p>
+            ) : null
           }
-          coverage={perTicket.rates.length === 0 ? 'Enter Tickets Sold and Ticket Revenue on the same event (Events tab)' : `recorded revenue / tickets sold, ${describeCoverage(perTicket.coverage)}`}
+          ringLabel="Ticket revenue (recorded)"
+          valueText={sentence(summary.ticketRevenue.coverage)}
+          tip={tip.bind('recorded-revenue', () => (
+            <TipBody
+              title="Ticket revenue (recorded)"
+              rows={[{ label: 'Recorded for', value: `${summary.ticketRevenue.coverage.recorded} of ${summary.ticketRevenue.coverage.total} ${noun(summary.ticketRevenue.coverage.total)}` }]}
+              note={
+                <>
+                  <span className="block">{summary.ticketRevenue.amounts.length === 0 ? `${describeCoverage(summary.ticketRevenue.coverage)}. Enter Ticket Revenue on each event (Events tab)` : describeCoverage(summary.ticketRevenue.coverage)}</span>
+                  {derived.amounts.length > 0 ? (
+                    <span className="block">
+                      plus {derived.amounts.map((entry) => formatMoney(entry.amount, entry.currency)).join(' and ')} worked out from tickets sold × price for {derived.coverage.recorded} {derived.coverage.recorded === 1 ? 'event' : 'events'} (not a recorded figure)
+                    </span>
+                  ) : null}
+                </>
+              }
+            />
+          ))}
+          hotspots={<Hotspots ids={['record-ticket-sales']} label="ticket revenue" slug="ticket-revenue" className="" />}
         />
-        <StatBox
+        <StatRing
+          testId="bi-card-tickets-sold"
+          label="Tickets sold"
+          figure={soldFigure}
+          ratio={share(summary.ticketsSold.coverage.recorded, summary.ticketsSold.coverage.total)}
+          coverage={summary.ticketsSold.coverage}
+          caption={`${summary.ticketsSold.coverage.recorded} of ${summary.ticketsSold.coverage.total} ${noun(summary.ticketsSold.coverage.total)} recorded`}
+          ringLabel="Tickets sold (recorded)"
+          valueText={sentence(summary.ticketsSold.coverage)}
+          tip={tip.bind('recorded-sold', () => (
+            <TipBody
+              title="Tickets sold (recorded)"
+              rows={[{ label: 'Recorded for', value: `${summary.ticketsSold.coverage.recorded} of ${summary.ticketsSold.coverage.total} ${noun(summary.ticketsSold.coverage.total)}` }]}
+              note={summary.ticketsSold.value === null ? `${describeCoverage(summary.ticketsSold.coverage)}. Enter Tickets Sold on each event (Events tab)` : describeCoverage(summary.ticketsSold.coverage)}
+            />
+          ))}
+        />
+        {sellThrough.ratio !== null ? (
+          <StatRing
+            testId="bi-sell-through"
+            label="Sell-through"
+            figure={`${formatCount(sellThrough.sold)}/${formatCount(sellThrough.capacity)}`}
+            ratio={sellThrough.ratio}
+            caption={`sold of seats, ${sellThrough.coverage.recorded} ${sellThrough.coverage.recorded === 1 ? 'event' : 'events'}`}
+            ringLabel="Sell-through"
+            valueText={`sell-through ${formatPercent(sellThrough.ratio)}: ${formatCount(sellThrough.sold)} sold of ${formatCount(sellThrough.capacity)} seats`}
+            tip={tip.bind('recorded-sell-through', () => (
+              <TipBody
+                title="Sell-through"
+                rows={[{ label: 'Sold of seats', value: `${formatCount(sellThrough.sold)} of ${formatCount(sellThrough.capacity)}` }]}
+                note={`sell-through ${formatPercent(sellThrough.ratio ?? 0)}: ${formatCount(sellThrough.sold)} sold of ${formatCount(sellThrough.capacity)} seats, for the ${sellThrough.coverage.recorded} ${sellThrough.coverage.recorded === 1 ? 'event' : 'events'} with both recorded`}
+              />
+            ))}
+          />
+        ) : null}
+        <StatRing
+          testId="bi-card-per-ticket"
+          label="Per ticket"
+          figure={perTicketFigure}
+          ratio={share(perTicket.coverage.recorded, perTicket.coverage.total)}
+          coverage={perTicket.coverage}
+          caption={`${perTicket.coverage.recorded} of ${perTicket.coverage.total} ${noun(perTicket.coverage.total)} recorded`}
+          ringLabel="Average revenue per ticket sold"
+          valueText={perTicket.rates.length === 0 ? 'not recorded' : `recorded revenue / tickets sold, ${describeCoverage(perTicket.coverage)}`}
+          tip={tip.bind('recorded-per-ticket', () => (
+            <TipBody
+              title="Avg per ticket sold"
+              rows={[{ label: 'Recorded for', value: `${perTicket.coverage.recorded} of ${perTicket.coverage.total} ${noun(perTicket.coverage.total)}` }]}
+              note={perTicket.rates.length === 0 ? 'Enter Tickets Sold and Ticket Revenue on the same event (Events tab)' : `recorded revenue / tickets sold, ${describeCoverage(perTicket.coverage)}`}
+            />
+          ))}
+        />
+        <StatRing
           testId="bi-card-potential-gross"
-          label="Potential gross if sold out"
-          figure={moneyFigure(summary.potentialGross)}
-          coverage={
-            summary.potentialGross.amounts.length === 0
-              ? `${describeCoverage(summary.potentialGross.coverage)} with both a price and a capacity. Enter both on the same event (Events tab)`
-              : `${describeCoverage(summary.potentialGross.coverage)} with both a price and a capacity`
-          }
-        >
-          {summary.potentialGross.amounts.length > 0 ? (
-            <p className="mt-1 font-body text-[11px]" style={{ color: WHITE.a50 }}>
-              if every seat sold at the listed price
-            </p>
-          ) : null}
-        </StatBox>
+          label="Potential gross"
+          figure={grossFigure}
+          ratio={share(summary.potentialGross.coverage.recorded, summary.potentialGross.coverage.total)}
+          coverage={summary.potentialGross.coverage}
+          caption={`${summary.potentialGross.coverage.recorded} of ${summary.potentialGross.coverage.total} ${noun(summary.potentialGross.coverage.total)} with price and capacity`}
+          ringLabel="Potential gross if sold out"
+          valueText={`${describeCoverage(summary.potentialGross.coverage)} with both a price and a capacity`}
+          tip={tip.bind('recorded-gross', () => (
+            <TipBody
+              title="Potential gross if sold out"
+              rows={[{ label: 'Price and capacity for', value: `${summary.potentialGross.coverage.recorded} of ${summary.potentialGross.coverage.total} ${noun(summary.potentialGross.coverage.total)}` }]}
+              note={
+                summary.potentialGross.amounts.length === 0
+                  ? `${describeCoverage(summary.potentialGross.coverage)} with both a price and a capacity. Enter both on the same event (Events tab)`
+                  : `${describeCoverage(summary.potentialGross.coverage)} with both a price and a capacity; if every seat sold at the listed price`
+              }
+            />
+          ))}
+        />
       </div>
     </div>
   );
@@ -500,7 +545,7 @@ function Sources({ bi }: { bi: AdminBi }) {
   const list = [...venues.values()];
   if (list.length === 0) return null;
   return (
-    <p data-testid="bi-forecast-sources" className="mt-2 font-body text-[11px] leading-relaxed" style={{ color: WHITE.a50 }}>
+    <p data-testid="bi-forecast-sources">
       Public venue capacities used:{' '}
       {list.map((venue, index) => (
         <Fragment key={venue.id}>
@@ -519,9 +564,13 @@ function Sources({ bi }: { bi: AdminBi }) {
 
 // ─── The section ─────────────────────────────────────────────────────────────
 
+/** The actions that concern the forecast and the figures recorded so far. */
+const FORECAST_ACTIONS = ['add-prices', 'record-ticket-sales'] as const;
+
 export const RevenueForecast = memo(function RevenueForecast({ bi, events, reference, activeId, onActive, onNavigate, delay = 0 }: RevenueForecastProps) {
   const { assumptions, upcoming, past } = bi.forecast;
   const labels = scenarioLabels(assumptions);
+  const hasPriceAction = useActions().actions.some((action) => action.id === 'add-prices');
 
   return (
     <ChartSection
@@ -529,34 +578,46 @@ export const RevenueForecast = memo(function RevenueForecast({ bi, events, refer
       eyebrow="Estimate"
       title={assumptions.kind === 'scenario' ? 'Revenue scenarios' : 'Revenue & forecast'}
       tag={<EstimateChip />}
-      description="What each upcoming event could take, from its price, its capacity and how well comparable events sell, with the revenue recorded beside it. Estimates are hatched; recorded figures are solid."
+      info={{
+        label: 'revenue and forecast',
+        width: 400,
+        content: (
+          <PopoverText title="Revenue & forecast">
+            <p>What each upcoming event could take, from its price, its capacity and how well comparable events sell, with the revenue recorded beside it. Estimates are hatched; recorded figures are solid.</p>
+            <EstimateLegend assumptions={assumptions} />
+            <Sources bi={bi} />
+          </PopoverText>
+        ),
+      }}
       delay={delay}
       chart={
         <>
           {assumptions.usable ? (
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-2">
-              <ForecastBlock title="Upcoming and live events" testId="bi-forecast-upcoming" stat={upcoming} labels={labels} />
-              <ForecastBlock title="Past events with no sales recorded" testId="bi-forecast-past" stat={past} labels={labels} />
+            <div className="grid grid-cols-1 gap-x-8 gap-y-8 lg:grid-cols-2">
+              <ForecastGauge title="Upcoming and live" testId="bi-forecast-upcoming" stat={upcoming} labels={labels} reserve={hasPriceAction} hotspot={<Hotspots ids={['add-prices']} label="the forecast" slug="forecast" className="" />} />
+              <ForecastGauge title="Past, no sales recorded" testId="bi-forecast-past" stat={past} labels={labels} reserve={hasPriceAction} />
             </div>
           ) : (
-            <EmptyNote>No estimate can be made while the sell-through values in the reference data are not valid.</EmptyNote>
+            <>
+              <EmptyNote>No estimate can be made while the sell-through values in the reference data are not valid.</EmptyNote>
+              <div className="flex justify-end">
+                <Hotspots ids={['add-prices']} label="the forecast" slug="forecast" className="ml-auto" />
+              </div>
+            </>
           )}
           <div className="mt-6 border-t pt-5" style={{ borderColor: GOLD_A.a10 }}>
-            <p className={`mb-2 ${label11}`} style={{ color: WHITE.a65 }}>
+            <p className={`mb-3 ${label11}`} style={{ color: WHITE.a65 }}>
               Event by event
             </p>
-            <EventRanges bi={bi} activeId={activeId} onActive={onActive} onNavigate={onNavigate} />
+            <EventDials bi={bi} activeId={activeId} onActive={onActive} onNavigate={onNavigate} />
           </div>
           <RecordedStrip bi={bi} events={events} />
         </>
       }
       table={<ForecastTable events={events} reference={reference} />}
-      footer={
-        <div className="mt-5 border-t pt-4" style={{ borderColor: GOLD_A.a10 }}>
-          <EstimateLegend assumptions={assumptions} />
-          <Sources bi={bi} />
-        </div>
-      }
+      beaconsOnVisuals
+      beacons={<PanelBeacons ids={FORECAST_ACTIONS} label="revenue and forecast" slug="forecast-panel" />}
+      notes={<HotspotNotes ids={FORECAST_ACTIONS} label="revenue and forecast" slug="forecast" />}
     />
   );
 });
