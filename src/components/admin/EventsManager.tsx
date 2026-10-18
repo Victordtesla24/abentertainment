@@ -917,14 +917,14 @@ export default function EventsManager({ initialEvents, allSponsors = NO_SPONSORS
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs text-white/60 mb-1">Hero Image</label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <input
                       type="text"
                       value={form.heroImage || ''}
                       onChange={(e) => setForm({ ...form, heroImage: e.target.value })}
                       placeholder="Optional — leave blank to reuse the Main Image"
                       title="Large banner image displayed behind the hero section on the event detail page. Falls back to Main Image if blank."
-                      className="flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
+                      className="min-w-0 flex-1 basis-48 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm focus:outline-none focus:border-[#C9A84C] placeholder-white/20"
                     />
                     <input
                       type="file"
@@ -1202,9 +1202,9 @@ export default function EventsManager({ initialEvents, allSponsors = NO_SPONSORS
                       )}
                       {/* Add image form */}
                       {addingImageToEvent === event.id && (
-                        <div className="flex gap-2">
-                          <input type="text" value={newImageSrc} onChange={e => setNewImageSrc(e.target.value)} placeholder="Image URL" className="flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm" />
-                          <input type="text" value={newImageAlt} onChange={e => setNewImageAlt(e.target.value)} placeholder="Alt text" className="flex-1 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm" />
+                        <div className="flex flex-wrap gap-2">
+                          <input type="text" value={newImageSrc} onChange={e => setNewImageSrc(e.target.value)} placeholder="Image URL" className="min-w-0 flex-1 basis-40 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm" />
+                          <input type="text" value={newImageAlt} onChange={e => setNewImageAlt(e.target.value)} placeholder="Alt text" className="min-w-0 flex-1 basis-40 px-3 py-2 bg-[#0A0A0A] border border-[#C9A84C]/20 rounded-sm text-white text-sm" />
                           <button onClick={() => handleAddEventImage(event.id)} className="px-3 py-2 bg-[#C9A84C] text-white text-sm rounded-sm">Add</button>
                           <button onClick={() => { setAddingImageToEvent(null); setNewImageSrc(''); setNewImageAlt(''); }} className="px-3 py-2 border border-white/20 text-white/40 text-sm rounded-sm">Cancel</button>
                         </div>
