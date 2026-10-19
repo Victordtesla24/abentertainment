@@ -11,34 +11,21 @@ import { getApiUrl } from '@/lib/api-config';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 import type { Event, GalleryImage } from '@/lib/data';
 import { isPastEvent } from '@/lib/event-display';
+import { formatEventDate, formatEventTime } from '@/lib/event-date';
 
 type LightboxImage = { src: string; alt: string; title?: string };
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-AU', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-function formatTime(dateString: string): string {
-  // Only show a time the admin actually set (an ISO date-time with a 'T').
-  // Never fabricate one — dates stored as 'YYYY-MM-DD' have no time, and the
-  // caller hides the Time row when this returns ''.
-  if (!dateString.includes('T')) {
-    return '';
-  }
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return ''; // e.g. a malformed 'TBA'/'TBD' string from data
-  return date.toLocaleTimeString('en-AU', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-}
+/**
+ * How the Event Details card writes the date of the event: the Melbourne date, the same for every visitor and for the
+ * server render (src/lib/event-date.ts). The Time row shows only a time the admin actually set; formatEventTime returns ''
+ * for a bare 'YYYY-MM-DD', and the row is hidden then.
+ */
+const DETAIL_DATE: Intl.DateTimeFormatOptions = {
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+};
 
 /**
  * Build lightbox images for an event: hero image, event poster, then all
@@ -198,13 +185,13 @@ export default function EventDetailContent({ event: initialEvent }: { event: Eve
 
               <div>
                 <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Date</p>
-                <p className="text-white font-body font-medium">{formatDate(event.date)}</p>
+                <p className="text-white font-body font-medium">{formatEventDate(event.date, DETAIL_DATE)}</p>
               </div>
 
-              {formatTime(event.date) && (
+              {formatEventTime(event.date) && (
                 <div>
                   <p className="text-xs text-[#C9A84C]/80 uppercase tracking-[0.2em] mb-1 font-body">Time</p>
-                  <p className="text-white font-body font-medium">{formatTime(event.date)}</p>
+                  <p className="text-white font-body font-medium">{formatEventTime(event.date)}</p>
                 </div>
               )}
 

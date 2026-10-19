@@ -8,8 +8,12 @@ import { firstUsableImageUrl, isUsableImageUrl } from '@/lib/perf/image-source';
 import type { GalleryImage, Event } from '@/lib/data';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 import { isPastEvent, isUpcomingEvent, sortByAdminOrder } from '@/lib/event-display';
+import { formatEventDate } from '@/lib/event-date';
 
 type LightboxImage = { src: string; alt: string; title: string; width?: number; height?: number };
+
+/** How an event's folder writes its date: the Melbourne date, the same for every visitor and for the server render (src/lib/event-date.ts). */
+const FOLDER_DATE: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
 
 function groupByEvent(images: GalleryImage[]): Map<string, GalleryImage[]> {
   const map = new Map<string, GalleryImage[]>();
@@ -48,9 +52,7 @@ function EventFolderCard({
   staticEventSlugs: readonly string[];
 }) {
   const cover = firstUsableImageUrl(event.heroImage, event.image, images[0]?.src);
-  const date = new Date(event.date).toLocaleDateString('en-AU', {
-    day: 'numeric', month: 'long', year: 'numeric',
-  });
+  const date = formatEventDate(event.date, FOLDER_DATE);
   return (
     <section className="mb-16">
       <header className="mb-6">

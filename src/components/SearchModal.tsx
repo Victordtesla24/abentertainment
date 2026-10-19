@@ -8,6 +8,7 @@ import FocusTrap from 'focus-trap-react';
 import OptimizedImage from '@/components/ui/OptimizedImage';
 import { isUsableImageUrl } from '@/lib/perf/image-source';
 import { openEvent } from '@/lib/event-links';
+import { formatEventDate } from '@/lib/event-date';
 // Bundled fallback for offline/build-time; live data fetched from API on open.
 // Project to search-relevant fields only so admin-internal fields (ticketsSold,
 // ticketRevenue) from the raw events.json never end up in the client bundle.
@@ -56,14 +57,13 @@ const fuseOptions: IFuseOptions<SearchableEvent> = {
   minMatchCharLength: 2,
 };
 
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-AU', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
+/** How a result writes the date of its event: the Melbourne date, the same for every visitor (src/lib/event-date.ts). */
+const RESULT_DATE: Intl.DateTimeFormatOptions = {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+};
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const router = useRouter();
@@ -336,7 +336,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                             {event.title}
                           </p>
                           <div className="flex items-center gap-2 mt-1 text-xs text-white/40 font-body">
-                            <span>{formatDate(event.date)}</span>
+                            <span>{formatEventDate(event.date, RESULT_DATE)}</span>
                             <span className="text-[#C9A84C]/40">|</span>
                             <span className="truncate">{event.venue}</span>
                           </div>

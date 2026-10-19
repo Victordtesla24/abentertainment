@@ -10,17 +10,17 @@ import EventLink from '@/components/ui/EventLink';
 import { isUsableImageUrl } from '@/lib/perf/image-source';
 import { usePolledRefresh } from '@/lib/use-polled-refresh';
 import { isPastEvent, isUpcomingEvent, sortByAdminOrder } from '@/lib/event-display';
+import { formatEventDate } from '@/lib/event-date';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-AU', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
+/** How a card writes the date of its event: the Melbourne date, the same for every visitor (src/lib/event-date.ts). */
+const CARD_DATE: Intl.DateTimeFormatOptions = {
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+};
 
 function getStatusBadge(event: Event): { label: string; color: string } {
   const now = new Date();
@@ -267,7 +267,7 @@ function EventCard({
             {event.description}
           </p>
           <div className="space-y-2 border-t border-[#C9A84C]/10 pt-3 text-sm text-[rgba(255,255,255,0.6)] font-body">
-            <p>{formatDate(event.date)}</p>
+            <p>{formatEventDate(event.date, CARD_DATE)}</p>
             <p>{event.venue}</p>
             {!isPast && (
               <p className="text-[#C9A84C] font-display font-bold">
