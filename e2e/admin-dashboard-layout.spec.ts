@@ -4,9 +4,9 @@
  * with System & operations open so the whole tab is on the page.
  *
  * At every size: every panel is there (the command bar with its actions chip, the dials, rings and donuts, the beacons of the
- * actions), nothing sticks out sideways (outside a table's own scrolling block), the timeline is the rail from 640 px and a list
- * below it, every panel is glass (translucent, blurred), no text is smaller than 10 px, on touch every button is at least 44 px each
- * way, and the browser logs no error.
+ * actions), nothing sticks out sideways (outside a table's own scrolling block), the timeline is the rail from 640 px and a lane for
+ * each event below it (the range slider under it at every size), every panel is glass (translucent, blurred), no text is smaller
+ * than 10 px, on touch every button is at least 44 px each way, and the browser logs no error.
  */
 
 import { test, expect, type Page } from '@playwright/test';
@@ -125,14 +125,14 @@ test.describe('the admin Dashboard at ten device sizes', () => {
         expect(overflow.wide, 'nothing runs past the edge of the screen').toEqual([]);
         expect(await brokenValues(page)).toEqual([]);
 
-        // the timeline: the rail from 640 px, a list of cards below
-        if (viewport.width < 640) {
-          await expect(byId(page, 'bi-timeline-list')).toBeVisible();
-          await expect(byId(page, 'bi-timeline')).toBeHidden();
-        } else {
-          await expect(byId(page, 'bi-timeline')).toBeVisible();
-          await expect(byId(page, 'bi-timeline-list')).toBeHidden();
-        }
+        // the timeline: the rail from 640 px, a lane for each event below it; every event is a marker, and the range slider is under it
+        await expect(byId(page, 'bi-timeline')).toBeVisible();
+        await expect(byId(page, 'bi-timeline')).toHaveAttribute('data-mode', viewport.width < 640 ? 'lanes' : 'rail');
+        await expect(byId(page, 'bi-timeline-list')).toHaveCount(0);
+        await expect(page.locator('[data-testid^="bi-timeline-marker-"]')).toHaveCount(5);
+        for (const marker of await page.locator('[data-testid^="bi-timeline-marker-"]').all()) await expect(marker).toBeVisible();
+        for (const part of ['start', 'end']) await expect(byId(page, `bi-timeline-handle-${part}`)).toBeVisible();
+        await expect(byId(page, 'bi-timeline-reset')).toBeVisible();
 
         // every panel is the brand's glass: translucent, with the brand's fine gold edge and sharp corners (the blur is the class's own:
         // src/app/globals.css is checked for it in admin-dashboard-brand.spec.ts, as a dev server's compiled stylesheet leaves it out)

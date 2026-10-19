@@ -4,7 +4,8 @@
  * on keyboard focus and on a tap and says what the table twin says; the same event lit in the revenue chart and on the timeline; hit
  * targets bigger than the marks (on touch an invisible 44 px area round each mark of a dial, and legend rows as tall as a finger); names
  * written into a tooltip as text, never as markup; the switches, the toggles, the "i" popovers and the filter by keyboard; and the
- * timeline becoming a list on a phone.
+ * timeline on a phone, where each event has a lane of its own. (A marker of the event pipeline opens a floating panel, not the tooltip:
+ * the panel is pinned in detail by e2e/admin-dashboard-pipeline.spec.ts, and here by the same checks the tooltip had.)
  */
 
 import { test, expect, type Locator, type Page } from '@playwright/test';
@@ -48,6 +49,8 @@ const NIGHT_SYDNEY = LIVE.pipeline.find((row) => row.id === 'evt-1791937712146')
 
 const byId = (page: Page, id: string) => page.getByTestId(id);
 const tooltip = (page: Page) => page.getByTestId('chart-tooltip');
+/** The floating panel of an event of the pipeline (what a marker of the timeline opens, where the other marks open the glass tooltip). */
+const panel = (page: Page) => page.getByTestId('bi-timeline-panel');
 
 /** The tooltip is drawn on the page and kept inside the screen: never clipped by its panel, never off an edge. */
 async function expectOnScreen(tip: Locator): Promise<void> {
@@ -150,7 +153,7 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await expect(tooltip(page)).toHaveCount(0);
   });
 
-  test('every mark has a tooltip: the dial and the tick of the tiles, the dots on the scale of days, the slices of a donut, the rows of its legend, the rings and the markers', async () => {
+  test('every mark has a tooltip: the dial and the tick of the tiles, the dots on the scale of days, the slices of a donut, the rows of its legend and the rings; a marker of the pipeline has its panel', async () => {
     const marks: Array<{ locator: Locator; panel: string; text: RegExp | string; arc?: boolean }> = [
       { locator: byId(page, 'tile-forecast-range'), panel: 'tile-forecast', text: 'Estimated revenue' },
       { locator: byId(page, 'tile-price-dial'), panel: 'tile-price', text: 'Average ticket price of your events' },
@@ -167,7 +170,6 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
       { locator: byId(page, 'bi-group-theatre | comedy | drama-slice'), panel: 'bi-categories', text: 'Theatre | Comedy | Drama', arc: true },
       { locator: byId(page, 'bi-group-theatre | comedy | drama'), panel: 'bi-categories', text: 'Theatre | Comedy | Drama' },
       { locator: byId(page, 'bi-group-drum theatre, dandenong, melbourne'), panel: 'bi-venues', text: 'Drum Theatre, Dandenong, Melbourne' },
-      { locator: byId(page, `bi-timeline-marker-${VINOD.id}`), panel: 'bi-pipeline', text: VINOD.title },
     ];
     for (const mark of marks) {
       await reveal(mark.locator);
@@ -183,6 +185,15 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
       await page.mouse.move(5, 5);
       await expect(tooltip(page)).toHaveCount(0);
     }
+    // a marker of the timeline: its panel, on hover, inside the screen, gone again when the pointer has left
+    const marker = byId(page, `bi-timeline-marker-${VINOD.id}`);
+    await reveal(marker);
+    await marker.hover();
+    await expect(panel(page)).toBeVisible();
+    await expect(panel(page)).toContainText(VINOD.title);
+    await expectOnScreen(panel(page));
+    await page.mouse.move(5, 5);
+    await expect(panel(page)).toHaveCount(0);
   });
 
   test('the health ring has a tooltip like every other ring: what the score is, how many pages answer and the agent, on hover and by keyboard', async () => {
@@ -241,30 +252,32 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await byId(page, 'bi-forecast-view-toggle').click();
   });
 
-  test('keyboard focus shows the same tooltip as hover, Escape takes it away, and a marker and a dial are reachable by Tab', async () => {
+  test('keyboard focus shows the same panel as hover, Escape takes it away, and a marker and a dial are reachable by Tab', async () => {
     const marker = byId(page, `bi-timeline-marker-${NIGHT_SYDNEY.id}`);
     await reveal(marker);
     await marker.focus();
     await expect(marker).toBeFocused();
-    const tip = tooltip(page);
+    const tip = panel(page);
     await expect(tip).toBeVisible();
     await expect(tip).toContainText(NIGHT_SYDNEY.title);
-    await expect(tip).toContainText(`Expected${EST(NIGHT_SYDNEY.forecast?.revenue.expected ?? 0)}`);
-    await expect(tip).toContainText('Missing: No capacity, Fix ticket link, No sponsors.');
+    await expect(tip).toContainText('Expected revenue');
+    await expect(tip).toContainText(EST(NIGHT_SYDNEY.forecast?.revenue.expected ?? 0));
+    // what is missing, in words
+    for (const words of ['No capacity', 'Fix ticket link', 'No sponsors']) await expect(byId(page, 'bi-timeline-panel-gaps'), words).toContainText(words);
     await expectOnScreen(tip);
     await page.keyboard.press('Escape');
-    await expect(tooltip(page)).toHaveCount(0);
-    // Tab moves on to the next marker and its tooltip
+    await expect(panel(page)).toHaveCount(0);
+    // Tab moves on to the next marker and its panel
     await marker.focus();
     await page.keyboard.press('Tab');
     const next = page.locator('[data-testid^="bi-timeline-marker-"]:focus');
     await expect(next).toHaveCount(1);
     await expect(next).toHaveAttribute('data-testid', `bi-timeline-marker-${LIVE.pipeline[2].id}`);
-    await expect(tooltip(page)).toContainText(LIVE.pipeline[2].title);
+    await expect(panel(page)).toContainText(LIVE.pipeline[2].title);
     // leaving the marker takes it away
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
-    await expect(tooltip(page)).not.toContainText(LIVE.pipeline[2].title);
+    await expect(panel(page)).not.toContainText(LIVE.pipeline[2].title);
     // the dials of the revenue chart are focusable the same way
     const bar = byId(page, `bi-forecast-dial-${VINOD.id}`);
     await bar.focus();
@@ -309,7 +322,7 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     expect((await byId(page, 'bi-tier-segment-silver').boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(24);
   });
 
-  test('names are written into a tooltip as text, never as markup', async () => {
+  test('names are written into a tooltip and a panel as text, never as markup', async () => {
     const hostile = '<img src=x onerror="window.__owned=1"> & "quotes" <b>bold</b>';
     const hostileVenue = '<script>window.__owned=2</script> Hall';
     writeEvents([
@@ -322,9 +335,9 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await settled(page);
     await reveal(marker);
     await marker.hover();
-    await expect(tooltip(page)).toContainText(hostile);
-    await expect(tooltip(page)).toContainText(hostileVenue);
-    expect(await tooltip(page).locator('img, b, script, i').count()).toBe(0);
+    await expect(panel(page)).toContainText(hostile);
+    await expect(panel(page)).toContainText(hostileVenue);
+    expect(await panel(page).locator('img, b, script, i').count()).toBe(0);
     expect(await page.evaluate(() => (window as unknown as { __owned?: number }).__owned)).toBeUndefined();
     // the same names in the revenue chart's row, as text
     await expect(byId(page, `bi-forecast-row-${VINOD.id}`)).toContainText(hostile);
@@ -459,25 +472,25 @@ test.describe('on a touch screen', () => {
     if (HARNESS && HAS_ADMIN_CREDS) expect(errors, 'console errors and uncaught errors').toEqual([]);
   });
 
-  test('a tap on a marker shows its tooltip and keeps it until the next tap elsewhere; a tap on a dial of the revenue chart does the same', async () => {
+  test('a tap on a marker shows its panel and keeps it until the next tap elsewhere; a tap on a dial of the revenue chart shows its tooltip the same way', async () => {
     const marker = byId(page, `bi-timeline-marker-${NIGHT_SYDNEY.id}`);
     await reveal(marker);
     await marker.tap();
-    await expect(tooltip(page)).toBeVisible();
-    await expect(tooltip(page)).toContainText(NIGHT_SYDNEY.title);
-    await expect(tooltip(page)).toContainText('Missing: No capacity, Fix ticket link, No sponsors.');
-    await expectOnScreen(tooltip(page));
+    await expect(panel(page)).toBeVisible();
+    await expect(panel(page)).toContainText(NIGHT_SYDNEY.title);
+    for (const words of ['No capacity', 'Fix ticket link', 'No sponsors']) await expect(byId(page, 'bi-timeline-panel-gaps'), words).toContainText(words);
+    await expectOnScreen(panel(page));
     // it stays (a finger has no "leave")
     await page.waitForTimeout(600);
-    await expect(tooltip(page)).toBeVisible();
-    // another marker: the tooltip moves to it
+    await expect(panel(page)).toBeVisible();
+    // another marker: the panel moves to it
     const other = byId(page, `bi-timeline-marker-${LIVE.pipeline[3].id}`);
     await other.tap();
-    await expect(tooltip(page)).toContainText(LIVE.pipeline[3].title);
-    await expect(tooltip(page)).toHaveCount(1);
+    await expect(panel(page)).toContainText(LIVE.pipeline[3].title);
+    await expect(panel(page)).toHaveCount(1);
     // a tap on nothing takes it away
     await byId(page, 'bi-pipeline').getByRole('heading', { name: 'Event pipeline' }).tap();
-    await expect(tooltip(page)).toHaveCount(0);
+    await expect(panel(page)).toHaveCount(0);
 
     const row = byId(page, `bi-forecast-row-${VINOD.id}`);
     await reveal(row);
@@ -598,7 +611,7 @@ test.describe('on a touch screen', () => {
   });
 });
 
-test.describe('on a phone the timeline is a list', () => {
+test.describe('on a phone each event of the timeline has a lane of its own', () => {
   test.describe.configure({ mode: 'serial' });
   let page: Page;
 
@@ -628,58 +641,78 @@ test.describe('on a phone the timeline is a list', () => {
     await settled(page);
   });
 
-  test('the same five events, soonest first, each a compact card with its details one tap away and its gaps as icons that say their words', async () => {
-    await expect(byId(page, 'bi-timeline')).toBeHidden();
-    // no markers are drawn on a phone (the list says everything they would)
-    await expect(page.locator('[data-testid^="bi-timeline-marker-"]')).toHaveCount(0);
-    const list = byId(page, 'bi-timeline-list');
-    await list.scrollIntoViewIfNeeded();
-    await expect(list).toBeVisible();
-    await expect(list).toHaveAttribute('data-viz', 'timeline');
-    await expect(list.locator('li[data-testid^="bi-timeline-item-"]')).toHaveCount(5);
-    expect(await list.locator('li[data-testid^="bi-timeline-item-"]').evaluateAll((items) => items.map((item) => item.getAttribute('data-testid')?.replace('bi-timeline-item-', '')))).toEqual(LIVE.pipeline.map((row) => row.id));
+  test('the same five events, soonest first, each a marker in a lane with its name, how far away it is and its gaps as icons; a tap opens its panel with everything the card said', async () => {
+    const timeline = byId(page, 'bi-timeline');
+    await timeline.scrollIntoViewIfNeeded();
+    await expect(timeline).toBeVisible();
+    await expect(timeline).toHaveAttribute('data-mode', 'lanes');
+    await expect(timeline).toHaveAttribute('data-viz', 'timeline');
+    // there is no list: the events are markers, one lane each, soonest first, each lane below the one before it
+    await expect(byId(page, 'bi-timeline-list')).toHaveCount(0);
+    const markers = page.locator('[data-testid^="bi-timeline-marker-"]');
+    await expect(markers).toHaveCount(5);
+    expect(await markers.evaluateAll((items) => items.map((item) => item.getAttribute('data-testid')?.replace('bi-timeline-marker-', '')))).toEqual(LIVE.pipeline.map((row) => row.id));
+    const tops = await markers.evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().top)));
+    expect(tops).toEqual([...tops].sort((a, b) => a - b));
+    expect(new Set(tops).size, 'five lanes').toBe(5);
     for (const row of LIVE.pipeline) {
-      const item = byId(page, `bi-timeline-item-${row.id}`);
-      // closed: the name, how far away it is, what it may take, that it is an estimate, and what is missing as icons
-      await expect(item).toContainText(row.title);
+      const marker = byId(page, `bi-timeline-marker-${row.id}`);
+      // the lane: the name, how far away it is, and what is missing as icons (the words are in the marker's name and in its panel)
+      await expect(timeline).toContainText(row.title);
       await expect(byId(page, `bi-timeline-days-${row.id}`)).toHaveText(row.daysLabel);
-      await expect(item).toContainText(EST(row.forecast?.revenue.expected ?? 0));
-      await expect(item).toContainText('Estimate');
-      await expect(byId(page, `bi-timeline-details-${row.id}`)).toHaveCount(0);
-      const gaps = byId(page, `bi-timeline-gaps-${row.id}`);
-      await expect(gaps.getByRole('img', { name: 'No capacity' })).toHaveCount(1);
-      for (const flag of await gaps.getByRole('img').all()) expect(await flag.locator('svg').count()).toBe(1);
-      if (row.ticketLink === 'malformed') await expect(gaps.getByRole('img', { name: 'Fix ticket link' })).toHaveCount(1);
-      // the details are one tap away: the date, the price, the capacity and where it comes from, the link, the sponsors, and the estimate's range and source
-      const toggle = byId(page, `bi-timeline-details-toggle-${row.id}`);
-      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-      await toggle.click();
-      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-      await expect(byId(page, `bi-timeline-details-${row.id}`)).toBeVisible();
-      await expect(item).toContainText(row.dateLabel);
-      await expect(item).toContainText(bi.formatMoney(row.price?.amount ?? 0, 'AUD'));
-      await expect(item).toContainText(`public capacity of ${row.capacity?.venue?.name}`);
-      if (row.ticketLink === 'malformed') {
-        await expect(item).toContainText('Not a clean web address');
-      } else {
-        await expect(item.getByRole('link', { name: 'Open link' })).toHaveAttribute('href', row.ticketUrl);
-      }
+      await expect(byId(page, `bi-timeline-flags-${row.id}`).locator('span')).toHaveCount(row.gaps.length);
+      for (const flag of await byId(page, `bi-timeline-flags-${row.id}`).locator('span').all()) expect(await flag.locator('svg').count()).toBe(1);
+      // the marker: an estimate, named in full for a screen reader, and a target a finger can find
+      await expect(marker).toHaveAttribute('data-kind', 'estimate');
+      const label = (await marker.getAttribute('aria-label')) ?? '';
+      expect(label).toContain(row.title);
+      expect(label).toContain(row.daysLabel);
+      expect(label).toContain(`expected ${EST(row.forecast?.revenue.expected ?? 0)}, an estimate`);
+      if (row.ticketLink === 'malformed') expect(label).toContain('Fix ticket link');
+      expect(label).toContain('No capacity');
+      const box = await marker.boundingBox();
+      expect(box?.width ?? 0, row.title).toBeGreaterThanOrEqual(43.5);
+      expect(box?.height ?? 0, row.title).toBeGreaterThanOrEqual(43.5);
     }
-    await expect(byId(page, 'bi-timeline-item-evt-1791911034858')).toContainText('Active Aluminium, Radio Masti, Kwik Kopy');
-    await expect(byId(page, 'bi-timeline-item-evt-1791911034858')).toContainText('LPA 2015 Contemporary Music average 66%');
-    await expect(byId(page, 'bi-timeline-item-evt-1791940946158')).toContainText('LPA 2015 Theatre average 52%');
-    // and it closes again
-    await byId(page, 'bi-timeline-details-toggle-evt-1791911034858').click();
-    await expect(byId(page, 'bi-timeline-details-evt-1791911034858')).toHaveCount(0);
+    // a tap opens the panel: the date, the price, the public capacity and where it comes from, the ticket link, the sponsors, and the estimate's range and source
+    for (const row of LIVE.pipeline) {
+      await byId(page, `bi-timeline-marker-${row.id}`).tap();
+      const open = panel(page);
+      await expect(open).toBeVisible();
+      await expectOnScreen(open);
+      await expect(open).toContainText(row.title);
+      await expect(open).toContainText(row.dateLabel);
+      await expect(open).toContainText(row.daysLabel);
+      await expect(open).toContainText(bi.formatMoney(row.price?.amount ?? 0, 'AUD'));
+      await expect(open).toContainText(`public figure of ${row.capacity?.venue?.name}`);
+      await expect(open).toContainText(EST(row.forecast?.revenue.expected ?? 0));
+      await expect(open).toContainText('Estimate');
+      await expect(byId(page, 'bi-timeline-panel-gaps')).toContainText('No capacity');
+      if (row.ticketLink === 'malformed') {
+        await expect(byId(page, 'bi-timeline-panel-link')).toHaveCount(0);
+        await expect(byId(page, 'bi-timeline-panel-gaps')).toContainText('Fix ticket link');
+      } else {
+        await expect(byId(page, 'bi-timeline-panel-link')).toHaveAttribute('href', row.ticketUrl);
+      }
+      if (row.id === 'evt-1791911034858') {
+        await expect(open).toContainText('Active Aluminium, Radio Masti, Kwik Kopy');
+        await expect(open).toContainText('LPA 2015 Contemporary Music average 66%');
+      }
+      if (row.id === 'evt-1791940946158') await expect(open).toContainText('LPA 2015 Theatre average 52%');
+      await page.keyboard.press('Escape');
+      await expect(panel(page)).toHaveCount(0);
+    }
   });
 
-  test('the phone\'s list becomes the timeline again from 640 px', async () => {
+  test('the lanes become the rail again from a tablet\'s width, and back', async () => {
     await page.setViewportSize({ width: 700, height: 900 });
-    await expect(byId(page, 'bi-timeline')).toBeVisible();
-    await expect(byId(page, 'bi-timeline-list')).toBeHidden();
+    await expect(byId(page, 'bi-timeline')).toHaveAttribute('data-mode', 'rail');
+    await expect(page.locator('[data-testid^="bi-timeline-marker-"]')).toHaveCount(5);
     await expect(page.locator('[data-testid^="bi-timeline-marker-"]').first()).toBeVisible();
+    await expect(byId(page, 'bi-timeline-list')).toHaveCount(0);
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(byId(page, 'bi-timeline')).toBeHidden();
-    await expect(byId(page, 'bi-timeline-list')).toBeVisible();
+    await expect(byId(page, 'bi-timeline')).toHaveAttribute('data-mode', 'lanes');
+    await expect(page.locator('[data-testid^="bi-timeline-marker-"]')).toHaveCount(5);
+    await expect(page.locator('[data-testid^="bi-timeline-marker-"]').first()).toBeVisible();
   });
 });

@@ -381,7 +381,7 @@ test.describe('the admin Dashboard: loading, empty, failed and extreme data', ()
     }
   });
 
-  test('the same crowd on a phone: nothing sticks out sideways, the timeline is a list with every upcoming event, and the figures stay on a line', async () => {
+  test('the same crowd on a phone: nothing sticks out sideways, the timeline has a lane with a marker for every upcoming event, and the figures stay on a line', async () => {
     writeEvents(crowdEvents());
     writeSponsors(crowdSponsors());
     const context = await newDashboardContext(browserOf, { width: 360, height: 800, touch: true });
@@ -395,8 +395,9 @@ test.describe('the admin Dashboard: loading, empty, failed and extreme data', ()
       await settled(phone);
       await scrollThroughAll(phone);
       const upcoming = Number(await byId(phone, 'tile-upcoming-value').innerText());
-      await expect(byId(phone, 'bi-timeline-list')).toBeVisible();
-      await expect(phone.locator('[data-testid^="bi-timeline-item-"]')).toHaveCount(upcoming);
+      await expect(byId(phone, 'bi-timeline')).toHaveAttribute('data-mode', 'lanes');
+      await expect(byId(phone, 'bi-timeline-list')).toHaveCount(0);
+      await expect(phone.locator('[data-testid^="bi-timeline-marker-"]')).toHaveCount(upcoming);
       await expectWholePage(phone, 'crowd at 360');
       for (const id of ['bi-card-sponsor-contract', 'bi-card-sponsor-revenue']) {
         const figure = byId(phone, id).locator('div.font-display').first();

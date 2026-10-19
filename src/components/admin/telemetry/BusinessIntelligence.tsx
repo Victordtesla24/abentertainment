@@ -102,7 +102,7 @@ export const BusinessIntelligence = memo(function BusinessIntelligence({ events:
         <div className="space-y-10 transition-opacity duration-300 motion-reduce:transition-none" style={{ opacity: source.loading && source.updatedAt !== null ? 0.6 : 1 }}>
           <GlanceTiles bi={bi} completeness={completeness} scope={scope} system={system} onOpenSystem={onOpenSystem} />
           <RevenueForecast bi={bi} events={scopedEvents} reference={REFERENCE} activeId={activeId} onActive={setActiveId} onNavigate={onNavigate} />
-          <PipelineTimeline bi={bi} activeId={activeId} onActive={setActiveId} />
+          <PipelineTimeline bi={bi} activeId={activeId} onActive={setActiveId} onNavigate={onNavigate} />
           <Breakdowns bi={bi} events={scopedEvents} reference={REFERENCE} />
           <Sponsorship bi={bi} />
         </div>
