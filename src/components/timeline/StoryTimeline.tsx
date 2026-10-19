@@ -33,8 +33,19 @@ function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
+/** How long the pinned stage waits for the animation library before the section becomes the scrolling row instead. */
+const LIBRARY_WAIT_MS = 6000;
+
 /** The layout is chosen by the stylesheet; this asks which one is on screen (the pinned stage clips its row, the scrolling row scrolls). */
 const isPinnedLayout = (viewport: HTMLElement) => getComputedStyle(viewport).overflowX === 'clip';
+
+/** Where the section is on the page, and where the reader is in relation to it. */
+interface Place {
+  y: number;
+  top: number;
+  height: number;
+  pinned: boolean;
+}
 
 /** Index of the chapter nearest the middle of the scrolling row. */
 function nearestChapter(viewport: HTMLElement, track: HTMLElement): number {
@@ -128,29 +139,50 @@ export default function StoryTimeline({ slides }: { slides: NarrativeSlide[] }) 
     let starting = false;
     let cancelled = false;
     let near = false;
+    let watchdog = 0;
+    const abandoned = new AbortController();
+
+    // The chapters must stay readable when the choreography cannot run: the section becomes the scrolling row. A library that
+    // arrives after that is not used (it is told it is not wanted before it builds anything).
+    const fallBackToRow = () => {
+      window.clearTimeout(watchdog);
+      abandoned.abort();
+      if (!cancelled) setRowOnlyFor(layoutKey);
+    };
 
     const begin = () => {
       if (teardown || starting || cancelled || !near || !query.matches) return;
       starting = true;
+      watchdog = window.setTimeout(() => {
+        if (teardown || cancelled) return;
+        console.warn('[story] scroll animation did not arrive in time; showing the scrolling row');
+        fallBackToRow();
+      }, LIBRARY_WAIT_MS);
       startPinnedMotion({
         pin,
         viewport,
         track,
         rail: railRef.current,
         ambient: ambientRef.current,
-        onActive: activate,
+        // Only while the pinned stage is what is on screen: a re-measure that lands just after the window has crossed the query, before
+        // the animation is taken down, would report the wrong chapter.
+        onActive: (index) => {
+          if (isPinnedLayout(viewport)) activate(index);
+        },
         onOverflow: () => setRowOnlyFor(layoutKey),
         onSwipe: (direction) => goRef.current(currentRef.current + direction),
+        signal: abandoned.signal,
       })
         .then((stop) => {
+          window.clearTimeout(watchdog);
           starting = false;
           if (cancelled) stop();
           else teardown = stop;
         })
         .catch((error: unknown) => {
           starting = false;
-          // The chapters are all there and readable without the scroll choreography; the page just does not move them.
-          console.warn('[story] scroll animation unavailable', error);
+          console.warn('[story] scroll animation unavailable; showing the scrolling row', error);
+          fallBackToRow();
         });
     };
 
@@ -168,11 +200,84 @@ export default function StoryTimeline({ slides }: { slides: NarrativeSlide[] }) 
 
     return () => {
       cancelled = true;
+      abandoned.abort();
+      window.clearTimeout(watchdog);
       observer.disconnect();
       query.removeEventListener('change', begin);
       teardown?.();
     };
   }, [pinnable, count, layoutKey, activate]);
+
+  // ── Keeping the reader's place when the layout changes ──
+  // The window crossing the pinned query (a resize, a zoom step, docked developer tools, the motion setting) or the section falling
+  // back to the row swaps a tall wrapper for a short row, or the reverse, and the browser is left to guess where the reader was. They
+  // stay where they were: inside the story on the same chapter (the row is scrolled to it, or the page to where the stage rests on it),
+  // below it at the same distance past the section.
+  useEffect(() => {
+    const pin = pinRef.current;
+    const stage = stageRef.current;
+    const viewport = viewportRef.current;
+    const track = trackRef.current;
+    if (!pin || !stage || !viewport || !track) return;
+
+    const measure = (): Place => ({
+      y: window.scrollY,
+      top: pin.getBoundingClientRect().top + window.scrollY,
+      height: pin.offsetHeight,
+      pinned: isPinnedLayout(viewport),
+    });
+    // How things were before the change: the change is only seen once the browser has laid the new layout out, so this is taken after
+    // every settled layout, and the scroll position on every scroll.
+    let place = measure();
+
+    let frame = 0;
+    const keepPlace = (before: Place, pinned: boolean) => {
+      const chapter = Math.max(0, Math.min(currentRef.current, count - 1));
+      const top = pin.getBoundingClientRect().top + window.scrollY;
+      const height = pin.offsetHeight;
+      let target: number | null = null;
+      if (before.y >= before.top + before.height) target = top + height + (before.y - before.top - before.height);
+      else if (before.y >= before.top - 1) target = pinned ? top + chapterProgress(chapter, count) * Math.max(height - stage.offsetHeight, 0) : top;
+      if (target !== null && Math.abs(window.scrollY - Math.round(target)) > 1) window.scrollTo({ top: Math.round(target), behavior: 'instant' });
+      activate(chapter);
+      if (pinned) return;
+      // The animation takes the pinned stage down just after this (the pinned row is moved with a transform, which would throw the
+      // row's snap points off), so the row is put on the chapter once that is done.
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (isPinnedLayout(viewport)) return;
+        const item = track.children[chapter] as HTMLElement | undefined;
+        if (item) viewport.scrollTo({ left: item.offsetLeft - (viewport.clientWidth - item.offsetWidth) / 2, behavior: 'instant' });
+        activate(chapter);
+      });
+    };
+
+    const settle = () => {
+      const pinned = isPinnedLayout(viewport);
+      if (pinned !== place.pinned) keepPlace(place, pinned);
+      place = measure();
+    };
+    const onScroll = () => {
+      place.y = window.scrollY;
+    };
+
+    // The query's change event comes before the animation library's own (that query is made when the library arrives), so the place is
+    // put back before the library builds or takes down the pinned stage; the size observer catches the changes that are not the
+    // query's (the section falling back to the row).
+    const pinning = window.matchMedia(PINNED_QUERY);
+    pinning.addEventListener('change', settle);
+    const resizeObserver = new ResizeObserver(settle);
+    resizeObserver.observe(pin);
+    resizeObserver.observe(document.body);
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      pinning.removeEventListener('change', settle);
+      resizeObserver.disconnect();
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, [count, activate]);
 
   // ── Scrolling row: which chapter is in the middle, the progress rail, and mouse drag ──
   useEffect(() => {
@@ -236,21 +341,8 @@ export default function StoryTimeline({ slides }: { slides: NarrativeSlide[] }) 
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
 
-    // When the window stops pinning (narrowed, rotated, or the motion setting changed) the row takes over: put it where the section says it is.
-    const pinning = window.matchMedia(PINNED_QUERY);
-    const onLayoutChange = () => {
-      if (pinning.matches) return;
-      requestAnimationFrame(() => {
-        if (isPinnedLayout(viewport)) return;
-        const item = track.children[currentRef.current] as HTMLElement | undefined;
-        if (item) viewport.scrollTo({ left: item.offsetLeft - (viewport.clientWidth - item.offsetWidth) / 2, behavior: 'instant' });
-      });
-    };
-    pinning.addEventListener('change', onLayoutChange);
-
     return () => {
       cancelAnimationFrame(frame);
-      pinning.removeEventListener('change', onLayoutChange);
       viewport.removeEventListener('scroll', onScroll);
       viewport.removeEventListener('pointerdown', down);
       window.removeEventListener('pointermove', move);

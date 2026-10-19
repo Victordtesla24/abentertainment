@@ -60,6 +60,8 @@ export interface PinnedMotionOptions {
   onOverflow: () => void;
   /** A horizontal swipe or drag: 1 for the next chapter, -1 for the previous one. */
   onSwipe: (direction: 1 | -1) => void;
+  /** Aborted when the section no longer wants the choreography (it fell back to the row, or went away): a library that arrives after that builds nothing. */
+  signal?: AbortSignal;
 }
 
 const LAYER = {
@@ -74,10 +76,20 @@ const LAYER = {
  */
 export async function startPinnedMotion(options: PinnedMotionOptions): Promise<() => void> {
   const [{ gsap }, { ScrollTrigger }] = await Promise.all([import('gsap'), import('gsap/ScrollTrigger')]);
+  if (options.signal?.aborted) return () => {};
   gsap.registerPlugin(ScrollTrigger);
+  // By default ScrollTrigger re-measures on every window resize, and a re-measure scrolls the page to the top and back. The stage is
+  // measured again on a resize only while it is pinned (the resize listener below); this section is the only user of ScrollTrigger on
+  // the site.
+  ScrollTrigger.config({ autoRefreshEvents: 'visibilitychange,DOMContentLoaded,load' });
 
   const html = document.documentElement;
-  const matcher = gsap.matchMedia();
+  // The query is watched here, not with gsap.matchMedia(): when a matchMedia context is taken down ScrollTrigger measures the whole page
+  // again, and with its last trigger gone it forgets where the page was, so it scrolls to the top and leaves it there. Leaving the
+  // pinned layout takes the choreography down and measures nothing; the place the reader is put back to is StoryTimeline's to keep.
+  const query = window.matchMedia(PINNED_QUERY);
+  let pinned: ReturnType<typeof gsap.context> | undefined;
+  let halt: (() => void) | undefined;
 
   // The site scrolls smoothly (html { scroll-behavior: smooth }); ScrollTrigger measures by jumping, so it must not glide while it does.
   const holdSmoothScroll = () => {
@@ -89,7 +101,8 @@ export async function startPinnedMotion(options: PinnedMotionOptions): Promise<(
   ScrollTrigger.addEventListener('refreshInit', holdSmoothScroll);
   ScrollTrigger.addEventListener('refresh', releaseSmoothScroll);
 
-  matcher.add(PINNED_QUERY, () => {
+  /** Builds the choreography for the pinned layout; what it returns takes it down again. */
+  const choreography = () => {
     const chapters = Array.from(options.track.children) as HTMLElement[];
     const last = chapters.length - 1;
     if (last < 1) return undefined;
@@ -107,6 +120,10 @@ export async function startPinnedMotion(options: PinnedMotionOptions): Promise<(
     let overflowReported = false;
     let fontsReady = false;
     let disposed = false;
+    // Reverting a context runs its animations back to their start, which would report chapter 1 as the one in the middle: halted first.
+    halt = () => {
+      disposed = true;
+    };
     const state = { t: 0 };
 
     const measure = () => {
@@ -125,6 +142,7 @@ export async function startPinnedMotion(options: PinnedMotionOptions): Promise<(
     };
 
     const apply = (t: number) => {
+      if (disposed) return;
       options.track.style.transform = `translate3d(${(-t * pitch).toFixed(2)}px, 0, 0)`;
       const nearest = Math.round(t);
       if (nearest !== activeIndex) {
@@ -167,13 +185,16 @@ export async function startPinnedMotion(options: PinnedMotionOptions): Promise<(
     if (trigger) timeline.totalProgress(trigger.progress);
     apply(state.t);
 
-    // Content above the section (images, fonts, other sections hydrating) can move it after the positions were measured.
+    // Content above the section (images, fonts, other sections hydrating) can move it after the positions were measured, and a resize
+    // that keeps the stage pinned (a zoom step on a large screen, a taller window) changes the pitch and the stretch.
     let refreshTimer = 0;
-    const resizeObserver = new ResizeObserver(() => {
+    const measureAgain = () => {
       window.clearTimeout(refreshTimer);
       refreshTimer = window.setTimeout(() => ScrollTrigger.refresh(), 150);
-    });
+    };
+    const resizeObserver = new ResizeObserver(measureAgain);
     resizeObserver.observe(document.body);
+    window.addEventListener('resize', measureAgain);
     const fontsSettled = () => {
       if (disposed) return;
       fontsReady = true;
@@ -225,6 +246,7 @@ export async function startPinnedMotion(options: PinnedMotionOptions): Promise<(
     return () => {
       disposed = true;
       window.clearTimeout(refreshTimer);
+      window.removeEventListener('resize', measureAgain);
       resizeObserver.disconnect();
       ScrollTrigger.removeEventListener('refresh', onRefresh);
       options.viewport.removeEventListener('pointerdown', down);
@@ -244,10 +266,25 @@ export async function startPinnedMotion(options: PinnedMotionOptions): Promise<(
         ghost?.style.removeProperty('transform');
       }
     };
-  });
+  };
+
+  const takeDown = () => {
+    halt?.();
+    halt = undefined;
+    pinned?.revert();
+    pinned = undefined;
+  };
+  // Set up while the layout is pinned, taken down when it stops being pinned, set up again when it is pinned again.
+  const sync = () => {
+    if (query.matches && !pinned) pinned = gsap.context(choreography);
+    else if (!query.matches && pinned) takeDown();
+  };
+  query.addEventListener('change', sync);
+  sync();
 
   return () => {
-    matcher.revert();
+    query.removeEventListener('change', sync);
+    takeDown();
     ScrollTrigger.removeEventListener('refreshInit', holdSmoothScroll);
     ScrollTrigger.removeEventListener('refresh', releaseSmoothScroll);
     releaseSmoothScroll();
