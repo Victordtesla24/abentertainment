@@ -62,6 +62,12 @@ export const GOLD_A = {
 /** The brand glass at rest and on hover (the .glass-card class of globals.css), for the tooltip and the pieces that are not a panel. */
 export const GLASS = {
   tooltipBackground: 'rgba(10,10,10,0.9)',
+  /**
+   * The surface of a large floating panel that sits over dense text (the event panel of the pipeline): at 99 percent no more than a hundredth
+   * of what is behind it shows, so headings, legends and labels do not ghost through it. The brand glass blur is not relied on (a browser that
+   * is given only the prefixed property paints none), and the panel writes no blur of its own: only the tooltip may.
+   */
+  panelBackground: 'rgba(10,10,10,0.99)',
   hoverShadow: '0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(201,168,76,0.1), inset 0 1px 0 rgba(255,255,255,0.05)',
 } as const;
 

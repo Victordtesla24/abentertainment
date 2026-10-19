@@ -38,7 +38,8 @@ const ALPHA: Record<string, readonly number[]> = {
   '255,255,255': [0.02, 0.04, 0.05, 0.08, 0.1, 0.15, 0.2, 0.25, 0.4, 0.5, 0.65, 1],
   '201,168,76': [0, 0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5],
   '0,0,0': [0.4, 0.75],
-  '10,10,10': [0.9],
+  // 0.9 is the tooltip's glass; 0.99 is the surface of the event panel (GLASS.panelBackground), which must not let the page show through it
+  '10,10,10': [0.9, 0.99],
 };
 
 test.describe('the Dashboard is written in the brand and nothing else', () => {
@@ -125,6 +126,22 @@ test.describe('the Dashboard is written in the brand and nothing else', () => {
       for (const match of read(file).matchAll(/backdrop-blur|backdropFilter|backdrop-filter|WebkitBackdropFilter/g)) found.push(`${name(file)}: ${match[0]}`);
     }
     expect(found).toEqual([]);
+  });
+
+  test('the panel of an event sits on a nearly opaque surface, so the page behind does not show through it, and it writes no blur of its own', () => {
+    // the glass blur is not painted everywhere (where only the prefixed property reaches the stylesheet, Chromium paints none), and only the tooltip may write one: so
+    // the panel, which hangs over headings, legends and labels, does not rely on it
+    const brand = read(join(ADMIN, 'dashboard', 'brand.ts'));
+    const surface = /panelBackground:\s*'rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)'/.exec(brand);
+    expect(surface, 'GLASS.panelBackground is an rgba colour written in brand.ts').not.toBeNull();
+    expect([surface?.[1], surface?.[2], surface?.[3]], 'it is the brand black').toEqual(['10', '10', '10']);
+    expect(Number(surface?.[4]), 'at least 97 percent opaque: no more than 3 percent of what is behind shows').toBeGreaterThanOrEqual(0.97);
+    const panel = read(join(ADMIN, 'dashboard', 'pipeline', 'Panel.tsx'));
+    expect(panel.match(/GLASS\.panelBackground/g)?.length, 'the body of the panel and its pointer both use it').toBe(2);
+    expect(panel, 'and not the tooltip\'s 90 percent').not.toMatch(/GLASS\.tooltipBackground/);
+    expect(panel).toMatch(/glass-card/);
+    expect(panel).toMatch(/GLASS\.hoverShadow/);
+    expect(panel).not.toMatch(/backdrop-blur|backdropFilter|backdrop-filter|WebkitBackdropFilter/);
   });
 
   test('the shared .glass-card class itself is the brand\'s glass: 2 percent white, a 12 px blur and a fine gold edge', () => {

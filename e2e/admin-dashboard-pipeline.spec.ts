@@ -270,7 +270,8 @@ test.describe('where the floating panel goes', () => {
     for (const anchor of [marker(20, 20), marker(700, 20), marker(1330, 20), marker(20, 400), marker(700, 400), marker(1330, 400), marker(20, 730), marker(700, 730), marker(1330, 730)]) {
       for (const size of [{ width: 344, height: 200 }, { width: 344, height: 420 }, { width: 344, height: 900 }]) {
         const place = placePanel(anchor, size, screen);
-        const height = place.maxHeight ?? Math.min(size.height, screen.height - 16);
+        // the height the component draws: the room it is held to when it has to scroll, otherwise all of it (nothing else limits the panel)
+        const height = place.maxHeight ?? size.height;
         expect(place.left, JSON.stringify([anchor, size])).toBeGreaterThanOrEqual(8);
         expect(place.left + size.width).toBeLessThanOrEqual(screen.width - 8 + 1e-9);
         expect(place.top).toBeGreaterThanOrEqual(8);
@@ -279,6 +280,45 @@ test.describe('where the floating panel goes', () => {
         expect(apart, `the panel is on the marker: ${JSON.stringify([anchor, size, place])}`).toBe(true);
       }
     }
+  });
+
+  test('on a short screen too (a phone on its side, a low window) it is still inside the screen and never on the marker, with a marker at every edge and in the middle', () => {
+    // the sizes of the screens that were found short: a phone on its side, and a laptop window 420 px high; the heights are those of the panels of the live events
+    const screens = [{ width: 667, height: 375 }, { width: 844, height: 390 }, { width: 932, height: 430 }, { width: 1366, height: 420 }, { width: 1366, height: 480 }];
+    const sizes = [200, 380, 396, 411, 448, 900].map((height) => ({ width: 344, height }));
+    for (const room of screens) {
+      const lefts = [20, (room.width - 30) / 2, room.width - 50];
+      const tops = [20, (room.height - 30) / 2, room.height - 50];
+      for (const left of lefts) {
+        for (const top of tops) {
+          const anchor = marker(left, top);
+          for (const size of sizes) {
+            const place = placePanel(anchor, size, room);
+            const height = place.maxHeight ?? size.height;
+            const where = JSON.stringify([room, anchor, size, place]);
+            expect(place.left, where).toBeGreaterThanOrEqual(8);
+            expect(place.left + size.width, where).toBeLessThanOrEqual(room.width - 8 + 1e-9);
+            expect(place.top, where).toBeGreaterThanOrEqual(8);
+            expect(place.top + height, where).toBeLessThanOrEqual(room.height - 8 + 1e-9);
+            const apart = place.left >= anchor.right || place.left + size.width <= anchor.left || place.top >= anchor.bottom || place.top + height <= anchor.top;
+            expect(apart, `the panel is on the marker: ${where}`).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
+  test('beside the marker on a screen shorter than the panel it is held to the screen\'s height and scrolls inside it (the first event on a phone on its side)', () => {
+    // 667 x 375: the panel of the first event is 446 px tall (its text) and the screen has 359 px for it once 8 px are kept clear above and below
+    const side = { width: 667, height: 375 };
+    const first = { left: 175, top: 160, right: 205, bottom: 190 };
+    const place = placePanel(first, { width: 344, height: 446 }, side);
+    expect(place).toEqual({ left: 219, top: 8, maxHeight: 359, side: 'right', pointerX: 14 });
+    // the same on the other side of the marker, near the right edge
+    const last = { left: 600, top: 160, right: 630, bottom: 190 };
+    expect(placePanel(last, { width: 344, height: 396 }, side)).toEqual({ left: 600 - 14 - 344, top: 8, maxHeight: 359, side: 'left', pointerX: 330 });
+    // a panel that fits the screen beside the marker is not held to anything, and is where it was (centred on the marker, pulled down to the edge of the screen)
+    expect(placePanel(first, { width: 344, height: 340 }, side)).toMatchObject({ top: 8, maxHeight: null, side: 'right' });
   });
 });
 
@@ -364,6 +404,113 @@ test.describe('the rail for a window of the axis', () => {
           const [c, d] = span(other);
           if (other.tier === marker.tier) expect(a >= d + 8 || c >= b + 8, `${JSON.stringify(window)}: ${marker.row.title} and ${other.row.title} share a tier`).toBe(true);
           if ((other.tier ?? 0) < (marker.tier ?? 0)) expect(marker.x < c || marker.x > d, `${JSON.stringify(window)}: the leader of ${marker.row.title} goes through ${other.row.title}`).toBe(true);
+        }
+      }
+    }
+  });
+});
+
+// ─── events on the same day ─────────────────────────────────────────────────
+
+test.describe('events on the same day on the rail', () => {
+  const width = 900;
+  const plot = width - 2 * PAD;
+  /** A row like the live ones (so it has an estimate and a size of its own), on the day it is given and under a name of its own. */
+  const onDay = (index: number, id: string, days: number): bi.PipelineRow => ({ ...LIVE.pipeline[index % LIVE.pipeline.length], id, title: `Event ${id}`, daysToGo: days });
+  /** Where a day of an axis `span` days long falls on the rail. */
+  const dayX = (days: number, span: number) => PAD + (days / span) * plot;
+  /** Where a marker stands: its date, and the shift that gives it room. */
+  const centre = (marker: { x: number; dx: number }) => marker.x + marker.dx;
+  /** The distances between the middles of neighbours, left to right. */
+  const gaps = (markers: ReadonlyArray<{ x: number; dx: number }>) => {
+    const along = markers.map(centre).sort((a, b) => a - b);
+    return along.slice(1).map((value, index) => value - along[index]);
+  };
+  const inside = (markers: ReadonlyArray<{ x: number; dx: number }>, wide = width) => markers.every((marker) => centre(marker) >= PAD - 1e-9 && centre(marker) <= wide - PAD + 1e-9);
+  const expectCloseTo = (actual: readonly number[], expected: readonly number[], note: string) => {
+    expect(actual, note).toHaveLength(expected.length);
+    expected.forEach((value, index) => expect(actual[index], `${note}: ${index + 1}th of ${JSON.stringify(actual)}`).toBeCloseTo(value, 9));
+  };
+  const three = [onDay(0, 'a', 30), onDay(1, 'b', 30), onDay(2, 'c', 30), onDay(3, 'd', 100)];
+
+  test('three events on one day stand side by side about it, 16 px apart, the first of the Events list on the left; the day itself is still where the date puts it', () => {
+    const layout = layoutTimeline(three, TODAY, width, 'AUD');
+    expect(layout.markers.map((marker) => marker.id)).toEqual(['a', 'b', 'c', 'd']);
+    const [a, b, c, d] = layout.markers;
+    for (const marker of [a, b, c]) expect(marker.x, 'the date of each is day 30 of 100').toBeCloseTo(dayX(30, 100), 9);
+    expect(a.dx).toBeCloseTo(-16, 9);
+    expect(b.dx).toBeCloseTo(0, 9);
+    expect(c.dx).toBeCloseTo(16, 9);
+    expect(gaps([a, b, c]).every((gap) => gap >= 16 - 1e-9), `neighbours are ${gaps([a, b, c])} apart`).toBe(true);
+    expect(inside(layout.markers)).toBe(true);
+    // the event on a day of its own is where its date puts it
+    expect(d.dx).toBe(0);
+    expect(d.x).toBeCloseTo(dayX(100, 100), 9);
+  });
+
+  test('a window narrowing to them keeps the fan, and a group at the edge of the window is held inside the plot', () => {
+    for (const window of [{ from: 20, to: 60 }, { from: 25, to: 39 }]) {
+      const layout = layoutTimeline(three, TODAY, width, 'AUD', { window });
+      expect(layout.markers.map((marker) => marker.id), JSON.stringify(window)).toEqual(['a', 'b', 'c']);
+      expect(gaps(layout.markers).every((gap) => gap >= 16 - 1e-9), JSON.stringify(window)).toBe(true);
+      expect(inside(layout.markers), JSON.stringify(window)).toBe(true);
+      for (const marker of layout.markers) expect(marker.x).toBeCloseTo(PAD + ((30 - window.from) / (window.to - window.from)) * plot, 9);
+      expectCloseTo(layout.markers.map((marker) => marker.dx), [-16, 0, 16], JSON.stringify(window));
+    }
+    // on the first day of the window the group cannot stand about it: it is held at the left edge, side by side
+    const early = layoutTimeline(three, TODAY, width, 'AUD', { window: { from: 30, to: 60 } });
+    expectCloseTo(early.markers.map(centre), [PAD, PAD + 16, PAD + 32], 'at the left edge');
+    // and on the last day at the right edge
+    const late = layoutTimeline(three, TODAY, width, 'AUD', { window: { from: 0, to: 30 } });
+    expectCloseTo(late.markers.map(centre), [width - PAD - 32, width - PAD - 16, width - PAD], 'at the right edge');
+  });
+
+  test('events on different days are where their dates put them: two 5 days apart are not moved, and neither is any of the live ones', () => {
+    for (const wide of [600, 900, 1366]) {
+      const pair = layoutTimeline([onDay(0, 'p', 20), onDay(1, 'q', 25)], TODAY, wide, 'AUD');
+      const span = 25;
+      expect(pair.markers.map((marker) => marker.dx), `${wide} px`).toEqual([0, 0]);
+      expectCloseTo(pair.markers.map((marker) => marker.x), [20, 25].map((days) => PAD + (days / span) * (wide - 2 * PAD)), `${wide} px`);
+      for (const marker of layoutTimeline(LIVE.pipeline, TODAY, wide, 'AUD').markers) expect(marker.dx, `${marker.row.title} at ${wide} px`).toBe(0);
+    }
+  });
+
+  test('events a day apart on a wide axis are given room too, by the least that does it and in the order of their dates', () => {
+    // 100 days over 856 px is 8.56 px a day: two on day 30 and one on day 32 (17.1 px on) cannot all be 16 px apart where their dates put them
+    const layout = layoutTimeline([onDay(0, 'a', 30), onDay(1, 'b', 30), onDay(2, 'c', 32), onDay(3, 'd', 100)], TODAY, width, 'AUD');
+    const [a, b, c] = layout.markers;
+    expect(gaps([a, b, c]).every((gap) => gap >= 16 - 1e-9)).toBe(true);
+    expect(centre(a) < centre(b) && centre(b) < centre(c), 'the order stays the order of the dates, then of the Events list').toBe(true);
+    // the three move as little as they can: they are as far one way as the other, and the one that was already apart moves least
+    expect(a.dx + b.dx + c.dx).toBeCloseTo(0, 9);
+    expect(Math.abs(c.dx)).toBeLessThan(Math.abs(a.dx));
+    expect(layout.markers[3].dx).toBe(0);
+  });
+
+  test('a crowd too big for the plot shares it evenly, in order, every marker inside it', () => {
+    const crowd = Array.from({ length: 40 }, (_, index) => onDay(index, `m${index}`, 30));
+    const layout = layoutTimeline([...crowd, onDay(0, 'z', 100)], TODAY, 520, 'AUD');
+    const members = layout.markers.slice(0, 40);
+    expect(inside(layout.markers, 520)).toBe(true);
+    expect(members.map(centre)).toEqual([...members.map(centre)].sort((a, b) => a - b));
+    expect(Math.min(...gaps(members))).toBeGreaterThan(5);
+    expect(members.every((marker) => Number.isFinite(marker.dx))).toBe(true);
+  });
+
+  test('the fanned labels never run into one another, and a leader never goes through a label (the tiers work on where the markers stand)', () => {
+    for (const window of [undefined, { from: 20, to: 60 }, { from: 30, to: 60 }, { from: 0, to: 30 }]) {
+      const layout = layoutTimeline(three, TODAY, width, 'AUD', window ? { window } : {});
+      const labelled = layout.markers.filter((marker) => marker.tier !== null);
+      expect(labelled.length, JSON.stringify(window)).toBeGreaterThanOrEqual(3);
+      const span = (marker: (typeof labelled)[number]): [number, number] =>
+        marker.align === 'left' ? [centre(marker) + LABEL_OFFSET, centre(marker) + LABEL_OFFSET + LABEL_W] : [centre(marker) - LABEL_OFFSET - LABEL_W, centre(marker) - LABEL_OFFSET];
+      for (const marker of labelled) {
+        for (const other of labelled) {
+          if (other === marker) continue;
+          const [a, b] = span(marker);
+          const [c, d] = span(other);
+          if (other.tier === marker.tier) expect(a >= d + 8 || c >= b + 8, `${JSON.stringify(window)}: ${marker.row.title} and ${other.row.title} share a tier`).toBe(true);
+          if ((other.tier ?? 0) < (marker.tier ?? 0)) expect(centre(marker) < c || centre(marker) > d, `${JSON.stringify(window)}: the leader of ${marker.row.title} goes through ${other.row.title}`).toBe(true);
         }
       }
     }
@@ -780,12 +927,12 @@ test.describe('the interactive timeline of the event pipeline, on a laptop', () 
     await expect(byId(page, 'bi-timeline-panel-gaps').locator('svg')).toHaveCount(VINOD.gaps.length);
     await expect(byId(page, 'bi-timeline-panel-link')).toHaveAttribute('href', VINOD.ticketUrl);
     await expect(byId(page, 'bi-timeline-panel-open')).toHaveText('Open in Events');
-    // glass: translucent, a fine gold edge, and it takes the pointer (its button has to be pressed)
+    // glass on a nearly opaque surface (GLASS.panelBackground, 99 percent: the page behind does not show through it), a fine gold edge, and it takes the pointer (its button has to be pressed)
     const style = await open.evaluate((element) => {
       const computed = getComputedStyle(element);
       return { background: computed.backgroundColor, border: computed.borderTopColor, pointerEvents: computed.pointerEvents, position: computed.position, radius: computed.borderTopLeftRadius, glass: element.classList.contains('glass-card') };
     });
-    expect(style).toEqual({ background: 'rgba(10, 10, 10, 0.9)', border: 'rgba(201, 168, 76, 0.25)', pointerEvents: 'auto', position: 'fixed', radius: '0px', glass: true });
+    expect(style).toEqual({ background: 'rgba(10, 10, 10, 0.99)', border: 'rgba(201, 168, 76, 0.25)', pointerEvents: 'auto', position: 'fixed', radius: '0px', glass: true });
     await expectOnScreen(open);
     // the marker is lit (and grows a little), and says what it opens
     await expect(marker).toHaveAttribute('data-active', 'true');
@@ -1087,6 +1234,41 @@ test.describe('the timeline with data that is bare, wrong or too much', () => {
     await expect(byId(page, 'evt-undated')).toHaveCount(0);
     await expect(byId(page, 'bi-timeline')).toContainText('1 event has no date that can be read, so it is not on the timeline: Sometime in spring. Fix the date in the Events tab.');
     await expect(caption(page)).toHaveText('The event · 14 Oct 2026 to 20 Nov 2026');
+  });
+
+  test('three events on the same day stand side by side on the rail, and the middle of each is its own: the pointer opens that event, not the smallest of the three', async () => {
+    const same = ['Early show', 'Matinee', 'Late show'].map((title, index) => ({ ...BARE_EVENT, id: `evt-same-${index + 1}`, title, date: '2026-11-20', price: [40, 15, 90][index], capacity: [400, 200, 900][index], order: index }));
+    await show([...same, { ...BARE_EVENT, id: 'evt-after', title: 'Later', date: '2026-12-20', price: 40, capacity: 100, order: 3 }]);
+    await expect(markersOf(page)).toHaveCount(4);
+    const centres = await markersOf(page).evaluateAll((buttons) =>
+      buttons.map((button) => {
+        const box = button.getBoundingClientRect();
+        return { id: (button.getAttribute('data-testid') ?? '').replace('bi-timeline-marker-', ''), x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      }),
+    );
+    expect(centres.map((entry) => entry.id)).toEqual(['evt-same-1', 'evt-same-2', 'evt-same-3', 'evt-after']);
+    // side by side in the order of the Events list, at least 16 px apart (the three have one date, so they stand about it)
+    expect(centres[1].x - centres[0].x).toBeGreaterThanOrEqual(15.5);
+    expect(centres[2].x - centres[1].x).toBeGreaterThanOrEqual(15.5);
+    // the middle of each marker is its own: what is under it is its button, and hovering it opens its event
+    const owners = await page.evaluate((points) => points.map((point) => document.elementFromPoint(point.x, point.y)?.closest('button[data-kind]')?.getAttribute('data-testid')?.replace('bi-timeline-marker-', '') ?? null), centres.slice(0, 3));
+    expect(owners, 'who is under the middle of each of the three').toEqual(['evt-same-1', 'evt-same-2', 'evt-same-3']);
+    for (const entry of centres.slice(0, 3)) {
+      await page.mouse.move(entry.x, entry.y, { steps: 3 });
+      await expect(panel(page)).toHaveAttribute('data-event-id', entry.id);
+      await page.mouse.move(5, 5);
+      await expect(panel(page)).toHaveCount(0);
+    }
+    // each has its label, and no two labels meet
+    const labels = await byId(page, 'bi-timeline-track').evaluate((track) => [...track.querySelectorAll('p.truncate')].map((text) => ({ text: text.textContent ?? '', box: text.getBoundingClientRect() })));
+    expect(labels.map((label) => label.text).filter((text) => /show|Matinee/.test(text))).toHaveLength(3);
+    for (const [index, label] of labels.entries()) {
+      for (const other of labels.slice(index + 1)) {
+        const across = Math.min(label.box.right, other.box.right) - Math.max(label.box.left, other.box.left);
+        const down = Math.min(label.box.bottom, other.box.bottom) - Math.max(label.box.top, other.box.top);
+        expect(across > 1 && down > 1, `"${label.text}" runs into "${other.text}"`).toBe(false);
+      }
+    }
   });
 
   test('a crowd of events with long unbroken names: a marker for every dated event, a panel that holds the long name inside the screen, a window that thins them out, and nothing sticking out', async () => {
@@ -1414,6 +1596,57 @@ test.describe('the timeline under a finger, on a phone and a tablet', () => {
       // the button opens the event
       await byId(page, 'bi-timeline-panel-open').tap();
       await expect(page.getByRole('button', { name: '+ New Event' })).toBeVisible({ timeout: 20000 });
+      expect(errors).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('on a phone on its side (667 x 375) the panel of every event is held inside the screen, scrolls inside itself to its last line, and its button can be pressed', async ({ browser }) => {
+    const { context, page, errors } = await openAt(browser, { width: 667, height: 375, touch: true });
+    try {
+      await openDashboard(page);
+      await settled(page);
+      await reveal(page);
+      await expect(byId(page, 'bi-timeline')).toHaveAttribute('data-mode', 'rail');
+      for (const row of LIVE.pipeline) {
+        // the marker in the middle of the screen, as a person scrolls to it (at once: the page scrolls smoothly, and a tap would meet it on the move)
+        await markerOf(page, row).evaluate((element) => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
+        await markerOf(page, row).tap();
+        await expect(panel(page)).toHaveAttribute('data-event-id', row.id);
+        await expect(panel(page)).toBeVisible();
+        // the whole panel is on the screen (it is taller than the screen has room for, so it is held to it)
+        await expectOnScreen(panel(page));
+        const scroller = panel(page).locator('.overflow-y-auto');
+        const held = await scroller.evaluate((element) => ({ shown: element.clientHeight, text: element.scrollHeight, screen: window.innerHeight }));
+        expect(held.text, `${row.title}: the text is taller than the room the screen has`).toBeGreaterThan(held.screen - 16);
+        expect(held.shown, `${row.title}: the panel is held to the screen`).toBeLessThanOrEqual(held.screen - 16 + 0.5);
+        // and not by what was worked out when it was placed alone: the style of the panel itself keeps it inside the screen, whatever the placement says
+        const bound = await scroller.evaluate((element) => {
+          const style = (element as HTMLElement).style;
+          const kept = style.maxHeight;
+          style.maxHeight = '';
+          const unplaced = element.getBoundingClientRect().height;
+          style.maxHeight = kept;
+          return unplaced;
+        });
+        expect(bound, `${row.title}: even with no height set for it`).toBeLessThanOrEqual(375 - 16 + 0.5);
+        // scrolled to its last line, its button is on the screen and nothing is over it
+        await scroller.evaluate((element) => {
+          element.scrollTop = element.scrollHeight;
+        });
+        const open = byId(page, 'bi-timeline-panel-open');
+        await expectOnScreen(open);
+        expect(
+          await open.evaluate((button) => {
+            const box = button.getBoundingClientRect();
+            return button.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+          }),
+          `${row.title}: nothing is over the button`,
+        ).toBe(true);
+        await page.keyboard.press('Escape');
+        await expect(panel(page)).toHaveCount(0);
+      }
       expect(errors).toEqual([]);
     } finally {
       await context.close();

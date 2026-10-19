@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useMemo, type RefObject } from 'react';
 import { COLOR, DURATION, EASE, GOLD_A, WHITE } from '../brand';
 import { useDashMotion } from '../motion';
-import { AXIS_H, LANE_PAD, LANE_TOP, LABEL_OFFSET, LABEL_W, MAX_R, PAD, TIER_H, type LanesLayout, type PlacedMarker, type TimelineLayout } from '../timelineLayout';
+import { AXIS_H, LANE_PAD, LANE_TOP, LABEL_OFFSET, LABEL_W, MARKER_APART, MAX_R, PAD, TIER_H, type LanesLayout, type PlacedMarker, type TimelineLayout } from '../timelineLayout';
 import { Flags, Marker, Pulse, RiseBlock } from './Marker';
 import { weekdayDateAt } from './text';
 import type { MarkerHandlers } from './usePanel';
@@ -40,17 +40,20 @@ const fade = (enabled: boolean, seen: boolean, index: number) => ({
   transition: { duration: enabled ? DURATION.slow : 0, ease: EASE, delay: enabled ? Math.min(index, 8) * 0.04 : 0 },
 });
 
-/** Two markers are taken to be at least this far apart, so a pair on the same day still share the room between them (the smaller is drawn on top). */
-const LEAST_APART = 16;
+/** Where a marker's disc stands on the rail: its date, and the shift that leaves events on the same day (or close to it) room of their own. */
+const standsAt = (marker: PlacedMarker): number => marker.x + marker.dx;
 
-/** How far each marker's neighbours are along the rail, by marker id (null on a side with none). */
+/**
+ * How far each marker's neighbours are along the rail, by marker id (null on a side with none). The layout leaves every pair at least
+ * MARKER_APART apart; that is also the least a distance is taken to be, for a crowd too big for the plot to spread (the smaller is drawn on top).
+ */
 function neighbours(markers: readonly PlacedMarker[]): Map<string, { before: number | null; after: number | null }> {
-  const along = [...markers].sort((a, b) => a.x - b.x);
+  const along = [...markers].sort((a, b) => standsAt(a) - standsAt(b));
   const apart = new Map<string, { before: number | null; after: number | null }>();
   along.forEach((marker, index) => {
     const previous = along[index - 1];
     const next = along[index + 1];
-    apart.set(marker.id, { before: previous ? Math.max(LEAST_APART, marker.x - previous.x) : null, after: next ? Math.max(LEAST_APART, next.x - marker.x) : null });
+    apart.set(marker.id, { before: previous ? Math.max(MARKER_APART, standsAt(marker) - standsAt(previous)) : null, after: next ? Math.max(MARKER_APART, standsAt(next) - standsAt(marker)) : null });
   });
   return apart;
 }
@@ -95,7 +98,7 @@ export function RailView({ layout, crosshair, ...shared }: Shared & { layout: Ti
           </g>
         ) : null}
         {markers.map((marker, index) =>
-          marker.tier === null ? null : <motion.line key={`leader-${marker.id}`} x1={marker.x} x2={marker.x} y1={labelsHeight - marker.tier * TIER_H - 2} y2={railY - marker.r - 2} stroke={WHITE.a25} strokeWidth={1} {...fade(enabled, seen, index)} />,
+          marker.tier === null ? null : <motion.line key={`leader-${marker.id}`} x1={standsAt(marker)} x2={standsAt(marker)} y1={labelsHeight - marker.tier * TIER_H - 2} y2={railY - marker.r - 2} stroke={WHITE.a25} strokeWidth={1} {...fade(enabled, seen, index)} />,
         )}
       </svg>
 
@@ -108,7 +111,7 @@ export function RailView({ layout, crosshair, ...shared }: Shared & { layout: Ti
             delay={Math.min(index, 8) * 0.04}
             className="pointer-events-none absolute min-w-0"
             style={{
-              left: marker.align === 'left' ? marker.x + LABEL_OFFSET : marker.x - LABEL_OFFSET - LABEL_W,
+              left: marker.align === 'left' ? standsAt(marker) + LABEL_OFFSET : standsAt(marker) - LABEL_OFFSET - LABEL_W,
               top: labelsHeight - (marker.tier + 1) * TIER_H,
               width: LABEL_W,
               height: TIER_H - 4,
@@ -162,7 +165,7 @@ export function RailView({ layout, crosshair, ...shared }: Shared & { layout: Ti
           row={marker.row}
           kind={marker.kind}
           r={marker.r}
-          x={marker.x}
+          x={standsAt(marker)}
           y={railY}
           hit={Math.max(32, 2 * marker.r + 10)}
           active={activeId === marker.id}
@@ -176,7 +179,7 @@ export function RailView({ layout, crosshair, ...shared }: Shared & { layout: Ti
         />
       ))}
       {markers.map((marker) => (
-        <Flags key={`flags-${marker.id}`} id={marker.row.id} flags={marker.flags} className="absolute flex-col items-center gap-0.5" style={{ left: marker.x - 8, top: railY + marker.r + 8 }} />
+        <Flags key={`flags-${marker.id}`} id={marker.row.id} flags={marker.flags} className="absolute flex-col items-center gap-0.5" style={{ left: standsAt(marker) - 8, top: railY + marker.r + 8 }} />
       ))}
 
       {/* the date under the pointer, drawn by the timeline's pointer handler */}

@@ -348,13 +348,13 @@ function PanelShell({ open, id, label, closing, onKeep, onRelease, onClose, onGo
         width: 'min(344px, calc(100vw - 16px))',
         visibility: place ? 'visible' : 'hidden',
         pointerEvents: closing ? 'none' : 'auto',
-        background: GLASS.tooltipBackground,
+        background: GLASS.panelBackground,
         borderColor: GOLD_A.a25,
         boxShadow: GLASS.hoverShadow,
       }}
     >
       <div className={enabled && !closing ? 'ab-pipeline-panel-rise' : undefined} style={{ ['--rise' as string]: place?.side === 'below' ? '-8px' : '8px' }}>
-        <div ref={scroller} className="overflow-y-auto p-4" style={place?.maxHeight ? { maxHeight: place.maxHeight } : undefined}>
+        <div ref={scroller} className="max-h-[calc(100dvh-16px)] overflow-y-auto p-4" style={place?.maxHeight ? { maxHeight: place.maxHeight } : undefined}>
           {children}
         </div>
         {pointer ? (
@@ -364,7 +364,7 @@ function PanelShell({ open, id, label, closing, onKeep, onRelease, onClose, onGo
             style={{
               left: pointer.pointerX - 6,
               ...(pointer.side === 'above' ? { bottom: -7, top: 'auto' } : { top: -7, bottom: 'auto' }),
-              background: GLASS.tooltipBackground,
+              background: GLASS.panelBackground,
               // every side is written, whichever the panel is on (a shorthand with sides that come and go is a styling bug React warns about)
               borderTopColor: pointer.side === 'above' ? 'transparent' : GOLD_A.a25,
               borderLeftColor: pointer.side === 'above' ? 'transparent' : GOLD_A.a25,

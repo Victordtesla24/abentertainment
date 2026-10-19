@@ -29,8 +29,9 @@ const LEAST = 120;
 const hold = (value: number, low: number, high: number): number => Math.max(low, Math.min(high, value));
 
 /**
- * Above the marker when the whole panel fits there, otherwise below it, otherwise beside it, and on a screen too small for any of those on
- * the larger of the spaces above and below, held to that height. Across, it is centred on the marker and held inside the screen.
+ * Above the marker when the whole panel fits there, otherwise below it, otherwise beside it (held to the height of the screen, less the room
+ * kept clear, when it is taller than that), and on a screen too small for any of those on the larger of the spaces above and below, held to
+ * that height. Across, it is centred on the marker and held inside the screen.
  */
 export function placePanel(anchor: Box, panel: { width: number; height: number }, screen: { width: number; height: number }): Placement {
   const middle = (anchor.left + anchor.right) / 2;
@@ -43,8 +44,10 @@ export function placePanel(anchor: Box, panel: { width: number; height: number }
   if (height <= below) return { left: across, top: anchor.bottom + GAP, maxHeight: null, side: 'below', pointerX };
   const keep = (top: number) => hold(top, EDGE, screen.height - height - EDGE);
   const centred = keep((anchor.top + anchor.bottom) / 2 - height / 2);
-  if (screen.width - EDGE - (anchor.right + GAP) >= panel.width) return { left: anchor.right + GAP, top: centred, maxHeight: null, side: 'right', pointerX: 14 };
-  if (anchor.left - GAP - EDGE >= panel.width) return { left: anchor.left - GAP - panel.width, top: centred, maxHeight: null, side: 'left', pointerX: panel.width - 14 };
+  // beside the marker the panel is centred on it at `height`, so a panel taller than the screen is held to that height here too (and scrolls inside it)
+  const fit = height < panel.height ? height : null;
+  if (screen.width - EDGE - (anchor.right + GAP) >= panel.width) return { left: anchor.right + GAP, top: centred, maxHeight: fit, side: 'right', pointerX: 14 };
+  if (anchor.left - GAP - EDGE >= panel.width) return { left: anchor.left - GAP - panel.width, top: centred, maxHeight: fit, side: 'left', pointerX: panel.width - 14 };
   if (below >= above) return { left: across, top: anchor.bottom + GAP, maxHeight: Math.max(below, LEAST), side: 'below', pointerX };
   const room = Math.max(above, LEAST);
   return { left: across, top: Math.max(EDGE, anchor.top - GAP - room), maxHeight: room, side: 'above', pointerX };
