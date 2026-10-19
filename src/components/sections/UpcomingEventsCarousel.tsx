@@ -19,7 +19,8 @@ import {
 } from './upcoming-events';
 
 /**
- * The landing page's one section after the hero: a medium-sized, horizontally moving row of the upcoming events.
+ * The landing page's one section after the hero: a large, horizontally moving row of the upcoming events (cards 88% of a phone's
+ * screen wide and up to 528 px on a desktop, posters in a 4:3 frame that grows with the card; see ROW_PROPERTIES for each size).
  *
  * What it shows is the rule every public event list follows (toCarouselEvents): upcoming and live events only, in the admin
  * portal's order. Every upcoming event is "featured", so there is no separate featured block. It keeps the freshness the old
@@ -39,7 +40,10 @@ import {
  * Moving content that starts by itself and goes on for more than five seconds must be stoppable (WCAG 2.2.2, Level A), so the
  * control row has a Pause/Play button beside Previous and Next. Paused with it, the row stays paused until Play is pressed:
  * the pointer and keyboard focus coming and going, a finger lifting, the tab returning and the carousel scrolling back into view
- * all leave it where it is. The button is not drawn under prefers-reduced-motion (nothing moves by itself there), nor with one event.
+ * all leave it where it is. A glide already under way when Pause is pressed finishes by itself (under 0.8 s) and comes to rest on a
+ * card, so the picture never jumps. Play starts the glide again, about 1.5 s later, even while the pointer or the keyboard focus is
+ * on the carousel (it is on the button that was just pressed); moving either into the carousel again after that holds it, as before.
+ * The button is not drawn under prefers-reduced-motion (nothing moves by itself there), nor with one event.
  */
 
 /** The brand easing (--ease-brand in the design system), the same curve every section of the site uses. */
@@ -54,6 +58,45 @@ const RESUME_MS = 1500;
 /** The same after a finger has lifted: a swipe is still coasting. */
 const TOUCH_RESUME_MS = 5000;
 
+/**
+ * How big the cards are and how the row sits on the page, at each size of screen. Set once, as custom properties on the carousel's
+ * group (Tailwind's own breakpoints, with 1180 px written in rem like the others so that they sort in order):
+ *   --cw     the width of a card
+ *   --cg     the gap between two cards
+ *   --bleed  how far the row runs out past the page's container, on each side
+ *
+ * Phones and tablets (under 1024 px): a card is 88% of the screen wide (520 px at most), the first one sits on the page margin and
+ * the next one shows at the edge of the screen, so the row runs out to both edges of the screen (--bleed is the container's margin:
+ * 4% of the screen up to 768 px, 5% above it). Laptops and desktops: the row is as wide as the container (--bleed is the room the
+ * focus ring and the glow need), and the width of a card is chosen for each range of screens so that the next card always shows by a
+ * clear amount, a quarter to a half of it (or more than half, with one and a bit cards in view):
+ *     under 768 px   88vw, 520 px at most     1024 to 1179 px  520 px     1280 to 1439 px  464 px
+ *     768 to 1023 px  520 px                  1180 to 1279 px  424 px     1440 to 1535 px  496 px
+ *                                                                         1536 px and up   528 px
+ * A card was 340 px (80vw on a phone) before. upcoming-events.ts says how many cards can be in view at once (loopCopies).
+ */
+const ROW_PROPERTIES = [
+  '[--bleed:4vw] min-[48.0625rem]:[--bleed:5vw] lg:[--bleed:0.25rem]',
+  '[--cg:0.75rem] md:[--cg:1.5rem] lg:[--cg:1.75rem] min-[73.75rem]:[--cg:2rem]',
+  '[--cw:min(88vw,32.5rem)] min-[73.75rem]:[--cw:26.5rem] xl:[--cw:29rem] min-[90rem]:[--cw:31rem] 2xl:[--cw:33rem]',
+].join(' ');
+/**
+ * Room after the last card where the row runs out to the screen's edge (under 1024 px): the container's margin, so that at the end of
+ * a row that does not loop (reduced motion) the last card stops where the first one starts. The gap before it is part of the room.
+ */
+const ROW_END_ROOM =
+  "after:block after:shrink-0 after:grow-0 after:basis-[max(0px,calc(var(--bleed)-var(--cg)))] after:content-[''] lg:after:hidden";
+/**
+ * The list keeps a layer of its own on the compositor for as long as it may glide. The glide moves it by a transform that the browser
+ * runs off the main thread; without this the list is given its layer when a glide starts and loses it when the glide ends, and
+ * painting all the cards again at both moments is what a large carousel pays for dearly (measured with software compositing: the main
+ * thread was held for 50 to 100 ms at each of them, which the landing page's own check for long tasks during a glide reports). With
+ * the layer kept, a glide starts and ends without any painting.
+ */
+const ROW_LAYER = 'motion-safe:will-change-transform';
+/** What the browser needs to pick the poster's file: the card's width at each range of screens (see ROW_PROPERTIES). */
+const POSTER_SIZES = '(max-width: 1179px) min(88vw, 520px), (max-width: 1279px) 424px, (max-width: 1439px) 464px, (max-width: 1535px) 496px, 528px';
+
 interface Row {
   /** Distance from one card to the next. */
   pitch: number;
@@ -61,7 +104,7 @@ interface Row {
   setWidth: number;
 }
 
-/** Where the cards are, read from the page (they are 340 px wide on a laptop and 80% of the viewport on a phone). */
+/** Where the cards are, read from the page (their width and the gap between them depend on the screen: see ROW_PROPERTIES). */
 function measureRow(list: HTMLElement): Row | null {
   const real = list.querySelectorAll<HTMLElement>(':scope > li:not([data-carousel-clone])');
   if (real.length < 2) return null;
@@ -162,7 +205,10 @@ function useCarouselMotion(
     [scrollerRef, wrap],
   );
 
-  /** Stop a glide where it is (a finger, a hidden tab, a press of a button): the row stays exactly where it has got to. */
+  /**
+   * Stop a glide where it is (a finger on the row, a hidden tab, Previous or Next): the row takes the position the glide had reached,
+   * and the browser's snapping then settles it on the nearest card. (Pause does not use this: it lets the glide in progress finish.)
+   */
   const cancelGlide = useCallback(() => {
     const glide = glideRef.current;
     const list = listRef.current;
@@ -285,20 +331,37 @@ function useCarouselMotion(
     const touched = () => {
       lastInteraction.current = performance.now();
     };
-    // The Pause/Play button: a pause stops a glide where it is (as a finger does) and holds until Play lifts it.
+    /** Set by Play while the pointer rests on the carousel: the pointer's arrival is not counted again until it has left (see onEnter). */
+    let pointerSettled = false;
+    // The Pause/Play button: a pause holds until Play lifts it (a glide in progress is let finish, see below).
     autoplayRef.current = {
+      // A pause is a request to stop, not to freeze the picture: it only holds. A glide already under way finishes by itself (it has
+      // 0.8 s at most to go, which is well inside the time WCAG 2.2.2 allows for a stop) and comes to rest on a card, so the row never
+      // jumps; the hold keeps every later glide from starting.
       pause: () => {
         hold('user');
-        cancelGlide();
       },
-      play: () => release('user'),
+      // Play is a request to play, so it also lifts the holds that the use of the button itself creates: the pointer is still over the
+      // button, or the keyboard focus is still on it (a click or Enter does not move either). Moving the pointer or the focus into the
+      // carousel again afterwards holds it, as before.
+      play: () => {
+        holds.delete('hover');
+        holds.delete('focus');
+        pointerSettled = true;
+        release('user');
+      },
     };
 
+    // After Play the pointer is still on the button, and a browser can report it as entering the carousel again a moment later (when
+    // the page changes under a resting pointer). That is not the visitor moving in: the pointer counts as arriving again only after it
+    // has left the carousel.
     const onEnter = (event: PointerEvent) => {
-      if (event.pointerType !== 'touch') hold('hover');
+      if (event.pointerType !== 'touch' && !pointerSettled) hold('hover');
     };
     const onLeave = (event: PointerEvent) => {
-      if (event.pointerType !== 'touch') release('hover');
+      if (event.pointerType === 'touch') return;
+      pointerSettled = false;
+      release('hover');
     };
     const onFocusIn = (event: FocusEvent) => {
       // Keyboard focus only: a click on a button also focuses it, and that must not stop the carousel for good.
@@ -378,7 +441,7 @@ const LINK_FOCUS_QUIET = 'supports-[selector(:has(*))]:focus-visible:outline-non
 
 function CalendarIcon() {
   return (
-    <svg className="w-3.5 h-3.5 text-[#C9A84C]/50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="w-4 h-4 text-[#C9A84C]/50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
   );
@@ -386,7 +449,7 @@ function CalendarIcon() {
 
 function PinIcon() {
   return (
-    <svg className="w-3.5 h-3.5 text-[#C9A84C]/50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="w-4 h-4 text-[#C9A84C]/50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
@@ -405,15 +468,15 @@ function EventCard({ event, staticEventSlugs, copy }: { event: CarouselEvent; st
       className={`group glass-card hover-shine relative flex h-full flex-col overflow-hidden hover:shadow-[0_12px_50px_rgba(201,168,76,0.1)] ${CARD_FOCUS_RING}`}
       style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
     >
-      {/* Poster — the whole poster (object-contain), never cropped, like every other event card */}
-      <div className="relative h-56 shrink-0 overflow-hidden bg-gradient-to-br from-[#111] to-[#0A0A0A]">
+      {/* Poster — the whole poster (object-contain), never cropped, like every other event card; a 4:3 frame that grows with the card */}
+      <div className="relative aspect-[4/3] shrink-0 overflow-hidden bg-gradient-to-br from-[#111] to-[#0A0A0A]">
         {isUsableImageUrl(event.image) && (
           <OptimizedImage
             src={event.image}
             alt={`${event.title} poster`}
             width={940}
             height={788}
-            sizes="(max-width: 425px) 80vw, 340px"
+            sizes={POSTER_SIZES}
             blurPlaceholder
             className="absolute inset-0 h-full w-full object-contain transition-all duration-700 group-hover:brightness-110 saturate-[0.9]"
           />
@@ -421,25 +484,26 @@ function EventCard({ event, staticEventSlugs, copy }: { event: CarouselEvent; st
         {/* Branded placeholder when an event has no image yet. */}
         {!isUsableImageUrl(event.image) && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 select-none" aria-hidden="true">
-            <span className="font-display font-bold text-4xl text-[#C9A84C]/25">AB</span>
-            <span className="text-[10px] uppercase tracking-[0.25em] font-body text-[#C9A84C]/30">{event.category || 'Entertainment'}</span>
+            <span className="font-display font-bold text-5xl text-[#C9A84C]/25">AB</span>
+            <span className="text-xs uppercase tracking-[0.25em] font-body text-[#C9A84C]/30">{event.category || 'Entertainment'}</span>
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/30 to-transparent opacity-80" />
         {event.category && (
-          <div className="absolute top-4 right-4 px-3 py-1.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-[10px] font-body font-bold uppercase tracking-wider shadow-lg">
+          <div className="absolute top-4 right-4 px-3 py-1.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-xs font-body font-bold uppercase tracking-wider shadow-lg">
             {event.category}
           </div>
         )}
         {badge && (
-          <div className={`absolute top-4 left-4 px-3 py-1.5 text-[10px] font-body font-bold uppercase tracking-wider shadow-lg ${badge.className}`}>
+          <div className={`absolute top-4 left-4 px-3 py-1.5 text-xs font-body font-bold uppercase tracking-wider shadow-lg ${badge.className}`}>
             {badge.label}
           </div>
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-5">
-        <h3 className="text-lg font-display font-bold text-white group-hover:text-[#C9A84C] transition-colors duration-400 line-clamp-2 [overflow-wrap:anywhere]">
+      <div className="flex flex-1 flex-col gap-4 p-6 md:p-7">
+        {/* From tablets up, two lines are always kept for the title, so the dates and venues of neighbouring cards line up. */}
+        <h3 className="md:min-h-[2.5em] text-xl md:text-2xl font-display font-bold leading-tight text-white group-hover:text-[#C9A84C] transition-colors duration-400 line-clamp-2 [overflow-wrap:anywhere]">
           {/* The title is the card's one link to the event; its ::after stretches over the whole card so the card is the target. */}
           <EventLink
             slug={event.slug}
@@ -451,15 +515,15 @@ function EventCard({ event, staticEventSlugs, copy }: { event: CarouselEvent; st
             {event.title}
           </EventLink>
         </h3>
-        <div className="space-y-2 border-t border-[#C9A84C]/8 pt-3">
+        <div className="space-y-2.5 border-t border-[#C9A84C]/8 pt-4">
           {date && (
-            <div className="flex items-center gap-2.5 text-white/50 text-sm font-body">
+            <div className="flex items-center gap-3 text-white/60 text-base font-body">
               <CalendarIcon />
               <span>{date}</span>
             </div>
           )}
           {event.venue && (
-            <div className="flex items-center gap-2.5 text-white/50 text-sm font-body">
+            <div className="flex items-center gap-3 text-white/60 text-base font-body">
               <PinIcon />
               <span className="min-w-0 truncate">{event.venue}</span>
             </div>
@@ -471,7 +535,7 @@ function EventCard({ event, staticEventSlugs, copy }: { event: CarouselEvent; st
             target="_blank"
             rel="noopener noreferrer"
             tabIndex={tabIndex}
-            className="relative z-10 mt-auto block w-full bg-[#C9A84C] hover:bg-[#D4B65C] text-black text-center font-display font-bold text-sm uppercase tracking-wider py-4 px-6 transition-colors duration-300"
+            className="relative z-10 mt-auto block w-full bg-[#C9A84C] hover:bg-[#D4B65C] text-black text-center font-display font-bold text-sm md:text-base uppercase tracking-wider py-4 px-6 transition-colors duration-300"
           >
             Get Tickets
           </a>
@@ -489,26 +553,21 @@ function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
   );
 }
 
-/** Pause: two bars (the automatic glide is running). */
-function PauseIcon() {
+/**
+ * Pause (two bars: the automatic glide is running) or Play (a triangle: it is paused). One svg whose drawing changes, so the element
+ * under a pointer resting on the button is not replaced when the button is pressed (a browser reports the pointer as entering the
+ * carousel afresh when it is, which would hold the glide that Play has just started).
+ */
+function PauseOrPlayIcon({ paused }: { paused: boolean }) {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5v14M15 5v14" />
-    </svg>
-  );
-}
-
-/** Play: a triangle (the automatic glide is paused). */
-function PlayIcon() {
-  return (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 5.5v13l10.5-6.5L8 5.5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={paused ? 1.5 : 2} d={paused ? 'M8 5.5v13l10.5-6.5L8 5.5z' : 'M9 5v14M15 5v14'} />
     </svg>
   );
 }
 
 const CONTROL_CLASS =
-  'w-11 h-11 flex items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-400 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)] aria-disabled:opacity-30 aria-disabled:pointer-events-none';
+  'w-11 h-11 md:w-12 md:h-12 flex items-center justify-center border border-[#C9A84C]/15 text-[#C9A84C]/60 hover:bg-[#C9A84C] hover:text-black hover:border-[#C9A84C] transition-all duration-400 hover:shadow-[0_0_20px_rgba(201,168,76,0.3)] aria-disabled:opacity-30 aria-disabled:pointer-events-none';
 
 const sameEvents = (a: readonly CarouselEvent[], b: readonly CarouselEvent[]) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -559,16 +618,18 @@ export default function UpcomingEventsCarousel({
   const nextDisabled = reduced && edges.end;
 
   return (
-    <section id="upcoming-events" aria-labelledby="upcoming-events-title" className="relative py-28 bg-[#0A0A0A] overflow-hidden">
+    <section id="upcoming-events" aria-labelledby="upcoming-events-title" className="relative py-28 md:py-32 bg-[#0A0A0A] overflow-hidden">
       <div className="section-divider-top" />
       {/* Ambient lighting */}
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(ellipse,rgba(201,168,76,0.03),transparent_60%)] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[radial-gradient(ellipse,rgba(201,168,76,0.02),transparent_60%)] pointer-events-none" />
+      <div className="absolute top-0 right-0 w-[700px] h-[700px] bg-[radial-gradient(ellipse,rgba(201,168,76,0.04),transparent_60%)] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[radial-gradient(ellipse,rgba(201,168,76,0.03),transparent_60%)] pointer-events-none" />
+      {/* A soft spotlight behind the row */}
+      <div className="absolute left-1/2 top-[55%] h-[640px] w-[min(1200px,100%)] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(ellipse,rgba(201,168,76,0.045),transparent_65%)] pointer-events-none" />
 
       <div className="container-eu">
         {/* Section header */}
         <motion.div
-          className="text-center mb-14"
+          className="text-center mb-14 md:mb-16"
           initial={{ opacity: 0, y: -30 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: EASE }}
@@ -593,6 +654,7 @@ export default function UpcomingEventsCarousel({
         ) : (
           <motion.div
             ref={groupRef}
+            className={ROW_PROPERTIES}
             role="group"
             aria-roledescription="carousel"
             aria-label="Upcoming events"
@@ -602,13 +664,13 @@ export default function UpcomingEventsCarousel({
             transition={{ duration: 0.8, delay: 0.1, ease: EASE }}
             viewport={{ once: true, amount: 0.15 }}
           >
-            {/* The padding (cancelled by the negative margin) keeps the card's lift, glow and focus ring from being clipped by the scroller. */}
-            <div ref={scrollerRef} className="-mx-1 -my-4 px-1 py-4 scroll-px-1 overflow-x-auto overscroll-x-contain scrollbar-none snap-x snap-mandatory">
+            {/* The padding (cancelled by the negative margin) keeps the card's lift, glow and focus ring from being clipped by the scroller; under 1024 px it is the container's margin, so the row runs out to the screen's edges. */}
+            <div ref={scrollerRef} className="-mx-[var(--bleed)] -my-4 px-[var(--bleed)] py-4 scroll-px-[var(--bleed)] overflow-x-auto overscroll-x-contain scrollbar-none snap-x snap-mandatory">
               <ul
                 ref={listRef}
                 role="list"
                 data-event-list="home"
-                className={`relative flex gap-6 ${count === 1 ? 'justify-center' : 'motion-reduce:[justify-content:safe_center]'}`}
+                className={`relative flex gap-[var(--cg)] ${count === 1 ? 'justify-center' : `motion-reduce:[justify-content:safe_center] ${ROW_LAYER} ${ROW_END_ROOM}`}`}
               >
                 {events.map((event, index) => (
                   <li
@@ -616,7 +678,7 @@ export default function UpcomingEventsCarousel({
                     data-event-slug={event.slug}
                     aria-roledescription="slide"
                     aria-label={`${index + 1} of ${count}`}
-                    className="min-w-0 shrink-0 grow-0 basis-[min(80vw,340px)] snap-start"
+                    className="min-w-0 shrink-0 grow-0 basis-[var(--cw)] snap-start"
                   >
                     <EventCard event={event} staticEventSlugs={staticEventSlugs} copy={false} />
                   </li>
@@ -628,7 +690,7 @@ export default function UpcomingEventsCarousel({
                       key={`copy-${copy}-${event.id}`}
                       data-carousel-clone=""
                       aria-hidden="true"
-                      className="min-w-0 shrink-0 grow-0 basis-[min(80vw,340px)] snap-start motion-reduce:hidden"
+                      className="min-w-0 shrink-0 grow-0 basis-[var(--cw)] snap-start motion-reduce:hidden"
                     >
                       <EventCard event={event} staticEventSlugs={staticEventSlugs} copy />
                     </li>
@@ -639,7 +701,7 @@ export default function UpcomingEventsCarousel({
 
             {count > 1 && (
               // Always in the layout (hidden, not removed, when the whole row already fits), so it never moves what is below it.
-              <div className={`mt-8 flex justify-center gap-3 ${rowFits ? 'invisible' : ''}`}>
+              <div className={`mt-8 md:mt-10 flex justify-center gap-3 ${rowFits ? 'invisible' : ''}`}>
                 <button
                   type="button"
                   className={CONTROL_CLASS}
@@ -656,7 +718,7 @@ export default function UpcomingEventsCarousel({
                   aria-label={paused ? 'Play' : 'Pause'}
                   onClick={() => setPaused(!paused)}
                 >
-                  {paused ? <PlayIcon /> : <PauseIcon />}
+                  <PauseOrPlayIcon paused={paused} />
                 </button>
                 <button
                   type="button"
@@ -673,7 +735,7 @@ export default function UpcomingEventsCarousel({
         )}
 
         {/* Bottom CTA */}
-        <div className="text-center mt-14">
+        <div className="text-center mt-14 md:mt-16">
           <Link
             href="/events"
             className="group relative inline-block px-10 py-4 bg-gradient-to-r from-[#C9A84C] via-[#D4B65C] to-[#C9A84C] text-black text-sm font-bold uppercase tracking-[0.15em] overflow-hidden transition-all duration-500 hover:shadow-[0_0_40px_rgba(201,168,76,0.3)]"

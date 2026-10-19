@@ -138,7 +138,7 @@ test.describe('landing page: what the carousel costs', () => {
     expect(duringGlides, `long tasks during a glide: ${JSON.stringify(observed.longTasks.filter((task) => task.start >= mark))}`).toEqual([]);
   });
 
-  test('its images are lazy, and none is requested before the carousel is near the viewport on a phone', async ({ browser }) => {
+  test('all its images are lazy (loading="lazy") on a phone', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
     const page = await context.newPage();
     const requested: string[] = [];

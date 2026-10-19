@@ -12,6 +12,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
  *  - move only on request under prefers-reduced-motion (no copies drawn, buttons step the row, no Pause button);
  *  - work with a swipe and with the keyboard, name itself ("2 of 5") for assistive technology, and never expose its copies;
  *  - show one event as a centred card without motion, and no event as a line with a link to /events/;
+ *  - be a large carousel (cards 317 to 528 px wide, 88% of a phone's screen), whose next card always shows at the edge of the row;
  *  - offer "Get Tickets" only for a valid ticket link.
  *
  * GET /api/events is answered in the browser from route stubs, so nothing is written anywhere and the checks do not depend on the
@@ -20,6 +21,14 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
  */
 
 const BASE = process.env.E2E_BASE_URL ?? '';
+
+/**
+ * The width of a card at each width of screen, as the carousel is designed (ROW_PROPERTIES in UpcomingEventsCarousel.tsx), and the
+ * gap between two cards. It was 340 px (80% of the screen on a phone) with a 24 px gap before.
+ */
+const cardWidthAt = (screen: number) =>
+  screen >= 1536 ? 528 : screen >= 1440 ? 496 : screen >= 1280 ? 464 : screen >= 1180 ? 424 : Math.min(0.88 * screen, 520);
+const gapAt = (screen: number) => (screen >= 1180 ? 32 : screen >= 1024 ? 28 : screen >= 768 ? 24 : 12);
 
 type ApiEvent = Record<string, unknown> & { slug: string };
 
@@ -221,14 +230,58 @@ test.describe('landing page: what is on it', () => {
     await expect(page.locator('section[aria-roledescription="carousel"]')).toHaveCount(1);
   });
 
-  test('cards are medium sized: 340 px on a laptop, 80% of the viewport on a phone, never wider than the old golden ticket', async ({ page }) => {
+  test('cards are large: 88% of the screen on a phone, 424 to 528 px on a laptop, a 4:3 frame for the whole poster, and the next card shows', async ({ page }) => {
     await openWith(page, makeEvents(4));
-    const wide = await realCards(page).first().boundingBox();
-    expect(wide!.width).toBeGreaterThanOrEqual(300);
-    expect(wide!.width).toBeLessThanOrEqual(360);
-    expect(wide!.width).toBeLessThanOrEqual(576); // the golden ticket was max-w-xl
-    await page.setViewportSize({ width: 390, height: 844 });
-    await expect.poll(async () => Math.round((await realCards(page).first().boundingBox())!.width)).toBe(Math.round(390 * 0.8));
+    // Held still, at its start, so that where the cards are depends on the screen alone (the glide is a Pause away).
+    await group(page).getByRole('button', { name: 'Pause', exact: true }).click();
+    await page.waitForTimeout(1200);
+    // The ten sizes of the layout checks, the edges of the size steps, and a wide screen.
+    const screens = [360, 375, 390, 414, 767, 768, 820, 1024, 1179, 1180, 1279, 1280, 1366, 1439, 1440, 1535, 1536, 1920];
+    for (const screen of screens) {
+      await page.setViewportSize({ width: screen, height: screen < 768 ? 844 : 900 });
+      const read = await page.evaluate(() => {
+        const list = document.querySelector('[data-event-list="home"]') as HTMLElement;
+        const row = list.parentElement as HTMLElement;
+        row.scrollLeft = 0;
+        const cards = [...list.children].filter((li) => li.getClientRects().length).map((li) => li.getBoundingClientRect());
+        const rowBox = row.getBoundingClientRect();
+        const card = list.querySelector('li .glass-card') as HTMLElement;
+        const frame = (card.firstElementChild as HTMLElement).getBoundingClientRect();
+        const image = card.querySelector('img') as HTMLImageElement;
+        const cut = cards.find((box) => box.left < rowBox.right - 0.5 && box.right > rowBox.right + 0.5);
+        return {
+          width: cards[0].width,
+          pitch: cards[1].left - cards[0].left,
+          frameRatio: frame.width / frame.height,
+          fit: getComputedStyle(image).objectFit,
+          imageFillsFrame: Math.abs(image.getBoundingClientRect().width - frame.width) <= 0.5 && Math.abs(image.getBoundingClientRect().height - frame.height) <= 0.5,
+          peek: cut ? rowBox.right - cut.left : 0,
+          overflow: document.documentElement.scrollWidth - window.innerWidth,
+        };
+      });
+      const label = `at ${screen} px`;
+      expect(read.width, `card width ${label}`).toBeGreaterThanOrEqual(cardWidthAt(screen) - 1);
+      expect(read.width, `card width ${label}`).toBeLessThanOrEqual(cardWidthAt(screen) + 1);
+      expect(read.pitch, `the step from one card to the next ${label}`).toBeCloseTo(cardWidthAt(screen) + gapAt(screen), 0);
+      // Never smaller than the old card (340 px, or 80% of the screen on a phone), never wider than the old golden ticket.
+      expect(read.width, `not smaller than before ${label}`).toBeGreaterThan(Math.min(340, 0.8 * screen) + 20);
+      expect(read.width, `not wider than the old golden ticket ${label}`).toBeLessThanOrEqual(576);
+      // (88% of the screen up to 590 px, where it reaches the 520 px a card is at most.)
+      if (screen < 591) expect(read.width / screen, `a phone's card is at least 86% of the screen ${label}`).toBeGreaterThanOrEqual(0.86);
+      else expect(read.width, `a laptop's or tablet's card is at least 25% wider than before ${label}`).toBeGreaterThanOrEqual(1.2 * 340);
+      // The whole poster, never cropped: contained in a 4:3 frame that the image fills.
+      expect(read.fit).toBe('contain');
+      expect(read.imageFillsFrame, `the image fills the poster's frame ${label}`).toBe(true);
+      expect(read.frameRatio, `the poster's frame is 4:3 ${label}`).toBeCloseTo(4 / 3, 1);
+      // It still reads as a carousel: the next card shows at the edge of the row (a sliver on a phone, a clear part of the card from a
+      // tablet up, and never so much that it only looks like a cut-off card).
+      if (screen < 768) expect(read.peek, `how much of the next card shows ${label}`).toBeGreaterThanOrEqual(12);
+      else {
+        expect(read.peek, `how much of the next card shows ${label}`).toBeGreaterThanOrEqual(0.2 * read.width);
+        expect(read.peek, `how much of the next card shows ${label}`).toBeLessThanOrEqual(0.9 * read.width);
+      }
+      expect(read.overflow, `the page scrolls sideways ${label}`).toBeLessThanOrEqual(0);
+    }
   });
 
   test('a card shows the poster, the title, the date and the venue; Get Tickets only for a valid ticket link', async ({ page }) => {
@@ -382,7 +435,8 @@ test.describe('landing page: it moves by itself, and holds still', () => {
   test('glides one card at a time to the left with the brand easing, and loops without a visible jump', async ({ page }) => {
     await openWith(page, makeEvents(4));
     const pitch = await pitchOf(page);
-    expect(pitch).toBe(364);
+    const screen = page.viewportSize()!.width;
+    expect(pitch, 'one card and the gap after it').toBe(Math.round(cardWidthAt(screen) + gapAt(screen)));
     // Record where the row is every frame for a whole step. The glide is drawn by the browser as a transform of the list and the scroll
     // position takes over when it ends, so "where it is" is the scroll position plus the distance the first card has moved.
     const samples = await page.evaluate(
@@ -447,14 +501,22 @@ test.describe('landing page: it moves by itself, and holds still', () => {
     await openWith(page, makeEvents(4));
     const row = scroller(page);
     const pitch = await pitchOf(page);
-    await page.mouse.move(600, 500); // keep the automatic glide out of this
+    // A point on the middle of the second card, which is on a card (and not in a gap) whichever card has scrolled there.
+    const point = await realCards(page).nth(1).evaluate((card) => {
+      const box = card.getBoundingClientRect();
+      return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + Math.min(150, box.height / 2)) };
+    });
+    await page.mouse.move(point.x, point.y); // keep the automatic glide out of this
     const titleAt = () =>
-      page.evaluate(() => document.elementFromPoint(600, 500)?.closest('li')?.querySelector('h3')?.textContent ?? '');
+      page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('li')?.querySelector('h3')?.textContent ?? '', point);
     // Past the end of the real cards by one card: the copy of the second card sits where the second card was.
-    const shown = await row.evaluate((element, to) => {
-      element.scrollTo({ left: to });
-      return document.elementFromPoint(600, 500)?.closest('li')?.querySelector('h3')?.textContent ?? '';
-    }, 4 * pitch + pitch);
+    const shown = await row.evaluate(
+      (element, { to, x, y }) => {
+        element.scrollTo({ left: to });
+        return document.elementFromPoint(x, y)?.closest('li')?.querySelector('h3')?.textContent ?? '';
+      },
+      { to: 4 * pitch + pitch, ...point },
+    );
     expect(shown).toMatch(/E2E Event \d/);
     await expect.poll(() => left(row), { timeout: 5000 }).toBeLessThan(4 * pitch);
     expect(Math.abs((await left(row)) - pitch)).toBeLessThanOrEqual(2);
@@ -617,6 +679,62 @@ test.describe('landing page: the Pause / Play button (WCAG 2.2.2)', () => {
     await staysPut(row, 2 * ONE_STEP_MS);
   });
 
+  test('pressing it in the middle of a glide does not move the row by more than 40 px in one frame', async ({ page }) => {
+    await openWith(page, makeEvents(4));
+    const row = scroller(page);
+    const pitch = await pitchOf(page);
+    await page.mouse.move(2, 2);
+
+    for (const pressedAfterMs of [150, 300]) {
+      // Inside the page, so that the moment of the press is exact: on every animation frame note where the first card is, and when the
+      // glide's own clock (the animation of the list) reaches `pressedAfterMs`, press Pause; go on noting until 1.2 s after the press.
+      // The times are those of the frames, which is what the glide is drawn at, so a busy machine that is late with a frame is not
+      // mistaken for a jump.
+      const run = await page.evaluate(
+        (after: number) =>
+          new Promise<{ pressedAt: number; samples: Array<[number, number]> }>((resolve) => {
+            const list = document.querySelector('[data-event-list="home"]') as HTMLElement;
+            const samples: Array<[number, number]> = [];
+            let pressedAt = 0;
+            const frame = (now: number) => {
+              samples.push([now, (list.querySelector('li') as HTMLElement).getBoundingClientRect().left]);
+              const glide = list.getAnimations()[0];
+              if (!pressedAt && glide && Number(glide.currentTime ?? 0) >= after) {
+                pressedAt = now;
+                (document.querySelector('button[aria-label="Pause"]') as HTMLButtonElement).click();
+              }
+              if (pressedAt && now > pressedAt + 1200) resolve({ pressedAt, samples });
+              else requestAnimationFrame(frame);
+            };
+            requestAnimationFrame(frame);
+          }),
+        pressedAfterMs,
+      );
+      // The picture does not jump: from the last frame before the press (the one the press was made in) to the end, no frame moves the
+      // card more than a glide's own pace allows (about 25 px at its quickest here, 16.7 ms apart; a snap to the nearest card is 70 px
+      // and more). A frame that came late counts for the movement of one frame.
+      const track = run.samples.filter(([at]) => at >= run.pressedAt);
+      let largestStep = 0;
+      let largestRaw = 0;
+      for (let i = 1; i < track.length; i++) {
+        const moved = Math.abs(track[i][1] - track[i - 1][1]);
+        largestRaw = Math.max(largestRaw, moved);
+        largestStep = Math.max(largestStep, (moved * 16.7) / Math.max(track[i][0] - track[i - 1][0], 16.7));
+      }
+      test.info().annotations.push({ type: `pause-${pressedAfterMs}ms-into-glide`, description: `largest single-frame step ${largestStep.toFixed(1)} px (${largestRaw.toFixed(1)} px between frames), pitch ${pitch}` });
+      expect(largestStep, `Pause ${pressedAfterMs} ms into a glide moved the first card by ${largestStep.toFixed(1)} px in one frame`).toBeLessThanOrEqual(40);
+
+      // It has come to rest on a card, and it does not go on.
+      await expect(playButton(page)).toBeVisible();
+      const rest = await left(row);
+      expect(Math.min(rest % pitch, pitch - (rest % pitch)), `at rest on a card boundary (${rest}, pitch ${pitch})`).toBeLessThanOrEqual(2);
+      expect(await page.evaluate(() => getComputedStyle(document.querySelector('[data-event-list="home"]')!).transform)).toBe('none');
+      await playButton(page).click(); // so that the next round can wait for another glide
+      await page.mouse.move(2, 2);
+      await expect(pauseButton(page)).toBeVisible();
+    }
+  });
+
   test('stays paused through the pointer leaving, keyboard focus leaving, a finger lifting, the tab coming back and the carousel scrolling back into view', async ({ page }) => {
     await openWith(page, makeEvents(4));
     const row = scroller(page);
@@ -690,6 +808,38 @@ test.describe('landing page: the Pause / Play button (WCAG 2.2.2)', () => {
     await staysPut(row, ONE_STEP_MS);
   });
 
+  test('Play pressed from the keyboard starts the glide while the focus stays on the button', async ({ page }) => {
+    await openWith(page, makeEvents(4));
+    const row = scroller(page);
+    await page.mouse.move(2, 2);
+    const focused = () => page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
+    await group(page).getByRole('button', { name: 'Previous event' }).focus();
+    await page.keyboard.press('Tab'); // keyboard modality, so :focus-visible applies; the focus moves on to Pause
+    expect(await focused()).toBe('Pause');
+    await page.keyboard.press('Enter');
+    await expect(playButton(page)).toBeVisible();
+    expect(await focused(), 'the focus stays on the button').toBe('Play');
+    const held = await staysPut(row, ONE_STEP_MS); // paused, with the keyboard focus on the button
+    await page.keyboard.press('Enter');
+    await expect(pauseButton(page)).toBeVisible();
+    // Pressing Play is a request to play: it lifts the holds the button's own use creates (the focus on it), so the row glides again
+    // about 1.5 s later although the focus has not left the button.
+    await expect.poll(() => left(row), { timeout: 8000 }).not.toBe(held);
+    expect(await focused(), 'the focus is still on the button, now labelled Pause').toBe('Pause');
+  });
+
+  test('Play clicked while the pointer is over the carousel starts the glide', async ({ page }) => {
+    await openWith(page, makeEvents(4));
+    const row = scroller(page);
+    await pauseButton(page).hover(); // the pointer is over the control, and it stays there
+    await pauseButton(page).click();
+    await expect(playButton(page)).toBeVisible();
+    const held = await staysPut(row, ONE_STEP_MS); // paused, with the pointer on the carousel
+    await playButton(page).click();
+    await expect(pauseButton(page)).toBeVisible();
+    await expect.poll(() => left(row), { timeout: 8000 }).not.toBe(held);
+  });
+
   test('stays paused when the events change underneath it (the live refresh takes them down to one and back)', async ({ page }) => {
     let events = makeEvents(4);
     await openWith(page, () => events);
@@ -708,6 +858,59 @@ test.describe('landing page: the Pause / Play button (WCAG 2.2.2)', () => {
     await expect(playButton(page)).toBeVisible();
     await staysPut(row, ONE_STEP_MS + 1000);
   });
+});
+
+test.describe('landing page: a press on a control before the carousel has hydrated is delivered once it has', () => {
+  test.setTimeout(90000);
+
+  /**
+   * The sections below the first screen are server HTML that React attaches itself to one at a time (HydrateLater). A visitor who
+   * presses a control before the carousel's turn must still get what the press does, not a dead button. The browser never idles
+   * here (so only the press, or the page's safety timer seconds away, can start the carousel's hydration; the script loader of a
+   * static export, whose callback is named `start`, is let through).
+   */
+  const neverIdle = (page: Page) =>
+    page.addInitScript(() => {
+      const idle = window.requestIdleCallback.bind(window);
+      window.requestIdleCallback = (callback, options) => (callback.name === 'start' ? idle(callback, options) : 0);
+    });
+  /** The landing page's blocks are, in order: the lighting overlay, the hero, the carousel's section. */
+  const sectionHydrated = (page: Page) =>
+    page.evaluate(() => {
+      const block = document.querySelectorAll('main#main-content > div > *')[2];
+      if (!block) return false;
+      return [block, ...Array.from(block.querySelectorAll('*'))].some((element) => Object.keys(element).some((key) => key.startsWith('__reactProps$')));
+    });
+
+  for (const control of ['Next event', 'Pause'] as const) {
+    test(`a press on ${control} before the carousel has hydrated is delivered once it has`, async ({ page }) => {
+      await page.addInitScript(() => localStorage.setItem('cookie_consent', 'accepted'));
+      await neverIdle(page);
+      // The carousel asks for the live list once it is running; keep the list the server sent, so the press meets the cards it was made on.
+      await page.route(/\/api\/events(\?.*)?$/, (route) => route.abort());
+      await page.goto(`${BASE}/`);
+      await page.waitForFunction(hydrated, undefined, { timeout: 20000 }); // the first screen is usable...
+      expect(await sectionHydrated(page), '...and the carousel is still only server HTML').toBe(false);
+      const served = await realCards(page).count();
+      test.skip(served < 2, `the server sent ${served} upcoming event(s): with fewer than two the carousel has no controls to press`);
+
+      // The press is made on the button where it stands, below the first screen: scrolling to it would start the carousel's hydration by
+      // itself (a visitor who scrolls gets the sections one after the other), and a carousel that is off screen does not glide, so the
+      // only thing that can move the row or change the button is the press itself.
+      const button = group(page).getByRole('button', { name: control, exact: true });
+      expect(await left(scroller(page))).toBe(0);
+      await button.dispatchEvent('click');
+      // The press starts the carousel's hydration, and is replayed to it once it has...
+      await expect.poll(() => sectionHydrated(page), { timeout: 10000, intervals: [50] }).toBe(true);
+      if (control === 'Next event') {
+        // ...so the row moves on by a card,
+        await expect.poll(() => left(scroller(page)), { timeout: 10000 }).toBeGreaterThan(0);
+      } else {
+        // ...or the button, which says what pressing it does, now says Play.
+        await expect(group(page).getByRole('button', { name: 'Play', exact: true })).toBeVisible({ timeout: 10000 });
+      }
+    });
+  }
 });
 
 test.describe('landing page: a swipe moves it', () => {

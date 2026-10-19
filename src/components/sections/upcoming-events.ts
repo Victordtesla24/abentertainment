@@ -75,17 +75,20 @@ export function statusBadge(ticketStatus: CarouselEvent['ticketStatus']): { labe
   return null;
 }
 
-/** Card width and the gap between cards, in px, as the stylesheet of the carousel sets them (wider than 425 px; phones use 80vw). */
-export const CARD_PX = 340;
-export const GAP_PX = 24;
-/** The widest the row can ever be: the page container stops growing at 1400 px (.container-eu). */
-const WIDEST_ROW_PX = 1400;
+/**
+ * The most cards that are ever in view at once, a card shown in part counted as a whole one. At the browser's usual type size the
+ * widest row (the page's container, 1400 px) holds two and a bit of the largest cards (528 px with a 32 px gap), and a row that runs
+ * out to the edges of a phone's screen holds one and a bit; a smaller type size set in the browser makes the cards (sized in rem)
+ * smaller, so the figure leaves room for three and a half. The size of a card at each screen is set in UpcomingEventsCarousel.tsx
+ * (ROW_PROPERTIES).
+ */
+export const MAX_CARDS_IN_VIEW = 4;
 
 /**
- * How many extra copies of the row follow the real cards so the row can keep gliding forward without a gap: enough that
- * the widest possible row, starting at any card, is still covered. The copies are for looks only (see the carousel).
+ * How many extra copies of the row follow the real cards so the row can keep gliding forward without a gap: enough that the cards
+ * in view, starting at any card, are all there. The copies are for looks only (see the carousel).
  */
 export function loopCopies(count: number): number {
   if (count < 2) return 0;
-  return Math.max(1, Math.ceil((WIDEST_ROW_PX + GAP_PX) / (count * (CARD_PX + GAP_PX))));
+  return Math.max(1, Math.ceil(MAX_CARDS_IN_VIEW / count));
 }

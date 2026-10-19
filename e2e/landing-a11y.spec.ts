@@ -139,6 +139,25 @@ test.describe('accessibility (axe-core)', () => {
     expect(await axeViolations(page, '#upcoming-events')).toEqual([]);
   });
 
+  // The carousel is large, and under 1024 px its row runs out to both edges of the screen (UpcomingEventsCarousel.tsx, ROW_PROPERTIES):
+  // the same checks on a phone and on a tablet, with the cards, the badges and the controls at those sizes.
+  for (const [device, viewport] of [
+    ['a phone', { width: 390, height: 844 }],
+    ['a tablet', { width: 820, height: 1024 }],
+  ] as const) {
+    test.describe(`on ${device}`, () => {
+      test.use({ viewport, hasTouch: true, isMobile: true });
+
+      test(`the carousel section has no violations, colour contrast included, on ${device}`, async ({ page }) => {
+        await open(page, '/', [1, 2, 3, 4, 5].map((i) => event(i)));
+        await scrollThrough(page);
+        await page.locator('#upcoming-events').scrollIntoViewIfNeeded();
+        await page.waitForTimeout(1500);
+        expect(await axeViolations(page, '#upcoming-events')).toEqual([]);
+      });
+    });
+  }
+
   test('every badge on an event card reaches 4.5:1, and the status badges are the brand status fills with their ink', async ({ page }) => {
     await open(page, '/', [
       event(1, { ticketStatus: 'available', category: 'Theatre' }),

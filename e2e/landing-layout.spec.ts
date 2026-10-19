@@ -2,7 +2,10 @@ import { test, expect, type Page } from '@playwright/test';
 
 /**
  * Layout of the landing page and the About page at ten viewport widths, phone to desktop: no horizontal overflow, no console
- * error, and the carousel's cards, row and buttons where they belong (one event, several events).
+ * error, and the carousel's cards, row and buttons where they belong (one event, several events). The carousel is large: its cards
+ * are 88% of a phone's screen (520 px at most) and 424 to 528 px on a laptop, and its row runs out to the edges of the screen on a
+ * phone or a tablet (UpcomingEventsCarousel.tsx, ROW_PROPERTIES); with few events the copies of the cards must fill the row to the end
+ * of the last glide.
  *
  * GET /api/events is answered in the browser from a route stub for the carousel checks. Runs against the dev server by default
  * (see playwright.config.ts); set E2E_BASE_URL to use a built server or a static export.
@@ -15,6 +18,10 @@ const VIEWPORTS = [360, 375, 390, 414, 768, 820, 1024, 1280, 1366, 1440].map((wi
   height: width < 768 ? 844 : width < 1024 ? 1024 : 800,
   touch: width < 1024,
 }));
+
+/** The width of a card at each width of screen, as the carousel is designed (it was 340 px, 80% of the screen on a phone, before). */
+const cardWidthAt = (screen: number) =>
+  screen >= 1536 ? 528 : screen >= 1440 ? 496 : screen >= 1280 ? 464 : screen >= 1180 ? 424 : Math.min(0.88 * screen, 520);
 
 const event = (index: number) => ({
   id: `evt-layout-${index}`,
@@ -121,12 +128,22 @@ for (const viewport of VIEWPORTS) {
           innerWidth: window.innerWidth,
         };
       });
-      // The row's box is 4 px wider than the container on each side (room for the focus ring and glow); the cards start at the container's edge.
-      expect(geometry.row.left).toBeGreaterThanOrEqual(geometry.container.left - 5);
-      expect(geometry.row.right).toBeLessThanOrEqual(geometry.container.right + 5);
-      expect(geometry.first.left).toBeGreaterThanOrEqual(geometry.container.left - 1);
-      expect(geometry.first.width).toBeLessThanOrEqual(340.5);
-      expect(Math.round(geometry.first.width)).toBe(Math.round(Math.min(viewport.width * 0.8, 340)));
+      if (viewport.width >= 1024) {
+        // A laptop or a desktop: the row's box is 4 px wider than the container on each side (room for the focus ring and glow).
+        expect(geometry.row.left).toBeGreaterThanOrEqual(geometry.container.left - 5);
+        expect(geometry.row.right).toBeLessThanOrEqual(geometry.container.right + 5);
+      } else {
+        // A phone or a tablet: the row runs out to both edges of the screen, so that the next card shows at the edge.
+        expect(Math.abs(geometry.row.left)).toBeLessThanOrEqual(1);
+        expect(Math.abs(geometry.row.right - geometry.innerWidth)).toBeLessThanOrEqual(1);
+      }
+      // Either way the first card starts where the page's container does, and the card is the designed width: bigger than the old card
+      // (340 px; 80% of the screen on a phone), and 88% of the screen at least 86% of it.
+      expect(Math.abs(geometry.first.left - geometry.container.left)).toBeLessThanOrEqual(1);
+      expect(Math.abs(geometry.first.width - cardWidthAt(viewport.width))).toBeLessThanOrEqual(1);
+      expect(geometry.first.width).toBeGreaterThan(Math.min(340, viewport.width * 0.8) + 20);
+      expect(geometry.first.width).toBeLessThanOrEqual(576);
+      if (viewport.width < 591) expect(geometry.first.width / viewport.width).toBeGreaterThanOrEqual(0.86); // 88% up to 590 px, then 520 px
       expect(geometry.row.scrollWidth, 'the row scrolls inside its own box').toBeGreaterThan(geometry.row.clientWidth);
       expect(geometry.buttons, 'Previous, Pause / Play and Next').toHaveLength(3);
       for (const button of geometry.buttons) {
@@ -136,6 +153,34 @@ for (const viewport of VIEWPORTS) {
         expect(button.right).toBeLessThanOrEqual(geometry.innerWidth);
       }
     });
+
+    for (const count of [2, 3, 5]) {
+      test(`the carousel with ${count} events: the copies of the cards fill the row to the end of the last glide, and the page does not scroll sideways`, async ({ page }) => {
+        await open(page, '/', [1, 2, 3, 4, 5].slice(0, count).map(event));
+        await page.locator('#upcoming-events').scrollIntoViewIfNeeded();
+        const geometry = await page.evaluate(() => {
+          const list = document.querySelector('[data-event-list="home"]')!;
+          const row = list.parentElement!;
+          const real = [...list.querySelectorAll(':scope > li:not([data-carousel-clone])')].map((li) => li.getBoundingClientRect());
+          const copies = [...list.querySelectorAll(':scope > li[data-carousel-clone]')].map((li) => li.getBoundingClientRect());
+          // The last glide of a round ends one whole set of cards further on (then the position folds back); the row's width from the
+          // first card (the row starts with a margin before it) must be full of cards at that moment.
+          const margin = parseFloat(getComputedStyle(row).paddingLeft);
+          const setWidth = copies[0].left - real[0].left;
+          return {
+            real: real.length,
+            copies: copies.length,
+            needed: setWidth + (row.clientWidth - margin),
+            drawn: copies[copies.length - 1].right - real[0].left,
+            overflow: document.documentElement.scrollWidth - window.innerWidth,
+          };
+        });
+        expect(geometry.real).toBe(count);
+        expect(geometry.copies, 'copies of the cards follow the real ones').toBeGreaterThan(0);
+        expect(geometry.drawn, 'cards are drawn to the end of the row after the last glide').toBeGreaterThanOrEqual(geometry.needed);
+        expect(geometry.overflow).toBeLessThanOrEqual(0);
+      });
+    }
 
     test('one event: a single centred card inside the viewport', async ({ page }) => {
       await open(page, '/', [event(1)]);

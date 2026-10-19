@@ -144,7 +144,9 @@ test.describe('@req-hero-section', () => {
     // hero, which is on the About page now.
     await expect(hero.getByRole('link', { name: /contact us/i })).toBeVisible();
     await page.goto('/about/');
-    await expect(page.getByRole('link', { name: /get in touch/i }).first()).toBeAttached();
+    const touch = page.getByRole('link', { name: /get in touch/i }).first();
+    await touch.scrollIntoViewIfNeeded();
+    await expect(touch).toBeVisible();
   });
 });
 
