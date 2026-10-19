@@ -265,12 +265,28 @@ test.describe('about page: the moved sections still work', () => {
     await story.scrollIntoViewIfNeeded();
     const titles = story.locator('.narrative-title');
     await expect(titles).toHaveCount(3);
+    // The story is a horizontal timeline: the page scrolls through a pinned stage and the chapters travel sideways, so a chapter is
+    // reached by scrolling on from the top of the section, as a visitor would, until its title is whole on screen.
+    await page.evaluate(() => {
+      const section = document.querySelector('section[aria-label="Our Story"]')!;
+      window.scrollTo({ top: window.scrollY + section.getBoundingClientRect().top, behavior: 'instant' });
+    });
+    await page.mouse.move(640, 400);
     for (let i = 0; i < 3; i++) {
-      await titles.nth(i).evaluate((title) => {
-        const chapter = title.closest('div.relative')!;
-        window.scrollTo(0, window.scrollY + chapter.getBoundingClientRect().top - window.innerHeight * 0.1);
-      });
+      await expect
+        .poll(
+          async () => {
+            const box = await titles.nth(i).boundingBox();
+            const { width, height } = page.viewportSize()!;
+            if (box && box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= height) return true;
+            await page.mouse.wheel(0, 220);
+            return false;
+          },
+          { timeout: 40000, intervals: [150] },
+        )
+        .toBe(true);
       await expect.poll(async () => Number(await titles.nth(i).evaluate((el) => getComputedStyle(el).opacity)), { timeout: 10000 }).toBeGreaterThan(0.9);
+      await expect(titles.nth(i), `chapter ${i + 1} is on screen`).toBeInViewport({ ratio: 1, timeout: 10000 });
     }
     await expect(story).toContainText('Where It All Began');
     await expect(story).toContainText('The Impact');

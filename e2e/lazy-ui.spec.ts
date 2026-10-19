@@ -62,21 +62,23 @@ test.describe('on-demand interface', () => {
   });
 
   test('story chapter text is revealed by the scroll animation once the section is reached', async ({ page }) => {
-    // The scrolling story moved from the landing page to the About page.
+    // The scrolling story moved from the landing page to the About page. It is now a horizontal timeline: a pinned stage whose chapters
+    // travel sideways as the page scrolls (a scrolling row where motion is reduced), with the first chapter in the middle when it is reached.
     await open(page, '/about/');
     const section = page.getByRole('region', { name: 'Our Story' });
     const title = section.locator('.narrative-title').first();
 
-    // The animation library loads when the section is within a screen or so of the viewport;
-    // the chapter text is scrubbed in as its top moves from 80% to 20% of the viewport height.
+    // The animation library loads when the section is within a screen or so of the viewport.
     await section.scrollIntoViewIfNeeded();
     await expect(title).toBeAttached();
     await page.evaluate(() => {
-      const chapter = document.querySelector('.narrative-title')?.closest('div.relative');
-      if (!chapter) throw new Error('no story chapter');
-      window.scrollTo(0, window.scrollY + chapter.getBoundingClientRect().top - window.innerHeight * 0.1);
+      const story = document.querySelector('section[aria-label="Our Story"]');
+      if (!story) throw new Error('no story section');
+      window.scrollTo(0, window.scrollY + story.getBoundingClientRect().top);
     });
     await expect.poll(async () => Number(await title.evaluate((el) => getComputedStyle(el).opacity)), { timeout: 10000 }).toBeGreaterThan(0.9);
+    // ...and the chapter's text is on screen, not just styled visible.
+    await expect(title).toBeInViewport({ ratio: 1, timeout: 10000 });
   });
 
   test('hero beams fade in after the page has settled', async ({ page }) => {

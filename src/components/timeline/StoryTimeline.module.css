@@ -1,0 +1,744 @@
+/*
+ * Our Story — the horizontal story timeline.
+ *
+ * One markup, two layouts, both chosen here in CSS so that the served HTML is already final (nothing moves when the scripts arrive):
+ *
+ *   pinned — laptops and desktops that allow motion (min-width 1024px, min-height 620px, no reduced-motion preference). The section is a
+ *            tall wrapper whose height is set below from the number of chapters, and the stage inside it is `position: sticky`; the
+ *            page's scroll moves the row of chapters sideways (story-motion.ts), lights the gold rail and the active chapter, and drifts
+ *            each chapter's layers against the row (parallax). This is the only layout with scroll-driven movement.
+ *   row    — everything else: phones, tablets, short windows and `prefers-reduced-motion`. A native horizontal scroller with
+ *            scroll-snap, a progress rail and Previous / Next buttons. No pinning, no scrubbing, no parallax.
+ *
+ * Brand: gold #C9A84C / light #D4B65C / accessible small gold #D4AF37 on #0A0A0A, sharp corners, hairline gold borders, the site's
+ * easing cubic-bezier(0.25, 1, 0.5, 1). Typefaces and type sizes are the site's own (Tailwind classes in the markup).
+ * Text is never faded or blurred: every figure and sentence keeps at least AA contrast at every scroll position.
+ */
+
+.root {
+  --gold: #c9a84c;
+  --gold-light: #d4b65c;
+  --gold-text: #d4af37;
+  --ink: #0a0a0a;
+  --ease: cubic-bezier(0.25, 1, 0.5, 1);
+  /* Width of one chapter, the gap between chapters, and the distance from one chapter to the next. */
+  --st-w: min(80vw, 440px);
+  --st-gap: 16px;
+  --st-pitch: calc(var(--st-w) + var(--st-gap));
+  /* Clear of the fixed navigation bar (81px) when the stage is pinned under it. */
+  --st-nav: 5.5rem;
+  position: relative;
+}
+
+@media (min-width: 640px) {
+  .root {
+    --st-w: min(78vw, 600px);
+    --st-gap: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .root {
+    --st-w: min(76vw, 1120px);
+    --st-gap: clamp(28px, 3vw, 44px);
+  }
+}
+
+/* ── The stage ──────────────────────────────────────────────────────────── */
+
+.stage {
+  position: relative;
+  padding: 6rem 0 1.5rem;
+  /* The section's own backdrop, as it was: a faint gold glow at the top over translucent black, so the page backdrop shows through. */
+  background: radial-gradient(ellipse at 50% 0%, rgba(201, 168, 76, 0.05) 0%, rgba(10, 10, 10, 0.78) 65%);
+}
+
+/* A soft gold light behind the chapters; the scroll brightens it as the story goes on (pinned layout). */
+.ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.3;
+  background: radial-gradient(ellipse 60% 50% at 50% 46%, rgba(201, 168, 76, 0.12), transparent 72%);
+}
+
+.fade {
+  height: 6rem;
+  background: linear-gradient(to bottom, transparent, var(--ink));
+}
+
+/* ── The strip: label, counter, Previous, the rail, Next ───────────────── */
+
+.strip {
+  position: relative;
+  z-index: 3;
+  width: 92%;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'lead lead lead'
+    'prev rail next';
+  align-items: center;
+  column-gap: 0.5rem;
+  row-gap: 1.25rem;
+}
+
+.lead {
+  grid-area: lead;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.prev {
+  grid-area: prev;
+}
+
+.next {
+  grid-area: next;
+}
+
+.counter {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.counter b {
+  display: inline-block;
+  min-width: 1.4em;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--gold-light);
+}
+
+@media (min-width: 1024px) {
+  .strip {
+    width: 85%;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: 'lead prev rail next';
+    column-gap: 1.25rem;
+    row-gap: 0;
+  }
+
+  .lead {
+    align-items: flex-start;
+    min-width: 9.5rem;
+  }
+}
+
+/* The rail: a hairline that draws itself in gold as the story goes on, with a diamond (and a figure) at each chapter. */
+.rail {
+  grid-area: rail;
+  position: relative;
+  height: 44px;
+  margin-inline: 14px;
+  /* The head below is placed with a transform in this box's own width (100cqw): moving it with `left` would be layout, every frame. */
+  container-type: inline-size;
+}
+
+@media (min-width: 640px) {
+  .rail {
+    height: 70px;
+    margin-inline: 40px;
+  }
+}
+
+.line {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* --st-p is set by the scroll (pinned layout) or by the row's scroll position (phones); without it the fill sits at the active chapter. */
+.fill {
+  position: absolute;
+  inset-inline: 0;
+  top: -0.5px;
+  height: 2px;
+  transform-origin: left center;
+  transform: scaleX(var(--st-p, var(--st-active-p, 0)));
+  background: linear-gradient(90deg, var(--gold), var(--gold-light));
+  box-shadow: 0 0 12px rgba(201, 168, 76, 0.55);
+  transition: transform 0.7s var(--ease);
+}
+
+.head {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  transform: translateX(calc(var(--st-p, var(--st-active-p, 0)) * 100cqw)) rotate(45deg);
+  background: #fff;
+  box-shadow: 0 0 10px 3px rgba(201, 168, 76, 0.8);
+  transition: transform 0.7s var(--ease);
+}
+
+.rail[data-live='true'] .fill,
+.rail[data-live='true'] .head {
+  transition: none;
+}
+
+.nodes {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.node {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--pos) * 100%);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 44px;
+}
+
+/* The button is the marker itself: it covers the figure, the diamond and the label, and holds only the diamond. */
+.nodeBtn {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* On a phone the rail is only the diamonds and the line: a finger swipes the chapters, it does not tap tiny targets. */
+@media (max-width: 639px) {
+  .nodeBtn {
+    pointer-events: none;
+  }
+}
+
+.nodeYear {
+  display: flex;
+  align-items: flex-end;
+  height: 24px;
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.62);
+  transition:
+    color 0.5s var(--ease),
+    transform 0.5s var(--ease);
+}
+
+.nodeLabel {
+  display: flex;
+  align-items: flex-start;
+  height: 20px;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.58);
+  transition: color 0.5s var(--ease);
+}
+
+@media (max-width: 639px) {
+  .nodeYear,
+  .nodeLabel {
+    display: none;
+  }
+}
+
+.diamond {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  transform: rotate(45deg);
+  border: 1px solid rgba(201, 168, 76, 0.55);
+  background: var(--ink);
+  transition:
+    transform 0.6s var(--ease),
+    background-color 0.6s var(--ease),
+    border-color 0.6s var(--ease),
+    box-shadow 0.6s var(--ease);
+}
+
+.node[data-state='past'] .diamond {
+  background: rgba(201, 168, 76, 0.8);
+  border-color: var(--gold);
+}
+
+.node[data-state='now'] .diamond {
+  transform: rotate(45deg) scale(1.5);
+  background: var(--gold-light);
+  border-color: var(--gold-light);
+  box-shadow:
+    0 0 0 5px rgba(201, 168, 76, 0.16),
+    0 0 22px rgba(201, 168, 76, 0.8);
+}
+
+.node[data-state='past'] .nodeYear {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.node[data-state='now'] .nodeYear {
+  color: var(--gold-light);
+  transform: translateY(-3px);
+}
+
+.node[data-state='past'] .nodeLabel,
+.node[data-state='now'] .nodeLabel {
+  color: var(--gold-text);
+}
+
+.node:hover .nodeYear {
+  color: #fff;
+}
+
+.nodeBtn:hover .diamond {
+  border-color: var(--gold-light);
+  box-shadow: 0 0 12px rgba(201, 168, 76, 0.55);
+}
+
+/* Many chapters: only the active one is named, so the labels never run into each other. */
+.rail[data-dense='true'] .node:not([data-state='now']) .nodeYear,
+.rail[data-dense='true'] .node:not([data-state='now']) .nodeLabel {
+  visibility: hidden;
+}
+
+/* A single chapter has nothing to move between. */
+.root[data-single='true'] .prev,
+.root[data-single='true'] .next,
+.root[data-single='true'] .rail,
+.root[data-single='true'] .counter {
+  display: none;
+}
+
+/* ── The chapters: a native scroller with snap (the row layout) ────────── */
+
+.viewport {
+  position: relative;
+  z-index: 1;
+  /* Room above and below for the chapter's glow and focus ring, which the scroller would otherwise clip; the margin gives it back. */
+  padding-block: 40px;
+  margin-block: calc(1.25rem - 40px) -40px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.viewport::-webkit-scrollbar {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .viewport {
+    cursor: grab;
+  }
+}
+
+.viewport[data-dragging='true'] {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  user-select: none;
+}
+
+.track {
+  position: relative;
+  display: flex;
+  flex: none;
+  gap: var(--st-gap);
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  padding: 0 max(4vw, calc((100% - var(--st-w)) / 2));
+  list-style: none;
+}
+
+.chapter {
+  display: flex;
+  flex: 0 0 var(--st-w);
+  min-width: 0;
+  scroll-snap-align: center;
+}
+
+/* The chapter's card: glass over black, a gold hairline, and viewfinder corners. */
+.card {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  /* A paint clip, not a scroll container: a scroll container clipping layers that move with the scroll is reported by the browser as layout shift. */
+  overflow: hidden;
+  overflow: clip;
+  border: 1px solid rgba(201, 168, 76, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition:
+    border-color 0.7s var(--ease),
+    box-shadow 0.7s var(--ease);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  z-index: 4;
+  pointer-events: none;
+  --tick: color-mix(in srgb, var(--accent) 60%, transparent);
+  background:
+    linear-gradient(var(--tick), var(--tick)) top left / 16px 1px no-repeat,
+    linear-gradient(var(--tick), var(--tick)) top left / 1px 16px no-repeat,
+    linear-gradient(var(--tick), var(--tick)) top right / 16px 1px no-repeat,
+    linear-gradient(var(--tick), var(--tick)) top right / 1px 16px no-repeat,
+    linear-gradient(var(--tick), var(--tick)) bottom left / 16px 1px no-repeat,
+    linear-gradient(var(--tick), var(--tick)) bottom left / 1px 16px no-repeat,
+    linear-gradient(var(--tick), var(--tick)) bottom right / 16px 1px no-repeat,
+    linear-gradient(var(--tick), var(--tick)) bottom right / 1px 16px no-repeat;
+  opacity: 0.45;
+  transition: opacity 0.7s var(--ease);
+}
+
+/* One glint across the card as a chapter arrives. */
+.card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 38%;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), rgba(201, 168, 76, 0.13), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+}
+
+@keyframes glint {
+  from {
+    transform: translateX(-130%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+
+.chapter[data-active='true'] .card {
+  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 48px -26px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.chapter[data-active='true'] .card::before {
+  opacity: 1;
+}
+
+.chapter[data-active='true'] .card::after {
+  animation: glint 1.5s var(--ease) 0.1s 1 both;
+}
+
+/* The picture. On a phone or tablet it sits above the words; on a laptop it fills the card and the words sit over its dark side. */
+.media {
+  position: relative;
+  height: clamp(168px, 44vw, 240px);
+  /* clip-path, not overflow: the picture inside is wider than this box and moves with the scroll (see .card). */
+  clip-path: inset(0);
+  background: #0d0d0d;
+}
+
+.mediaInner {
+  position: absolute;
+  inset: 0;
+}
+
+.mediaInner picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 42%;
+  filter: brightness(0.7) saturate(0.85);
+  transition: filter 0.9s var(--ease);
+}
+
+.chapter[data-active='true'] .img {
+  filter: brightness(1) saturate(1.05);
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(10, 10, 10, 0.05) 0%, rgba(10, 10, 10, 0.3) 55%, rgba(12, 12, 12, 0.97) 100%);
+}
+
+.glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 70% 40%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 68%);
+}
+
+.ghost {
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  z-index: 2;
+  font-size: 4.5rem;
+  font-weight: 900;
+  line-height: 1;
+  color: rgba(201, 168, 76, 0.08);
+  pointer-events: none;
+  user-select: none;
+  transition: color 0.9s var(--ease);
+}
+
+.ghost::before {
+  content: attr(data-number);
+}
+
+.chapter[data-active='true'] .ghost {
+  color: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.copy {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 22px 28px;
+  /* An address or a long word in the admin's text wraps instead of running out of the chapter. */
+  overflow-wrap: anywhere;
+}
+
+.copy p {
+  margin-top: clamp(8px, 1.8svh, 16px);
+}
+
+.eyebrow {
+  color: var(--accent);
+}
+
+.rule {
+  width: 96px;
+  height: 1px;
+  margin: clamp(10px, 1.8svh, 14px) 0 clamp(12px, 2.4svh, 18px);
+  transform-origin: left center;
+  transform: scaleX(0.35);
+  background: linear-gradient(to right, var(--accent), transparent);
+  transition: transform 0.9s var(--ease) 0.1s;
+}
+
+.chapter[data-active='true'] .rule {
+  transform: scaleX(1);
+}
+
+/* The figure: a glass plaque with a gold edge; its label sits on the card's dark glass, never over the picture. */
+.stat {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  align-self: flex-start;
+  margin-top: clamp(12px, 2.6svh, 20px);
+  padding: clamp(6px, 1.2svh, 10px) 20px clamp(6px, 1.2svh, 10px) 16px;
+  border-left: 2px solid var(--accent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 14%, transparent), transparent 92%);
+}
+
+.statValue {
+  color: var(--accent);
+  transition: text-shadow 0.9s var(--ease);
+}
+
+.chapter[data-active='true'] .statValue {
+  text-shadow: 0 0 32px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* ── Laptops and larger: the picture fills the card, the words sit on its dark side ─────────────────── */
+
+@media (min-width: 1024px) {
+  .viewport {
+    margin-block: calc(1.5rem - 40px) -40px;
+  }
+
+  .card {
+    flex-direction: row;
+    min-height: 400px;
+  }
+
+  .media {
+    position: absolute;
+    inset: 0;
+    height: auto;
+  }
+
+  .scrim {
+    background: linear-gradient(90deg, rgba(10, 10, 10, 0.97) 0%, rgba(10, 10, 10, 0.94) 36%, rgba(10, 10, 10, 0.62) 58%, rgba(10, 10, 10, 0.14) 100%);
+  }
+
+  .img {
+    object-position: 50% 58%;
+  }
+
+  .chapter[data-flip='true'] .card {
+    flex-direction: row-reverse;
+  }
+
+  .chapter[data-flip='true'] .scrim {
+    background: linear-gradient(270deg, rgba(10, 10, 10, 0.97) 0%, rgba(10, 10, 10, 0.94) 36%, rgba(10, 10, 10, 0.62) 58%, rgba(10, 10, 10, 0.14) 100%);
+  }
+
+  .glow {
+    background: radial-gradient(ellipse at 74% 50%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 66%);
+  }
+
+  .chapter[data-flip='true'] .glow {
+    background: radial-gradient(ellipse at 26% 50%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 66%);
+  }
+
+  .copy {
+    flex: 0 0 54%;
+    justify-content: center;
+    padding: clamp(24px, min(3.4vw, 5.5svh), 52px);
+  }
+
+  .ghost {
+    top: 14px;
+    right: 24px;
+    font-size: clamp(4.5rem, 7vw, 6.5rem);
+  }
+}
+
+/* ── Pinned: the scroll moves the chapters ───────────────────────────── */
+
+@media (min-width: 1024px) and (min-height: 620px) and (prefers-reduced-motion: no-preference) {
+  /* The space the pin needs is reserved here, from the chapter count, so it is in the served HTML and nothing shifts when the script arrives. */
+  .root[data-pin='on'] .pin {
+    height: calc(100vh + (var(--st-n) - 1) * var(--st-pitch));
+    height: calc(100svh + (var(--st-n) - 1) * var(--st-pitch));
+  }
+
+  .root[data-pin='on'] .stage {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    height: 100vh;
+    height: 100svh;
+    padding: var(--st-nav) 0 1.25rem;
+    overflow: clip;
+  }
+
+  /* Whatever slides past the edges of the stage is dimmed by the darkness the page itself falls into. */
+  .root[data-pin='on'] .stage::before,
+  .root[data-pin='on'] .stage::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 2;
+    width: min(9vw, 140px);
+    pointer-events: none;
+  }
+
+  .root[data-pin='on'] .stage::before {
+    left: 0;
+    background: linear-gradient(to right, rgba(10, 10, 10, 0.92), transparent);
+  }
+
+  .root[data-pin='on'] .stage::after {
+    right: 0;
+    background: linear-gradient(to left, rgba(10, 10, 10, 0.92), transparent);
+  }
+
+  .root[data-pin='on'] .viewport {
+    flex: 1 1 0;
+    min-height: 0;
+    margin-block: 0.5rem 0;
+    padding-block: 24px;
+    display: flex;
+    align-items: center;
+    overflow: clip;
+    scroll-snap-type: none;
+    /* A vertical swipe scrolls the page and a pinch still zooms it; a horizontal swipe is the visitor's to turn a chapter. */
+    touch-action: pan-y pinch-zoom;
+  }
+
+  .root[data-pin='on'] .track {
+    height: min(100%, 640px);
+    padding-inline: calc((100% - var(--st-w)) / 2);
+    will-change: transform;
+  }
+
+  .root[data-pin='on'] .card {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .root[data-pin='on'] .mediaInner {
+    inset: 0 -14%;
+    will-change: transform;
+  }
+
+  .root[data-pin='on'] .copy,
+  .root[data-pin='on'] .ghost {
+    will-change: transform;
+  }
+}
+
+/* ── Reduced motion: nothing slides, glints or draws itself; colour changes stay ─────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .fill,
+  .head,
+  .diamond,
+  .nodeYear,
+  .nodeLabel,
+  .card,
+  .card::before,
+  .img,
+  .rule,
+  .statValue,
+  .ghost {
+    transition: none;
+  }
+
+  .chapter[data-active='true'] .card::after {
+    animation: none;
+  }
+
+  .node[data-state='now'] .nodeYear {
+    transform: none;
+  }
+}

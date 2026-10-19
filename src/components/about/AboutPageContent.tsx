@@ -12,7 +12,7 @@ import ScrollNarrative from '@/components/ScrollNarrative';
 import { VisionSection } from '@/components/VisionSection';
 import { TestimonialsSection } from '@/components/TestimonialsSection';
 import CTASection from '@/components/CTASection';
-import type { SiteMetric } from '@/lib/data';
+import type { SiteMetric, TimelineChapter } from '@/lib/data';
 import { buildFootprintSentence } from '@/lib/site-metrics';
 import { useSiteMetrics } from '@/lib/use-site-metrics';
 
@@ -87,7 +87,7 @@ function Reveal({
  * The pillars come right after the hero and the intro after them, so no figure that counts up is on the first screen: a counting
  * figure moves its line by a pixel or two a frame, which is layout shift whenever it is visible without scrolling.
  */
-export default function AboutPageContent({ initialMetrics }: { initialMetrics: SiteMetric[] }) {
+export default function AboutPageContent({ initialMetrics, initialTimeline }: { initialMetrics: SiteMetric[]; initialTimeline?: TimelineChapter[] }) {
   // Build-time snapshot first, then the live admin-managed values.
   const metrics = useSiteMetrics(initialMetrics);
 
@@ -180,7 +180,7 @@ export default function AboutPageContent({ initialMetrics }: { initialMetrics: S
         <VideoHighlights />
       </HydrateLater>
       <HydrateLater id="story">
-        <ScrollNarrative />
+        <ScrollNarrative initialChapters={initialTimeline} />
       </HydrateLater>
 
       {/* ── 6. Team Section ─────────────────────────────────────────────────── */}

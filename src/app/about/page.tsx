@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import AboutPageContent from '@/components/about/AboutPageContent';
-import { getPublicSiteMetrics } from '@/lib/data';
+import { getPublicSiteMetrics, getTimeline } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'About',
@@ -21,5 +21,7 @@ export default async function AboutPage() {
   // Build-time (or revalidated) snapshot of the admin-managed metrics; the
   // page then fetches the live values from /api/metrics.
   const metrics = await getPublicSiteMetrics();
-  return <AboutPageContent initialMetrics={metrics} />;
+  // Likewise the admin's story timeline: the served HTML carries its chapters (figures included), and the section keeps them fresh.
+  const timeline = await getTimeline().catch(() => []);
+  return <AboutPageContent initialMetrics={metrics} initialTimeline={timeline} />;
 }
