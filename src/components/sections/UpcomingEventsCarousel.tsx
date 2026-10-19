@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { KeyboardEvent, RefObject } from 'react';
+import type { FocusEvent as ReactFocusEvent, KeyboardEvent, RefObject } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import EventLink from '@/components/ui/EventLink';
@@ -44,6 +44,10 @@ import {
  * card, so the picture never jumps. Play starts the glide again, about 1.5 s later, even while the pointer or the keyboard focus is
  * on the carousel (it is on the button that was just pressed); moving either into the carousel again after that holds it, as before.
  * The button is not drawn under prefers-reduced-motion (nothing moves by itself there), nor with one event.
+ *
+ * Previous and Next (and the arrow keys) pressed while the row is gliding wait for the glide to land on its card, then glide on from
+ * there; only a finger on the row itself grabs a glide where it is. A card that the keyboard reaches is brought whole into the row:
+ * a browser scrolls to a focused element only when it is entirely out of sight, and the next card is always partly in sight.
  */
 
 /** The brand easing (--ease-brand in the design system), the same curve every section of the site uses. */
@@ -118,6 +122,8 @@ function measureRow(list: HTMLElement): Row | null {
 interface MotionApi {
   /** Move one card: 1 forwards, -1 backwards. */
   step: (direction: 1 | -1) => void;
+  /** Bring a real card whole into the row (keyboard focus has reached it); after the glide in progress, if there is one. */
+  reveal: (card: HTMLElement) => void;
   /** The visitor prefers no motion: nothing moves by itself, the copies are not drawn. */
   reduced: boolean;
   /** Only meaningful without copies (reduced motion): whether the row can still move each way. */
@@ -146,6 +152,10 @@ function useCarouselMotion(
   const pausedRef = useRef(false);
   /** What the automatic glide offers the Pause/Play button; null while there is no automatic glide (one event, reduced motion). */
   const autoplayRef = useRef<{ pause: () => void; play: () => void } | null>(null);
+  /** Presses of Previous / Next made while the row was gliding, not yet carried out: positive forwards, negative backwards. */
+  const queuedRef = useRef(0);
+  /** A card that keyboard focus reached while the row was gliding, to be brought into the row once the glide has landed. */
+  const revealAfterLandRef = useRef<HTMLElement | null>(null);
 
   const setPaused = useCallback((next: boolean) => {
     pausedRef.current = next;
@@ -206,10 +216,13 @@ function useCarouselMotion(
   );
 
   /**
-   * Stop a glide where it is (a finger on the row, a hidden tab, Previous or Next): the row takes the position the glide had reached,
-   * and the browser's snapping then settles it on the nearest card. (Pause does not use this: it lets the glide in progress finish.)
+   * Stop a glide where it is (a finger on the row, a hidden tab): the row takes the position the glide had reached, and the browser's
+   * snapping then settles it on the nearest card. What was waiting for the glide to land is dropped. Nothing else stops a glide:
+   * Pause lets it finish, and Previous / Next pressed during it wait for it to land and then glide (see step).
    */
   const cancelGlide = useCallback(() => {
+    queuedRef.current = 0;
+    revealAfterLandRef.current = null;
     const glide = glideRef.current;
     const list = listRef.current;
     if (!glide || !list) return;
@@ -217,41 +230,90 @@ function useCarouselMotion(
     land(glide.from + travelled);
   }, [listRef, land]);
 
+  /** Bring a real card whole into the row, its start on the row's start (a snap position, so the browser's snapping agrees). */
+  const bringIntoRow = useCallback(
+    (card: HTMLElement) => {
+      const scroller = scrollerRef.current;
+      if (!scroller || !card.isConnected) return;
+      // The padding is the room kept for the card's ring and glow; the cards rest inside it.
+      const padding = parseFloat(getComputedStyle(scroller).paddingLeft) || 0;
+      const row = scroller.getBoundingClientRect();
+      const box = card.getBoundingClientRect();
+      if (box.left >= row.left + padding - 1 && box.right <= row.right - padding + 1) return;
+      scroller.scrollTo({ left: scroller.scrollLeft + (box.left - row.left - padding), behavior: 'instant' });
+      expectedLeft.current = scroller.scrollLeft;
+      wrap();
+    },
+    [scrollerRef, wrap],
+  );
+
+  const reveal = useCallback(
+    (card: HTMLElement) => {
+      // The cards are moving: bring it in once the glide (and any glide waiting after it) has landed.
+      if (glideRef.current) revealAfterLandRef.current = card;
+      else bringIntoRow(card);
+    },
+    [bringIntoRow],
+  );
+
+  /**
+   * Move one card. A press made while the row is gliding (the automatic glide, or an earlier press) does not stop it: it waits for
+   * the glide to land on its card, then the row glides on from there with a glide of its own, so the picture never jumps. Up to three
+   * such presses are kept, each way cancelling one the other way.
+   */
   const step = useCallback(
     (direction: 1 | -1) => {
-      const scroller = scrollerRef.current;
-      const list = listRef.current;
-      if (!scroller || !list) return;
-      const row = measureRow(list);
-      if (!row) return;
-      cancelGlide();
-      const looping = loopRef.current && !reducedRef.current && row.setWidth > 0;
-      let from = scroller.scrollLeft;
-      if (looping) {
-        // Stay inside the first set (and one card beyond it) by jumping a whole set: the copy looks exactly like the original.
-        if (from >= row.setWidth - 1) from -= row.setWidth;
-        if (direction < 0 && from < row.pitch / 2) from += row.setWidth;
-        scroller.scrollLeft = from;
-      }
-      const max = scroller.scrollWidth - scroller.clientWidth;
-      const to = Math.min(Math.max((Math.round(from / row.pitch) + direction) * row.pitch, 0), Math.max(max, 0));
-      if (Math.abs(to - from) < 1) return;
-      if (reducedRef.current) {
-        scroller.scrollTo({ left: to, behavior: 'auto' });
+      const go = (towards: 1 | -1): boolean => {
+        const scroller = scrollerRef.current;
+        const list = listRef.current;
+        if (!scroller || !list) return false;
+        const row = measureRow(list);
+        if (!row) return false;
+        const looping = loopRef.current && !reducedRef.current && row.setWidth > 0;
+        let from = scroller.scrollLeft;
+        if (looping) {
+          // Stay inside the first set (and one card beyond it) by jumping a whole set: the copy looks exactly like the original.
+          if (from >= row.setWidth - 1) from -= row.setWidth;
+          if (towards < 0 && from < row.pitch / 2) from += row.setWidth;
+          scroller.scrollLeft = from;
+        }
+        const max = scroller.scrollWidth - scroller.clientWidth;
+        const to = Math.min(Math.max((Math.round(from / row.pitch) + towards) * row.pitch, 0), Math.max(max, 0));
+        if (Math.abs(to - from) < 1) return false;
+        if (reducedRef.current) {
+          scroller.scrollTo({ left: to, behavior: 'auto' });
+          return false;
+        }
+        expectedLeft.current = from;
+        // The browser's snapping works from where the cards are drawn, so while they are moved by a transform it would chase them.
+        scroller.style.scrollSnapType = 'none';
+        // Moving the list left by the distance is the same picture as scrolling that far; the browser draws it without the page's script.
+        const player = list.animate(
+          [{ transform: 'translate3d(0px, 0, 0)' }, { transform: `translate3d(${from - to}px, 0, 0)` }],
+          { duration: GLIDE_MS, easing: BRAND_EASING, fill: 'forwards' },
+        );
+        glideRef.current = { from, to, player };
+        player.onfinish = () => {
+          land(to);
+          const queued = queuedRef.current;
+          if (queued !== 0) {
+            queuedRef.current = queued - Math.sign(queued);
+            if (go(queued > 0 ? 1 : -1)) return; // a card waiting to be brought in waits for this glide too
+            queuedRef.current = 0;
+          }
+          const card = revealAfterLandRef.current;
+          revealAfterLandRef.current = null;
+          if (card) bringIntoRow(card);
+        };
+        return true;
+      };
+      if (glideRef.current) {
+        queuedRef.current = Math.max(-3, Math.min(3, queuedRef.current + direction));
         return;
       }
-      expectedLeft.current = from;
-      // The browser's snapping works from where the cards are drawn, so while they are moved by a transform it would chase them.
-      scroller.style.scrollSnapType = 'none';
-      // Moving the list left by the distance is the same picture as scrolling that far; the browser draws it without the page's script.
-      const player = list.animate(
-        [{ transform: 'translate3d(0px, 0, 0)' }, { transform: `translate3d(${from - to}px, 0, 0)` }],
-        { duration: GLIDE_MS, easing: BRAND_EASING, fill: 'forwards' },
-      );
-      glideRef.current = { from, to, player };
-      player.onfinish = () => land(to);
+      go(direction);
     },
-    [scrollerRef, listRef, cancelGlide, land],
+    [scrollerRef, listRef, land, bringIntoRow],
   );
 
   // Row edges for the buttons when the row does not loop (reduced motion), and the wrap-around after the visitor's own scrolling.
@@ -331,7 +393,13 @@ function useCarouselMotion(
     const touched = () => {
       lastInteraction.current = performance.now();
     };
-    /** Set by Play while the pointer rests on the carousel: the pointer's arrival is not counted again until it has left (see onEnter). */
+    /** Whether the mouse (or a pen) is over the carousel now. */
+    let pointerInside = false;
+    /**
+     * Set by Play when it is pressed while the pointer is over the carousel: the pointer's arrival is not counted again until it has
+     * left (see onEnter). Play pressed from the keyboard, by a finger or by assistive technology leaves it unset, so the next time the
+     * mouse moves over the cards it holds the glide.
+     */
     let pointerSettled = false;
     // The Pause/Play button: a pause holds until Play lifts it (a glide in progress is let finish, see below).
     autoplayRef.current = {
@@ -347,19 +415,22 @@ function useCarouselMotion(
       play: () => {
         holds.delete('hover');
         holds.delete('focus');
-        pointerSettled = true;
+        pointerSettled = pointerInside;
         release('user');
       },
     };
 
-    // After Play the pointer is still on the button, and a browser can report it as entering the carousel again a moment later (when
-    // the page changes under a resting pointer). That is not the visitor moving in: the pointer counts as arriving again only after it
-    // has left the carousel.
+    // After Play clicked with the mouse the pointer is still on the button, and a browser can report it as entering the carousel again
+    // a moment later (when the page changes under a resting pointer). That is not the visitor moving in: the pointer counts as arriving
+    // again only after it has left the carousel.
     const onEnter = (event: PointerEvent) => {
-      if (event.pointerType !== 'touch' && !pointerSettled) hold('hover');
+      if (event.pointerType === 'touch') return;
+      pointerInside = true;
+      if (!pointerSettled) hold('hover');
     };
     const onLeave = (event: PointerEvent) => {
       if (event.pointerType === 'touch') return;
+      pointerInside = false;
       pointerSettled = false;
       release('hover');
     };
@@ -370,10 +441,12 @@ function useCarouselMotion(
     const onFocusOut = (event: FocusEvent) => {
       if (!(event.relatedTarget instanceof Node && group.contains(event.relatedTarget))) release('focus');
     };
-    const onTouchStart = () => {
+    const onTouchStart = (event: TouchEvent) => {
       hold('touch');
       touched();
-      cancelGlide();
+      // A finger on the row grabs it where it is; a finger on a control (Pause, Previous, Next) leaves the glide to finish, and the
+      // control does what it does when the press is complete.
+      if (!(event.target instanceof Element && event.target.closest('button'))) cancelGlide();
     };
     const onTouchEnd = () => {
       touched();
@@ -427,7 +500,7 @@ function useCarouselMotion(
   // Never leave a glide running (or the browser's snapping switched off) behind an unmounted carousel.
   useEffect(() => () => cancelGlide(), [cancelGlide]);
 
-  return { step, reduced, edges, paused, setPaused };
+  return { step, reveal, reduced, edges, paused, setPaused };
 }
 
 /**
@@ -602,7 +675,7 @@ export default function UpcomingEventsCarousel({
   const groupRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const { step, reduced, edges, paused, setPaused } = useCarouselMotion(groupRef, scrollerRef, listRef, loop);
+  const { step, reveal, reduced, edges, paused, setPaused } = useCarouselMotion(groupRef, scrollerRef, listRef, loop);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (count < 2 || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -610,6 +683,15 @@ export default function UpcomingEventsCarousel({
       event.preventDefault();
       step(event.key === 'ArrowRight' ? 1 : -1);
     }
+  };
+  // Keyboard focus that reaches a card (its title or Get Tickets) brings the card whole into the row. Keyboard focus only (as for the
+  // hold): a mouse press or a tap also focuses a link, and moving the card then would move it from under the pointer and lose the click.
+  // Real cards only: the copies are out of the tab order and carry no slug.
+  const onFocus = (event: ReactFocusEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.matches(':focus-visible')) return;
+    const card = target.closest<HTMLElement>('li[data-event-slug]');
+    if (card) reveal(card);
   };
 
   // Reduced motion has no copies, so the buttons are only for as far as the row can still go that way.
@@ -659,6 +741,7 @@ export default function UpcomingEventsCarousel({
             aria-roledescription="carousel"
             aria-label="Upcoming events"
             onKeyDown={onKeyDown}
+            onFocus={onFocus}
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.1, ease: EASE }}

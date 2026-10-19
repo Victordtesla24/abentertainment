@@ -840,6 +840,39 @@ test.describe('landing page: the Pause / Play button (WCAG 2.2.2)', () => {
     await expect.poll(() => left(row), { timeout: 8000 }).not.toBe(held);
   });
 
+  test('after Play pressed from the keyboard, a mouse moving over the carousel holds the glide', async ({ page }) => {
+    await openWith(page, makeEvents(4));
+    const row = scroller(page);
+    await page.mouse.move(2, 2); // the pointer is nowhere near the carousel when Play is pressed
+    await group(page).getByRole('button', { name: 'Previous event' }).focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Enter');
+    await expect(playButton(page)).toBeVisible();
+    const held = await left(row);
+    await page.keyboard.press('Enter');
+    await expect(pauseButton(page)).toBeVisible();
+    await expect.poll(() => left(row), { timeout: 8000 }).not.toBe(held); // it glides again
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur()); // only the pointer can hold it now
+    // The visitor then moves the mouse over the cards (to a point that is on a card, on screen: the focus on the control has scrolled the
+    // page): that holds it, as it does before any use of the button.
+    const point = await page.evaluate(() => {
+      for (const card of document.querySelectorAll<HTMLElement>('[data-event-list="home"] > li')) {
+        const box = card.getBoundingClientRect();
+        const x = Math.min(Math.max(box.left + box.width / 2, 20), window.innerWidth - 20);
+        if (box.right < 40 || box.left > window.innerWidth - 40) continue;
+        // From the bottom of the card upwards (the fixed navigation bar covers the top of the screen).
+        for (let y = Math.min(box.bottom, window.innerHeight) - 30; y > Math.max(box.top, 0) + 20; y -= 40) {
+          if (document.elementFromPoint(x, y)?.closest('li') === card) return { x, y };
+        }
+      }
+      return null;
+    });
+    expect(point, 'a card is on screen under the pointer').not.toBeNull();
+    await page.mouse.move(point!.x, point!.y, { steps: 4 });
+    expect(await page.evaluate(() => document.querySelector('[role="group"][aria-roledescription="carousel"]')!.matches(':hover'))).toBe(true);
+    await staysPut(row, 2 * (4500 + 800) + 1000);
+  });
+
   test('stays paused when the events change underneath it (the live refresh takes them down to one and back)', async ({ page }) => {
     let events = makeEvents(4);
     await openWith(page, () => events);
@@ -857,6 +890,133 @@ test.describe('landing page: the Pause / Play button (WCAG 2.2.2)', () => {
     await expect(realCards(page)).toHaveCount(4, { timeout: 15000 });
     await expect(playButton(page)).toBeVisible();
     await staysPut(row, ONE_STEP_MS + 1000);
+  });
+});
+
+/**
+ * A press made with a real pointer (a finger on a touch screen, or the mouse) in the middle of an automatic glide. The press is made by
+ * the test runner (so the browser sees touchstart / pointerdown, touchend, then click, as from a device), as soon as the glide's own
+ * clock (the animation of the list) has passed `afterMs`; every animation frame notes where the first card is drawn, and the page
+ * notes when the press began (the first touchstart or pointerdown).
+ */
+async function pressInGlide(page: Page, control: string, afterMs: number, press: (x: number, y: number) => Promise<void>) {
+  const button = group(page).getByRole('button', { name: control, exact: true });
+  // At once (the page scrolls smoothly by default), then the section's reveal has settled: the button is where the press will be made.
+  await button.evaluate((element) => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  await page.waitForTimeout(1000);
+  const box = (await button.boundingBox())!;
+  const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+  // Nothing else is at that point (the chat button floats near the bottom of the screen).
+  expect(await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.closest('button')?.getAttribute('aria-label'), [x, y])).toBe(control);
+  const start = await page.evaluate(
+    (after: number) =>
+      new Promise<{ from: number; pitch: number; setWidth: number }>((resolve) => {
+        const list = document.querySelector('[data-event-list="home"]') as HTMLElement;
+        const row = list.parentElement as HTMLElement;
+        const w = window as unknown as { __frames: Array<[number, number]>; __pressAt: number; __stop: boolean };
+        w.__frames = [];
+        w.__pressAt = 0;
+        w.__stop = false;
+        const mark = (event: Event) => {
+          if (!w.__pressAt) w.__pressAt = event.timeStamp;
+        };
+        document.addEventListener('touchstart', mark, { capture: true, passive: true, once: true });
+        document.addEventListener('pointerdown', mark, { capture: true, once: true });
+        let found = false;
+        const frame = (now: number) => {
+          w.__frames.push([now, (list.querySelector('li') as HTMLElement).getBoundingClientRect().left]);
+          const glide = list.getAnimations()[0];
+          if (!found && glide && Number(glide.currentTime ?? 0) >= after) {
+            found = true;
+            const cards = list.querySelectorAll(':scope > li:not([data-carousel-clone])');
+            const pitch = cards[1].getBoundingClientRect().left - cards[0].getBoundingClientRect().left;
+            resolve({ from: row.scrollLeft, pitch, setWidth: pitch * cards.length });
+          }
+          if (!w.__stop) requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      }),
+    afterMs,
+  );
+  await press(x, y);
+  await page.waitForTimeout(2400); // the glide and, after a press on Next, the one that follows it are over
+  const end = await page.evaluate(() => {
+    const w = window as unknown as { __frames: Array<[number, number]>; __pressAt: number; __stop: boolean };
+    w.__stop = true;
+    const list = document.querySelector('[data-event-list="home"]') as HTMLElement;
+    return { frames: w.__frames, pressAt: w.__pressAt, rest: (list.parentElement as HTMLElement).scrollLeft, transform: getComputedStyle(list).transform };
+  });
+  // From the last frame drawn before the press to the end: the largest move of the first card in one frame. A frame that came late
+  // counts for the movement of one frame (16.7 ms), so a busy machine is not mistaken for a jump.
+  let first = 0;
+  for (let i = 0; i < end.frames.length; i++) if (end.frames[i][0] <= end.pressAt) first = i;
+  let largestStep = 0;
+  for (let i = first + 1; i < end.frames.length; i++) {
+    const moved = Math.abs(end.frames[i][1] - end.frames[i - 1][1]);
+    largestStep = Math.max(largestStep, (moved * 16.7) / Math.max(end.frames[i][0] - end.frames[i - 1][0], 16.7));
+  }
+  const glideAt = end.frames.find(([, at]) => at !== end.frames[0][1]);
+  // How far the row has come since the glide began, in cards (the row wraps round by a whole set, which looks the same).
+  const advanced = ((((end.rest - start.from) % start.setWidth) + start.setWidth) % start.setWidth) / start.pitch;
+  const offBoundary = Math.min(end.rest % start.pitch, start.pitch - (end.rest % start.pitch));
+  return { ...start, ...end, largestStep, advanced, offBoundary, pressedMsIntoGlide: glideAt ? Math.round(end.pressAt - glideAt[0]) : null };
+}
+
+test.describe('landing page: a press in the middle of a glide', () => {
+  test.setTimeout(150000);
+  const describe = (run: Awaited<ReturnType<typeof pressInGlide>>) =>
+    `pressed ${run.pressedMsIntoGlide} ms into the glide: largest single-frame step ${run.largestStep.toFixed(1)} px, at rest ${run.rest.toFixed(1)} (from ${run.from.toFixed(1)}, pitch ${run.pitch.toFixed(1)}, ${run.advanced.toFixed(2)} cards on)`;
+
+  test('Next clicked with the mouse in the middle of a glide waits for it to land and then glides', async ({ page }) => {
+    // Six events: two rounds of two cards each never reach the end of the set, where the row folds back to the first set and the
+    // card sampled here (the first) changes places with its copy.
+    await openWith(page, makeEvents(6));
+    await page.mouse.move(2, 2);
+    for (const afterMs of [150, 300]) {
+      const run = await pressInGlide(page, 'Next event', afterMs, (x, y) => page.mouse.click(x, y));
+      test.info().annotations.push({ type: `next-mouse-${afterMs}`, description: describe(run) });
+      // No snap: the glide goes on to its card, then the press is carried out with a glide of its own (no frame faster than the
+      // brand easing's own start, about 41 px here; a snap is half a card and more).
+      expect(run.largestStep, describe(run)).toBeLessThanOrEqual(70);
+      expect(run.offBoundary, describe(run)).toBeLessThanOrEqual(2);
+      expect(Math.abs(run.advanced - 2), describe(run)).toBeLessThanOrEqual(0.02);
+      expect(run.transform).toBe('none');
+      await page.mouse.move(2, 2); // so the next round has a glide to press in
+    }
+  });
+
+  test.describe('on a touch screen', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+    test('tapping Pause on a touch screen in the middle of a glide does not move the row by more than 40 px in one frame', async ({ page }) => {
+      await openWith(page, makeEvents(4));
+      for (const afterMs of [150, 300]) {
+        const run = await pressInGlide(page, 'Pause', afterMs, (x, y) => page.touchscreen.tap(x, y));
+        test.info().annotations.push({ type: `pause-tap-${afterMs}`, description: describe(run) });
+        // The glide is let finish on its own easing (as with the mouse): no snap, and it comes to rest one card on, never back on
+        // the card it started from.
+        expect(run.largestStep, describe(run)).toBeLessThanOrEqual(40);
+        expect(run.offBoundary, describe(run)).toBeLessThanOrEqual(2);
+        expect(Math.abs(run.advanced - 1), describe(run)).toBeLessThanOrEqual(0.02);
+        expect(run.transform).toBe('none');
+        await expect(group(page).getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+        const play = (await group(page).getByRole('button', { name: 'Play', exact: true }).boundingBox())!;
+        await page.touchscreen.tap(play.x + play.width / 2, play.y + play.height / 2); // so the next round has a glide to press in
+        await expect(group(page).getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+      }
+    });
+
+    test('Next tapped in the middle of a glide waits for it to land and then glides', async ({ page }) => {
+      await openWith(page, makeEvents(6)); // see the mouse variant: no fold back to the first set while it is measured
+      for (const afterMs of [150, 300]) {
+        const run = await pressInGlide(page, 'Next event', afterMs, (x, y) => page.touchscreen.tap(x, y));
+        test.info().annotations.push({ type: `next-tap-${afterMs}`, description: describe(run) });
+        expect(run.largestStep, describe(run)).toBeLessThanOrEqual(70);
+        expect(run.offBoundary, describe(run)).toBeLessThanOrEqual(2);
+        expect(Math.abs(run.advanced - 2), describe(run)).toBeLessThanOrEqual(0.02);
+        expect(run.transform).toBe('none');
+      }
+    });
   });
 });
 

@@ -158,6 +158,91 @@ test.describe('accessibility (axe-core)', () => {
     });
   }
 
+  // From 768 px up the next card peeks into the row by a quarter to three quarters of itself. A card's title and "Get Tickets" must be
+  // brought whole into the row when the keyboard reaches them: a browser scrolls a focused element into view only when it is entirely
+  // out of sight, so a link that is half in the peek would otherwise keep its label and its focus ring cut off by the row's edge.
+  for (const viewport of [
+    { width: 1366, height: 768 },
+    { width: 768, height: 1024 },
+  ]) {
+    test.describe(`at ${viewport.width} px`, () => {
+      test.use({ viewport });
+
+      test('tabbing to a card that peeks brings it whole into the row', async ({ page }) => {
+        await open(page, '/', [1, 2, 3, 4, 5].map((i) => event(i)));
+        await page.locator('#upcoming-events').scrollIntoViewIfNeeded();
+        await page.mouse.move(2, 2);
+        const carousel = page.getByRole('group', { name: 'Upcoming events' });
+        // The links of the real cards (titles, and Get Tickets where there is one), in the order of the page.
+        const links = await page.evaluate(() =>
+          [...document.querySelectorAll('[data-event-list="home"] > li:not([data-carousel-clone]) a[href]')].map((link) => (link.textContent ?? '').trim()),
+        );
+        expect(links.length).toBeGreaterThanOrEqual(6);
+        /** Once the row has come to rest: where the focused element is, against the part of the row that is on screen. */
+        const stop = async () => {
+          let last = '';
+          await expect
+            .poll(
+              async () => {
+                const now = await page.evaluate(() => {
+                  const list = document.querySelector('[data-event-list="home"]') as HTMLElement;
+                  return `${list.getAnimations().length}|${Math.round((list.parentElement as HTMLElement).scrollLeft)}`;
+                });
+                const resting = now === last && now.startsWith('0|');
+                last = now;
+                return resting;
+              },
+              { timeout: 6000, intervals: [150] },
+            )
+            .toBe(true);
+          return page.evaluate(() => {
+            const focused = document.activeElement as HTMLElement;
+            const row = (document.querySelector('[data-event-list="home"]') as HTMLElement).parentElement as HTMLElement;
+            const box = focused.getBoundingClientRect();
+            const clip = row.getBoundingClientRect();
+            return {
+              name: (focused.textContent ?? '').trim(),
+              inRow: Boolean(focused.closest('[data-event-list="home"]')),
+              left: box.left,
+              right: box.right,
+              clipLeft: Math.max(clip.left, 0),
+              clipRight: Math.min(clip.right, window.innerWidth),
+            };
+          });
+        };
+        const whole = (at: Awaited<ReturnType<typeof stop>>) =>
+          expect(at.left >= at.clipLeft - 1 && at.right <= at.clipRight + 1, `"${at.name}" at ${Math.round(at.left)}-${Math.round(at.right)}, the row shows ${Math.round(at.clipLeft)}-${Math.round(at.clipRight)}`).toBe(true);
+
+        // Forward, from the section's heading (made focusable for the test only) through every link of the row.
+        await page.evaluate(() => {
+          const heading = document.querySelector('#upcoming-events h2') as HTMLElement;
+          heading.tabIndex = -1;
+          heading.focus();
+        });
+        const forward: string[] = [];
+        for (let i = 0; i < links.length; i++) {
+          await page.keyboard.press('Tab');
+          const at = await stop();
+          expect(at.inRow, `Tab ${i + 1} stays in the row`).toBe(true);
+          whole(at);
+          forward.push(at.name);
+        }
+        expect(forward).toEqual(links);
+        // Backward, from Previous (the control after the row) through every link of the row.
+        await carousel.getByRole('button', { name: 'Previous event' }).focus();
+        const backward: string[] = [];
+        for (let i = 0; i < links.length; i++) {
+          await page.keyboard.press('Shift+Tab');
+          const at = await stop();
+          expect(at.inRow, `Shift+Tab ${i + 1} stays in the row`).toBe(true);
+          whole(at);
+          backward.push(at.name);
+        }
+        expect(backward).toEqual([...links].reverse());
+      });
+    });
+  }
+
   test('every badge on an event card reaches 4.5:1, and the status badges are the brand status fills with their ink', async ({ page }) => {
     await open(page, '/', [
       event(1, { ticketStatus: 'available', category: 'Theatre' }),
