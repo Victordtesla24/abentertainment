@@ -9,6 +9,8 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
  *  - glide one card at a time with the brand easing, by itself, and stand still while the pointer, keyboard focus or a finger is on
  *    it, while the tab is hidden and while it is off screen;
  *  - stop for good when the visitor presses Pause (WCAG 2.2.2) and start again only when they press Play;
+ *  - stop where it is under a finger put on it in the middle of a glide (the card under the finger stays under it, so a tap opens that
+ *    card and a swipe takes over from there), and settle on the nearest card once a finger has gone without swiping;
  *  - move only on request under prefers-reduced-motion (no copies drawn, buttons step the row, no Pause button);
  *  - work with a swipe and with the keyboard, name itself ("2 of 5") for assistive technology, and never expose its copies;
  *  - show one event as a centred card without motion, and no event as a line with a link to /events/;
@@ -1015,6 +1017,300 @@ test.describe('landing page: a press in the middle of a glide', () => {
         expect(run.offBoundary, describe(run)).toBeLessThanOrEqual(2);
         expect(Math.abs(run.advanced - 2), describe(run)).toBeLessThanOrEqual(0.02);
         expect(run.transform).toBe('none');
+      }
+    });
+  });
+});
+
+/**
+ * A finger put on the row in the middle of an automatic glide, played with real touch events (CDP Input.dispatchTouchEvent: the browser
+ * handles them as it handles a device's, with its touch slop, its scrolling and the tap that follows). While it runs, every animation
+ * frame notes where the first card is drawn, and the page notes when a finger came down and went and which card it was over.
+ */
+interface RowWatch {
+  frames: Array<[number, number]>;
+  /** When the glide began. */
+  glideAt: number;
+  /** When the page saw the finger come down and go, and where the first card was drawn at the moment it came down. */
+  down: number;
+  downLeft: number;
+  up: number;
+  underFinger: string | null;
+  stop: boolean;
+}
+type RowTouch = (type: 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel', x: number, y: number) => Promise<unknown>;
+
+/** One finger, as the browser's input pipeline gets it from a device. */
+async function touchPad(page: Page): Promise<RowTouch> {
+  const cdp = await page.context().newCDPSession(page);
+  return (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' || type === 'touchCancel' ? [] : [{ x, y, id: 1 }] });
+}
+
+/** The carousel in the middle of the screen, the section's reveal over: the cards are where a finger can be put on them. */
+async function centreCarousel(page: Page) {
+  await group(page).evaluate((element) => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  await page.waitForTimeout(1000);
+}
+
+/**
+ * Starts noting the row, waits for the glide's own clock (the animation of the list) to pass `afterMs`, and answers where to put the
+ * finger then: on the card that is sliding out ('outgoing', 30% into the part of it that is on screen), or on the card at the middle
+ * of the screen ('middle', in the middle of the part of it that is on screen).
+ *
+ * The finger's moments are those at which the page's own listener ran, and the place of the row is read there, in the same task as
+ * the carousel's handler: a busy main thread draws no frames of its own (the glide goes on, off the main thread) and delivers the
+ * touch late, so the last frame noted before the touch can be many pixels of glide behind the row as the finger found it.
+ */
+function glideReaches(page: Page, afterMs: number, place: 'outgoing' | 'middle') {
+  return page.evaluate(
+    ({ after, where }) =>
+      new Promise<{ x: number; y: number }>((resolve) => {
+        const list = document.querySelector('[data-event-list="home"]') as HTMLElement;
+        const cards = [...list.querySelectorAll<HTMLElement>(':scope > li:not([data-carousel-clone])')];
+        const w = window as unknown as { __row: RowWatch; __rowListening?: boolean };
+        const watch: RowWatch = { frames: [], glideAt: 0, down: 0, downLeft: 0, up: 0, underFinger: null, stop: false };
+        w.__row = watch;
+        if (!w.__rowListening) {
+          w.__rowListening = true;
+          document.addEventListener(
+            'touchstart',
+            (event) => {
+              if (w.__row.down) return;
+              w.__row.down = performance.now();
+              w.__row.downLeft = (document.querySelector('[data-event-list="home"] > li') as HTMLElement).getBoundingClientRect().left;
+              const card = event.target instanceof Element ? event.target.closest('li[data-event-slug]') : null;
+              w.__row.underFinger = card ? card.getAttribute('data-event-slug') : null;
+            },
+            { capture: true, passive: true },
+          );
+          for (const type of ['touchend', 'touchcancel']) document.addEventListener(type, () => (w.__row.up = performance.now()), { capture: true, passive: true });
+        }
+        let found = false;
+        const frame = (now: number) => {
+          watch.frames.push([now, cards[0].getBoundingClientRect().left]);
+          const glide = list.getAnimations()[0];
+          if (!found && glide && Number(glide.currentTime ?? 0) >= after) {
+            found = true;
+            watch.glideAt = now - Number(glide.currentTime ?? 0);
+            const rects = cards.map((card) => card.getBoundingClientRect());
+            // The card sliding out is the first one that still shows (60 px of it at least: the finger has to be put on the screen).
+            const index = rects.findIndex((rect) => (where === 'outgoing' ? rect.right >= 60 : rect.right > innerWidth / 2));
+            const from = Math.max(rects[index].left, 0);
+            const to = Math.min(rects[index].right, innerWidth);
+            resolve({ x: Math.round(where === 'outgoing' ? from + 0.3 * (to - from) : (from + to) / 2), y: Math.round(rects[0].top + rects[0].height * 0.3) });
+          }
+          if (!watch.stop) requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      }),
+    { after: afterMs, where: place },
+  );
+}
+
+/** Stops noting the row and hands over what was noted. */
+const readRow = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __row: RowWatch };
+    w.__row.stop = true;
+    const { frames, glideAt, down, downLeft, up, underFinger } = w.__row;
+    return { frames, glideAt, down, downLeft, up, underFinger };
+  });
+
+/**
+ * What the row did around the finger's touchstart. `landing`: how far the first card was drawn in the first frame after it from where
+ * it was when the finger came down; `jump`: the same, at most, in the frames up to `until` (the touchend by default); `largestStep`:
+ * the largest move in one frame from the touchstart on (a frame that came late counts for the move of one frame of 16.7 ms, as in the
+ * Pause tests above); `pressedMsIntoGlide`: how long the glide had been under way.
+ */
+function aroundTouch(row: Awaited<ReturnType<typeof readRow>>, until = row.up) {
+  const after: Array<[number, number]> = [[row.down, row.downLeft], ...row.frames.filter(([at]) => at > row.down)];
+  let jump = 0;
+  let largestStep = 0;
+  for (let i = 1; i < after.length; i++) {
+    if (after[i][0] <= until) jump = Math.max(jump, Math.abs(after[i][1] - row.downLeft));
+    largestStep = Math.max(largestStep, (Math.abs(after[i][1] - after[i - 1][1]) * 16.7) / Math.max(after[i][0] - after[i - 1][0], 16.7));
+  }
+  return {
+    landing: after.length > 1 ? Math.abs(after[1][1] - row.downLeft) : 0,
+    jump,
+    largestStep,
+    frames: after.filter(([at]) => at <= until).length - 1,
+    pressedMsIntoGlide: Math.round(row.down - row.glideAt),
+  };
+}
+
+/** How far a scroll position is from the nearest card boundary. */
+const offCard = (scrollLeft: number, pitch: number) => Math.min(scrollLeft % pitch, pitch - (scrollLeft % pitch));
+/** The browser's snapping is on whenever the row has no inline switch for it: the carousel switches it off for its own moves only. */
+const snapSwitch = (target: Locator) => target.evaluate((element) => element.style.scrollSnapType);
+
+test.describe('landing page: a finger on the row in the middle of a glide', () => {
+  test.setTimeout(150000);
+
+  for (const [width, height] of [
+    [390, 844],
+    [820, 1180],
+  ] as const) {
+    test.describe(`on a touch screen ${width} px wide`, () => {
+      test.use({ viewport: { width, height }, hasTouch: true, isMobile: true });
+
+      test('a finger put on a card in the middle of a glide leaves the row where it is', async ({ page }) => {
+        // Six events: a glide never reaches the end of the set, where the card sampled here would change places with its copy.
+        await openWith(page, makeEvents(6));
+        await centreCarousel(page);
+        const touch = await touchPad(page);
+        for (const afterMs of [150, 250]) {
+          const at = await glideReaches(page, afterMs, 'outgoing');
+          await touch('touchStart', at.x, at.y);
+          await page.waitForTimeout(600);
+          await touch('touchCancel', at.x, at.y); // taken away, not lifted: no click
+          const run = aroundTouch(await readRow(page));
+          const what = `finger down ${run.pressedMsIntoGlide} ms into the glide: the row was drawn up to ${run.jump.toFixed(1)} px from where it was when the finger came down, in ${run.frames} frames`;
+          test.info().annotations.push({ type: `finger-${afterMs}`, description: what });
+          expect(run.pressedMsIntoGlide, 'the finger came down while the row was gliding').toBeGreaterThan(100);
+          expect(run.frames, what).toBeGreaterThan(15);
+          // The row stays where the glide had it. (A snap to the nearest card is 150 px here and more; one frame of the glide's own pace is up to 25 px.)
+          expect(run.jump, what).toBeLessThanOrEqual(20);
+        }
+      });
+
+      test('a tap on a card in the middle of a glide opens the card under the finger', async ({ page }) => {
+        // The event pages are not what is looked at: the tap's navigation is answered with an empty page.
+        await page.route(/\/events\/e2e-event-\d+\/$/, (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>event</title>' }));
+        const touch = await touchPad(page);
+        // The card that is sliding out (it is not the card that is at the end of the glide, so a row that snaps from under the finger
+        // opens another one), and the card at the middle of the screen.
+        for (const place of ['outgoing', 'middle'] as const) {
+          await openWith(page, makeEvents(6));
+          await centreCarousel(page);
+          const at = await glideReaches(page, 200, place);
+          await touch('touchStart', at.x, at.y);
+          const underFinger = (await readRow(page)).underFinger;
+          expect(underFinger, `the finger is on a card (${place})`).toMatch(/^e2e-event-\d+$/);
+          await page.waitForTimeout(60);
+          await touch('touchEnd', at.x, at.y);
+          await expect(page, `the tap on the ${place} card opens it`).toHaveURL(new RegExp(`/events/${underFinger}/$`), { timeout: 10000 });
+        }
+      });
+
+      test('a swipe that starts in the middle of a glide goes on from where the finger found the row', async ({ page }) => {
+        await openWith(page, makeEvents(6));
+        await centreCarousel(page);
+        const pitch = await pitchOf(page);
+        const touch = await touchPad(page);
+        const at = await glideReaches(page, 200, 'outgoing');
+        await touch('touchStart', at.x, at.y);
+        // A slow start (the browser takes a touch for a scroll only after its slop, 8 to 15 px), then 20 px a move, all to the left.
+        let x = at.x;
+        for (const dx of [5, 5, 5, 5, 5, 20, 20, 20, 20, 20, 20, 20, 20]) {
+          x -= dx;
+          await touch('touchMove', x, at.y);
+          await page.waitForTimeout(16);
+        }
+        await touch('touchEnd', x, at.y);
+        await page.waitForTimeout(1500);
+        const run = aroundTouch(await readRow(page), Infinity);
+        const what = `finger down ${run.pressedMsIntoGlide} ms into the glide: the first frame moved the row ${run.landing.toFixed(1)} px, the largest single-frame move was ${run.largestStep.toFixed(1)} px`;
+        test.info().annotations.push({ type: 'swipe-from-glide', description: what });
+        // The row stays under the finger when it lands (a snap to the nearest card is 60 to 170 px here)...
+        expect(run.landing, what).toBeLessThanOrEqual(20);
+        // ...and follows it from there: no frame moves it like a snap (the finger moves it 20 px a move; the glide's own pace is up to 25 px a frame).
+        expect(run.largestStep, what).toBeLessThanOrEqual(60);
+        const rest = await left(scroller(page));
+        expect(offCard(rest, pitch), `the swipe has come to rest on a card (${rest}, pitch ${pitch})`).toBeLessThanOrEqual(2);
+        expect(await page.evaluate(() => getComputedStyle(document.querySelector('[data-event-list="home"]')!).transform)).toBe('none');
+        expect(await snapSwitch(scroller(page)), "the browser's snapping is back on").toBe('');
+      });
+
+      test('a press that opens nothing lets the row ease onto a card, and the glide goes on five seconds after the finger has gone', async ({ page }) => {
+        await page.addInitScript(() => {
+          const starts: number[] = [];
+          (window as unknown as { __glideStarts: number[] }).__glideStarts = starts;
+          const animate = Element.prototype.animate;
+          Element.prototype.animate = function (this: Element, keyframes: Keyframe[] | PropertyIndexedKeyframes | null, options?: number | KeyframeAnimationOptions) {
+            if (this.matches('[data-event-list="home"]')) starts.push(performance.now());
+            return animate.call(this, keyframes, options);
+          };
+        });
+        await openWith(page, makeEvents(6));
+        await centreCarousel(page);
+        const pitch = await pitchOf(page);
+        const touch = await touchPad(page);
+        const at = await glideReaches(page, 200, 'outgoing');
+        await touch('touchStart', at.x, at.y);
+        await page.waitForTimeout(600);
+        const held = await left(scroller(page));
+        expect(offCard(held, pitch), `the row is held between two cards while the finger is on it (${held})`).toBeGreaterThan(20);
+        expect(await snapSwitch(scroller(page)), "the browser's snapping stays off while the row is held").toBe('none');
+        await touch('touchCancel', at.x, at.y);
+        const liftedAt = Date.now();
+        // After the click that did not come, the row eases onto the nearest card within a second or so, and its snapping is switched on again.
+        await expect.poll(async () => offCard(await left(scroller(page)), pitch), { timeout: 2000, intervals: [25] }).toBeLessThanOrEqual(2);
+        const settledAfter = Date.now() - liftedAt;
+        test.info().annotations.push({ type: 'press-settle', description: `on a card ${settledAfter} ms after the finger went (held at ${held}, pitch ${pitch})` });
+        expect(settledAfter, 'on a card within about a second').toBeLessThan(1500);
+        await expect.poll(() => snapSwitch(scroller(page)), { timeout: 2000 }).toBe('');
+        const rest = await left(scroller(page));
+        await page.waitForTimeout(300);
+        expect(await left(scroller(page)), 'switching the snapping on moves nothing').toBe(rest);
+        // The glide goes on five seconds after the finger has gone, not before.
+        const { up } = await readRow(page);
+        await page.waitForTimeout(Math.max(0, 7500 - (Date.now() - liftedAt)));
+        const starts = (await page.evaluate(() => (window as unknown as { __glideStarts: number[] }).__glideStarts)).map((t) => t - up).filter((t) => t > 0);
+        test.info().annotations.push({ type: 'press-glide-resumes', description: `glides started ${starts.map(Math.round).join(', ')} ms after the finger went` });
+        expect(starts.filter((t) => t < 4500), 'no glide in the first 4.5 s after the finger has gone').toEqual([]);
+        expect(starts.length, 'the glide goes on 5 s after the finger has gone').toBeGreaterThanOrEqual(1);
+        expect(starts[0]).toBeLessThan(7000);
+      });
+    });
+  }
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+    test('Next tapped just after a finger has let go of the row takes it from where it is, one card on from the nearest', async ({ page }) => {
+      await openWith(page, makeEvents(6));
+      await centreCarousel(page);
+      const pitch = await pitchOf(page);
+      const touch = await touchPad(page);
+      const at = await glideReaches(page, 200, 'outgoing');
+      await touch('touchStart', at.x, at.y);
+      await page.waitForTimeout(300);
+      const heldAt = await scroller(page).evaluate((element) => element.scrollLeft);
+      await touch('touchCancel', at.x, at.y);
+      await page.waitForTimeout(100); // the row is still waiting for the click that does not come
+      const next = (await group(page).getByRole('button', { name: 'Next event', exact: true }).boundingBox())!;
+      await page.touchscreen.tap(next.x + next.width / 2, next.y + next.height / 2);
+      await page.waitForTimeout(1800);
+      const rest = await scroller(page).evaluate((element) => element.scrollLeft);
+      const expected = (Math.round(heldAt / pitch) + 1) * pitch;
+      expect(Math.abs(rest - expected), `at rest ${rest}, held at ${heldAt}, pitch ${pitch}: one card on from the nearest`).toBeLessThanOrEqual(2);
+      expect(await page.evaluate(() => getComputedStyle(document.querySelector('[data-event-list="home"]')!).transform)).toBe('none');
+      expect(await snapSwitch(scroller(page)), "the browser's snapping is back on").toBe('');
+    });
+
+    test('a finger put down again soon after the first one went keeps the row still, and the row still ends on a card', async ({ page }) => {
+      await openWith(page, makeEvents(6));
+      await centreCarousel(page);
+      const pitch = await pitchOf(page);
+      const touch = await touchPad(page);
+      // After the first finger has gone the row waits 350 ms for a click and then eases onto the card (150 ms or so): the second finger
+      // comes while it waits (150 ms) and while it eases (430 ms).
+      for (const gap of [150, 430]) {
+        const at = await glideReaches(page, 200, 'outgoing');
+        await touch('touchStart', at.x, at.y);
+        await page.waitForTimeout(300);
+        await touch('touchCancel', at.x, at.y);
+        await page.waitForTimeout(gap);
+        await touch('touchStart', at.x, at.y);
+        await page.waitForTimeout(120); // the frame or two in which a row that was easing onto a card arrives
+        const first = await scroller(page).evaluate((element) => element.scrollLeft);
+        await page.waitForTimeout(500);
+        const later = await scroller(page).evaluate((element) => element.scrollLeft);
+        expect(Math.abs(later - first), `second finger after ${gap} ms: the row moved from ${first} to ${later} under it`).toBeLessThanOrEqual(2);
+        await touch('touchCancel', at.x, at.y);
+        await expect.poll(async () => offCard(await left(scroller(page)), pitch), { message: `second finger after ${gap} ms: the row ends on a card`, timeout: 2500, intervals: [25] }).toBeLessThanOrEqual(2);
+        await expect.poll(() => snapSwitch(scroller(page)), { message: `second finger after ${gap} ms: the snapping is back on`, timeout: 2500 }).toBe('');
       }
     });
   });

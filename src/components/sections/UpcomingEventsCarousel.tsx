@@ -46,8 +46,10 @@ import {
  * The button is not drawn under prefers-reduced-motion (nothing moves by itself there), nor with one event.
  *
  * Previous and Next (and the arrow keys) pressed while the row is gliding wait for the glide to land on its card, then glide on from
- * there; only a finger on the row itself grabs a glide where it is. A card that the keyboard reaches is brought whole into the row:
- * a browser scrolls to a focused element only when it is entirely out of sight, and the next card is always partly in sight.
+ * there; only a finger on the row itself grabs a glide, and it grabs it where it is: the card under the finger stays under it (so a
+ * tap opens that card), a swipe takes over from there, and a finger that goes without swiping lets the row ease onto the nearest card.
+ * A card that the keyboard reaches is brought whole into the row: a browser scrolls to a focused element only when it is entirely out
+ * of sight, and the next card is always partly in sight.
  */
 
 /** The brand easing (--ease-brand in the design system), the same curve every section of the site uses. */
@@ -61,6 +63,8 @@ const HOLD_MS = 4500;
 const RESUME_MS = 1500;
 /** The same after a finger has lifted: a swipe is still coasting. */
 const TOUCH_RESUME_MS = 5000;
+/** How long the row takes to ease onto the nearest card after a finger that had stopped a glide has gone without swiping. */
+const SETTLE_MS = 300;
 
 /**
  * How big the cards are and how the row sits on the page, at each size of screen. Set once, as custom properties on the carousel's
@@ -156,6 +160,17 @@ function useCarouselMotion(
   const queuedRef = useRef(0);
   /** A card that keyboard focus reached while the row was gliding, to be brought into the row once the glide has landed. */
   const revealAfterLandRef = useRef<HTMLElement | null>(null);
+  /**
+   * A finger put on the row in the middle of a glide has stopped it where it is, and the row has not been let go yet (see grabGlide).
+   * For as long as this lasts the browser's snapping stays off: switched on, it would move the row to the nearest card at once, from
+   * under the finger. 'held' the finger is down; 'waiting' it has lifted without swiping and the click of a tap is on its way;
+   * 'settling' the row is easing onto the nearest card. It ends when the visitor scrolls the row (the browser's snapping then carries
+   * the swipe), when a press on Previous / Next takes the row from where it is, or when the row has come to rest on a card.
+   */
+  const grabRef = useRef<'none' | 'held' | 'waiting' | 'settling'>('none');
+  /** The timer of the wait, and the animation frame of the easing, that follow a grab. */
+  const grabTimerRef = useRef(0);
+  const grabFrameRef = useRef(0);
 
   const setPaused = useCallback((next: boolean) => {
     pausedRef.current = next;
@@ -194,10 +209,12 @@ function useCarouselMotion(
 
   /**
    * End a glide with the row at `position`: the scroll position takes over from the transform in the same task, before the browser
-   * paints again, so the picture does not move.
+   * paints again, so the picture does not move. The browser's snapping is switched on again (it moves the row to the nearest card if
+   * it is not on one) and the row folds back into the first set, unless `keepSnapOff` says that the row is to stay exactly there
+   * (grabGlide).
    */
   const land = useCallback(
-    (position: number) => {
+    (position: number, keepSnapOff = false) => {
       const scroller = scrollerRef.current;
       const glide = glideRef.current;
       glideRef.current = null;
@@ -209,26 +226,113 @@ function useCarouselMotion(
         glide.player.onfinish = null;
         glide.player.cancel();
       }
+      if (keepSnapOff) return;
       if (scroller) scroller.style.scrollSnapType = '';
       wrap();
     },
     [scrollerRef, wrap],
   );
 
+  /** Drop the wait, or the easing onto a card, that follows a grab: the row stays where it is. */
+  const dropSettle = useCallback(() => {
+    window.clearTimeout(grabTimerRef.current);
+    grabTimerRef.current = 0;
+    cancelAnimationFrame(grabFrameRef.current);
+    grabFrameRef.current = 0;
+  }, []);
+
   /**
-   * Stop a glide where it is (a finger on the row, a hidden tab): the row takes the position the glide had reached, and the browser's
-   * snapping then settles it on the nearest card. What was waiting for the glide to land is dropped. Nothing else stops a glide:
-   * Pause lets it finish, and Previous / Next pressed during it wait for it to land and then glide (see step).
+   * Let go of a grab: the browser's snapping is back on, and a wait or a settling still to come is dropped. This moves nothing when
+   * the row is on a card or is being scrolled by the visitor; on a row that is between two cards the snapping may move it to the
+   * nearest one at once (or leave it where it is), so it is for the moments when that no longer matters (a swipe is under way, a
+   * press on Previous / Next follows, the tab is hidden) or after a settling.
+   */
+  const ungrab = useCallback(() => {
+    dropSettle();
+    if (grabRef.current === 'none') return;
+    grabRef.current = 'none';
+    const scroller = scrollerRef.current;
+    if (scroller) scroller.style.scrollSnapType = '';
+  }, [scrollerRef, dropSettle]);
+
+  /**
+   * Stop a glide where it is and let the browser's snapping settle the row on the nearest card (a hidden tab, an unmounted carousel):
+   * the row takes the position the glide had reached, and a grab is let go. What was waiting for the glide to land is dropped. Nothing
+   * else cancels a glide: Pause lets it finish, Previous / Next pressed during it wait for it to land and then glide (see step), and a
+   * finger on the row grabs it where it is (see grabGlide).
    */
   const cancelGlide = useCallback(() => {
     queuedRef.current = 0;
     revealAfterLandRef.current = null;
+    ungrab();
     const glide = glideRef.current;
     const list = listRef.current;
     if (!glide || !list) return;
     const travelled = -new DOMMatrixReadOnly(getComputedStyle(list).transform).m41;
     land(glide.from + travelled);
-  }, [listRef, land]);
+  }, [listRef, land, ungrab]);
+
+  /**
+   * A finger put on the row stops a glide exactly where it is: the row keeps the position the glide had reached, so the card under
+   * the finger stays under it, the tap that follows opens that card, and a swipe takes over from there. The browser's snapping stays
+   * off while the row is held (it would move the row to the nearest card in the same frame, from under the finger); settleGrab, the
+   * row being scrolled (see the scroll listener below) or a press on Previous / Next ends the grab. What was waiting for the glide to
+   * land is dropped. On a row that is not gliding this changes nothing, except that a finger put down again on a row that is waiting
+   * for the click of an earlier tap, or easing onto a card, holds it where it is once more.
+   */
+  const grabGlide = useCallback(() => {
+    queuedRef.current = 0;
+    revealAfterLandRef.current = null;
+    const list = listRef.current;
+    if (!scrollerRef.current || !list) return;
+    const glide = glideRef.current;
+    if (glide) {
+      const travelled = -new DOMMatrixReadOnly(getComputedStyle(list).transform).m41;
+      land(glide.from + travelled, true);
+    } else if (grabRef.current === 'none') {
+      return;
+    }
+    dropSettle();
+    grabRef.current = 'held';
+  }, [scrollerRef, listRef, land, dropSettle]);
+
+  /**
+   * The finger that held the row has gone without swiping it (a tap, or a press: a swipe ends the grab as soon as the row scrolls).
+   * The click of a tap goes to the card the finger touched, so the row waits for it (350 ms is long past the click, which a browser
+   * dispatches as the finger lifts), then eases onto the nearest card, frame by frame (an animation that the page runs itself can be
+   * stopped exactly where it is by a finger or a press; the browser's own smooth scroll goes on for a frame or two after it is told
+   * to stop, and a few pixels past the card). When the row is there the snapping is switched on again, which moves nothing.
+   */
+  const settleGrab = useCallback(() => {
+    dropSettle();
+    grabRef.current = 'waiting';
+    grabTimerRef.current = window.setTimeout(() => {
+      grabTimerRef.current = 0;
+      const scroller = scrollerRef.current;
+      const list = listRef.current;
+      const row = list ? measureRow(list) : null;
+      if (!scroller || !row) {
+        ungrab();
+        return;
+      }
+      grabRef.current = 'settling';
+      const from = scroller.scrollLeft;
+      const to = Math.round(from / row.pitch) * row.pitch;
+      const started = performance.now();
+      const frame = (now: number) => {
+        const progress = reducedRef.current ? 1 : Math.min(1, Math.max(0, (now - started) / SETTLE_MS));
+        scroller.scrollLeft = progress < 1 ? from + (to - from) * (1 - (1 - progress) ** 4) : to;
+        expectedLeft.current = scroller.scrollLeft;
+        if (progress < 1) {
+          grabFrameRef.current = requestAnimationFrame(frame);
+          return;
+        }
+        ungrab();
+        wrap();
+      };
+      grabFrameRef.current = requestAnimationFrame(frame);
+    }, 350);
+  }, [scrollerRef, listRef, ungrab, wrap, dropSettle]);
 
   /** Bring a real card whole into the row, its start on the row's start (a snap position, so the browser's snapping agrees). */
   const bringIntoRow = useCallback(
@@ -311,9 +415,12 @@ function useCarouselMotion(
         queuedRef.current = Math.max(-3, Math.min(3, queuedRef.current + direction));
         return;
       }
+      // A press that comes while a finger's grab is still being settled takes the row from where it is: the glide below starts from
+      // there, and switches the snapping off again for itself.
+      ungrab();
       go(direction);
     },
-    [scrollerRef, listRef, land, bringIntoRow],
+    [scrollerRef, listRef, land, bringIntoRow, ungrab],
   );
 
   // Row edges for the buttons when the row does not loop (reduced motion), and the wrap-around after the visitor's own scrolling.
@@ -332,7 +439,11 @@ function useCarouselMotion(
       // The edges only matter when the row does not loop (reduced motion): no work per scroll event while it glides.
       if ((reducedRef.current || !loopRef.current) && !frame) frame = requestAnimationFrame(updateEdges);
       if (glideRef.current || Math.abs(scroller.scrollLeft - expectedLeft.current) <= 1.5) return;
-      // The visitor is scrolling it: leave it alone until it has come to rest, then tidy up.
+      // The visitor is scrolling it: leave it alone until it has come to rest, then tidy up. A row that a finger had stopped is the
+      // browser's from here on: this is the swipe that took it from the finger's grab, so its snapping is switched on again now,
+      // while the browser is carrying the scroll (switched on before that, below the touch slop, it would move the row to the nearest
+      // card at once). The scroll of a settling is the code's own and is left alone.
+      if (grabRef.current === 'held' || grabRef.current === 'waiting') ungrab();
       lastInteraction.current = performance.now();
       window.clearTimeout(settleTimer);
       settleTimer = window.setTimeout(() => {
@@ -352,7 +463,7 @@ function useCarouselMotion(
       window.clearTimeout(settleTimer);
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [scrollerRef, wrap, loop, reduced]);
+  }, [scrollerRef, wrap, loop, reduced, ungrab]);
 
   // The automatic glide, and everything that holds it still.
   useEffect(() => {
@@ -444,13 +555,16 @@ function useCarouselMotion(
     const onTouchStart = (event: TouchEvent) => {
       hold('touch');
       touched();
-      // A finger on the row grabs it where it is; a finger on a control (Pause, Previous, Next) leaves the glide to finish, and the
-      // control does what it does when the press is complete.
-      if (!(event.target instanceof Element && event.target.closest('button'))) cancelGlide();
+      // A finger on the row grabs a glide where it is, with the card under the finger staying under it (grabGlide); a finger on a
+      // control (Pause, Previous, Next) leaves the glide to finish, and the control does what it does when the press is complete.
+      if (!(event.target instanceof Element && event.target.closest('button'))) grabGlide();
     };
-    const onTouchEnd = () => {
+    const onTouchEnd = (event: TouchEvent) => {
       touched();
       release('touch', TOUCH_RESUME_MS);
+      // The last finger has gone and the row it held was not swiped (a swipe ends the grab as soon as the row scrolls): a tap, or a
+      // press. After the click of the tap the row settles on the nearest card.
+      if (grabRef.current === 'held' && !event.touches?.length) settleGrab();
     };
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') {
@@ -483,6 +597,8 @@ function useCarouselMotion(
     return () => {
       autoplayRef.current = null;
       clear();
+      // The snapping is never left off behind handlers that are gone.
+      ungrab();
       observer.disconnect();
       group.removeEventListener('pointerenter', onEnter);
       group.removeEventListener('pointerleave', onLeave);
@@ -495,7 +611,7 @@ function useCarouselMotion(
       group.removeEventListener('touchcancel', onTouchEnd);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [groupRef, loop, reduced, step, cancelGlide]);
+  }, [groupRef, loop, reduced, step, cancelGlide, grabGlide, settleGrab, ungrab]);
 
   // Never leave a glide running (or the browser's snapping switched off) behind an unmounted carousel.
   useEffect(() => () => cancelGlide(), [cancelGlide]);
