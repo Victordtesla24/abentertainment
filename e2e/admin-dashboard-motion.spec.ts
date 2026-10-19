@@ -8,9 +8,7 @@
  */
 
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { formatEstimate } from '@/lib/admin-bi';
-import { niceScale } from '@/components/admin/dashboard/chartMath';
-import { dialAngle, polar } from '@/components/admin/dashboard/radial';
+import { dataCompleteness, formatEstimate } from '@/lib/admin-bi';
 import { LIVE_EVENTS_AS_SAVED, LIVE_SPONSORS } from './support/admin-bi-live-snapshot';
 import { calculate } from './support/admin-dashboard-model';
 import {
@@ -39,12 +37,9 @@ const byId = (page: Page, id: string) => page.getByTestId(id);
 
 const LIVE = calculate(LIVE_EVENTS_AS_SAVED, LIVE_SPONSORS);
 const FORECAST = formatEstimate(LIVE.forecast.upcoming.totals[0].revenue.expected, LIVE.forecast.upcoming.totals[0].currency);
+/** How much of the completeness ring is drawn once it is whole: the model's share (7 of 44 fields). */
+const LIVE_COMPLETENESS = dataCompleteness(LIVE).ratio ?? 0;
 
-/** Where the needle of the upcoming forecast's dial ends once it has turned to the expected figure, and where it rests before (the start of its scale), in the dial's own units. */
-const NEEDLE = 37;
-const HUB = { x: 60, y: 62 };
-const FORECAST_NEEDLE = polar(HUB.x, HUB.y, NEEDLE, dialAngle(LIVE.forecast.upcoming.totals[0].revenue.expected / niceScale(LIVE.forecast.upcoming.totals[0].revenue.high, 5).max));
-const NEEDLE_AT_REST = polar(HUB.x, HUB.y, NEEDLE, dialAngle(0));
 
 interface Samples {
   /** The opacity of the first tile's wrapper, frame by frame, from the moment it exists. */
@@ -421,54 +416,53 @@ test.describe('the admin Dashboard: motion', () => {
     }
   });
 
-  // ─── the dials, rings and donuts ──────────────────────────────────────────
+  // ─── the lines, rings and donuts ──────────────────────────────────────────
 
-  /** The end of the needle of a dial, and how far a slice of a donut is drawn (0 to 1), as the page has them now. */
-  const needleOf = (page: Page) => page.getByTestId('bi-forecast-upcoming-dial-AUD').locator('line[data-part="needle"]').evaluate((line) => ({ x: Number(line.getAttribute('x2')), y: Number(line.getAttribute('y2')) }));
+  /** How far the line of the upcoming forecast is drawn (0 to 1), how many of its marks have risen into place, how far a slice of a donut is drawn and how far the ring of the completeness, as the page has them now. */
+  const lineDrawn = (page: Page) => page.getByTestId('bi-forecast-upcoming-chart-AUD').locator('path[data-part="line"]').evaluate((path) => parseFloat(getComputedStyle(path).strokeDasharray));
+  const marksRisen = (page: Page) => page.getByTestId('bi-forecast-upcoming-chart-AUD').locator('[data-part="point"]').evaluateAll((marks) => marks.filter((mark) => Number(getComputedStyle(mark).opacity) >= 0.999).length);
   const sliceDrawn = (page: Page) => page.locator('[data-testid="bi-tier-chart"] path[data-part="slice"]').first().evaluate((path) => parseFloat(getComputedStyle(path).strokeDasharray));
-  const arcDrawn = (page: Page) => page.getByTestId('tile-completeness-upcoming-price-ring').locator('circle[data-part="fill"]').evaluate((circle) => parseFloat(getComputedStyle(circle).strokeDasharray));
+  const arcDrawn = (page: Page) => page.getByTestId('tile-completeness-ring').locator('circle[data-part="fill"]').evaluate((circle) => parseFloat(getComputedStyle(circle).strokeDasharray));
 
-  test('the dials sweep in when they are first scrolled to: a needle turns from the start of its scale to its figure, a ring and a donut draw round, and each stops exactly on the model\'s figure', async () => {
+  test('the lines draw in when they are first scrolled to: the forecast line draws from nothing to all of it and its marks rise into place one after another, a ring and a donut draw round, and each stops exactly on its figure', async () => {
     const { context, page } = await opened({ reducedMotion: false });
     try {
       await expect(note(page)).toHaveAttribute('data-state', 'live', { timeout: 60000 });
-      // below the fold and not yet seen: the needle rests at the start of its scale and the donut is not drawn
-      const rest = await needleOf(page);
-      expect(rest.x).toBeCloseTo(NEEDLE_AT_REST.x, 0);
-      expect(rest.y).toBeCloseTo(NEEDLE_AT_REST.y, 0);
+      // below the fold and not yet seen: the line is not drawn, no mark has risen, and the donut is not drawn
+      expect(await lineDrawn(page)).toBe(0);
+      expect(await marksRisen(page)).toBe(0);
       expect(await sliceDrawn(page)).toBe(0);
-      // scrolled to, it turns in many steps (never backwards) and stops on the expected figure
-      await byId(page, 'bi-forecast-upcoming-dial-AUD').scrollIntoViewIfNeeded();
+      // scrolled to, the line draws in many steps (never backwards) and ends whole, and the five marks of its five events rise into place
+      await byId(page, 'bi-forecast-upcoming-chart-AUD').scrollIntoViewIfNeeded();
       const seen: number[] = [];
-      for (let index = 0; index < 14; index += 1) {
-        seen.push((await needleOf(page)).x);
+      for (let index = 0; index < 16; index += 1) {
+        seen.push(await lineDrawn(page));
         await page.waitForTimeout(50);
       }
-      expect(new Set(seen.map((value) => value.toFixed(1))).size, 'the needle turns in many steps, not a jump').toBeGreaterThan(3);
-      for (let index = 1; index < seen.length; index += 1) expect(seen[index], `step ${index} does not go back`).toBeGreaterThanOrEqual(seen[index - 1] - 0.01);
-      await expect.poll(async () => (await needleOf(page)).x, { timeout: 5000 }).toBeCloseTo(FORECAST_NEEDLE.x, 1);
-      expect((await needleOf(page)).y).toBeCloseTo(FORECAST_NEEDLE.y, 1);
+      expect(new Set(seen.map((value) => value.toFixed(2))).size, 'the line draws in many steps, not a jump').toBeGreaterThan(3);
+      for (let index = 1; index < seen.length; index += 1) expect(seen[index], `step ${index} does not go back`).toBeGreaterThanOrEqual(seen[index - 1] - 0.005);
+      await expect.poll(() => lineDrawn(page), { timeout: 5000 }).toBeCloseTo(1, 2);
+      await expect.poll(() => marksRisen(page), { timeout: 5000 }).toBe(5);
       // the donut of the tiers and the ring of the completeness draw round when they are seen, and end whole / at the model's share
       await byId(page, 'bi-tier-chart').scrollIntoViewIfNeeded();
       await expect.poll(() => sliceDrawn(page), { timeout: 5000 }).toBeCloseTo(1, 2);
-      await byId(page, 'tile-completeness-upcoming-price-ring').scrollIntoViewIfNeeded();
-      await expect.poll(() => arcDrawn(page), { timeout: 5000 }).toBeCloseTo(1, 2);
+      await byId(page, 'tile-completeness-ring').scrollIntoViewIfNeeded();
+      await expect.poll(() => arcDrawn(page), { timeout: 5000 }).toBeCloseTo(LIVE_COMPLETENESS, 2);
       expect(errors).toEqual([]);
     } finally {
       await context.close();
     }
   });
 
-  test('reduced motion: every dial, ring and donut is drawn complete on the first frame, the beacons stand still, and nothing pulses', async () => {
+  test('reduced motion: every line, ring and donut is drawn complete on the first frame, the beacons stand still, and nothing pulses', async () => {
     const { context, page } = await opened({ reducedMotion: true });
     try {
       await expect(note(page)).toHaveAttribute('data-state', 'live', { timeout: 60000 });
-      // not scrolled to, and already on the figure: the needle, the donut and the ring
-      const needle = await needleOf(page);
-      expect(needle.x).toBeCloseTo(FORECAST_NEEDLE.x, 1);
-      expect(needle.y).toBeCloseTo(FORECAST_NEEDLE.y, 1);
+      // not scrolled to, and already whole: the forecast line with all five marks in place, the donut and the ring
+      expect(await lineDrawn(page)).toBeCloseTo(1, 2);
+      expect(await marksRisen(page)).toBe(5);
       expect(await sliceDrawn(page)).toBeCloseTo(1, 2);
-      expect(await arcDrawn(page)).toBeCloseTo(1, 2);
+      expect(await arcDrawn(page)).toBeCloseTo(LIVE_COMPLETENESS, 2);
       // the beacons are there, drawn static: no pulse is made at all, and nothing on the page runs forever
       expect(await page.locator('[data-hotspot-id]').count()).toBeGreaterThan(5);
       await expect(page.locator('.ab-hotspot-pulse')).toHaveCount(0);

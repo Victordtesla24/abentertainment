@@ -1,13 +1,14 @@
 /**
- * The Dashboard has no horizontal bar chart, and every data visual on it is radial or a timeline.
+ * The Dashboard has no horizontal bar chart, and every data visual on it is a ring or a gauge (a single share of a whole), a donut, a
+ * timeline, a line, a dot chart or a row of dots (a unit chart of how many records have a figure).
  *
  * Two halves. The first is the geometry of the radial charts, in-process (no server, no browser): angles on a circle, arcs, the
  * slices of a donut (each its share, a gap between, none too small to see), what is folded into "Other", the lanes of dots that would
  * touch, and the rounding of a percent. The second is a scan of the rendered tab, in every state it can be in (the live data, each thing
  * the breakdowns can show, recorded figures, System & operations open): every data visual carries data-viz="gauge | ring | donut |
- * timeline", every meter is one of the first three, and no element is a track with a fill that is a percent of its width (the pattern
- * of a horizontal bar), no SVG rectangle is a long thin bar, and no <progress> or range input draws one. The scan is proved on a bar
- * written into the page: it finds it.
+ * timeline | line | dots | pips", every meter is a gauge or a ring, and no element is a track with a fill that is a percent of its width
+ * (the pattern of a horizontal bar), no SVG rectangle is a long thin bar, no <progress> draws one, and a range input is only the slider of a
+ * scenario: a named control with a few stops whose track carries no fill. The scan is proved on a bar written into the page: it finds it.
  */
 
 import { test, expect, type Page } from '@playwright/test';
@@ -152,17 +153,20 @@ test.describe('the geometry of the radial charts', () => {
 
 /**
  * What the scan reports for the Dashboard as it is on the page now. It runs in the page. `bars` are the elements that are a horizontal
- * bar (a track and a fill that is a percent of its width, a long thin SVG rectangle, a <progress> or a range input), `strays` are the
- * visuals that are not radial or a timeline, and `kinds` is what the page holds of each radial kind.
+ * bar (a track and a fill that is a percent of its width, a long thin SVG rectangle, a <progress>, a range input that is not a named
+ * slider with a few stops and an unfilled track), `strays` are the visuals that are not one of the kinds above, and `kinds` is what the
+ * page holds of each kind.
  */
 interface Scan {
   kinds: Record<string, number>;
   strays: string[];
   bars: string[];
   meters: number;
+  sliders: number;
 }
 
-const RADIAL = ['gauge', 'ring', 'donut', 'timeline'];
+/** Every kind of data visual the Dashboard draws (a bar is none of them). */
+const VISUALS = ['gauge', 'ring', 'donut', 'timeline', 'line', 'dots', 'pips'];
 
 async function scan(page: Page): Promise<Scan> {
   return page.locator('#health-dashboard-content').evaluate((root, allowed) => {
@@ -184,9 +188,61 @@ async function scan(page: Page): Promise<Scan> {
       kinds[kind] = (kinds[kind] ?? 0) + 1;
       if (!allowed.includes(kind)) strays.push(`${describe(element)} is data-viz="${kind}"`);
     }
-    // a meter or a progress bar that is not a gauge or a ring is a bar
+    // a meter or a progress bar that is not a gauge or a ring is a bar; a range input is not one when it is a slider (a named control with
+    // two to four stops, whose track is drawn without a fill or a gradient: a track that shows how far along something is, is a bar)
     let meters = 0;
+    let sliders = 0;
     for (const element of root.querySelectorAll('[role="meter"], [role="progressbar"], progress, meter, input[type="range"]')) {
+      if (element instanceof HTMLInputElement && element.type === 'range') {
+        sliders += 1;
+        const input = element;
+        const named = (input.getAttribute('aria-label') ?? '').trim() !== '' || (input.labels?.length ?? 0) > 0;
+        // what a range input has when it is not given a minimum, a maximum or a step is 0, 100 and 1
+        const attribute = (name: string, fallback: number) => {
+          const value = input.getAttribute(name);
+          return value === null || value.trim() === '' || !Number.isFinite(Number(value)) ? fallback : Number(value);
+        };
+        const stops = (attribute('max', 100) - attribute('min', 0)) / (attribute('step', 1) || 1);
+        // the track shows how far along something is when a rule that styles it (for this input) paints a gradient or an image on it, a fill that is a share of its width, or
+        // Firefox's own progress part (a browser does not hand the style of a track to a script, so the rules of the page's style sheets are read)
+        const filledTrack = (): boolean => {
+          const walk = (rules: CSSRuleList): boolean => {
+            for (const rule of Array.from(rules)) {
+              if (!(rule instanceof CSSStyleRule)) {
+                const inner = (rule as CSSGroupingRule).cssRules;
+                if (inner && walk(inner)) return true;
+                continue;
+              }
+              for (const selector of rule.selectorText.split(',')) {
+                const match = /^(.*?)::(-webkit-slider-runnable-track|-moz-range-track|-moz-range-progress)\s*$/.exec(selector.trim());
+                if (!match) continue;
+                let applies = false;
+                try {
+                  applies = input.matches(match[1] === '' ? '*' : match[1]);
+                } catch {
+                  applies = false;
+                }
+                if (!applies) continue;
+                if (match[2] === '-moz-range-progress') return true;
+                if (/gradient|url\(/.test(`${rule.style.background} ${rule.style.backgroundImage}`) || /\d%/.test(rule.style.backgroundSize)) return true;
+              }
+            }
+            return false;
+          };
+          for (const sheet of Array.from(document.styleSheets)) {
+            try {
+              if (walk(sheet.cssRules)) return true;
+            } catch {
+              // a style sheet of another origin cannot be read, and holds nothing of this page's
+            }
+          }
+          return false;
+        };
+        if (!named) bars.push(`${describe(element)} is a range input with no name`);
+        if (!(stops >= 2 && stops <= 4)) bars.push(`${describe(element)} is a range input with ${stops} stops: a slider has a few`);
+        if (filledTrack()) bars.push(`${describe(element)} is a range input whose track is filled: that is a bar`);
+        continue;
+      }
       meters += 1;
       const kind = element.closest('[data-viz]')?.getAttribute('data-viz');
       if (kind !== 'gauge' && kind !== 'ring') bars.push(`${describe(element)} is a meter outside a gauge or a ring`);
@@ -201,8 +257,8 @@ async function scan(page: Page): Promise<Scan> {
       // a long thin rectangle in an SVG that is data (a pattern's stripes are not)
       if (element.tagName.toLowerCase() === 'rect' && !element.closest('pattern, defs, clipPath, mask') && rect.width >= 3 * rect.height && rect.height <= 16 && rect.width >= 24) bars.push(`${describe(element)} is a long thin rectangle`);
     }
-    return { kinds, strays, bars: bars.slice(0, 12), meters };
-  }, RADIAL);
+    return { kinds, strays, bars: bars.slice(0, 12), meters, sliders };
+  }, VISUALS);
 }
 
 const STAMP = '2026-01-01T00:00:00.000Z';
@@ -273,19 +329,25 @@ test.describe('the admin Dashboard has no horizontal bar chart', () => {
     if (HARNESS && HAS_ADMIN_CREDS) expect(errors, 'console errors and uncaught errors').toEqual([]);
   });
 
-  test('the live data, System & operations open: every data visual is a gauge, a ring, a donut or a timeline, and no bar is drawn', async () => {
+  test('the live data, System & operations open: every data visual is a ring, a gauge, a donut, a timeline, a line, a dot chart or a row of dots, and no bar is drawn', async () => {
     await openSystem(page);
     await settled(page);
     const found = await scan(page);
-    expect(found.strays, 'visuals that are not radial or a timeline').toEqual([]);
+    expect(found.strays, 'visuals that are not one of the kinds').toEqual([]);
     expect(found.bars, 'horizontal bars').toEqual([]);
-    // what the tab holds of each kind (the inventory the report gives): the dials of the tiles, the events and the system, the rings of the parts, the donuts of the tiers, categories and venues, and the timeline
-    expect(found.kinds.gauge, 'dials').toBeGreaterThanOrEqual(18);
-    expect(found.kinds.ring, 'rings').toBeGreaterThanOrEqual(14);
+    // what the tab holds of each kind (the inventory the report gives): the gauges of System & operations; the rings (completeness, health and the sponsorship cards); the donuts of the tiers, categories and venues;
+    // the timelines (the next events and the pipeline); the lines (the forecast of the tile and of the panel, upcoming and past); the dot charts (the average ticket price and the events by date); the dots that count the records of each figure
+    expect(found.kinds.gauge, 'gauges').toBeGreaterThanOrEqual(4);
+    expect(found.kinds.ring, 'rings').toBeGreaterThanOrEqual(7);
     expect(found.kinds.donut, 'donuts').toBeGreaterThanOrEqual(3);
-    expect(found.kinds.timeline, 'timelines').toBeGreaterThanOrEqual(1);
-    expect(found.meters, 'every meter is a gauge or a ring').toBeGreaterThan(20);
-    expect(Object.keys(found.kinds).sort()).toEqual([...RADIAL].sort());
+    expect(found.kinds.timeline, 'timelines').toBeGreaterThanOrEqual(2);
+    expect(found.kinds.line, 'lines').toBeGreaterThanOrEqual(3);
+    expect(found.kinds.dots, 'dot charts').toBeGreaterThanOrEqual(2);
+    expect(found.kinds.pips, 'rows of dots, one for each part and card that counts records').toBeGreaterThanOrEqual(9);
+    expect(found.meters, 'every meter is a gauge or a ring').toBeGreaterThanOrEqual(11);
+    // the slider of the forecast's scenario is on the page, and it passed the scan (a name, three stops, an unfilled track)
+    expect(found.sliders, 'the scenario slider').toBeGreaterThanOrEqual(1);
+    expect(Object.keys(found.kinds).sort()).toEqual([...VISUALS].sort());
   });
 
   test('the pictures do not trap assistive technology: nothing hidden from it can take the focus, everything that can take it has a name, and a list holds only list items', async () => {
@@ -324,13 +386,15 @@ test.describe('the admin Dashboard has no horizontal bar chart', () => {
       const found = await scan(page);
       expect(found.strays, `${metric}: visuals that are not radial or a timeline`).toEqual([]);
       expect(found.bars, `${metric}: horizontal bars`).toEqual([]);
-      // an average is a dial for each row; what adds up is a donut
-      expect(await page.locator('[data-testid="bi-categories"] [data-viz="donut"]').count(), metric).toBe(metric === 'price' ? 0 : 1);
-      expect(await page.locator('[data-testid="bi-categories"] [data-viz="gauge"]').count(), metric).toBeGreaterThanOrEqual(metric === 'price' ? 2 : 0);
+      // an average and an estimate are a dot for each row on one axis of money; what adds up is a donut
+      const dotted = metric === 'price' || metric === 'forecast';
+      expect(await page.locator('[data-testid="bi-categories"] [data-viz="donut"]').count(), metric).toBe(dotted ? 0 : 1);
+      expect(await page.locator('[data-testid="bi-categories"] [data-viz="dots"]').count(), metric).toBe(dotted ? 1 : 0);
+      expect(await page.locator('[data-testid="bi-categories"] [data-part="dot"]').count(), metric).toBeGreaterThanOrEqual(dotted ? 2 : 0);
     }
   });
 
-  test('with sales, contracts and amounts recorded: the rings and the donuts of who the money comes from', async () => {
+  test('with sales, contracts and amounts recorded: the cards, the lines of the figures by event, the rings and the donuts of who the money comes from', async () => {
     const events: Event[] = [
       event('r-a', { price: 50, capacity: 200, ticketsSold: 150, ticketRevenue: 7200, status: 'past', category: 'Concert', venue: 'Hall A' }),
       event('r-b', { price: 40, capacity: 100, ticketsSold: 50, status: 'past', category: 'Theatre', venue: 'Hall B' }),
@@ -396,11 +460,36 @@ test.describe('the admin Dashboard has no horizontal bar chart', () => {
       rect.setAttribute('fill', '#C9A84C');
       svg.appendChild(rect);
       host.appendChild(svg);
+      // a range input whose track shows how far along something is is a progress bar; so is one with a name and a hundred stops, and one with no name
+      const style = document.createElement('style');
+      style.textContent = '.planted-range::-webkit-slider-runnable-track{background:linear-gradient(90deg,#C9A84C 40%,rgba(255,255,255,0.1) 40%);height:8px}';
+      host.appendChild(style);
+      const filledRange = document.createElement('input');
+      filledRange.type = 'range';
+      filledRange.className = 'planted-range';
+      filledRange.setAttribute('aria-label', 'Planted progress');
+      filledRange.min = '0';
+      filledRange.max = '2';
+      filledRange.step = '1';
+      host.appendChild(filledRange);
+      const fine = document.createElement('input');
+      fine.type = 'range';
+      fine.setAttribute('aria-label', 'Planted fine range');
+      host.appendChild(fine);
+      const unnamed = document.createElement('input');
+      unnamed.type = 'range';
+      unnamed.min = '0';
+      unnamed.max = '2';
+      unnamed.step = '1';
+      host.appendChild(unnamed);
     });
     const found = await scan(page);
     expect(found.bars.join('\n')).toContain('is 40% wide and filled');
     expect(found.bars.join('\n')).toContain('is a meter outside a gauge or a ring');
     expect(found.bars.join('\n')).toContain('is a long thin rectangle');
+    expect(found.bars.join('\n')).toContain('is a range input whose track is filled: that is a bar');
+    expect(found.bars.join('\n')).toContain('is a range input with 100 stops: a slider has a few');
+    expect(found.bars.join('\n')).toContain('is a range input with no name');
     expect(found.strays.join('\n')).toContain('data-viz="bar"');
   });
 });

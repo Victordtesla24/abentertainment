@@ -3,10 +3,10 @@
  * sizes the Dashboard is used at, for data that is bare, recorded, in two currencies and as wrong as it can be.
  *
  * What this pins: the completeness tile is no taller than the tile it replaced and leaves no void in its row (at 768, 1024, 1280 and 1366
- * px), its small beacons stand under their rings and never on an arc or on another control; the tile of the next event sits in the middle of
- * what its row gives it; the scale of a dial is under the arc's two feet and no word of the dial is written over another (the Estimate chip,
- * Low and High included, with one currency and with two); the number inside every ring is inside the hole of the ring; no piece of text on
- * the Dashboard is drawn over another; and no beacon is on top of another control.
+ * px), its small beacons stand beside the row of dots of their part and never on the ring or on another control; the tile of the next event
+ * sits in the middle of what its row gives it; the words of every chart's axes are inside the chart that holds them and no word of any chart
+ * is written over another (the Estimate chip, Low and High included, with one currency and with two); the number inside every ring is inside
+ * the hole of the ring; no piece of text on the Dashboard is drawn over another; and no beacon is on top of another control.
  */
 
 import { test, expect, type Browser, type Page } from '@playwright/test';
@@ -273,7 +273,7 @@ test.describe('what the Dashboard draws fits where it is drawn', () => {
     { width: 1366, height: 900, touch: false },
     { width: 390, height: 844, touch: true },
   ] satisfies Size[]) {
-    test(`at ${size.width} px a dial's scale is under its feet and no word of the Dashboard is drawn over another, with one currency and with two`, async ({ browser }) => {
+    test(`at ${size.width} px the words of every chart's axes are inside the chart and no word of the Dashboard is drawn over another, with one currency and with two`, async ({ browser }) => {
       await onScreen(browser, size, async (page) => {
         const problems: string[] = [];
         for (const [name, data] of SCENARIOS) {
@@ -282,24 +282,23 @@ test.describe('what the Dashboard draws fits where it is drawn', () => {
             const out: string[] = [];
             const root = document.getElementById('health-dashboard-content');
             if (!root) return ['there is no Dashboard'];
-            // the scale of every dial: two words, under the two feet of the arc, and above the readout when there is one under the dial
-            let scales = 0;
-            for (const scale of root.querySelectorAll('[data-part="scale"]')) {
-              scales += 1;
-              const dial = scale.parentElement?.getBoundingClientRect();
-              const words = [...scale.children].map((word) => word.getBoundingClientRect());
-              const picture = scale.previousElementSibling?.getBoundingClientRect();
-              const readout = scale.nextElementSibling?.getBoundingClientRect();
-              const where = scale.parentElement?.getAttribute('data-testid') ?? 'a dial';
-              if (!dial || words.length !== 2) {
-                out.push(`${where}: the scale is not two words`);
-                continue;
+            // the words of every chart's axes (money down the left, dates or money along the bottom): each is inside the chart that holds it, and none
+            // is above the top or below the bottom of that chart (a word that ran past its chart would be written over what is beside or under it)
+            let axes = 0;
+            for (const words of root.querySelectorAll('[data-part="words"]')) {
+              axes += 1;
+              const chart = words.parentElement?.getBoundingClientRect();
+              const where = words.parentElement?.getAttribute('data-testid') ?? words.parentElement?.parentElement?.getAttribute('data-testid') ?? 'a chart';
+              if (!chart) continue;
+              for (const word of words.children) {
+                const box = word.getBoundingClientRect();
+                if (box.width < 1) continue;
+                const text = (word.textContent ?? '').trim();
+                if (box.left < chart.left - 1 || box.right > chart.right + 1) out.push(`${where}: "${text}" runs past the side of the chart`);
+                if (box.top < chart.top - 1 || box.bottom > chart.bottom + 1) out.push(`${where}: "${text}" runs past the top or the bottom of the chart`);
               }
-              if (words[0].left < dial.left - 1 || words[1].right > dial.right + 1) out.push(`${where}: the scale runs past the dial`);
-              if (picture && picture.bottom > scale.getBoundingClientRect().top + 0.5) out.push(`${where}: the scale is over the picture of the dial`);
-              if (readout && readout.top < scale.getBoundingClientRect().bottom - 0.5) out.push(`${where}: the readout is over the scale`);
             }
-            if (scales === 0) out.push('no dial has a scale');
+            if (axes === 0) out.push('no chart has the words of an axis');
             // no piece of text is drawn over another (a box that holds text of its own, outside a box that holds the other)
             const boxes: Array<{ element: Element; text: string; left: number; top: number; right: number; bottom: number }> = [];
             for (const element of root.querySelectorAll('*')) {
@@ -365,7 +364,12 @@ test.describe('what the Dashboard draws fits where it is drawn', () => {
               const reach = Math.max(...[[left, top], [left, bottom], [right, top], [right, bottom]].map(([cornerX, cornerY]) => Math.hypot(cornerX - x, cornerY - y)));
               if (reach > hole + 0.5) out.push(`${ring.getAttribute('data-testid') ?? 'a ring'}: "${text.trim()}" reaches ${reach.toFixed(1)} px from the centre, the hole is ${hole.toFixed(1)} px`);
             }
-            if (rings < 10) out.push(`only ${rings} rings were found`);
+            // the rings that remain are the single shares of a whole: the completeness of the data, the health of the systems and the five cards of the sponsorship
+            const present = new Set([...document.querySelectorAll('#health-dashboard-content [data-viz="ring"]')].map((ring) => ring.getAttribute('data-testid')));
+            for (const id of ['tile-completeness-ring', 'tile-health-ring', 'bi-card-sponsors-ring', 'bi-card-events-with-sponsors-ring', 'bi-card-unlinked-sponsors-ring', 'bi-card-sponsor-contract-ring', 'bi-card-sponsor-revenue-ring']) {
+              if (!present.has(id)) out.push(`the ring ${id} was not found`);
+            }
+            if (rings < 7) out.push(`only ${rings} rings were found`);
             return out;
           });
           for (const line of found) problems.push(`${name}: ${line}`);

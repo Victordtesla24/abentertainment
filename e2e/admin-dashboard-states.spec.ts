@@ -272,12 +272,16 @@ test.describe('the admin Dashboard: loading, empty, failed and extreme data', ()
     expect(completeness.total).toBe(3);
     await expect(byId(page, 'tile-completeness-value')).toHaveText(formatPercent(completeness.ratio ?? 0));
     expect(await tipText(page, byId(page, 'tile-completeness-ring'))).toContain('0 of 3 required fields are recorded');
-    // the beacons name what is missing, the revenue dial says why there is no estimate, and the timeline has its one marker with its flags
+    // the beacons name what is missing, the revenue chart says why there is no estimate, and the timeline has its one marker with its flags
     await expect(byId(page, 'bi-hotspot-add-prices')).toHaveAttribute('aria-label', /^Add a ticket price to 1 upcoming event: 1 event, /);
     await expect(byId(page, 'bi-hotspot-add-capacity')).toHaveAttribute('aria-label', /^Add capacity to 1 upcoming event: 1 event, /);
     await expect(byId(page, 'bi-hotspot-add-ticket-links')).toHaveAttribute('aria-label', /^Add a ticket link to 1 upcoming event: 1 event, /);
-    await expect(byId(page, 'bi-forecast-row-evt-bare')).toContainText('No estimate');
-    await expect(byId(page, 'bi-forecast-dial-evt-bare')).toHaveAttribute('data-state', 'not-recorded');
+    // its mark is the ring of an event with no estimate, in a lane of its own under the axis (never a dot at zero), and its details say so in words
+    await expect(byId(page, 'bi-forecast-row-evt-bare')).toHaveAttribute('data-kind', 'none');
+    await expect(byId(page, 'bi-forecast-row-evt-bare')).toHaveAttribute('aria-label', 'A bare event: no estimate');
+    await expect(byId(page, 'bi-forecast-detail')).toContainText('No estimate');
+    await expect(byId(page, 'bi-forecast-events-chart').locator('[data-part="none"]')).toHaveCount(1);
+    await expect(byId(page, 'bi-forecast-events-chart').locator('[data-part="estimate"], [data-part="recorded"]')).toHaveCount(0);
     expect(await tipText(page, byId(page, 'bi-forecast-row-evt-bare'))).toContain('needs a price');
     await expect(byId(page, 'bi-timeline-marker-evt-bare')).toBeVisible();
     await expect(byId(page, 'bi-timeline-flags-evt-bare')).toBeAttached();

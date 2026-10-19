@@ -1,8 +1,9 @@
 /**
  * The Dashboard's charts, interacted with in a browser on the scratch-data dev server (see e2e/support/admin-bi-http.ts): one glass
- * tooltip on every mark (a dial, a needle, a tick, a dot, a slice of a donut, a ring, the health ring, a marker) that shows on hover,
- * on keyboard focus and on a tap and says what the table twin says; the same event lit in the revenue chart and on the timeline; hit
- * targets bigger than the marks (on touch an invisible 44 px area round each mark of a dial, and legend rows as tall as a finger); names
+ * tooltip on every mark (a dot of a timeline, a point of a line, a range, a dot of a dot chart, a slice of a donut, a ring, the health
+ * ring, a marker) that shows on hover, on keyboard focus and on a tap and says what the table twin says; the same event lit in the
+ * revenue chart and on the timeline; hit targets bigger than the marks (a stretch of the plot at least as tall as a finger round each
+ * mark, found by whichever mark is nearest, and legend rows as tall as a finger); names
  * written into a tooltip as text, never as markup; the switches, the toggles, the "i" popovers and the filter by keyboard; and the
  * timeline on a phone, where each event has a lane of its own. (A marker of the event pipeline opens a floating panel, not the tooltip:
  * the panel is pinned in detail by e2e/admin-dashboard-pipeline.spec.ts, and here by the same checks the tooltip had.)
@@ -153,17 +154,17 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await expect(tooltip(page)).toHaveCount(0);
   });
 
-  test('every mark has a tooltip: the dial and the tick of the tiles, the dots on the scale of days, the slices of a donut, the rows of its legend and the rings; a marker of the pipeline has its panel', async () => {
+  test('every mark has a tooltip: the line and the range of the tiles, the dots on the timeline, the points of a forecast, the events of a chart, the slices of a donut, the rows of its legend, the rings and the cards; a marker of the pipeline has its panel', async () => {
     const marks: Array<{ locator: Locator; panel: string; text: RegExp | string; arc?: boolean }> = [
-      { locator: byId(page, 'tile-forecast-range'), panel: 'tile-forecast', text: 'Estimated revenue' },
-      { locator: byId(page, 'tile-price-dial'), panel: 'tile-price', text: 'Average ticket price of your events' },
+      { locator: byId(page, 'tile-forecast-range'), panel: 'tile-forecast', text: 'Running total, expected' },
+      { locator: byId(page, 'tile-price-chart'), panel: 'tile-price', text: 'Average ticket price of your events' },
       { locator: byId(page, 'tile-price-mark-national'), panel: 'tile-price', text: 'National average, all categories, 2024' },
       { locator: byId(page, 'tile-upcoming-horizon').locator('[role="img"]').first(), panel: 'tile-upcoming', text: VINOD.title },
       { locator: byId(page, 'tile-completeness-ring'), panel: 'tile-completeness', text: 'Data completeness' },
-      { locator: byId(page, 'tile-completeness-past-sales-ring'), panel: 'tile-completeness', text: 'Ticket sales on past events' },
-      { locator: byId(page, 'bi-forecast-upcoming-dial-AUD'), panel: 'bi-forecast', text: 'Estimated revenue' },
+      { locator: byId(page, 'tile-completeness-past-sales-detail'), panel: 'tile-completeness', text: 'Ticket sales on past events' },
+      { locator: byId(page, `bi-forecast-upcoming-chart-AUD-point-${VINOD.id}`), panel: 'bi-forecast', text: VINOD.title },
       { locator: byId(page, `bi-forecast-row-${VINOD.id}`), panel: 'bi-forecast', text: VINOD.title },
-      { locator: byId(page, 'bi-card-ticket-revenue-ring'), panel: 'bi-forecast', text: 'Ticket revenue (recorded)' },
+      { locator: byId(page, 'bi-card-ticket-revenue-detail'), panel: 'bi-forecast', text: 'Ticket revenue (recorded)' },
       { locator: byId(page, 'bi-tier-segment-platinum'), panel: 'bi-sponsors', text: 'platinum', arc: true },
       { locator: byId(page, 'bi-tier-silver'), panel: 'bi-sponsors', text: 'silver' },
       { locator: byId(page, 'bi-card-unlinked-sponsors-ring'), panel: 'bi-sponsors', text: 'Not linked to any event' },
@@ -252,7 +253,7 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await byId(page, 'bi-forecast-view-toggle').click();
   });
 
-  test('keyboard focus shows the same panel as hover, Escape takes it away, and a marker and a dial are reachable by Tab', async () => {
+  test('keyboard focus shows the same panel or tooltip as hover, Escape takes it away, and a marker and a mark of a chart are reachable by Tab', async () => {
     const marker = byId(page, `bi-timeline-marker-${NIGHT_SYDNEY.id}`);
     await reveal(marker);
     await marker.focus();
@@ -278,14 +279,19 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
     await expect(panel(page)).not.toContainText(LIVE.pipeline[2].title);
-    // the dials of the revenue chart are focusable the same way
-    const bar = byId(page, `bi-forecast-dial-${VINOD.id}`);
-    await bar.focus();
+    // the events of the revenue chart and the points of its forecast are focusable the same way
+    const mark = byId(page, `bi-forecast-row-${VINOD.id}`);
+    await mark.focus();
     await expect(tooltip(page)).toContainText(VINOD.title);
+    await page.keyboard.press('Escape');
+    const point = byId(page, `bi-forecast-upcoming-chart-AUD-point-${VINOD.id}`);
+    await point.focus();
+    await expect(tooltip(page)).toContainText(VINOD.title);
+    await expect(tooltip(page)).toContainText('Running total, expected');
     await page.keyboard.press('Escape');
   });
 
-  test('hovering an event lights it in the revenue chart and on the timeline, and moving away puts the light out', async () => {
+  test('hovering an event lights it in the revenue chart, the forecast line and on the timeline, and moving away puts the light out', async () => {
     const marker = byId(page, `bi-timeline-marker-${NIGHT_SYDNEY.id}`);
     const row = byId(page, `bi-forecast-row-${NIGHT_SYDNEY.id}`);
     await expect(marker).not.toHaveAttribute('data-active', 'true');
@@ -339,9 +345,10 @@ test.describe('the Dashboard\'s charts: tooltips, highlighting, hit targets, key
     await expect(panel(page)).toContainText(hostileVenue);
     expect(await panel(page).locator('img, b, script, i').count()).toBe(0);
     expect(await page.evaluate(() => (window as unknown as { __owned?: number }).__owned)).toBeUndefined();
-    // the same names in the revenue chart's row, as text
-    await expect(byId(page, `bi-forecast-row-${VINOD.id}`)).toContainText(hostile);
-    expect(await byId(page, `bi-forecast-row-${VINOD.id}`).locator('img, b, script').count()).toBe(0);
+    // the same names under the revenue chart (the details of the next event) and in the mark's own words, as text
+    await expect(byId(page, 'bi-forecast-detail')).toContainText(hostile);
+    expect(await byId(page, 'bi-forecast-detail').locator('img, b, script').count()).toBe(0);
+    await expect(byId(page, `bi-forecast-row-${VINOD.id}`)).toHaveAttribute('aria-label', new RegExp(hostile.slice(0, 14).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     await page.mouse.move(5, 5);
     // and in a category row and the category chip of the breakdowns
     await expect(byId(page, 'bi-categories')).toContainText('<i>Cat</i>');
@@ -472,7 +479,7 @@ test.describe('on a touch screen', () => {
     if (HARNESS && HAS_ADMIN_CREDS) expect(errors, 'console errors and uncaught errors').toEqual([]);
   });
 
-  test('a tap on a marker shows its panel and keeps it until the next tap elsewhere; a tap on a dial of the revenue chart shows its tooltip the same way', async () => {
+  test('a tap on a marker shows its panel and keeps it until the next tap elsewhere; a tap on an event of the revenue chart and on a point of its forecast shows its tooltip the same way', async () => {
     const marker = byId(page, `bi-timeline-marker-${NIGHT_SYDNEY.id}`);
     await reveal(marker);
     await marker.tap();
@@ -494,9 +501,17 @@ test.describe('on a touch screen', () => {
 
     const row = byId(page, `bi-forecast-row-${VINOD.id}`);
     await reveal(row);
-    await row.locator('[role="img"]').first().tap();
+    await row.tap();
     await expect(tooltip(page)).toContainText(VINOD.title);
     await expect(tooltip(page)).toContainText(`Expected${EST(VINOD.forecast?.revenue.expected ?? 0)}`);
+    await page.keyboard.press('Escape');
+    await expect(tooltip(page)).toHaveCount(0);
+    const point = byId(page, `bi-forecast-upcoming-chart-AUD-point-${NIGHT_SYDNEY.id}`);
+    await reveal(point);
+    await point.tap();
+    await expect(tooltip(page)).toContainText(NIGHT_SYDNEY.title);
+    await expect(tooltip(page)).toContainText('Running total, expected');
+    await expectOnScreen(tooltip(page));
     await page.keyboard.press('Escape');
     await expect(tooltip(page)).toHaveCount(0);
   });
@@ -516,26 +531,37 @@ test.describe('on a touch screen', () => {
     }
   });
 
-  test('on touch a mark of a dial can be pressed anywhere in a 44 px area round it, and every row of a legend is as tall as a finger', async () => {
-    // an invisible disk round each dot and tick (the dial looks as it did): at least 44 px each way
-    for (const dial of ['tile-upcoming-horizon', 'tile-price-dial']) {
-      await reveal(byId(page, dial));
-      const areas = byId(page, dial).locator('[data-part="touch-area"]');
-      expect(await areas.count(), `${dial} has marks to press`).toBeGreaterThan(0);
-      for (const size of await areas.evaluateAll((elements) => elements.map((element) => ({ width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height })))) {
-        expect(size.width, `${dial}: a touch area is 44 px wide`).toBeGreaterThanOrEqual(43.5);
-        expect(size.height, `${dial}: a touch area is 44 px tall`).toBeGreaterThanOrEqual(43.5);
-      }
-      // and the mark itself (the stop of the keyboard that is read out) reaches as far as its area, so it is no small target either
-      for (const size of await byId(page, dial).locator('[data-mark]').evaluateAll((elements) => elements.map((element) => ({ width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height })))) {
-        expect(size.width, `${dial}: a mark is 44 px wide`).toBeGreaterThanOrEqual(43.5);
-        expect(size.height, `${dial}: a mark is 44 px tall`).toBeGreaterThanOrEqual(43.5);
-      }
+  test('on touch every mark of the timeline, the price chart and the forecast answers for a stretch of the plot as tall as a finger, or for what is nearest to it where marks sit in lanes (and whichever mark is nearest is the one found), and every row of a legend is as tall as a finger', async () => {
+    // the dots of the strip may be in lanes (dates close together), so each answers for the part of the strip that is nearer to it than to any other: the middle of every dot is its own
+    await reveal(byId(page, 'tile-upcoming-strip'));
+    const own = await byId(page, 'tile-upcoming-strip').locator('[data-part="dot"]').evaluateAll((dots) =>
+      dots.map((dot) => {
+        const box = (dot.querySelector('circle') as SVGGraphicsElement).getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return { id: dot.getAttribute('data-for'), hit: hit?.closest('[data-mark]')?.getAttribute('data-mark') ?? null };
+      }),
+    );
+    expect(own.length, 'the strip has a dot for each upcoming event').toBe(LIVE.pipeline.filter((row) => row.daysToGo !== null && row.daysToGo >= 0).length);
+    for (const dot of own) expect(dot.hit, `the middle of the dot of ${dot.id} is its own`).toBe(dot.id);
+    // each mark of the charts whose marks are in a row is a stretch of its plot: at least 44 px tall, and the stretches of a chart fill it from end to end with no gap between them
+    for (const chart of ['tile-forecast-range', 'bi-forecast-upcoming-chart-AUD', 'bi-forecast-events-chart']) {
+      await reveal(byId(page, chart));
+      const stretches = await byId(page, chart).locator('[data-mark]').evaluateAll((elements) =>
+        elements.map((element) => {
+          const box = element.getBoundingClientRect();
+          return { left: box.left, right: box.right, height: box.height };
+        }),
+      );
+      expect(stretches.length, `${chart} has marks to press`).toBeGreaterThan(0);
+      for (const stretch of stretches) expect(stretch.height, `${chart}: a mark is 44 px tall`).toBeGreaterThanOrEqual(43.5);
+      for (let index = 1; index < stretches.length; index += 1) expect(stretches[index].left, `${chart}: no gap between stretches`).toBeCloseTo(stretches[index - 1].right, 1);
     }
-    // pressing 18 px from the middle of the next event's dot (more than its drawn radius, inside its area) shows that event
-    const next = byId(page, 'tile-upcoming-horizon').locator(`[data-mark="${VINOD.id}"]`);
-    const middle = await next.evaluate((element) => {
-      const dot = element.querySelector('circle:last-of-type') as SVGGraphicsElement;
+    // the price chart's dot and its range are one stretch the whole width of the plot, and the national average is another round its line
+    await reveal(byId(page, 'tile-price-chart'));
+    for (const id of ['tile-price-chart-hit', 'tile-price-mark-national']) expect((await byId(page, id).boundingBox())?.height ?? 0, id).toBeGreaterThanOrEqual(43.5);
+    // pressing 18 px from the middle of the next event's dot (more than its drawn radius) shows that event: the nearest mark is found, not only the one pressed dead centre
+    const next = byId(page, 'tile-upcoming-strip').locator(`[data-part="dot"][data-for="${VINOD.id}"] circle`);
+    const middle = await next.evaluate((dot) => {
       const box = dot.getBoundingClientRect();
       return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
     });
@@ -549,14 +575,13 @@ test.describe('on a touch screen', () => {
     }
   });
 
-  test('a tap on the middle of any dot of the next-events dial shows that event, however close its neighbours are (a dot\'s area never takes the tap meant for another)', async () => {
-    const dial = byId(page, 'tile-upcoming-horizon');
-    await reveal(dial);
-    const dots = await dial.locator('[data-mark]').evaluateAll((elements) =>
+  test('a tap on the middle of any dot of the timeline shows that event, however close its neighbours are (a dot belongs to the stretch of the plot it is nearest to)', async () => {
+    const strip = byId(page, 'tile-upcoming-strip');
+    await reveal(strip);
+    const dots = await strip.locator('[data-part="dot"]').evaluateAll((elements) =>
       elements.map((element) => {
-        const dot = element.querySelector('circle:last-of-type') as SVGGraphicsElement;
-        const box = dot.getBoundingClientRect();
-        return { id: element.getAttribute('data-mark') ?? '', x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        const box = (element.querySelector('circle') as SVGGraphicsElement).getBoundingClientRect();
+        return { id: element.getAttribute('data-for') ?? '', x: box.left + box.width / 2, y: box.top + box.height / 2 };
       }),
     );
     expect(dots.length, 'every upcoming event has its dot').toBe(LIVE.pipeline.filter((row) => row.daysToGo !== null && row.daysToGo >= 0).length);
@@ -569,25 +594,25 @@ test.describe('on a touch screen', () => {
     }
   });
 
-  test('dots of events a day apart crowd the same few degrees of the arc: a tap on the middle of each still shows its own event', async () => {
+  test('dots of events a day apart crowd the same few pixels of the timeline: they go to lanes above and below the axis, and a tap on the middle of each still shows its own event', async () => {
     const dates = ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25', '2027-03-01'];
     writeEvents(dates.map((date, place) => ({ ...BARE_EVENT, id: `evt-dot-${place}`, title: `Dot ${place}`, date })));
     writeSponsors([]);
     await openDashboard(page);
     await settled(page);
-    const dial = byId(page, 'tile-upcoming-horizon');
-    await reveal(dial);
-    const dots = await dial.locator('[data-mark]').evaluateAll((elements) =>
+    const strip = byId(page, 'tile-upcoming-strip');
+    await reveal(strip);
+    const dots = await strip.locator('[data-part="dot"]').evaluateAll((elements) =>
       elements.map((element) => {
-        const dot = element.querySelector('circle:last-of-type') as SVGGraphicsElement;
-        const box = dot.getBoundingClientRect();
-        return { id: element.getAttribute('data-mark') ?? '', x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        const box = (element.querySelector('circle') as SVGGraphicsElement).getBoundingClientRect();
+        return { id: element.getAttribute('data-for') ?? '', x: box.left + box.width / 2, y: box.top + box.height / 2 };
       }),
     );
     expect(dots.length, 'every event has its dot').toBe(dates.length);
-    // the dots are close enough for their 44 px areas to overlap: that is the case this is about
+    // the dots are close enough for their drawn discs to touch if they were on one line: that is the case this is about, and they are in more than one lane
     const near = Math.min(...dots.flatMap((dot, place) => dots.slice(place + 1).map((other) => Math.hypot(dot.x - other.x, dot.y - other.y))));
     expect(near, 'two dots are closer than a finger').toBeLessThan(40);
+    expect(new Set(dots.map((dot) => Math.round(dot.y))).size, 'the crowd is in lanes').toBeGreaterThan(2);
     for (const dot of dots) {
       await page.touchscreen.tap(dot.x, dot.y);
       await expect(tooltip(page), `a tap on the middle of ${dot.id}`).toContainText(`Dot ${dot.id.replace('evt-dot-', '')}`);
