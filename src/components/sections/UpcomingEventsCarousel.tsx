@@ -510,6 +510,17 @@ function useCarouselMotion(
  */
 const CARD_FOCUS_RING =
   'has-[[data-card-link]:focus-visible]:outline has-[[data-card-link]:focus-visible]:outline-2 has-[[data-card-link]:focus-visible]:outline-offset-2 has-[[data-card-link]:focus-visible]:outline-[#C9A84C] has-[[data-card-link]:focus-visible]:shadow-[0_0_0_4px_rgba(201,168,76,0.15)]';
+/**
+ * The card's inline style. backdrop-filter is switched off: this card moves, a blur behind a moving card is redrawn every frame, and
+ * what is behind it is flat black. .glass-card transitions every property for 0.6 s, the focus ring included: it would start white
+ * (the text colour) and take 0.6 s to turn gold. The card transitions what its hover changes (as the sponsor cards do: the lift, the
+ * glow, the background and the hairline), with the glass card's duration and easing, so the ring is gold from the first frame.
+ */
+const CARD_STYLE = {
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
+  transitionProperty: 'background-color, border-color, box-shadow, transform',
+} as const;
 const LINK_FOCUS_QUIET = 'supports-[selector(:has(*))]:focus-visible:outline-none! supports-[selector(:has(*))]:focus-visible:shadow-none!';
 
 function CalendarIcon() {
@@ -520,9 +531,10 @@ function CalendarIcon() {
   );
 }
 
+/** Drawn at the top of its row, on the first line of the venue (16 px on a 24 px line: 4 px down), as a venue can take up to three lines. */
 function PinIcon() {
   return (
-    <svg className="w-4 h-4 text-[#C9A84C]/50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="mt-1 w-4 h-4 text-[#C9A84C]/50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
@@ -536,10 +548,9 @@ function EventCard({ event, staticEventSlugs, copy }: { event: CarouselEvent; st
   // The copies are only there to keep the row full: out of the tab order, though a click on one still opens the event.
   const tabIndex = copy ? -1 : undefined;
   return (
-    // backdrop-filter is switched off: this card moves, a blur behind a moving card is redrawn every frame, and what is behind it is flat black.
     <div
       className={`group glass-card hover-shine relative flex h-full flex-col overflow-hidden hover:shadow-[0_12px_50px_rgba(201,168,76,0.1)] ${CARD_FOCUS_RING}`}
-      style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
+      style={CARD_STYLE}
     >
       {/* Poster — the whole poster (object-contain), never cropped, like every other event card; a 4:3 frame that grows with the card */}
       <div className="relative aspect-[4/3] shrink-0 overflow-hidden bg-gradient-to-br from-[#111] to-[#0A0A0A]">
@@ -562,14 +573,22 @@ function EventCard({ event, staticEventSlugs, copy }: { event: CarouselEvent; st
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/30 to-transparent opacity-80" />
-        {event.category && (
-          <div className="absolute top-4 right-4 px-3 py-1.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-xs font-body font-bold uppercase tracking-wider shadow-lg">
-            {event.category}
-          </div>
-        )}
-        {badge && (
-          <div className={`absolute top-4 left-4 px-3 py-1.5 text-xs font-body font-bold uppercase tracking-wider shadow-lg ${badge.className}`}>
-            {badge.label}
+        {/* The ticket status at the top left, the category at the top right. Where the two do not fit side by side (a three-genre
+            category and a status are wider together than the poster of a phone card) the category drops under the status, still on
+            the right, and is never drawn over it; each badge alone keeps its own corner. The category comes first in the markup, so
+            a screen reader reads it first, as it always has; `order` only changes where each is drawn. */}
+        {(event.category || badge) && (
+          <div className="absolute inset-x-4 top-4 flex flex-wrap items-start gap-2">
+            {event.category && (
+              <div className="order-2 ml-auto max-w-full px-3 py-1.5 bg-gradient-to-r from-[#C9A84C] to-[#D4B65C] text-black text-xs font-body font-bold uppercase tracking-wider shadow-lg [overflow-wrap:anywhere]">
+                {event.category}
+              </div>
+            )}
+            {badge && (
+              <div className={`order-1 px-3 py-1.5 text-xs font-body font-bold uppercase tracking-wider shadow-lg ${badge.className}`}>
+                {badge.label}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -595,10 +614,16 @@ function EventCard({ event, staticEventSlugs, copy }: { event: CarouselEvent; st
               <span>{date}</span>
             </div>
           )}
+          {/* The whole venue, as the events page shows it: the end of the address (suburb, state, postcode) says where the event is.
+              The longest address the site lists (75 characters, 590 px of text at this size) takes three lines of a phone card (320 to
+              414 px: its text column is 204 to 286 px wide) and two from 768 px up. A longer one is cut there; the whole address stays in
+              the markup and in the span's title. */}
           {event.venue && (
-            <div className="flex items-center gap-3 text-white/60 text-base font-body">
+            <div className="flex items-start gap-3 text-white/60 text-base font-body">
               <PinIcon />
-              <span className="min-w-0 truncate">{event.venue}</span>
+              <span className="min-w-0 line-clamp-3 md:line-clamp-2" title={event.venue}>
+                {event.venue}
+              </span>
             </div>
           )}
         </div>

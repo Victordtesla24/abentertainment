@@ -158,6 +158,50 @@ test.describe('accessibility (axe-core)', () => {
     });
   }
 
+  // The ring around a card that keyboard focus has reached is the site's gold ring (2 px, offset 2 px) from the very first frame, like
+  // every other focusable element: the card's own glass style transitions what its hover changes, not the outline.
+  test("the card's focus ring is the gold ring from the first frame", async ({ page }) => {
+    await open(page, '/', [1, 2, 3, 4, 5].map((i) => event(i)));
+    await page.locator('#upcoming-events').scrollIntoViewIfNeeded();
+    await page.mouse.move(2, 2);
+    await page.evaluate(() => {
+      const heading = document.querySelector('#upcoming-events h2') as HTMLElement;
+      heading.tabIndex = -1;
+      heading.focus();
+      const w = window as unknown as { __ring: string[][] };
+      w.__ring = [];
+      const card = document.querySelector('[data-event-list="home"] > li:not([data-carousel-clone]) > div') as HTMLElement;
+      document.addEventListener(
+        'focusin',
+        () => {
+          const start = performance.now();
+          const frame = () => {
+            const style = getComputedStyle(card);
+            w.__ring.push([String(Math.round(performance.now() - start)), style.outlineStyle, style.outlineWidth, style.outlineColor, style.outlineOffset]);
+            if (performance.now() - start < 700) requestAnimationFrame(frame);
+          };
+          requestAnimationFrame(frame);
+        },
+        { once: true },
+      );
+    });
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(1000);
+    expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-card-link') && Boolean(document.activeElement.closest('[data-event-list="home"] > li:first-child')))).toBe(true);
+    const ring = await page.evaluate(() => (window as unknown as { __ring: string[][] }).__ring);
+    expect(ring.length).toBeGreaterThanOrEqual(3);
+    for (const [at, style, width, color, offset] of ring) {
+      expect([style, width, color, offset], `the ring ${at} ms after the focus`).toEqual(['solid', '2px', 'rgb(201, 168, 76)', '2px']);
+    }
+    // The card still eases its hover (the lift and the glow) as the glass card does.
+    const transition = await page.evaluate(() => {
+      const style = getComputedStyle(document.querySelector('[data-event-list="home"] > li:not([data-carousel-clone]) > div') as HTMLElement);
+      return { properties: style.transitionProperty.split(',').map((name) => name.trim()), duration: style.transitionDuration };
+    });
+    expect(transition.properties).toEqual(expect.arrayContaining(['transform', 'box-shadow']));
+    expect(transition.duration.split(',').map((value) => value.trim())).toContain('0.6s');
+  });
+
   // From 768 px up the next card peeks into the row by a quarter to three quarters of itself. A card's title and "Get Tickets" must be
   // brought whole into the row when the keyboard reaches them: a browser scrolls a focused element into view only when it is entirely
   // out of sight, so a link that is half in the peek would otherwise keep its label and its focus ring cut off by the row's edge.
@@ -250,11 +294,16 @@ test.describe('accessibility (axe-core)', () => {
       event(3, { ticketStatus: 'sold_out', category: 'Concert' }),
     ]);
     await page.locator('#upcoming-events').scrollIntoViewIfNeeded();
+    // The badges are found by what they are, not by how the markup holds them: the boxes over the poster that carry the category or
+    // the ticket status in capitals (a box that holds the two badges is not a badge, and is not measured). The list of labels below
+    // fails if one is missing or if anything else is picked up.
     const badges = await page.evaluate(() =>
-      [...document.querySelectorAll('[data-event-list="home"] > li:not([data-carousel-clone]) div.absolute.top-4')].map((element) => {
-        const style = getComputedStyle(element);
-        return { text: (element.textContent ?? '').trim(), color: style.color, backgroundColor: style.backgroundColor, backgroundImage: style.backgroundImage };
-      }),
+      [...document.querySelectorAll('[data-event-list="home"] > li:not([data-carousel-clone]) > div > div:first-child *')]
+        .filter((element) => element.children.length === 0 && (element.textContent ?? '').trim() !== '' && getComputedStyle(element).textTransform === 'uppercase' && !element.closest('[aria-hidden="true"]'))
+        .map((element) => {
+          const style = getComputedStyle(element);
+          return { text: (element.textContent ?? '').trim(), color: style.color, backgroundColor: style.backgroundColor, backgroundImage: style.backgroundImage };
+        }),
     );
     expect(badges.map((badge) => badge.text).sort()).toEqual(['Comedy', 'Concert', 'On Sale Now', 'Selling Fast', 'Sold Out', 'Theatre']);
     const ratios: string[] = [];
