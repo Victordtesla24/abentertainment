@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, memo, useMemo } from 'react';
+import { Fragment, memo, useMemo, useState } from 'react';
 import type { Event } from '@/lib/data';
 import type { VenueReference } from '@/lib/bi-reference';
 import {
@@ -18,28 +18,35 @@ import {
   type AdminTab,
   type BiReference,
   type ForecastStat,
-  type PipelineRow,
+  type ForecastTotal,
 } from '@/lib/admin-bi';
 import { GOLD_A, WHITE } from './brand';
-import { describeLeftOut, describeSellThrough, EstimateLegend, noEstimateReason, scenarioLabels, SourceLink, theseEvents } from './biText';
-import { LegendSwatch, moneyFigure, NoFigure } from './chartParts';
-import { niceScale } from './chartMath';
-import { Dial, FIGURE } from './dial';
+import { describeLeftOut, EstimateLegend, scenarioLabels, SourceLink, theseEvents } from './biText';
+import { moneyFigure, NoFigure } from './chartParts';
+import { FIGURE } from './dial';
 import { HotspotNotes, Hotspots, PanelBeacons, scrollToTop, useActions } from './hotspots';
 import { Icon } from './icons';
-import { CountUp } from './motion';
+import { CountUp, useDashMotion } from './motion';
 import { PopoverText } from './popover';
-import { primaryCurrency } from './selectors';
-import { StatRing } from './statRing';
-import { TipBody, useChartTip, withActive } from './tooltip';
+import { nextEvent, primaryCurrency } from './selectors';
+import { TipBody, useChartTip, type ChartTipControls } from './tooltip';
 import { Chip, ChartSection, DataTable, EmptyNote, EstimateChip, buttonClass, type TableColumn } from './ui';
+import { EventRange, datedMarks } from './charts/EventRange';
+import { ForecastLine } from './charts/ForecastLine';
+import { ChartKey } from './charts/legend';
+import { ScenarioSlider } from './charts/ScenarioSlider';
+import { Spark } from './charts/Spark';
+import { StatCard } from './charts/StatCard';
+import { entriesFromEvents, entriesFromPast, entriesFromPipeline, eventMarks, forecastSeries, markTop, sparkSeries, type ForecastEntry, type Scenario, type SparkMetric, type SparkPoint } from './charts/series';
+import { eventMarkLabel, eventMarkTip, forecastPointLabel, forecastPointTip } from './charts/tips';
 
 /**
- * REVENUE & FORECAST: the estimate for the upcoming and the past events as a needle on a scale with its range hatched, each event as a
- * small dial on one shared scale, and what is recorded so far as rings that say how many events each figure stands on. An estimate
- * is hatched and marked "Estimate"; a record is solid; the two are never added together; a figure that is not recorded is an empty
- * ring and "Not recorded", never a zero. The method, the legend and the sources are behind the panel's "i", the figures behind each
- * mark are in its tooltip, and every mark has its row in the table twin.
+ * REVENUE & FORECAST: what the upcoming and the past events may take as a line (what the events add up to, one step up on the day of each,
+ * inside a hatched band from the low to the high estimate, under the scenario the reader chose), each upcoming event on its date with its range
+ * (a hatched range and its expected figure, a record, or a ring with no estimate), and what is recorded so far as cards that say how many events
+ * each figure stands on. An estimate is hatched and marked "Estimate"; a record is solid; the two are never added together; a figure that is not
+ * recorded is "Not recorded" with a row of empty dots, never a zero. The method, the legend and the sources are behind the panel's "i", the
+ * figures behind each mark are in its tooltip, and every mark has its row in the table twin.
  */
 
 interface RevenueForecastProps {
@@ -56,17 +63,83 @@ interface RevenueForecastProps {
 const TICKET_STATUS = { available: 'Available', selling_fast: 'Selling fast', sold_out: 'Sold out' } as const;
 const label11 = 'font-body text-[11px] font-bold uppercase tracking-[0.12em]';
 
+/** What each scenario is called in a word, for the legend and the figure's caption, and the model's name for it. */
+const SCENARIO_WORD: Record<Scenario, string> = { low: 'low', expected: 'expected', high: 'high' };
+
 // ─── The two forecasts: upcoming and past ────────────────────────────────────
 
+interface BlockProps {
+  title: string;
+  testId: string;
+  stat: ForecastStat;
+  /** The events of the block the model has an estimate for, in any order. */
+  entries: readonly ForecastEntry[];
+  labels: readonly [string, string, string];
+  scenario: Scenario;
+  todayDay: number | null;
+  tip: ChartTipControls;
+  activeId: string | null;
+  onActive: (id: string | null) => void;
+  hotspot?: React.ReactNode;
+  reserve?: boolean;
+}
+
+/** One currency of one forecast: the figure of the chosen scenario counting up, the low and the high, and the line of what the events add up to. */
+function CurrencyForecast({ entry, block }: { entry: ForecastTotal; block: BlockProps }) {
+  const { testId, title, stat, entries, labels, scenario, todayDay, tip, activeId, onActive } = block;
+  const { low, expected, high } = entry.revenue;
+  const series = useMemo(() => forecastSeries(entries, entry.currency), [entries, entry.currency]);
+  const figure = scenario === 'low' ? low : scenario === 'high' ? high : expected;
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-x-5 gap-y-2">
+        <div>
+          <CountUp value={figure} format={(value) => formatEstimate(value, entry.currency)} className={`block text-4xl ${FIGURE}`} testId={`${testId}-figure-${entry.currency}`} />
+          <span className="mt-1.5 inline-flex items-center gap-2 font-body text-xs" style={{ color: WHITE.a65 }}>
+            {SCENARIO_WORD[scenario]}
+            {stat.totals.length > 1 ? ` (${entry.currency})` : ''}
+            <EstimateChip />
+          </span>
+        </div>
+        <div className="flex gap-x-5 font-body text-xs" style={{ color: WHITE.a65 }}>
+          <span data-testid={`${testId}-low-${entry.currency}`}>
+            Low <span className="font-bold text-white">{formatEstimate(low, entry.currency)}</span>
+          </span>
+          <span data-testid={`${testId}-high-${entry.currency}`}>
+            High <span className="font-bold text-white">{formatEstimate(high, entry.currency)}</span>
+          </span>
+        </div>
+      </div>
+      {series.points.length > 0 ? (
+        <ForecastLine
+          testId={`${testId}-chart-${entry.currency}`}
+          label={`${title}: estimated revenue from ${formatEstimate(low, entry.currency)} to ${formatEstimate(high, entry.currency)}, expected ${formatEstimate(expected, entry.currency)}, built up event by event`}
+          points={series.points}
+          currency={entry.currency}
+          scenario={scenario}
+          todayDay={todayDay}
+          tip={tip}
+          describe={(point) => ({ label: forecastPointLabel(point, entry.currency), content: () => forecastPointTip(point, entry.currency, labels, stat) })}
+          activeId={activeId}
+          onActive={onActive}
+        />
+      ) : null}
+      {series.undated > 0 ? (
+        <p data-testid={`${testId}-undated-${entry.currency}`} className="font-body text-[11px]" style={{ color: WHITE.a50 }}>
+          {series.undated} {series.undated === 1 ? 'event has no date that can be read: it is in these figures and the table, not on the line' : 'events have no date that can be read: they are in these figures and the table, not on the line'}.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /**
- * One forecast dial with its title. The block's beacon sits in the title's row, after the title, in the flow: a beacon floating over the dial
- * would cover a corner of it (and take the touches meant for it). `reserve` gives both blocks of the panel the height of that row, so the two
- * dials stay level whichever of them has the beacon.
+ * One forecast with its title. The block's beacon sits in the title's row, after the title, in the flow: a beacon floating over the chart would cover
+ * a corner of it (and take the touches meant for it). `reserve` gives both blocks of the panel the height of that row, so the two charts stay level
+ * whichever of them has the beacon.
  */
-function ForecastGauge({ title, testId, stat, labels, hotspot, reserve = false }: { title: string; testId: string; stat: ForecastStat; labels: [string, string, string]; hotspot?: React.ReactNode; reserve?: boolean }) {
-  const tip = useChartTip();
-  const total = stat.totals[0];
-  const scale = total ? niceScale(total.revenue.high, 5).max : 1;
+function ForecastBlock(block: BlockProps) {
+  const { title, testId, stat, hotspot, reserve = false } = block;
   return (
     <div data-testid={testId} className="relative min-w-0">
       <div className={`flex flex-wrap items-center gap-x-3 ${reserve ? 'min-h-11' : ''}`}>
@@ -82,54 +155,13 @@ function ForecastGauge({ title, testId, stat, labels, hotspot, reserve = false }
           No estimate yet for {theseEvents(stat.events)}. {describeLeftOut(stat)}. Enter Price and Capacity on each event (Events tab).
         </EmptyNote>
       ) : (
-        <div className={`${reserve ? 'mt-1' : 'mt-3'} space-y-6`}>
-          {stat.totals.map((entry) => {
-            const { low, expected, high } = entry.revenue;
-            const leftOut = describeLeftOut(stat);
-            return (
-              <div key={entry.currency} className="flex flex-col items-center gap-3">
-                <Dial
-                  ratio={expected / scale}
-                  band={{ from: low / scale, to: high / scale }}
-                  needle
-                  hatched
-                  divisions={4}
-                  scale={[formatMoney(0, entry.currency), formatMoney(scale, entry.currency)]}
-                  width={260}
-                  testId={`${testId}-dial-${entry.currency}`}
-                  label={`${title}: estimated revenue from ${formatEstimate(low, entry.currency)} to ${formatEstimate(high, entry.currency)}, expected ${formatEstimate(expected, entry.currency)}`}
-                  valueText="an estimate, not a record"
-                  tip={tip.bind(`${testId}-range-${entry.currency}`, () => (
-                    <TipBody
-                      title="Estimated revenue"
-                      subtitle={`${stat.forecast} of ${stat.events} ${stat.events === 1 ? 'event' : 'events'}`}
-                      rows={[
-                        { label: labels[0], value: formatEstimate(low, entry.currency), swatch: 'hatch' },
-                        { label: labels[1], value: formatEstimate(expected, entry.currency), swatch: 'hatch' },
-                        { label: labels[2], value: formatEstimate(high, entry.currency), swatch: 'hatch' },
-                      ]}
-                      note={`An estimate, not a record. Estimated for ${stat.forecast} of ${stat.events} ${stat.events === 1 ? 'event' : 'events'}${stat.referenceCapacity > 0 ? `, ${stat.referenceCapacity} of them on the public capacity of their venue` : ''}${leftOut ? `. Not estimated: ${leftOut}` : ''}.`}
-                    />
-                  ))}
-                >
-                  <CountUp value={expected} format={(value) => formatEstimate(value, entry.currency)} className={`block text-4xl ${FIGURE}`} testId={`${testId}-expected-${entry.currency}`} />
-                  <span className="mt-1.5 inline-flex items-center gap-2 font-body text-xs" style={{ color: WHITE.a65 }}>
-                    expected{stat.totals.length > 1 ? ` (${entry.currency})` : ''}
-                    <EstimateChip />
-                  </span>
-                </Dial>
-                <div className="flex w-full max-w-[260px] justify-between gap-3 font-body text-xs" style={{ color: WHITE.a65 }}>
-                  <span data-testid={`${testId}-low-${entry.currency}`}>
-                    Low <span className="font-bold text-white">{formatEstimate(low, entry.currency)}</span>
-                  </span>
-                  <span data-testid={`${testId}-high-${entry.currency}`}>
-                    High <span className="font-bold text-white">{formatEstimate(high, entry.currency)}</span>
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-          <p data-testid={`${testId}-coverage`} className="text-center font-body text-xs" style={{ color: WHITE.a65 }}>
+        <div className={reserve ? 'mt-1' : 'mt-3'}>
+          <div className="space-y-6">
+            {stat.totals.map((entry) => (
+              <CurrencyForecast key={entry.currency} entry={entry} block={block} />
+            ))}
+          </div>
+          <p data-testid={`${testId}-coverage`} className="mt-2 font-body text-xs" style={{ color: WHITE.a65 }}>
             {stat.forecast} of {stat.events} {stat.events === 1 ? 'event' : 'events'}
           </p>
         </div>
@@ -138,16 +170,7 @@ function ForecastGauge({ title, testId, stat, labels, hotspot, reserve = false }
   );
 }
 
-// ─── The events, one small dial each, on one scale ───────────────────────────
-
-type RowKind = 'estimate' | 'recorded' | 'none';
-
-function kindOf(row: PipelineRow, currency: string | null): RowKind {
-  if (currency === null) return 'none';
-  if (row.forecast && row.forecast.currency === currency) return 'estimate';
-  if (row.revenue && row.revenue.currency === currency) return 'recorded';
-  return 'none';
-}
+// ─── The events, each on its date ────────────────────────────────────────────
 
 function RecordPrompt({ id, onNavigate }: { id: string; onNavigate?: (tab: AdminTab) => void }) {
   if (!onNavigate) return null;
@@ -167,162 +190,124 @@ function RecordPrompt({ id, onNavigate }: { id: string; onNavigate?: (tab: Admin
   );
 }
 
-function EventDial({
-  row,
-  currency,
-  scale,
-  assumptions,
-  tip,
-  activeId,
-  onActive,
-  onNavigate,
-}: {
-  row: PipelineRow;
-  currency: string | null;
-  scale: number;
-  assumptions: AdminBi['forecast']['assumptions'];
-  tip: ReturnType<typeof useChartTip>;
-  activeId: string | null;
-  onActive: (id: string | null) => void;
-  onNavigate?: (tab: AdminTab) => void;
-}) {
-  const id = row.id || row.title;
-  const kind = kindOf(row, currency);
-  const active = activeId === id;
-  const forecast = row.forecast;
-
-  const tipRows = (() => {
-    if (kind === 'estimate' && forecast) {
-      return [
-        { label: 'Low', value: formatEstimate(forecast.revenue.low, forecast.currency), swatch: 'hatch' as const },
-        { label: 'Expected', value: formatEstimate(forecast.revenue.expected, forecast.currency), swatch: 'hatch' as const },
-        { label: 'High', value: formatEstimate(forecast.revenue.high, forecast.currency), swatch: 'hatch' as const },
-        { label: 'Capacity', value: `${formatCount(forecast.capacity.value)} (${forecast.capacity.kind === 'reference' ? 'public' : 'recorded'})` },
-        { label: 'Ticket price', value: formatMoney(forecast.price, forecast.currency) },
-        { label: 'Recorded revenue', value: 'Not recorded' },
-      ];
-    }
-    if (kind === 'recorded' && row.revenue) {
-      return [
-        { label: 'Recorded revenue', value: formatMoney(row.revenue.amount, row.revenue.currency), swatch: 'gold' as const },
-        ...(row.sold !== null ? [{ label: 'Tickets sold', value: formatCount(row.sold) }] : []),
-        ...(row.sellThrough !== null ? [{ label: 'Sell-through', value: formatPercent(row.sellThrough) }] : []),
-      ];
-    }
-    return [{ label: 'Estimate', value: 'None' }, { label: 'Recorded revenue', value: row.revenue ? formatMoney(row.revenue.amount, row.revenue.currency) : 'Not recorded' }];
-  })();
-
-  const note =
-    kind === 'estimate' && forecast
-      ? `An estimate, not a record. At ${describeSellThrough(forecast.sellThrough, assumptions)}.`
-      : kind === 'recorded'
-        ? 'A recorded figure: it is never estimated.'
-        : `No estimate: ${noEstimateReason(row)}.`;
-
-  const handlers = withActive(
-    tip.bind(`forecast-${id}`, () => <TipBody title={row.title} subtitle={`${row.dateLabel} · ${row.daysLabel}`} rows={tipRows} note={note} />),
-    id,
-    onActive,
-  );
-
-  const ariaLabel =
-    kind === 'estimate' && forecast
-      ? `${row.title}: expected ${formatEstimate(forecast.revenue.expected, forecast.currency)}, an estimate from ${formatEstimate(forecast.revenue.low, forecast.currency)} to ${formatEstimate(forecast.revenue.high, forecast.currency)}; revenue not recorded`
-      : kind === 'recorded' && row.revenue
-        ? `${row.title}: recorded revenue ${formatMoney(row.revenue.amount, row.revenue.currency)}`
-        : `${row.title}: no estimate`;
-
-  return (
-    <li
-      data-testid={`bi-forecast-row-${row.id}`}
-      data-kind={kind}
-      data-active={active ? 'true' : undefined}
-      className="flex min-w-0 flex-col items-center gap-2 border p-3 text-center transition-colors duration-300 motion-reduce:transition-none"
-      style={{ borderColor: active ? GOLD_A.a40 : WHITE.a08, background: active ? WHITE.a04 : WHITE.a02 }}
-      {...handlers}
-    >
-      <Dial
-        ratio={kind === 'estimate' && forecast ? forecast.revenue.expected / scale : kind === 'recorded' && row.revenue ? row.revenue.amount / scale : null}
-        band={kind === 'estimate' && forecast ? { from: forecast.revenue.low / scale, to: forecast.revenue.high / scale } : null}
-        needle={kind === 'estimate'}
-        hatched={kind === 'estimate'}
-        divisions={4}
-        width={150}
-        testId={`bi-forecast-dial-${row.id}`}
-        label={ariaLabel}
-        valueText={kind === 'estimate' ? 'an estimate' : kind === 'recorded' ? 'recorded' : 'no estimate'}
-        state={kind === 'none' ? 'not-recorded' : 'recorded'}
-        focusable
-      />
-      <p className="line-clamp-2 min-h-8 w-full font-body text-xs font-bold leading-snug text-white [overflow-wrap:anywhere]" title={row.title}>
-        {row.title}
-        {row.status === 'live' ? (
-          <Chip tone="success" icon="pulse" className="ml-2 align-middle">
-            Live
-          </Chip>
-        ) : null}
-      </p>
-      <p className="font-body text-[11px]" style={{ color: WHITE.a65 }}>
-        {row.daysLabel}
-      </p>
-      {kind === 'estimate' && forecast ? (
-        <p data-testid={`bi-forecast-expected-${row.id}`} className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-body">
-          <span className="text-sm font-bold tabular-nums text-white">{formatEstimate(forecast.revenue.expected, forecast.currency)}</span>
-          <EstimateChip />
-        </p>
-      ) : kind === 'recorded' && row.revenue ? (
-        <p data-testid={`bi-forecast-recorded-${row.id}`} className="font-body text-sm font-bold tabular-nums text-white">
-          {formatMoney(row.revenue.amount, row.revenue.currency)} <span className="text-[11px] font-normal" style={{ color: WHITE.a65 }}>recorded</span>
-        </p>
-      ) : (
-        <p className="font-body text-xs font-bold" style={{ color: WHITE.a65 }}>
-          No estimate
-        </p>
-      )}
-      {!row.recordedSales ? <RecordPrompt id={row.id} onNavigate={onNavigate} /> : null}
-    </li>
-  );
-}
-
-function EventDials({ bi, activeId, onActive, onNavigate }: { bi: AdminBi; activeId: string | null; onActive: (id: string | null) => void; onNavigate?: (tab: AdminTab) => void }) {
+function EventCharts({ bi, activeId, onActive, onNavigate }: { bi: AdminBi; activeId: string | null; onActive: (id: string | null) => void; onNavigate?: (tab: AdminTab) => void }) {
   const tip = useChartTip();
+  const { exporting } = useDashMotion();
+  const [pinned, setPinned] = useState<string | null>(null);
   const rows = bi.pipeline;
   const currency = useMemo(
     () => primaryCurrency([...rows.flatMap((row) => (row.forecast ? [row.forecast.currency] : [])), ...rows.flatMap((row) => (row.revenue ? [row.revenue.currency] : []))]),
     [rows],
   );
-  const largest = rows.reduce((top, row) => {
-    if (kindOf(row, currency) === 'estimate' && row.forecast) return Math.max(top, row.forecast.revenue.high);
-    if (kindOf(row, currency) === 'recorded' && row.revenue) return Math.max(top, row.revenue.amount);
-    return top;
-  }, 0);
-  const scale = niceScale(largest, 5);
-  const plotted = rows.some((row) => kindOf(row, currency) !== 'none');
+  const marks = useMemo(() => eventMarks(rows, currency), [rows, currency]);
+  const dated = useMemo(() => datedMarks(marks), [marks]);
+  const top = useMemo(() => markTop(marks), [marks]);
+  const plotted = marks.some((mark) => mark.kind !== 'none');
+  const undated = marks.length - dated.length;
   const otherCurrencies = rows.filter((row) => (row.forecast && row.forecast.currency !== currency) || (row.revenue && row.revenue.currency !== currency)).length;
+  const todayDay = parseEventDay(bi.today) ?? 0;
 
   if (rows.length === 0) return <EmptyNote testId="bi-forecast-events-empty">No events in this view.</EmptyNote>;
+
+  // the event whose details are written under the chart: the one the pointer or the keyboard is on (here or on the timeline), else the one pressed, else the next
+  const next = nextEvent(rows);
+  const shownId = activeId ?? pinned ?? (next ? next.id || next.title : null);
+  const shown = marks.find((mark) => mark.id === shownId) ?? marks[0];
+  const { row } = shown;
 
   return (
     <div data-testid="bi-forecast-events">
       {plotted && currency ? (
-        <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-          <LegendSwatch kind="hatch" label="Estimated range" />
-          <LegendSwatch kind="needle" label="Expected" />
-          <LegendSwatch kind="solid" label="Recorded" />
-          <span data-testid="bi-forecast-scale" aria-hidden="true" className="font-body text-xs tabular-nums" style={{ color: WHITE.a50 }}>
-            every dial {formatMoney(0, currency)} to {formatMoney(scale.max, currency)}
-          </span>
+        <div data-testid="bi-forecast-events-legend" className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <ChartKey kind="range" label="Estimated range" />
+          <ChartKey kind="expected" label="Expected" />
+          <ChartKey kind="recorded" label="Recorded" />
+          {marks.some((mark) => mark.kind === 'none') ? <ChartKey kind="none" label="No estimate" /> : null}
         </div>
       ) : (
-        <p className="mb-3 font-body text-xs" style={{ color: WHITE.a65 }}>
-          No event has an estimate or recorded revenue to draw yet. Enter Price and Capacity on each event (Events tab).
-        </p>
+        <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <p className="font-body text-xs" style={{ color: WHITE.a65 }}>
+            No event has an estimate or recorded revenue to draw yet. Enter Price and Capacity on each event (Events tab).
+          </p>
+          {dated.length > 0 ? <ChartKey kind="none" label="No estimate" /> : null}
+        </div>
       )}
-      <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        {rows.map((row) => (
-          <EventDial key={row.id || row.title} row={row} currency={currency} scale={scale.max} assumptions={bi.forecast.assumptions} tip={tip} activeId={activeId} onActive={onActive} onNavigate={onNavigate} />
-        ))}
-      </ul>
+      {dated.length > 0 ? (
+        <EventRange
+          testId="bi-forecast-events-chart"
+          label={currency ? `Upcoming and live events by date, in ${currency}: each with its estimated range and expected revenue, or its recorded revenue` : 'Upcoming and live events by date: none has an estimate or recorded revenue yet'}
+          marks={marks}
+          currency={currency ?? ''}
+          max={top}
+          todayDay={todayDay}
+          tip={tip}
+          describe={(mark) => ({ label: eventMarkLabel(mark), content: () => eventMarkTip(mark, bi.forecast.assumptions) })}
+          activeId={activeId}
+          onActive={onActive}
+          onPick={(id) => setPinned((previous) => (previous === id ? null : id))}
+          numbered={exporting}
+        />
+      ) : null}
+      {undated > 0 ? (
+        <p data-testid="bi-forecast-events-undated" className="mt-2 font-body text-[11px]" style={{ color: WHITE.a50 }}>
+          {undated} {undated === 1 ? 'event has no date that can be read, so it is' : 'events have no date that can be read, so they are'} not on the chart: it is in the table.
+        </p>
+      ) : null}
+      <div
+        data-testid="bi-forecast-detail"
+        data-event={shown.id}
+        aria-live="off"
+        className="mt-3 flex min-h-[3.5rem] flex-wrap items-center justify-between gap-x-4 gap-y-2 border px-3 py-2"
+        style={{ borderColor: activeId === shown.id ? GOLD_A.a40 : WHITE.a08, background: activeId === shown.id ? WHITE.a04 : WHITE.a02 }}
+      >
+        <div className="min-w-0">
+          <p className="truncate font-body text-sm font-bold text-white" title={row.title}>
+            {row.title}
+            {row.status === 'live' ? (
+              <Chip tone="success" icon="pulse" className="ml-2 align-middle">
+                Live
+              </Chip>
+            ) : null}
+          </p>
+          <p className="font-body text-[11px]" style={{ color: WHITE.a65 }}>
+            {row.dateLabel} · {row.daysLabel}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+          {shown.kind === 'estimate' && row.forecast ? (
+            <p data-testid={`bi-forecast-expected-${row.id}`} className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 font-body">
+              <span className="text-sm font-bold tabular-nums text-white">{formatEstimate(row.forecast.revenue.expected, row.forecast.currency)}</span>
+              <EstimateChip />
+            </p>
+          ) : shown.kind === 'recorded' && row.revenue ? (
+            <p data-testid={`bi-forecast-recorded-${row.id}`} className="font-body text-sm font-bold tabular-nums text-white">
+              {formatMoney(row.revenue.amount, row.revenue.currency)} <span className="text-[11px] font-normal" style={{ color: WHITE.a65 }}>recorded</span>
+            </p>
+          ) : (
+            <p className="font-body text-xs font-bold" style={{ color: WHITE.a65 }}>
+              No estimate
+            </p>
+          )}
+          {!row.recordedSales ? <RecordPrompt id={row.id} onNavigate={onNavigate} /> : null}
+        </div>
+      </div>
+      {exporting && dated.length > 0 ? (
+        <ol data-testid="bi-forecast-key" className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 md:grid-cols-2">
+          {dated.map((mark, place) => (
+            <li key={mark.id} className="flex items-baseline gap-2 font-body text-[11px]" style={{ color: WHITE.a65 }}>
+              <span className="w-4 shrink-0 font-bold text-white">{place + 1}</span>
+              <span className="min-w-0 [overflow-wrap:anywhere]">
+                <span className="font-bold text-white">{mark.row.title}</span> · {mark.row.daysLabel} ·{' '}
+                {mark.kind === 'estimate' && mark.row.forecast
+                  ? `expected ${formatEstimate(mark.row.forecast.revenue.expected, mark.row.forecast.currency)} (estimate, ${formatEstimate(mark.row.forecast.revenue.low, mark.row.forecast.currency)} to ${formatEstimate(mark.row.forecast.revenue.high, mark.row.forecast.currency)})`
+                  : mark.kind === 'recorded' && mark.row.revenue
+                    ? `recorded ${formatMoney(mark.row.revenue.amount, mark.row.revenue.currency)}`
+                    : 'no estimate'}
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
       {otherCurrencies > 0 && currency ? (
         <p className="pt-2 font-body text-[11px]" style={{ color: WHITE.a50 }}>
           Drawn in {currency}. {otherCurrencies} {otherCurrencies === 1 ? 'event has its amounts' : 'events have their amounts'} in another currency, listed in the table.
@@ -340,7 +325,6 @@ function RecordedStrip({ bi, events }: { bi: AdminBi; events: readonly Event[] }
   const derived = summary.derivedRevenue;
   const sellThrough = summary.sellThrough;
   const perTicket = revenuePerTicket(events);
-  const share = (recorded: number, total: number): number | null => (total === 0 ? null : recorded / total);
   const noun = (total: number) => (total === 1 ? 'event' : 'events');
   const sentence = (coverage: { recorded: number; total: number }, suffix = '') => (coverage.total === 0 ? `no events in this view${suffix}` : `recorded for ${coverage.recorded} of ${coverage.total} ${noun(coverage.total)}${suffix}`);
 
@@ -356,17 +340,31 @@ function RecordedStrip({ bi, events }: { bi: AdminBi; events: readonly Event[] }
         ));
   const grossFigure = moneyFigure(summary.potentialGross);
 
+  /** The small line of a figure by event, drawn when two or more events have it (an event that has not is not on it, and money is drawn in one currency). */
+  const sparkOf = (metric: SparkMetric, name: string, currency: string | null, write: (value: number, currency: string) => string, note: string): React.ReactNode => {
+    if (metric !== 'sold' && currency === null) return null;
+    const points = sparkSeries(events, metric, currency);
+    if (points.length < 2) return null;
+    const describe = (point: SparkPoint) => ({
+      label: `${point.title}, ${point.dateLabel}: ${name} ${write(point.value, currency ?? '')}`,
+      content: () => <TipBody title={point.title} subtitle={point.dateLabel} rows={[{ label: name, value: write(point.value, currency ?? ''), swatch: 'gold' }]} note={note} />,
+    });
+    return <Spark testId={`bi-spark-${metric}`} label={`${name} by event`} points={points} currency={currency ?? ''} tip={tip} describe={describe} />;
+  };
+  const revenueCurrency = primaryCurrency(summary.ticketRevenue.amounts.map((entry) => entry.currency));
+  const perTicketCurrency = primaryCurrency(perTicket.rates.map((rate) => rate.currency));
+  const grossCurrency = primaryCurrency(summary.potentialGross.amounts.map((entry) => entry.currency));
+
   return (
     <div data-testid="bi-recorded" className="mt-6 border-t pt-5" style={{ borderColor: GOLD_A.a10 }}>
       <p className={label11} style={{ color: WHITE.a65 }}>
         Recorded so far
       </p>
       <div className={`mt-3 grid grid-cols-2 gap-3 ${sellThrough.ratio !== null ? 'md:grid-cols-3 xl:grid-cols-5' : 'md:grid-cols-4'}`}>
-        <StatRing
+        <StatCard
           testId="bi-card-ticket-revenue"
           label="Ticket revenue"
           figure={revenueFigure}
-          ratio={share(summary.ticketRevenue.coverage.recorded, summary.ticketRevenue.coverage.total)}
           coverage={summary.ticketRevenue.coverage}
           caption={`${summary.ticketRevenue.coverage.recorded} of ${summary.ticketRevenue.coverage.total} ${noun(summary.ticketRevenue.coverage.total)} recorded`}
           extra={
@@ -376,8 +374,9 @@ function RecordedStrip({ bi, events }: { bi: AdminBi; events: readonly Event[] }
               </p>
             ) : null
           }
-          ringLabel="Ticket revenue (recorded)"
-          valueText={sentence(summary.ticketRevenue.coverage)}
+          detailLabel="Ticket revenue (recorded)"
+          detailText={sentence(summary.ticketRevenue.coverage)}
+          spark={sparkOf('revenue', 'Ticket revenue (recorded)', revenueCurrency, formatMoney, 'Recorded for this event.')}
           tip={tip.bind('recorded-revenue', () => (
             <TipBody
               title="Ticket revenue (recorded)"
@@ -396,15 +395,15 @@ function RecordedStrip({ bi, events }: { bi: AdminBi; events: readonly Event[] }
           ))}
           hotspots={<Hotspots ids={['record-ticket-sales']} label="ticket revenue" slug="ticket-revenue" className="" />}
         />
-        <StatRing
+        <StatCard
           testId="bi-card-tickets-sold"
           label="Tickets sold"
           figure={soldFigure}
-          ratio={share(summary.ticketsSold.coverage.recorded, summary.ticketsSold.coverage.total)}
           coverage={summary.ticketsSold.coverage}
           caption={`${summary.ticketsSold.coverage.recorded} of ${summary.ticketsSold.coverage.total} ${noun(summary.ticketsSold.coverage.total)} recorded`}
-          ringLabel="Tickets sold (recorded)"
-          valueText={sentence(summary.ticketsSold.coverage)}
+          detailLabel="Tickets sold (recorded)"
+          detailText={sentence(summary.ticketsSold.coverage)}
+          spark={sparkOf('sold', 'Tickets sold (recorded)', null, (value) => formatCount(value), 'Recorded for this event.')}
           tip={tip.bind('recorded-sold', () => (
             <TipBody
               title="Tickets sold (recorded)"
@@ -414,14 +413,14 @@ function RecordedStrip({ bi, events }: { bi: AdminBi; events: readonly Event[] }
           ))}
         />
         {sellThrough.ratio !== null ? (
-          <StatRing
+          <StatCard
             testId="bi-sell-through"
             label="Sell-through"
             figure={`${formatCount(sellThrough.sold)}/${formatCount(sellThrough.capacity)}`}
-            ratio={sellThrough.ratio}
-            caption={`sold of seats, ${sellThrough.coverage.recorded} ${sellThrough.coverage.recorded === 1 ? 'event' : 'events'}`}
-            ringLabel="Sell-through"
-            valueText={`sell-through ${formatPercent(sellThrough.ratio)}: ${formatCount(sellThrough.sold)} sold of ${formatCount(sellThrough.capacity)} seats`}
+            coverage={sellThrough.coverage}
+            caption={`${formatPercent(sellThrough.ratio)} of seats sold, ${sellThrough.coverage.recorded} ${sellThrough.coverage.recorded === 1 ? 'event' : 'events'}`}
+            detailLabel="Sell-through"
+            detailText={`sell-through ${formatPercent(sellThrough.ratio)}: ${formatCount(sellThrough.sold)} sold of ${formatCount(sellThrough.capacity)} seats`}
             tip={tip.bind('recorded-sell-through', () => (
               <TipBody
                 title="Sell-through"
@@ -431,15 +430,15 @@ function RecordedStrip({ bi, events }: { bi: AdminBi; events: readonly Event[] }
             ))}
           />
         ) : null}
-        <StatRing
+        <StatCard
           testId="bi-card-per-ticket"
           label="Per ticket"
           figure={perTicketFigure}
-          ratio={share(perTicket.coverage.recorded, perTicket.coverage.total)}
           coverage={perTicket.coverage}
           caption={`${perTicket.coverage.recorded} of ${perTicket.coverage.total} ${noun(perTicket.coverage.total)} recorded`}
-          ringLabel="Average revenue per ticket sold"
-          valueText={perTicket.rates.length === 0 ? 'not recorded' : `recorded revenue / tickets sold, ${describeCoverage(perTicket.coverage)}`}
+          detailLabel="Average revenue per ticket sold"
+          detailText={perTicket.rates.length === 0 ? 'not recorded' : `recorded revenue / tickets sold, ${describeCoverage(perTicket.coverage)}`}
+          spark={sparkOf('perTicket', 'Avg per ticket sold', perTicketCurrency, formatMoney, 'Recorded revenue / tickets sold, for this event.')}
           tip={tip.bind('recorded-per-ticket', () => (
             <TipBody
               title="Avg per ticket sold"
@@ -448,15 +447,15 @@ function RecordedStrip({ bi, events }: { bi: AdminBi; events: readonly Event[] }
             />
           ))}
         />
-        <StatRing
+        <StatCard
           testId="bi-card-potential-gross"
           label="Potential gross"
           figure={grossFigure}
-          ratio={share(summary.potentialGross.coverage.recorded, summary.potentialGross.coverage.total)}
           coverage={summary.potentialGross.coverage}
           caption={`${summary.potentialGross.coverage.recorded} of ${summary.potentialGross.coverage.total} ${noun(summary.potentialGross.coverage.total)} with price and capacity`}
-          ringLabel="Potential gross if sold out"
-          valueText={`${describeCoverage(summary.potentialGross.coverage)} with both a price and a capacity`}
+          detailLabel="Potential gross if sold out"
+          detailText={`${describeCoverage(summary.potentialGross.coverage)} with both a price and a capacity`}
+          spark={sparkOf('gross', 'Potential gross if sold out', grossCurrency, formatMoney, 'Price × capacity, if every seat sold at the listed price.')}
           tip={tip.bind('recorded-gross', () => (
             <TipBody
               title="Potential gross if sold out"
@@ -489,6 +488,7 @@ const TABLE_COLUMNS: readonly TableColumn[] = [
   { label: 'Estimate: low', align: 'right' },
   { label: 'Estimate: expected', align: 'right' },
   { label: 'Estimate: high', align: 'right' },
+  { label: 'Estimate: running total', align: 'right' },
 ];
 
 /** Upcoming and live events first, the soonest first; then past events, the latest first; events without a readable date last. */
@@ -509,11 +509,24 @@ function inAttentionOrder(events: readonly Event[]): Event[] {
   });
 }
 
-function ForecastTable({ events, reference }: { events: readonly Event[]; reference: BiReference }) {
+function ForecastTable({ events, reference, today }: { events: readonly Event[]; reference: BiReference; today: number }) {
+  // what the events add up to, as the lines of the charts draw it: upcoming events and past events each run on from the first, one currency at a time
+  const running = useMemo(() => {
+    const totals = new Map<string, number>();
+    const all = entriesFromEvents(events, reference, today);
+    for (const past of [false, true]) {
+      const group = all.filter((entry) => entry.past === past);
+      for (const currency of new Set(group.map((entry) => entry.forecast.currency))) {
+        for (const point of forecastSeries(group, currency).points) totals.set(point.id, point.runExpected);
+      }
+    }
+    return totals;
+  }, [events, reference, today]);
   const rows = inAttentionOrder(events).map((event, index) => {
     const facts = eventFacts(event);
     const day = parseEventDay(event.date);
     const estimate = forecastEvent(event, reference);
+    const total = running.get(event.id || facts.title);
     return {
       key: facts.id || `${facts.title}-${index}`,
       cells: [
@@ -529,10 +542,19 @@ function ForecastTable({ events, reference }: { events: readonly Event[]; refere
         estimate ? formatEstimate(estimate.revenue.low, estimate.currency) : <NoFigure key="l" />,
         estimate ? formatEstimate(estimate.revenue.expected, estimate.currency) : <NoFigure key="e" />,
         estimate ? formatEstimate(estimate.revenue.high, estimate.currency) : <NoFigure key="h" />,
+        estimate && total !== undefined ? formatEstimate(total, estimate.currency) : <NoFigure key="u" />,
       ],
     };
   });
-  return <DataTable testId="bi-forecast-table-grid" caption="Every event in this view: what is recorded, and the estimate where nothing is recorded. Estimates are not records." columns={TABLE_COLUMNS} rows={rows} minWidth="64rem" />;
+  return (
+    <DataTable
+      testId="bi-forecast-table-grid"
+      caption="Every event in this view: what is recorded, and the estimate where nothing is recorded. The running total adds the expected estimates of the events on and before its date (upcoming and past events each from their first). Estimates are not records."
+      columns={TABLE_COLUMNS}
+      rows={rows}
+      minWidth="72rem"
+    />
+  );
 }
 
 // ─── Sources ─────────────────────────────────────────────────────────────────
@@ -571,6 +593,13 @@ export const RevenueForecast = memo(function RevenueForecast({ bi, events, refer
   const { assumptions, upcoming, past } = bi.forecast;
   const labels = scenarioLabels(assumptions);
   const hasPriceAction = useActions().actions.some((action) => action.id === 'add-prices');
+  const tip = useChartTip();
+  const [scenario, setScenario] = useState<Scenario>('expected');
+  const todayDay = parseEventDay(bi.today) ?? 0;
+  // the events each forecast is drawn from: the pipeline's for the upcoming and live ones, the scoped past ones the model can still estimate
+  const upcomingEntries = useMemo(() => entriesFromPipeline(bi.pipeline), [bi.pipeline]);
+  const pastEntries = useMemo(() => entriesFromPast(events, reference, todayDay), [events, reference, todayDay]);
+  const forecasting = assumptions.usable && (upcoming.forecast > 0 || past.forecast > 0);
 
   return (
     <ChartSection
@@ -593,10 +622,34 @@ export const RevenueForecast = memo(function RevenueForecast({ bi, events, refer
       chart={
         <>
           {assumptions.usable ? (
-            <div className="grid grid-cols-1 gap-x-8 gap-y-8 lg:grid-cols-2">
-              <ForecastGauge title="Upcoming and live" testId="bi-forecast-upcoming" stat={upcoming} labels={labels} reserve={hasPriceAction} hotspot={<Hotspots ids={['add-prices']} label="the forecast" slug="forecast" className="" />} />
-              <ForecastGauge title="Past, no sales recorded" testId="bi-forecast-past" stat={past} labels={labels} reserve={hasPriceAction} />
-            </div>
+            <>
+              {forecasting ? (
+                <div data-testid="bi-forecast-controls" className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+                  <div data-testid="bi-forecast-legend" className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                    <ChartKey kind="range" label="Estimated range" />
+                    <ChartKey kind="line" label={`${SCENARIO_WORD[scenario][0].toUpperCase()}${SCENARIO_WORD[scenario].slice(1)}`} />
+                  </div>
+                  <ScenarioSlider value={scenario} onChange={setScenario} words={['Low', 'Expected', 'High']} testId="bi-forecast-scenario" />
+                </div>
+              ) : null}
+              <div className="grid grid-cols-1 gap-x-8 gap-y-8 lg:grid-cols-2">
+                <ForecastBlock
+                  title="Upcoming and live"
+                  testId="bi-forecast-upcoming"
+                  stat={upcoming}
+                  entries={upcomingEntries}
+                  labels={labels}
+                  scenario={scenario}
+                  todayDay={todayDay}
+                  tip={tip}
+                  activeId={activeId}
+                  onActive={onActive}
+                  reserve={hasPriceAction}
+                  hotspot={<Hotspots ids={['add-prices']} label="the forecast" slug="forecast" className="" />}
+                />
+                <ForecastBlock title="Past, no sales recorded" testId="bi-forecast-past" stat={past} entries={pastEntries} labels={labels} scenario={scenario} todayDay={null} tip={tip} activeId={activeId} onActive={onActive} reserve={hasPriceAction} />
+              </div>
+            </>
           ) : (
             <>
               <EmptyNote>No estimate can be made while the sell-through values in the reference data are not valid.</EmptyNote>
@@ -609,12 +662,12 @@ export const RevenueForecast = memo(function RevenueForecast({ bi, events, refer
             <p className={`mb-3 ${label11}`} style={{ color: WHITE.a65 }}>
               Event by event
             </p>
-            <EventDials bi={bi} activeId={activeId} onActive={onActive} onNavigate={onNavigate} />
+            <EventCharts bi={bi} activeId={activeId} onActive={onActive} onNavigate={onNavigate} />
           </div>
           <RecordedStrip bi={bi} events={events} />
         </>
       }
-      table={<ForecastTable events={events} reference={reference} />}
+      table={<ForecastTable events={events} reference={reference} today={todayDay} />}
       beaconsOnVisuals
       beacons={<PanelBeacons ids={FORECAST_ACTIONS} label="revenue and forecast" slug="forecast-panel" />}
       notes={<HotspotNotes ids={FORECAST_ACTIONS} label="revenue and forecast" slug="forecast" />}

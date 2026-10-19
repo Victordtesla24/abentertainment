@@ -6,7 +6,7 @@ import { describeCoverage, formatCount, formatEstimate, formatMoney, formatPerce
 import { clipName } from './biText';
 import { GOLD_A, OTHER_FILL, WHITE, seriesFill } from './brand';
 import { niceScale } from './chartMath';
-import { Dial, FIGURE } from './dial';
+import { FIGURE } from './dial';
 import { Donut, type DonutSegment } from './donut';
 import { DonutLegend, type LegendRow } from './donutLegend';
 import { HotspotNotes, Hotspots, PanelBeacons } from './hotspots';
@@ -17,13 +17,17 @@ import { foldOther } from './radial';
 import { capacityAboveVenue, metricOf, primaryCurrency, type BreakdownMetric, type CapacityFlag } from './selectors';
 import { TipBody, useChartTip, withActive } from './tooltip';
 import { ChartPanel, DataTable, EmptyNote, NotRecorded, Segmented, SectionHeader, buttonClass, type SegmentedOption, type TableColumn } from './ui';
+import { DotRows, type DotRow } from './charts/DotRows';
+import { ChartKey } from './charts/legend';
 
 /**
- * BREAKDOWNS: the events by category and by venue. What is added up (how many events, the expected revenue, the seats) is a donut of
- * about six slices with the rest folded into "Other", and each name and value in its legend; the average ticket price, which cannot be added up,
- * is a small dial for each row. One switch chooses what they show (events, average price, forecast, seats). A venue carries its warnings
- * (a capacity above what the venue publishes, names that look like the same place) as flags on its row and as beacons on the panel.
- * A figure that is not recorded is never a zero slice or a zero dial: it is "Not recorded", with where to record it in its tooltip.
+ * BREAKDOWNS: the events by category and by venue. What is added up (how many events, the seats) is a donut of about six slices with the rest
+ * folded into "Other", and each name and value in its legend. What is compared (the average ticket price, which cannot be added up, and the
+ * expected revenue, an estimate with a range) is a dot for each row on one shared axis of money: a solid gold dot and the range of prices for
+ * an average, a hatched dot on a hatched range for an estimate, and the national average as a line across the rows. One switch chooses what they
+ * show (events, average price, forecast, seats). A venue carries its warnings (a capacity above what the venue publishes, names that look like
+ * the same place) as flags on its row and as beacons on the panel. A figure that is not recorded is never a zero slice or a zero dot: it is
+ * "Not recorded", with where to record it in its tooltip.
  */
 
 const COPY = {
@@ -40,7 +44,7 @@ type MetricSpec = SegmentedOption<BreakdownMetric> & {
   heading: string;
   hatched: boolean;
   pointer: string;
-  /** A total makes sense (events, revenue, seats): a donut. An average does not: a dial for each row. */
+  /** A total makes sense (events, seats): a donut. An average, and an estimate with a range, do not: a dot for each row on one axis. */
   additive: boolean;
   unit: string;
 };
@@ -48,7 +52,7 @@ type MetricSpec = SegmentedOption<BreakdownMetric> & {
 const METRICS: readonly MetricSpec[] = [
   { value: 'events', label: 'Events', title: 'How many events', heading: 'How many events', hatched: false, pointer: '', additive: true, unit: 'events' },
   { value: 'price', label: 'Avg price', title: 'Average ticket price', heading: 'Average ticket price', hatched: false, pointer: 'Enter Price on each event (Events tab)', additive: false, unit: 'average' },
-  { value: 'forecast', label: 'Forecast', title: 'Expected revenue: an estimate', heading: 'Expected revenue', hatched: true, pointer: 'Enter Price and Capacity on each event (Events tab)', additive: true, unit: 'expected' },
+  { value: 'forecast', label: 'Forecast', title: 'Expected revenue: an estimate', heading: 'Expected revenue', hatched: true, pointer: 'Enter Price and Capacity on each event (Events tab)', additive: false, unit: 'expected' },
   { value: 'seats', label: 'Seats', title: 'Seats offered (recorded capacity)', heading: 'Seats offered (recorded capacity)', hatched: false, pointer: 'Enter Capacity on each event (Events tab)', additive: true, unit: 'seats' },
 ];
 
@@ -160,9 +164,11 @@ interface PanelProps {
   /** The actions that belong to this panel, and what to call it. */
   actions: readonly string[];
   actionsLabel: string;
+  /** The national average ticket price in this currency (context across the dots of the average price); null when there is none to compare. */
+  national: number | null;
 }
 
-function GroupPanel({ kind, rows, metric, currency, flags, actions, actionsLabel }: PanelProps) {
+function GroupPanel({ kind, rows, metric, currency, flags, actions, actionsLabel, national }: PanelProps) {
   const copy = COPY[kind];
   const [expanded, setExpanded] = useState(false);
   const [active, setActive] = useState<string | null>(null);
@@ -269,9 +275,35 @@ function GroupPanel({ kind, rows, metric, currency, flags, actions, actionsLabel
           )),
         };
 
-  // ─ a dial for each row when the figure is an average
+  // ─ a dot for each row when the figure is an average or an estimate: one axis of money for every row, the range of each round its dot
   const shownRows = expanded ? entries : entries.slice(0, COLLAPSED_ROWS);
-  const scale = niceScale(Math.max(0, ...entries.map((entry) => entry.value ?? 0)), 5).max;
+  const rangeOf = (row: GroupRow): { lo: number | null; hi: number | null } => {
+    if (metric.value === 'price') {
+      const range = row.summary.price.ranges.find((entry) => entry.currency === currency);
+      return { lo: range?.min ?? null, hi: range?.max ?? null };
+    }
+    const revenue = row.forecast.totals.find((entry) => entry.currency === currency)?.revenue;
+    return { lo: revenue?.low ?? null, hi: revenue?.high ?? null };
+  };
+  const axisTop = Math.max(0, ...entries.map((entry) => rangeOf(entry.row).hi ?? entry.value ?? 0), metric.value === 'price' ? (national ?? 0) : 0);
+  const axis = niceScale(axisTop, 4);
+  const dotRows: DotRow[] = shownRows.map(({ row, value }) => {
+    const id = row.key || 'none';
+    const { lo, hi } = rangeOf(row);
+    return {
+      key: id,
+      label: row.label,
+      value,
+      lo,
+      hi,
+      kind: metric.value === 'forecast' ? 'estimate' : 'record',
+      figure: value === null ? <NotRecorded /> : formatMetric(metric.value, value, currency),
+      ariaLabel: ariaOf(row, value),
+      testId: `bi-group-${id}`,
+      tip: withActive(rowTip(row, `${kind}-${id}`, value), id, setActive),
+      extra: <RowFlags row={row} kind={kind} flags={flags} />,
+    };
+  });
 
   const canExpand = metric.additive ? recordedEntries.length > 6 : entries.length > COLLAPSED_ROWS;
 
@@ -324,31 +356,23 @@ function GroupPanel({ kind, rows, metric, currency, flags, actions, actionsLabel
                 </div>
               )
             ) : (
-              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {shownRows.map(({ row, value }) => {
-                  const id = row.key || 'none';
-                  return (
-                    <li
-                      key={id}
-                      data-testid={`bi-group-${id}`}
-                      tabIndex={0}
-                      aria-label={ariaOf(row, value)}
-                      className="flex min-w-0 flex-col items-center gap-1.5 border p-2 text-center"
-                      style={{ borderColor: WHITE.a08, background: WHITE.a02 }}
-                      {...withActive(rowTip(row, `${kind}-${id}`, value), id, setActive)}
-                    >
-                      <Dial ratio={value === null ? null : value / scale} width={112} divisions={4} label={`${row.label}: ${metric.heading}`} valueText={valueOf(value)} />
-                      <p className="line-clamp-2 w-full font-body text-xs font-bold leading-snug text-white [overflow-wrap:anywhere]" title={row.label}>
-                        {row.label}
-                      </p>
-                      <p className="font-body text-xs tabular-nums">
-                        {value === null ? <NotRecorded /> : <span className="font-bold text-white">{formatMetric(metric.value, value, currency)}</span>}
-                      </p>
-                      <RowFlags row={row} kind={kind} flags={flags} />
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="space-y-3">
+                <div data-testid={`${copy.testId}-keys`} className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  {metric.value === 'forecast' ? (
+                    <>
+                      <ChartKey kind="range" label="Estimated range" />
+                      <ChartKey kind="expected" label="Expected" />
+                    </>
+                  ) : (
+                    <>
+                      <ChartKey kind="average" label="Average" />
+                      <ChartKey kind="whisker" label="Lowest to highest" />
+                      {national !== null ? <ChartKey kind="national" label="National average" /> : null}
+                    </>
+                  )}
+                </div>
+                <DotRows testId={`${copy.testId}-dots`} label={`${copy.eyebrow}: ${metric.heading}, in ${currency}`} rows={dotRows} axis={axis} currency={currency} reference={metric.value === 'price' ? national : null} activeKey={active} />
+              </div>
             )}
             {canExpand ? (
               <button type="button" onClick={() => setExpanded((previous) => !previous)} aria-expanded={expanded} data-testid={`${copy.testId}-toggle`} className={`${buttonClass('ghost', 'sm')} mt-4`}>
@@ -358,7 +382,7 @@ function GroupPanel({ kind, rows, metric, currency, flags, actions, actionsLabel
             ) : null}
             {metric.hatched && rows.some((row) => row.forecast.totals.length > 0) ? (
               <p data-testid={`${copy.testId}-legend`} className="mt-3 font-body text-[11px]" style={{ color: WHITE.a65 }}>
-                Forecast slices are estimates, not records.
+                Forecast marks are estimates, not records.
               </p>
             ) : null}
           </div>
@@ -375,6 +399,8 @@ export const Breakdowns = memo(function Breakdowns({ bi, events, reference, dela
   const flags = useMemo(() => capacityAboveVenue(events, reference), [events, reference]);
   const currency =
     primaryCurrency([...bi.categories, ...bi.venues].flatMap((row) => [...row.summary.price.ranges.map((range) => range.currency), ...row.forecast.totals.map((total) => total.currency)])) ?? '';
+  // the national average ticket price is context for the average price of the rows, in the currency they are drawn in
+  const national = bi.nationalAveragePrice !== null && bi.nationalAveragePrice.currency === currency ? bi.nationalAveragePrice.value : null;
 
   return (
     <section aria-labelledby={titleId} data-testid="bi-breakdowns">
@@ -398,8 +424,8 @@ export const Breakdowns = memo(function Breakdowns({ bi, events, reference, dela
       </Reveal>
       <Reveal delay={0.06}>
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-          <GroupPanel kind="category" rows={bi.categories} metric={metric} currency={currency} flags={flags} actions={['category-spelling']} actionsLabel="the categories" />
-          <GroupPanel kind="venue" rows={bi.venues} metric={metric} currency={currency} flags={flags} actions={['add-capacity', 'capacity-over-venue', 'venue-not-in-reference', 'venue-spelling', 'venue-duplicates']} actionsLabel="the venues" />
+          <GroupPanel kind="category" rows={bi.categories} metric={metric} currency={currency} flags={flags} actions={['category-spelling']} actionsLabel="the categories" national={national} />
+          <GroupPanel kind="venue" rows={bi.venues} metric={metric} currency={currency} flags={flags} actions={['add-capacity', 'capacity-over-venue', 'venue-not-in-reference', 'venue-spelling', 'venue-duplicates']} actionsLabel="the venues" national={national} />
         </div>
       </Reveal>
     </section>
