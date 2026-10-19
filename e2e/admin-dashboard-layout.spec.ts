@@ -6,7 +6,9 @@
  * At every size: every panel is there (the command bar with its actions chip, the dials, rings and donuts, the beacons of the
  * actions), nothing sticks out sideways (outside a table's own scrolling block), the timeline is the rail from 640 px and a lane for
  * each event below it (the range slider under it at every size), every panel is glass (translucent, blurred), no text is smaller
- * than 10 px, on touch every button is at least 44 px each way, and the browser logs no error.
+ * than 10 px, on touch every button is at least 44 px each way, and the browser logs no error. The content column that scrolls the
+ * Dashboard has no scroll of its own on a fresh Dashboard (on a phone the first swipe would scroll that column by a few pixels
+ * instead of the page), and one test swipes on a 390 px phone to prove the first swipe moves the page.
  */
 
 import { test, expect, type Page } from '@playwright/test';
@@ -36,6 +38,26 @@ import {
 } from './support/admin-dashboard-http';
 
 const byId = (page: Page, id: string) => page.getByTestId(id);
+
+/**
+ * How many pixels taller the content of the admin content column (the element that scrolls the Dashboard) is than the column itself:
+ * 0 when it has no scroll of its own. The column is as tall as the Dashboard on a phone, so any overflow at all makes it the thing
+ * a first touch swipe scrolls (by that many pixels), and only the second swipe moves the page.
+ */
+async function columnScroll(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const column = [...document.querySelectorAll<HTMLElement>('div.flex-1')].find((element) => /auto|scroll/.test(getComputedStyle(element).overflowY));
+    return column ? column.scrollHeight - column.clientHeight : -1;
+  });
+}
+
+/** How far the page has been scrolled: the window's own scroll plus the content column's (a swipe moves one or the other). */
+async function scrolledBy(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const column = [...document.querySelectorAll<HTMLElement>('div.flex-1')].find((element) => /auto|scroll/.test(getComputedStyle(element).overflowY));
+    return window.scrollY + (column ? column.scrollTop : 0);
+  });
+}
 
 /** The panels of the tab, top to bottom: the command bar with its actions chip, the tiles, and the charts with the beacons of their actions. */
 const PANELS = [
@@ -104,6 +126,8 @@ test.describe('the admin Dashboard at ten device sizes', () => {
         await stubHealth(page);
         await stubPageChecks(page);
         await openDashboard(page);
+        // a fresh Dashboard (nothing scrolled to yet, so the last section is still waiting to enter): the content column has no scroll of its own
+        expect(await columnScroll(page), 'the content column is as tall as its content (no scroll of its own for a first swipe to be eaten by)').toBe(0);
         await openSystem(page);
         await expect(page.locator('[data-testid^="system-page-"]').filter({ hasText: 'Checking' })).toHaveCount(0, { timeout: 60000 });
         await settled(page);
@@ -182,4 +206,40 @@ test.describe('the admin Dashboard at ten device sizes', () => {
       }
     });
   }
+
+  test('mobile-390 (390 x 844, touch): the first swipe from the top of a fresh Dashboard scrolls the page, not the content column', async ({ browser }) => {
+    const context = await newDashboardContext(browser, { width: 390, height: 844, touch: true });
+    const page = await context.newPage();
+    const errors = collectErrors(page);
+    try {
+      await adminLogin(page);
+      await stubHealth(page);
+      await stubPageChecks(page);
+      await openDashboard(page);
+      await settled(page);
+      expect(await columnScroll(page), 'the content column has no scroll of its own on a fresh Dashboard').toBe(0);
+
+      // real touch events (the browser decides what a swipe scrolls): put a finger down at 600 px, drag it 300 px up, lift it
+      const cdp = await context.newCDPSession(page);
+      const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', y?: number) =>
+        cdp.send('Input.dispatchTouchEvent', { type, touchPoints: y === undefined ? [] : [{ x: 60, y, id: 1, radiusX: 1, radiusY: 1, force: 1 }] });
+      const swipeUp = async () => {
+        const steps = 16;
+        await touch('touchStart', 600);
+        for (let step = 1; step <= steps; step += 1) {
+          await touch('touchMove', 600 - (300 * step) / steps);
+          await page.waitForTimeout(14);
+        }
+        await touch('touchEnd');
+        await page.waitForTimeout(700);
+      };
+
+      const start = await scrolledBy(page);
+      await swipeUp();
+      expect((await scrolledBy(page)) - start, 'the first swipe (300 px up) moves the page by about as much, not by a few pixels').toBeGreaterThanOrEqual(250);
+      expect(errors, 'console errors and uncaught errors').toEqual([]);
+    } finally {
+      await context.close();
+    }
+  });
 });

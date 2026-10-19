@@ -536,7 +536,9 @@ export default function HealthDashboard({ events, sponsors, onNavigate }: Health
   return (
     <DashMotionProvider exporting={exporting}>
       <HotspotProvider onNavigate={onNavigate ? navigate : undefined}>
-      <div id="health-dashboard-content" className="relative isolate mx-auto w-full max-w-[1440px] [font-variant-numeric:lining-nums]">
+      {/* pb-1: the 4px hover strip under the last panel (and the 16px the last section is held down by until it has entered) must lie inside this box.
+          Under 640px the page pads the Dashboard by 16px only, so without it the content column gets 3px of scroll of its own and the first swipe scrolls that, not the page. */}
+      <div id="health-dashboard-content" className="relative isolate mx-auto w-full max-w-[1440px] pb-1 [font-variant-numeric:lining-nums]">
         <DashboardBackdrop />
         <div className="relative space-y-8">
           <CommandBar
